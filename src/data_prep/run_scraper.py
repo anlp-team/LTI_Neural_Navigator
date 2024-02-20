@@ -29,7 +29,7 @@ def main():
 
     scraper_ = scraper.Scraper()
     for url in list_of_sources:
-        bfs_pages(scraper_, url, visited)
+        bfs_pages(scraper_, url, visited, max_depth=1)
     scraper_.close()
 
     print(f"Time: {time.time() - start:.2f}")

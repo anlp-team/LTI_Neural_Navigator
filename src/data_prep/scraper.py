@@ -5,6 +5,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
 import utils
+import pypdf
 
 
 class Scraper:
@@ -30,7 +31,7 @@ class Scraper:
         soup = self.get_soup(url)
         soup = self.remove_js_css(soup)
         # TODO: should I remove more stuff?
-        return soup
+        return soup, self.get_links(soup), self.get_title(soup)
 
     def get_html(self, url: str):
         # set the current url to the domain of the page

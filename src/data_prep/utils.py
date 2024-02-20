@@ -1,43 +1,59 @@
 import os
 import json
+import pypdf
 import urllib.request
 
 from tqdm import tqdm
 from datetime import datetime
 from bs4 import BeautifulSoup
 from typing import Union, List
-from collections import defaultdict, Iterator
+from collections import defaultdict
+from collections.abc import Iterator
 from selenium.common.exceptions import TimeoutException, WebDriverException
 
 
-def save_html(soup: BeautifulSoup, path: str, page_title: str = None):
+def save_html(
+    soup: BeautifulSoup, path: str, page_title: str = None, delimeter: str = " "
+):
     datetime_str = datetime.now().strftime("%Y-%m-%d")
-    path = f"{path}/{datetime_str}/{page_title}.html"
+    path = f"{path}/{datetime_str}/{page_title}.txt"
 
     if not os.path.exists(os.path.dirname(path)):
         os.makedirs(os.path.dirname(path))
     if os.path.exists(path):
-        path = f"{path[:-5]}_{get_timestamp()}.html"  # some pages have the same title
+        path = f"{path[:-5]}_{get_timestamp()}.txt"  # some pages have the same title
 
+    text = delimeter.join(soup.stripped_strings)
     with open(path, "w") as file:
-        file.write(str(soup))
+        file.write(text)
 
 
 def save_pdf(url: str, path: str):
     datetime_str = datetime.now().strftime("%Y-%m-%d")
-    path = f"{path}/{datetime_str}/{url.split('/')[-1].replace('%', '_')}"
+    path = f"{path}/{datetime_str}/{url.split('/')[-1].replace('%', '_').replace('.pdf', '')}"
 
     if not os.path.exists(os.path.dirname(path)):
         os.makedirs(os.path.dirname(path))
 
     try:
         urllib.request.urlretrieve(
-            url, path
+            url, f"{path}.pdf"
         )  # TODO: assuming no pdfs have the same name
     except Exception as e:  # TODO: HTTP Error 403: forbidden
         tqdm.write(f"Error: {e}")
         return
-    return url.split("/")[-1].replace("%", "_")
+
+    # extract the text from the pdf
+    reader = pypdf.PdfReader(f"{path}.pdf")
+    with open(f"{path}.txt", "w") as file:
+        for page in reader.pages:
+            text = page.extract_text()
+            file.write(text)
+
+    # remove the pdf
+    os.remove(f"{path}.pdf")
+
+    return url.split("/")[-1].replace("%", "_").replace(".pdf", ".txt")
 
 
 def bfs_pages(
@@ -65,17 +81,14 @@ def bfs_pages(
 
         # if the page is a pdf download it to the data/raw folder
         if u.endswith(".pdf"):
-            try:
-                visited[u] = save_pdf(
-                    u, "data/raw"
-                )  # TODO: will pdf contain any useful links?
-            except Exception as e:
-                tqdm.write(f"Error: {e}")
+            visited[u] = save_pdf(
+                u, "data/raw"
+            )  # TODO: will pdf contain any useful links?
             continue
 
         # otherwise parse the page and get the links
         try:
-            soup = scraper.parse(u)
+            soup_u, links_u, title_u = scraper.parse(u)
         except TimeoutException as e:
             tqdm.write(f"TimeoutException: {e}")
             continue
@@ -83,15 +96,13 @@ def bfs_pages(
             tqdm.write(f"WebDriverException: {e}")
             continue
 
-        links.extend(
-            scraper.get_links(soup)
-        )  # TODO: should I filter out only cmu links?
+        links.extend(list(links_u))  # TODO: should I filter out only cmu links?
 
         if u not in visited:  # only save the page if it hasn't been visited before
-            visited[u] = scraper.get_title(soup)
-            save_html(soup, "data/raw", visited[u])
+            visited[u] = title_u
+            save_html(soup_u, "data/raw", visited[u])
 
-    bfs_pages(scraper, links[29:], visited, depth + 1)
+    bfs_pages(scraper, links, visited, depth + 1, max_depth)
 
 
 def save_visited_json(visited: defaultdict[str, str], path: str):
