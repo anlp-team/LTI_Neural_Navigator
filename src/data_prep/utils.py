@@ -10,7 +10,9 @@ from collections import defaultdict, Iterator
 from selenium.common.exceptions import TimeoutException, WebDriverException
 
 
-def save_html(soup: BeautifulSoup, path: str, page_title: str = None):
+def save_html(
+    soup: BeautifulSoup, path: str, page_title: str = None, delimeter: str = " "
+):
     datetime_str = datetime.now().strftime("%Y-%m-%d")
     path = f"{path}/{datetime_str}/{page_title}.html"
 
@@ -19,8 +21,9 @@ def save_html(soup: BeautifulSoup, path: str, page_title: str = None):
     if os.path.exists(path):
         path = f"{path[:-5]}_{get_timestamp()}.html"  # some pages have the same title
 
+    text = delimeter.join(soup.stripped_strings)
     with open(path, "w") as file:
-        file.write(str(soup))
+        file.write(text)
 
 
 def save_pdf(url: str, path: str):
@@ -91,7 +94,7 @@ def bfs_pages(
             visited[u] = scraper.get_title(soup)
             save_html(soup, "data/raw", visited[u])
 
-    bfs_pages(scraper, links[29:], visited, depth + 1)
+    bfs_pages(scraper, links, visited, depth + 1, max_depth)
 
 
 def save_visited_json(visited: defaultdict[str, str], path: str):
