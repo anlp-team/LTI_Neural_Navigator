@@ -17,7 +17,14 @@ class Scraper:
         self.chrome_options.add_argument("--disable-dev-shm-usage")
         self.driver = webdriver.Chrome(options=self.chrome_options)
         # self.driver.implicitly_wait(10)
-        self.driver.set_page_load_timeout(10)
+        self.driver.set_page_load_timeout(
+            10
+        )  # TODO: is this too short? what causes a page to load for more than 10 seconds?
+
+        self.current_url = None
+
+    def set_domain(self, url: str):
+        self.current_url = url.split("/")[2]
 
     def parse(self, url: str):
         soup = self.get_soup(url)
@@ -26,6 +33,8 @@ class Scraper:
         return soup
 
     def get_html(self, url: str):
+        # set the current url to the domain of the page
+        self.set_domain(url)
         self.driver.get(url)
         return self.driver.page_source
 
@@ -36,13 +45,13 @@ class Scraper:
     def get_links(self, soup: BeautifulSoup):
         # only anchor tag links to external pages. Instead link tag link doc to the current page
         links = [link.get("href") for link in soup.find_all("a")]
-        return [link for link in links if link is not None and link.startswith("http")]
+        return self.filter_links(links)
 
     def get_title(self, soup: BeautifulSoup):
         if soup.title is None:
             return f"untitsled_{utils.get_timestamp()}"
         title = soup.title.string.replace(" ", "_").replace("/", "__")
-        return title
+        return title.replace("\n", "")
 
     def remove_js_css(self, soup: BeautifulSoup):
         # TODO: is this too aggressive?
@@ -62,6 +71,15 @@ class Scraper:
                 match.decompose()
         return soup
 
+    def filter_links(self, links: list):
+        for link in links:
+            if link is None:
+                continue
+            if link.startswith("http"):
+                yield link
+            if link.startswith("/"):
+                yield f"https://{self.current_url}{link}"  # some links are relative to the current page
+
     def get_date(self, date_str: str):
         return datetime.strptime(date_str, "%Y-%m-%d")
 
@@ -77,4 +95,4 @@ if __name__ == "__main__":
     soup = scraper_.get_soup("https://www.cs.cmu.edu/scs25/25things")
     # print(soup)
     # print(scraper_.remove_js_css(soup))
-    # print(scraper_.get_links(soup))
+    print(list(scraper_.get_links(soup)))
