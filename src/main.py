@@ -58,25 +58,38 @@ def langchain(args):
     def format_docs(docs):
         return "\n\n".join(doc.page_content for doc in docs)
 
-    retriever = vectorstore.as_retriever()
-    chain = (
-            {"context": retriever | format_docs, "question": RunnablePassthrough()}
-            | rag_prompt
-            | gpt4all
-            | StrOutputParser()
-    )
+    while True:
+        question = input("What's your problem today (input \"exit\" to exit): ")
+        if question == "exit":
+            break
 
-    # Run
-    invoke_result = chain.invoke(args.question)
-    print(invoke_result)
+        # Retrieve documents
+        topk_docs = vectorstore.search(question, k=args.topk, search_type=args.search_type)
+
+        # Generate prompt
+        prompt = rag_prompt.format(question=question, context=format_docs(topk_docs))
+
+        # Run the model
+        output = gpt4all(prompt)
+
+        # Parse the output
+        answer = StrOutputParser().parse(output)
+        print("Answer:", answer)
+
+        print("====== Reference documents ======")
+        for i, doc in enumerate(topk_docs):
+            print(f"[{i + 1}] {doc}")
 
 
 def arg_parser():
     parser = argparse.ArgumentParser(description="LTI Neural Navigator")
-    parser.add_argument("--question", type=str,
-                        default="What are the approaches to Task Decomposition?",
-                        help="Question to ask")
+    # parser.add_argument("--question", type=str,
+    #                     default="Where is CMU located?",
+    #                     help="Question to ask")
+    parser.add_argument("--topk", type=int, default=5, help="Maximum number of documents to retrieve")
     parser.add_argument("--max_tokens", type=int, default=2048, help="Maximum tokens supported by the system")
+    parser.add_argument("--search_type", type=str, default="mmr", help="Type of search to perform",
+                        choices=["similarity", "mmr", "similarity_score_threshold"])
 
     parser.add_argument("--doc_path", type=str, default="../data/sample", help="Path to knowledge base")
     parser.add_argument("--core_model_ckpt", type=str, default="../model_ckpts/gpt4all-falcon-newbpe-q4_0.gguf",
