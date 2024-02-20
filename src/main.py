@@ -15,9 +15,7 @@ from rag.embedder import EmbeddingModel, Embedder
 from rag.retriever import DocumentDatabase, Ranker, Retriever
 
 
-
 def main():
-
     # NOT IMPLEMENTED
     raise NotImplementedError
 
@@ -51,7 +49,7 @@ def langchain(args):
     vectorstore = Chroma.from_documents(documents=all_splits, embedding=GPT4AllEmbeddings())
 
     # prepare core model
-    gpt4all = GPT4All(model=args.model_ckpt, max_tokens=args.max_tokens)
+    gpt4all = GPT4All(model=args.core_model_ckpt, max_tokens=args.max_tokens)
 
     # Prompt
     rag_prompt = hub.pull("rlm/rag-prompt")
@@ -81,7 +79,8 @@ def arg_parser():
     parser.add_argument("--max_tokens", type=int, default=2048, help="Maximum tokens supported by the system")
 
     parser.add_argument("--doc_path", type=str, default="../data/sample", help="Path to knowledge base")
-    parser.add_argument("--core_model_ckpt", type=str, default="../model_ckpts/????", help="Path to core model checkpoint")
+    parser.add_argument("--core_model_ckpt", type=str, default="../model_ckpts/gpt4all-falcon-newbpe-q4_0.gguf",
+                        help="Path to core model checkpoint")
     parser.add_argument("--embed_model_ckpt", type=str, default="../model_ckpts/????", help="Path to model checkpoint")
 
     return parser.parse_args()
