@@ -1,14 +1,11 @@
 import time
 import scraper
 import preproessor
-from tqdm import tqdm
-from collections import defaultdict
 from utils import (
     bfs_pages,
     preprocess_unstructured,
     save_visited_json,
     load_visited_json,
-    save_html_str,
 )
 
 
@@ -34,7 +31,6 @@ def main():
     visited = load_visited_json(data_path)
     all_html_paths = []
     all_pdf_paths = []
-
     start = time.time()
 
     scraper_ = scraper.scraper()
@@ -43,17 +39,15 @@ def main():
             scraper_,
             url,
             visited,
-            max_depth=1,
+            max_depth=2,
             all_html_paths=all_html_paths,
+            all_pdf_paths=all_pdf_paths,
             raw_html=True,
         )
-    scraper_.close()
-
     preprocessor_ = preproessor.preprocessor()
     preprocess_unstructured(preprocessor_, all_html_paths, all_pdf_paths)
 
     print(f"Time: {time.time() - start:.2f}")
-
     save_visited_json(visited, data_path)
 
 
