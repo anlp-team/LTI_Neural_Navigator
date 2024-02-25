@@ -1,12 +1,15 @@
+import os
 import time
 import scraper
 import preproessor
+
 from utils import (
     bfs_pages,
     preprocess_unstructured,
     save_visited_json,
     load_visited_json,
 )
+from get_paper import filter
 
 
 list_of_sources = [
@@ -50,6 +53,12 @@ def main():
     print(f"Time: {time.time() - start:.2f}")
     save_visited_json(visited, data_path)
 
-
+    paper_path = '../../data/Prof_papers/'
+    if os.path.exists(paper_path):
+        filter(data_dir='data.json', save_dir=paper_path)
+    else:
+        os.mkdir(paper_path)
+        filter(data_dir='data.json', save_dir=paper_path
+               )
 if __name__ == "__main__":
     main()
