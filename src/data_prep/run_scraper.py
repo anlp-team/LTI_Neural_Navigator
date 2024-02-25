@@ -2,6 +2,8 @@ import scraper
 from collections import defaultdict
 from utils import bfs_pages, save_visited_json, load_visited_json
 import time
+import os
+from get_paper import filter
 
 
 list_of_sources = [
@@ -36,6 +38,12 @@ def main():
 
     save_visited_json(visited, data_path)
 
-
+    paper_path = '../../data/Prof_papers/'
+    if os.path.exists(paper_path):
+        filter(data_dir='data.json', save_dir=paper_path)
+    else:
+        os.mkdir(paper_path)
+        filter(data_dir='data.json', save_dir=paper_path
+               )
 if __name__ == "__main__":
     main()
