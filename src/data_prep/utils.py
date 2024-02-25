@@ -7,25 +7,131 @@ from tqdm import tqdm
 from datetime import datetime
 from bs4 import BeautifulSoup
 from typing import Union, List
+
+# from scraper import scraper
+# from preproessor import preprocessor
 from collections import defaultdict
 from collections.abc import Iterator
 from selenium.common.exceptions import TimeoutException, WebDriverException
 
 
+def bfs_pages(
+    scraper_: "scraper",
+    urls: Union[
+        str, List[str], Iterator[str]
+    ],  # Iterator[str] or Generator[str, None, None] (Generator[YieldType, SendType, ReturnType])
+    visited: defaultdict[str, str],
+    depth: int = 0,
+    max_depth: int = 2,
+    all_html_paths: List[str] = [],
+    all_pdf_paths: List[str] = [],
+    raw_html: bool = False,
+):
+    if depth >= max_depth:
+        return []
+    tqdm.write(f"Depth: {depth + 1}")
+
+    links = []
+    if isinstance(urls, str):
+        urls = [urls]
+
+    for u in tqdm(urls):
+        # if (
+        #     u in visited
+        # ):  # TODO: should skip here or after parsing? Here if I assume the page is visited during this execution
+        #     continue
+
+        tqdm.write(f"Visiting {u}")
+
+        # if the page is a pdf download it to the data/raw/bs folder
+        if u.endswith(".pdf"):
+            visited[u] = u.split("/")[-1].replace("%", "_").replace(".pdf", "")
+            all_pdf_paths.append(
+                save_pdf(u, "data/raw/bs")
+            )  # TODO: will pdf contain any useful links?
+            continue
+
+        # otherwise parse the page and get the links
+        try:
+            soup_u, links_u, title_u = scraper_.fetch(u, raw_html=raw_html)
+        except TimeoutException as e:
+            tqdm.write(f"TimeoutException: {e}")
+            continue
+        except WebDriverException as e:
+            tqdm.write(f"WebDriverException: {e}")
+            continue
+
+        links.extend(list(links_u))  # TODO: should I filter out only cmu links?
+
+        if u not in visited:  # only save the page if it hasn't been visited before
+            visited[u] = title_u
+            extension = "html" if raw_html else "txt"
+            all_html_paths.append(
+                save_html(soup_u, "data/raw/bs", visited[u], extention=extension)
+            )
+
+    links.extend(
+        bfs_pages(
+            scraper_,
+            links,
+            visited,
+            depth + 1,
+            max_depth,
+            all_html_paths,
+            all_pdf_paths,
+            raw_html,
+        )
+    )
+    return links
+
+
+def preprocess_unstructured(
+    preprocessor_: "preprocessor", all_html_paths: List[str], all_pdf_paths: List[str]
+):
+    for path in tqdm(all_html_paths):
+        print(f"Processing {path}")
+        try:
+            elements = preprocessor_.parse_html(file_path=path)
+            text = preprocessor_.process_elements(elements)
+        except Exception as e:
+            print(f"Error: {e} | {path}")
+        save_str(
+            text, "data/raw/unstruct", path.split("/")[-1].replace(".html", ".txt")
+        )
+
+    for path in tqdm(all_pdf_paths):
+        print(f"Processing {path}")
+        try:
+            elements = preprocessor_.parse_pdf(file_path=path)
+            text = preprocessor_.process_elements(elements)
+        except Exception as e:
+            print(f"Error: {e} | {path}")
+        save_str(text, "data/raw/unstruct", path.split("/")[-1].replace(".pdf", ".txt"))
+
+
 def save_html(
-    soup: BeautifulSoup, path: str, page_title: str = None, delimeter: str = " "
+    soup: BeautifulSoup,
+    path: str,
+    page_title: str = None,
+    delimeter: str = " ",
+    extention: str = "txt",
 ):
     datetime_str = datetime.now().strftime("%Y-%m-%d")
-    path = f"{path}/{datetime_str}/{page_title}.txt"
+    path = f"{path}/{datetime_str}/{page_title}.{extention}"
 
     if not os.path.exists(os.path.dirname(path)):
         os.makedirs(os.path.dirname(path))
     if os.path.exists(path):
-        path = f"{path[:-5]}_{get_timestamp()}.txt"  # some pages have the same title
+        path = f"{path[:-4]}_{get_timestamp()}.{extention}"  # some pages have the same title
 
-    text = delimeter.join(soup.stripped_strings)
+    if extention == "txt":
+        text = delimeter.join(soup.stripped_strings)
+    elif extention == "html":
+        text = soup.prettify()
     with open(path, "w") as file:
         file.write(text)
+
+    return path
 
 
 def save_pdf(url: str, path: str):
@@ -51,58 +157,9 @@ def save_pdf(url: str, path: str):
             file.write(text)
 
     # remove the pdf
-    os.remove(f"{path}.pdf")
+    # os.remove(f"{path}.pdf")
 
-    return url.split("/")[-1].replace("%", "_").replace(".pdf", ".txt")
-
-
-def bfs_pages(
-    scraper,
-    url: Union[
-        str, List[str], Iterator[str]
-    ],  # Iterator[str] or Generator[str, None, None] (Generator[YieldType, SendType, ReturnType])
-    visited: defaultdict[str, str],
-    depth: int = 0,
-    max_depth: int = 2,
-):
-    if depth >= max_depth:
-        return
-    tqdm.write(f"Depth: {depth + 1}")
-
-    links = []
-    if isinstance(url, str):
-        url = [url]
-
-    for u in tqdm(url):
-        # if u in visited:  # TODO: should skip here or after parsing?
-        #     continue
-
-        tqdm.write(f"Visiting {u}")
-
-        # if the page is a pdf download it to the data/raw folder
-        if u.endswith(".pdf"):
-            visited[u] = save_pdf(
-                u, "data/raw"
-            )  # TODO: will pdf contain any useful links?
-            continue
-
-        # otherwise parse the page and get the links
-        try:
-            soup_u, links_u, title_u = scraper.parse(u)
-        except TimeoutException as e:
-            tqdm.write(f"TimeoutException: {e}")
-            continue
-        except WebDriverException as e:
-            tqdm.write(f"WebDriverException: {e}")
-            continue
-
-        links.extend(list(links_u))  # TODO: should I filter out only cmu links?
-
-        if u not in visited:  # only save the page if it hasn't been visited before
-            visited[u] = title_u
-            save_html(soup_u, "data/raw", visited[u])
-
-    bfs_pages(scraper, links, visited, depth + 1, max_depth)
+    return f"{path}.pdf"
 
 
 def save_visited_json(visited: defaultdict[str, str], path: str):
@@ -127,3 +184,16 @@ def load_visited_json(path: str):
 
 def get_timestamp():
     return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+
+def save_str(html: str, path: str, page_title: str = None):
+    datetime_str = datetime.now().strftime("%Y-%m-%d")
+    path = f"{path}/{datetime_str}/{page_title}.txt"
+
+    if not os.path.exists(os.path.dirname(path)):
+        os.makedirs(os.path.dirname(path))
+    if os.path.exists(path):
+        path = f"{path[:-4]}_{get_timestamp()}.txt"  # some pages have the same title
+
+    with open(path, "w") as file:
+        file.write(html)
