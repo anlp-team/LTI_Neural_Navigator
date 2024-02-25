@@ -1,6 +1,8 @@
 from unstructured.partition.html import partition_html
 from unstructured.partition.pdf import partition_pdf
 
+import os
+
 
 class preprocessor:
     def __init__(self, file_path: str = None, url: str = None):
@@ -38,13 +40,15 @@ class preprocessor:
 
         return elements
 
-    def parse_pdf(self, file_path: str = None):
-        elements = partition_pdf(filename=file_path)
-        for element in elements:
-            print(element.__dict__)
-            print(element.metadata.__dict__)
-            print(element, "\n\n")
-        raise NotImplementedError
+    def parse_pdf(self, file_path: str = None, include_page_breaks: bool = False):
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        elements = partition_pdf(
+            filename=file_path,
+            languages=["eng"],
+            include_page_breaks=include_page_breaks,
+        )
 
         self.pdf_elements = elements
         return elements
@@ -61,8 +65,17 @@ class preprocessor:
 
         return "\n\n".join(texts)
 
-    def process_pdf(self, file_path: str = None):
-        pass
+    def process_pdf(self, elements: list = None):
+        texts = []
+        page_num = elements[0].metadata.page_number
+
+        for element in elements:
+            if element.metadata.page_number != page_num:
+                texts.append("\n")
+                page_num = element.metadata.page_number
+            texts.append(element.text)
+
+        return "\n".join(texts)
 
     def print_elements(self):
         self.html_elements = partition_html(url=self.url)
