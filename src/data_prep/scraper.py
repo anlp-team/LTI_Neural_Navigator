@@ -22,9 +22,11 @@ class scraper:
         )  # TODO: is this too short? what causes a page to load for more than 10 seconds?
 
         self.current_url = None
+        self.current_domain = None
 
     def set_domain(self, url: str):
-        self.current_url = url.split("/")[2]
+        self.current_domain = url.split("/")[2]
+        self.current_url = url
 
     def fetch(self, url: str, raw_html: bool = False):
         soup = self.get_soup(url)
@@ -74,14 +76,24 @@ class scraper:
                 match.decompose()
         return soup
 
-    def filter_links(self, links: list):
+    def filter_links(
+        self, links: list
+    ):  # TODO: remove url that does not contain cmu.edu?
         for link in links:
             if link is None:
                 continue
-            if link.startswith("http"):
+            elif link.startswith("#"):
+                continue
+            elif link.startswith("http"):
                 yield link
-            if link.startswith("/"):
-                yield f"https://{self.current_url}{link}"  # some links are relative to the current page
+            elif link.startswith("//"):
+                yield f"https:{link}"
+            elif link.startswith("/"):
+                yield f"https://{self.current_domain}{link}"  # some links are relative to the current page
+            elif link.startswith("./") or link.startswith("../"):
+                yield f"{self.current_url}{link}"
+            else:
+                yield f"{self.current_url}{link}"
 
     def get_date(self, date_str: str):
         return datetime.strptime(date_str, "%Y-%m-%d")
