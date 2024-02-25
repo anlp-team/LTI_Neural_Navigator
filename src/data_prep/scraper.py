@@ -4,11 +4,10 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
-import utils
 import pypdf
 
 
-class Scraper:
+class scraper:
 
     def __init__(self):
         self.chrome_options = Options()
@@ -19,17 +18,20 @@ class Scraper:
         self.driver = webdriver.Chrome(options=self.chrome_options)
         # self.driver.implicitly_wait(10)
         self.driver.set_page_load_timeout(
-            10
+            5
         )  # TODO: is this too short? what causes a page to load for more than 10 seconds?
 
         self.current_url = None
+        self.current_domain = None
 
     def set_domain(self, url: str):
-        self.current_url = url.split("/")[2]
+        self.current_domain = url.split("/")[2]
+        self.current_url = url
 
-    def parse(self, url: str):
+    def fetch(self, url: str, raw_html: bool = False):
         soup = self.get_soup(url)
-        soup = self.remove_js_css(soup)
+        if not raw_html:
+            soup = self.remove_js_css(soup)
         # TODO: should I remove more stuff?
         return soup, self.get_links(soup), self.get_title(soup)
 
@@ -49,8 +51,10 @@ class Scraper:
         return self.filter_links(links)
 
     def get_title(self, soup: BeautifulSoup):
+        from utils import get_timestamp
+
         if soup.title is None:
-            return f"untitsled_{utils.get_timestamp()}"
+            return f"untitsled_{get_timestamp()}"
         title = soup.title.string.replace(" ", "_").replace("/", "__")
         return title.replace("\n", "")
 
@@ -72,14 +76,24 @@ class Scraper:
                 match.decompose()
         return soup
 
-    def filter_links(self, links: list):
+    def filter_links(
+        self, links: list
+    ):  # TODO: remove url that does not contain cmu.edu?
         for link in links:
             if link is None:
                 continue
-            if link.startswith("http"):
+            elif link.startswith("#"):
+                continue
+            elif link.startswith("http"):
                 yield link
-            if link.startswith("/"):
-                yield f"https://{self.current_url}{link}"  # some links are relative to the current page
+            elif link.startswith("//"):
+                yield f"https:{link}"
+            elif link.startswith("/"):
+                yield f"https://{self.current_domain}{link}"  # some links are relative to the current page
+            elif link.startswith("./") or link.startswith("../"):
+                yield f"{self.current_url}{link}"
+            else:
+                yield f"{self.current_url}{link}"
 
     def get_date(self, date_str: str):
         return datetime.strptime(date_str, "%Y-%m-%d")
@@ -92,7 +106,7 @@ class Scraper:
 
 
 if __name__ == "__main__":
-    scraper_ = Scraper()
+    scraper_ = scraper()
     soup = scraper_.get_soup("https://www.cs.cmu.edu/scs25/25things")
     # print(soup)
     # print(scraper_.remove_js_css(soup))

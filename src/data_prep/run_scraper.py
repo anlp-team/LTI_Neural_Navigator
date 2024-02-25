@@ -1,8 +1,14 @@
-import scraper
-from collections import defaultdict
-from utils import bfs_pages, save_visited_json, load_visited_json
-import time
 import os
+import time
+import scraper
+import preproessor
+
+from utils import (
+    bfs_pages,
+    preprocess_unstructured,
+    save_visited_json,
+    load_visited_json,
+)
 from get_paper import filter
 
 
@@ -24,18 +30,27 @@ list_of_sources = [
 
 
 def main():
-    data_path = "./data/raw"
+    data_path = "./data/raw/bs"
     visited = load_visited_json(data_path)
-
+    all_html_paths = []
+    all_pdf_paths = []
     start = time.time()
 
-    scraper_ = scraper.Scraper()
+    scraper_ = scraper.scraper()
     for url in list_of_sources:
-        bfs_pages(scraper_, url, visited, max_depth=1)
-    scraper_.close()
+        bfs_pages(
+            scraper_,
+            url,
+            visited,
+            max_depth=2,
+            all_html_paths=all_html_paths,
+            all_pdf_paths=all_pdf_paths,
+            raw_html=True,
+        )
+    preprocessor_ = preproessor.preprocessor()
+    preprocess_unstructured(preprocessor_, all_html_paths, all_pdf_paths)
 
     print(f"Time: {time.time() - start:.2f}")
-
     save_visited_json(visited, data_path)
 
     paper_path = '../../data/Prof_papers/'
