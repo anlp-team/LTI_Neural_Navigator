@@ -51,9 +51,16 @@ def bfs_pages(
             )  # TODO: will pdf contain any useful links?
             continue
 
+        if u.endswith(".xlsx") or u.endswith(".ics"):
+            visited[u] = u.split("/")[-1].replace("%", "_")
+            save_non_html(u, "data/raw/bs")
+            continue
+
         # otherwise parse the page and get the links
         try:
-            soup_u, links_u, title_u = scraper_.fetch(u, raw_html=raw_html)
+            soup_u, links_u, title_u = scraper_.fetch(
+                u, raw_html=raw_html
+            )  # TODO: .html***.html bug
         except TimeoutException as e:
             tqdm.write(f"TimeoutException: {e}")
             continue
@@ -95,18 +102,21 @@ def preprocess_unstructured(
             text = preprocessor_.process_elements(elements)
         except Exception as e:
             print(f"Error: {e} | {path}")
-        save_str(
-            text, "data/raw/unstruct", path.split("/")[-1].replace(".html", ".txt")
-        )
+        save_str(text, "data/raw/unstruct", path.split("/")[-1].replace(".html", ""))
 
     for path in tqdm(all_pdf_paths):
         print(f"Processing {path}")
+        if path is None:
+            continue
         try:
-            elements = preprocessor_.parse_pdf(file_path=path)
-            text = preprocessor_.process_elements(elements)
+            elements = preprocessor_.parse_pdf(
+                file_path=path, include_page_breaks=False
+            )
+            text = preprocessor_.process_pdf(elements)
         except Exception as e:
             print(f"Error: {e} | {path}")
-        save_str(text, "data/raw/unstruct", path.split("/")[-1].replace(".pdf", ".txt"))
+
+        save_str(text, "data/raw/unstruct", path.split("/")[-1].replace(".pdf", ""))
 
 
 def save_html(
@@ -160,6 +170,22 @@ def save_pdf(url: str, path: str):
     # os.remove(f"{path}.pdf")
 
     return f"{path}.pdf"
+
+
+def save_non_html(url: str, path: str):
+    datetime_str = datetime.now().strftime("%Y-%m-%d")
+    path = f"{path}/{datetime_str}/{url.split('/')[-1].replace('%', '_')}"
+
+    if not os.path.exists(os.path.dirname(path)):
+        os.makedirs(os.path.dirname(path))
+
+    try:
+        urllib.request.urlretrieve(url, f"{path}.{url.split('.')[-1]}")
+    except Exception as e:
+        tqdm.write(f"Error: {e}")
+        return
+
+    return f"{path}.{url.split('.')[-1]}"
 
 
 def save_visited_json(visited: defaultdict[str, str], path: str):
