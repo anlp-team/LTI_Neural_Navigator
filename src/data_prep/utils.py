@@ -102,7 +102,9 @@ def preprocess_unstructured(
             text = preprocessor_.process_elements(elements)
         except Exception as e:
             print(f"Error: {e} | {path}")
-        save_str(text, "data/raw/unstruct", path.split("/")[-1].replace(".html", ""))
+        save_str(
+            text, "data/raw/unstruct", path.split("/")[-1].replace(".html", ""), "html"
+        )
 
     for path in tqdm(all_pdf_paths):
         print(f"Processing {path}")
@@ -115,8 +117,9 @@ def preprocess_unstructured(
             text = preprocessor_.process_pdf(elements)
         except Exception as e:
             print(f"Error: {e} | {path}")
-
-        save_str(text, "data/raw/unstruct", path.split("/")[-1].replace(".pdf", ""))
+        save_str(
+            text, "data/raw/unstruct", path.split("/")[-1].replace(".pdf", ""), "pdf"
+        )
 
 
 def save_html(
@@ -127,7 +130,7 @@ def save_html(
     extention: str = "txt",
 ):
     datetime_str = datetime.now().strftime("%Y-%m-%d")
-    path = f"{path}/{datetime_str}/{page_title}.{extention}"
+    path = f"{path}/{datetime_str}/html/{page_title}.{extention}"
 
     if not os.path.exists(os.path.dirname(path)):
         os.makedirs(os.path.dirname(path))
@@ -146,7 +149,7 @@ def save_html(
 
 def save_pdf(url: str, path: str):
     datetime_str = datetime.now().strftime("%Y-%m-%d")
-    path = f"{path}/{datetime_str}/{url.split('/')[-1].replace('%', '_').replace('.pdf', '')}"
+    path = f"{path}/{datetime_str}/pdf/{url.split('/')[-1].replace('%', '_').replace('.pdf', '')}"
 
     if not os.path.exists(os.path.dirname(path)):
         os.makedirs(os.path.dirname(path))
@@ -174,7 +177,7 @@ def save_pdf(url: str, path: str):
 
 def save_non_html(url: str, path: str):
     datetime_str = datetime.now().strftime("%Y-%m-%d")
-    path = f"{path}/{datetime_str}/{url.split('/')[-1].replace('%', '_')}"
+    path = f"{path}/{datetime_str}/non_html/{url.split('/')[-1].replace('%', '_')}"
 
     if not os.path.exists(os.path.dirname(path)):
         os.makedirs(os.path.dirname(path))
@@ -212,9 +215,11 @@ def get_timestamp():
     return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 
-def save_str(html: str, path: str, page_title: str = None):
+def save_str(
+    html: str, path: str, page_title: str = None, original_extention: str = "html"
+):
     datetime_str = datetime.now().strftime("%Y-%m-%d")
-    path = f"{path}/{datetime_str}/{page_title}.txt"
+    path = f"{path}/{datetime_str}/{original_extention}/{page_title}.txt"
 
     if not os.path.exists(os.path.dirname(path)):
         os.makedirs(os.path.dirname(path))
@@ -223,3 +228,66 @@ def save_str(html: str, path: str, page_title: str = None):
 
     with open(path, "w") as file:
         file.write(html)
+
+
+def filter_txt_files(path: str, extention: str = "txt"):
+    # iterate through all the files in the directory
+    # and filter out the ones that do not contain the given keywords
+    keywords = [
+        "cmu",
+        "carnegie",
+        "mellon",
+        "university",
+        "tartans",
+        "scotty",
+        "pittsburgh",
+        "carnival",
+        "CMU",
+        "Carnegie",
+        "Mellon",
+        "University",
+        "Tartans",
+        "Scotty",
+        "Pittsburgh",
+        "Carnival",
+    ]
+
+    files = []
+    for root, _, file_names in os.walk(path):
+        for file_name in file_names:
+            if file_name.endswith(extention):
+                files.append(os.path.join(root, file_name))
+
+    filtered_files = []
+    for file in files:
+        with open(file, "r") as f:
+            text = f.read()
+            if any(keyword in text for keyword in keywords) or any(
+                keyword in file for keyword in keywords
+            ):
+                filtered_files.append(file)
+            else:
+                print(f"Removing {file} | no keywords found in file")
+                os.remove(file)
+                continue
+
+            # if the file is less than 100 characters, remove it
+            if len(text) < 100:
+                print(f"Removing {file} | {len(text)} characters")
+                os.remove(file)
+
+            if len(text) > 100 and len(text) < 200:
+                print(f" {file} | {len(text)} characters")
+                os.remove(file)
+
+            if "Page_not_found" in file:
+                print(
+                    f"Removing {file} | Page_not_found -> len(text) {len(text)} characters"
+                )
+                os.remove(file)
+
+    return filtered_files
+
+
+if __name__ == "__main__":
+    filter_txt_files("data/raw/unstruct/2024-02-26/html", "txt")
