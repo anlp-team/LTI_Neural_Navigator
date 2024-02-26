@@ -18,14 +18,15 @@ class preprocessor:
             # "img",
             # "svg",
             # "path",
-            "a",
-            "header",
-            "footer",
-            "nav",
-            "input",
-            "form",
-            "button",
-            "address",
+            
+            # "a",
+            # "header", # Graham Neubig's page's header is important
+            # "footer",
+            # "nav",
+            # "input",
+            # "form",   # 25 things page has a form that is important
+            # "button",
+            # "address",
         ]
 
     def parse_html(self, url: str = None, file_path: str = None):
@@ -59,6 +60,7 @@ class preprocessor:
             tags = list(element.ancestortags) + [element.tag]
             text = " ".join(element.text.split())
             if any(tag in self.tags_ignore for tag in tags):
+                print(f"tags: {tags}")  # useful for debug
                 print(f"Skipping: {text[:20]} ... {text[-20:]}")
                 continue
             texts.append(text)
