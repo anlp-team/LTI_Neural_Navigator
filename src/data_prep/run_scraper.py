@@ -13,7 +13,7 @@ from get_paper import filter
 
 
 list_of_sources = [
-    "https://lti.cs.cmu.edu/directory/all/154/1",
+    "https://lti.cs.cmu.edu/directory/all/154/1",  # TODO: Check if the professor pages are successfully scraped. Maybe set depth = 3 for facutly pages
     "https://enr-apps.as.cmu.edu/open/SOC/SOCServlet/completeSchedule",
     "https://www.cmu.edu/hub/calendar/",
     "https://lti.cs.cmu.edu/learn",
@@ -47,18 +47,20 @@ def main():
             all_pdf_paths=all_pdf_paths,
             raw_html=True,
         )
+
     preprocessor_ = preproessor.preprocessor()
     preprocess_unstructured(preprocessor_, all_html_paths, all_pdf_paths)
 
     print(f"Time: {time.time() - start:.2f}")
     save_visited_json(visited, data_path)
 
-    paper_path = '../../data/Prof_papers/'
+    paper_path = "../../data/Prof_papers/"
     if os.path.exists(paper_path):
-        filter(data_dir='data.json', save_dir=paper_path)
+        filter(data_dir="data.json", save_dir=paper_path)
     else:
         os.mkdir(paper_path)
-        filter(data_dir='data.json', save_dir=paper_path
-               )
+        filter(data_dir="data.json", save_dir=paper_path)
+
+
 if __name__ == "__main__":
     main()

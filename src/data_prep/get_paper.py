@@ -106,5 +106,5 @@ def filter(data_dir, save_dir):
         text_file.close()
 
 
-    
-filter(data_dir='data.json', save_dir='../../data/Prof_papers/')
+if __name__ == "__main__":
+    filter(data_dir='data.json', save_dir='../../data/Prof_papers/')
