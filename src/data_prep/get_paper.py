@@ -4,6 +4,25 @@ import os
 import requests
 import time
 
+
+def find_pdf_files(directory):
+    """
+    Traverse the given directory and return a list of paths to PDF files.
+
+    Args:
+    - directory (str): The path to the directory to search in.
+
+    Returns:
+    - list: A list of paths to the PDF files found within the directory.
+    """
+    pdf_files = []
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.lower().endswith('.pdf'):
+                pdf_files.append(os.path.join(root, file))
+    return pdf_files
+
+
 def get_all_papers(names, save_dir):
     ### expect title, abstract, authors, publication venue, year and tldr
 
@@ -62,10 +81,13 @@ def filter(data_dir, save_dir):
     f = open(data_dir)
     data = json.load(f)
     api_call_counter = 0
-    all_pdf_paths =[]
     paper_2023_counter = 0
+    total_counter = 0
     for Prof in data:
-        Prof_name = Prof['name']
+        if Prof!= None:
+            Prof_name = Prof['name']
+        else:
+            continue ### TODO: LP not found
         # save_path = os.path.join(save_dir, str(Prof_name))
         save_path = save_dir
         if os.path.exists(save_path):
@@ -90,12 +112,19 @@ def filter(data_dir, save_dir):
                 # print(authors)
                 if type(paper['publicationVenue']) == str:
                     paper['publicationVenue'] = {'name':'', 'alternate_names':''}
+
                 venue_names = []
                 venue_names.append(paper['publicationVenue']['name'])
-                if type(paper['publicationVenue']['alternate_names']) == str:
-                    venue_names.append(paper['publicationVenue']['alternate_names'] )
-                else:
-                    venue_names+=paper['publicationVenue']['alternate_names'] 
+                try:
+                    if paper['publicationVenue']['alternate_names'] is None:
+                        paper['publicationVenue']['alternate_names'] = ''
+                    elif type(paper['publicationVenue']['alternate_names']) == str:
+                        venue_names.append(paper['publicationVenue']['alternate_names'] )
+                    else:
+
+                        venue_names+=paper['publicationVenue'].get('alternate_names', '')
+                except:
+                    pass
                     
                 paper_list.append([paper['title'],
                                    str(paper['year']),
@@ -105,7 +134,7 @@ def filter(data_dir, save_dir):
                                    authors
                                    ])
                 ### save pdf
-                if paper['openAccessPdf'] != None:
+                if paper['openAccessPdf'] != None  and type(paper['openAccessPdf'])!= str and paper['openAccessPdf']['url'] != None:
 
                     if 'pdf' not in paper['openAccessPdf']['url']:
                         url = paper['openAccessPdf']['url']+'.pdf'
@@ -114,25 +143,26 @@ def filter(data_dir, save_dir):
                     try:
                         pdf_path,api_call_counter = download_pdf_file(api_call_counter,url=url,save_path=save_path, pdf_file_name=Prof_name+'_'+paper['title'])
                         api_call_counter+=1
-                        if pdf_path != None:
-                            all_pdf_paths.append(pdf_path)
+
                     except Exception as e:
                         print(e)
                         continue
                 
         with open(Prof_metadata_save_path, "w") as text_file:
-            text_file.writelines(Prof_info+"\n")
+            text_file.writelines(Prof_info)
+            text_file.write('\n')
 
-            text_file.write('Papers that are published on 2023 and have open access are listed below with their titles, years, publication venues, as well as the author lists and abstracts')
+            text_file.write('Papers that are published on 2023 and have open access are listed below with their titles, years, publication venues, as well as the author lists and abstracts are listed below \n')
             for i in paper_list:
                 # print(i)
                 text_file.writelines(str(i)+"\n")
         text_file.close()
         print(Prof_name+' has published {} papers*****************'.format(paper_2023_counter))
+        total_counter+=paper_2023_counter
         paper_2023_counter = 0
 
-    
-    return all_pdf_paths
+    print(total_counter)
+    return find_pdf_files(save_path)
 
 
 if __name__ == "__main__":
