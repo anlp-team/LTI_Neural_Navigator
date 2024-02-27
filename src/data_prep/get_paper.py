@@ -26,7 +26,7 @@ def get_all_papers(names, save_dir):
     ### TODO: replace abstract with tldr
     ### TODO: missing LP Morency
 
-def download_pdf_file(url: str, save_path: str,pdf_file_name:str) -> bool:
+def download_pdf_file(api_call_counter, url: str, save_path: str,pdf_file_name:str) -> bool:
     """Download PDF from given URL to local directory.
 
     :param url: The url of the PDF file to be downloaded
@@ -34,33 +34,45 @@ def download_pdf_file(url: str, save_path: str,pdf_file_name:str) -> bool:
     """
 
     # Request URL and get response object
-    response = requests.get(url)
+    filepath = os.path.join(save_path, pdf_file_name+'.pdf')
+    if os.path.exists(filepath):
+        print(f'{pdf_file_name} has been saved previously!')
+        return filepath, api_call_counter
+    
+    time.sleep(0.2)
+    if api_call_counter==4:
+        time.sleep(0.8)
+        api_call_counter = 0    
 
-    # isolate PDF filename from URL
+    response = requests.get(url, allow_redirects=True, headers={"User-Agent":'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'})    
+    api_call_counter+=1
     if response.status_code == 200:
         # Save in current working directory
-        filepath = os.path.join(save_path, pdf_file_name+'.pdf')
-
         with open(filepath, 'wb') as pdf_object:
             pdf_object.write(response.content)
             print(f'{pdf_file_name} was successfully saved!')
-            return True
+            return filepath, api_call_counter
     else:
         print(f'Uh oh! Could not download {pdf_file_name},')
         print(f'HTTP response status code: {response.status_code}')
-        return False
+        return None,api_call_counter
 
 def filter(data_dir, save_dir):
+    ### return a list of relative path to each professor's subdir
     f = open(data_dir)
     data = json.load(f)
     api_call_counter = 0
-    for Prof in data[:4]:
-        file_name = Prof['name']
-        save_path = os.path.join(save_dir, str(file_name))
+    all_pdf_paths =[]
+    paper_2023_counter = 0
+    for Prof in data[:2]:
+        Prof_name = Prof['name']
+        # save_path = os.path.join(save_dir, str(Prof_name))
+        save_path = save_dir
         if os.path.exists(save_path):
-            file_save_path = save_path+'.txt'
+            Prof_metadata_save_path = save_path+Prof['name']+'.txt'
         else:
             os.mkdir(save_path)
+            Prof_metadata_save_path = save_path+Prof['name']+'.txt'
         # print(Prof)
         Prof_info=  [Prof['name'],
                      str(Prof['hIndex']),
@@ -68,7 +80,9 @@ def filter(data_dir, save_dir):
                      str(Prof['paperCount'])]
         paper_list = []
         for paper in Prof['papers']:
+            
             if paper is not None and paper['year'] == 2023 and paper['isOpenAccess']:
+                paper_2023_counter+=1
                 # print(paper['openAccessPdf']['url'])
                 paper = {key: ('' if value is None else value) for key, value in paper.items()}
 
@@ -90,20 +104,35 @@ def filter(data_dir, save_dir):
                                    paper['abstract'],
                                    authors
                                    ])
-            ### save pdf
-            if paper['openAccessPdf'] != None:
-                if api_call_counter==4:
-                    time.sleep(1.1)
-                download_pdf_file(url=paper['openAccessPdf']['url'],save_path=save_path, pdf_file_name=paper['title'])
-                api_call_counter+=1
+                ### save pdf
+                if paper['openAccessPdf'] != None:
+
+                    if 'pdf' not in paper['openAccessPdf']['url']:
+                        url = paper['openAccessPdf']['url']+'.pdf'
+                    else:
+                        url = paper['openAccessPdf']['url']
+                    try:
+                        pdf_path,api_call_counter = download_pdf_file(api_call_counter,url=url,save_path=save_path, pdf_file_name=Prof_name+'_'+paper['title'])
+                        api_call_counter+=1
+                        if pdf_path != None:
+                            all_pdf_paths.append(pdf_path)
+                    except Exception as e:
+                        print(e)
+                        continue
                 
-        with open(file_save_path, "w") as text_file:
-            text_file.writelines(Prof_info)
+        with open(Prof_metadata_save_path, "w") as text_file:
+            text_file.writelines(Prof_info+"\n")
+
             text_file.write('Papers that are published on 2023 and have open access are listed below with their titles, years, publication venues, as well as the author lists and abstracts')
             for i in paper_list:
-                print(i)
-                text_file.write(str(i))
+                # print(i)
+                text_file.writelines(str(i)+"\n")
         text_file.close()
+        print(Prof_name+' has published {} papers*****************'.format(paper_2023_counter))
+        paper_2023_counter = 0
+
+    
+    return all_pdf_paths
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 import os
 import time
 import scraper
-import preproessor
+import preprocessor as preprocessor
 
 from utils import (
     bfs_pages,
@@ -29,38 +29,43 @@ list_of_sources = [
 ]
 
 
-def main():
-    data_path = "./data/raw/bs"
-    visited = load_visited_json(data_path)
-    all_html_paths = []
-    all_pdf_paths = []
-    start = time.time()
+def main(Prof_paper_scraper:bool, Webpage:bool):
+    preprocessor_ = preprocessor.preprocessor()
 
-    scraper_ = scraper.scraper()
-    for url in list_of_sources:
-        bfs_pages(
-            scraper_,
-            url,
-            visited,
-            max_depth=2,
-            all_html_paths=all_html_paths,
-            all_pdf_paths=all_pdf_paths,
-            raw_html=True,
-        )
+    if Webpage:
+        data_path = "./data/raw/bs"
+        visited = load_visited_json(data_path)
+        all_html_paths = []
+        all_pdf_paths = []
+        start = time.time()
 
-    preprocessor_ = preproessor.preprocessor()
-    preprocess_unstructured(preprocessor_, all_html_paths, all_pdf_paths)
+        scraper_ = scraper.scraper()
+        for url in list_of_sources:
+            bfs_pages(
+                scraper_,
+                url,
+                visited,
+                max_depth=1,
+                all_html_paths=all_html_paths,
+                all_pdf_paths=all_pdf_paths,
+                raw_html=True,
+            )
 
-    print(f"Time: {time.time() - start:.2f}")
-    save_visited_json(visited, data_path)
+        preprocess_unstructured(preprocessor_, all_html_paths, all_pdf_paths, "data/raw/unstruct", "data/raw/unstruct")
 
-    paper_path = "../../data/Prof_papers/"
-    if os.path.exists(paper_path):
-        filter(data_dir="data.json", save_dir=paper_path)
-    else:
-        os.mkdir(paper_path)
-        filter(data_dir="data.json", save_dir=paper_path)
+        print(f"Time: {time.time() - start:.2f}")
+        save_visited_json(visited, data_path)
 
+    if Prof_paper_scraper:
+        paper_path = "../../data/Prof_papers/"
+        if os.path.exists(paper_path):
+            all_pdf_paths = filter(data_dir="data.json", save_dir=paper_path)
+        else:
+            os.mkdir(paper_path)
+            all_pdf_paths = filter(data_dir="data.json", save_dir=paper_path)
+        preprocess_unstructured(preprocessor_, None, all_pdf_paths, None, "../../data/Prof_papers/")
 
 if __name__ == "__main__":
-    main()
+    Prof_paper_scraper = True
+    Webpage = False
+    main(Prof_paper_scraper=Prof_paper_scraper, Webpage=Webpage)

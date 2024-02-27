@@ -93,33 +93,34 @@ def bfs_pages(
 
 
 def preprocess_unstructured(
-    preprocessor_: "preprocessor", all_html_paths: List[str], all_pdf_paths: List[str]
+    preprocessor_: "preprocessor", all_html_paths: List[str], all_pdf_paths: List[str], html_save_path: str, pdf_save_path:str
 ):
-    for path in tqdm(all_html_paths):
-        print(f"Processing {path}")
-        try:
-            elements = preprocessor_.parse_html(file_path=path)
-            text = preprocessor_.process_elements(elements)
-        except Exception as e:
-            print(f"Error: {e} | {path}")
-        save_str(
-            text, "data/raw/unstruct", path.split("/")[-1].replace(".html", ""), "html"
-        )
-
-    for path in tqdm(all_pdf_paths):
-        print(f"Processing {path}")
-        if path is None:
-            continue
-        try:
-            elements = preprocessor_.parse_pdf(
-                file_path=path, include_page_breaks=False
+    if all_html_paths != None:
+        for path in tqdm(all_html_paths):
+            print(f"Processing {path}")
+            try:
+                elements = preprocessor_.parse_html(file_path=path)
+                text = preprocessor_.process_elements(elements)
+            except Exception as e:
+                print(f"Error: {e} | {path}")
+            save_str(
+                text, html_save_path, path.split("/")[-1].replace(".html", ""), "html"
             )
-            text = preprocessor_.process_pdf(elements)
-        except Exception as e:
-            print(f"Error: {e} | {path}")
-        save_str(
-            text, "data/raw/unstruct", path.split("/")[-1].replace(".pdf", ""), "pdf"
-        )
+    if all_pdf_paths != None:
+        for path in tqdm(all_pdf_paths):
+            print(f"Processing {path}")
+            if path is None:
+                continue
+            try:
+                elements = preprocessor_.parse_pdf(
+                    file_path=path, include_page_breaks=False
+                )
+                text = preprocessor_.process_pdf(elements)
+            except Exception as e:
+                print(f"Error: {e} | {path}")
+            save_str(
+                text, pdf_save_path, path.split("/")[-1].replace(".pdf", ""), "pdf"
+            )
 
 
 def save_html(
