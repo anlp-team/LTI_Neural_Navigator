@@ -64,7 +64,7 @@ def filter(data_dir, save_dir):
     api_call_counter = 0
     all_pdf_paths =[]
     paper_2023_counter = 0
-    for Prof in data[:2]:
+    for Prof in data:
         Prof_name = Prof['name']
         # save_path = os.path.join(save_dir, str(Prof_name))
         save_path = save_dir
