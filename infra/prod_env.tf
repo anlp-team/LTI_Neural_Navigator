@@ -111,7 +111,7 @@ resource "aws_route_table_association" "subnet-association" {
 
 resource "aws_key_pair" "rag_project_key" {
   key_name   = "rag_project_key"
-  public_key = file("/home/xx/.ssh/id_rsa.pub")
+  public_key = file("~/.ssh/id_rsa.pub")
 }
 
 resource "aws_spot_instance_request" "test_worker" {
