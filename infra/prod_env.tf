@@ -115,15 +115,14 @@ resource "aws_key_pair" "rag_project_key" {
 }
 
 resource "aws_spot_instance_request" "test_worker" {
-  ami                    = "ami-02b696c88aad79a70"
-  spot_price             = "1.2"
-  instance_type          = "p3.2xlarge"
-  spot_type              = "one-time"
-  block_duration_minutes = "120"
-  wait_for_fulfillment   = "true"
-  key_name               = aws_key_pair.rag_project_key.key_name
-  availability_zone      = "us-east-2b"
-  tags                   = local.common_tags
+  ami                  = "ami-02b696c88aad79a70"
+  spot_price           = "1.2"
+  instance_type        = "p3.2xlarge"
+  spot_type            = "one-time"
+  wait_for_fulfillment = "true"
+  key_name             = aws_key_pair.rag_project_key.key_name
+  availability_zone    = "us-east-2b"
+  tags                 = local.common_tags
 
   security_groups = [
     aws_security_group.ingress-ssh-test.id, aws_security_group.ingress-http-test.id,
