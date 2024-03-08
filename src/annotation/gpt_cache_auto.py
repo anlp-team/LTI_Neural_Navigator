@@ -5,26 +5,26 @@ import argparse
 import os
 import time
 
-from gptcache import cache
-from gptcache.embedding import Onnx
-from gptcache.manager import CacheBase, VectorBase, get_data_manager
-from gptcache.similarity_evaluation.distance import SearchDistanceEvaluation
-from langchain.document_loaders import TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter, TextSplitter
-from langchain.chat_models import ChatOpenAI, BedrockChat, AzureChatOpenAI, FakeListChatModel, PromptLayerChatOpenAI, \
-    ChatDatabricks, ChatEverlyAI, ChatAnthropic, ChatCohere, ChatGooglePalm, ChatMlflow, ChatMLflowAIGateway, \
-    ChatOllama, ChatVertexAI, JinaChat, HumanInputChatModel, MiniMaxChat, ChatAnyscale, ChatLiteLLM, ErnieBotChat, \
-    ChatJavelinAIGateway, ChatKonko, PaiEasChatEndpoint, QianfanChatEndpoint, ChatFireworks, ChatYandexGPT, \
-    ChatBaichuan, ChatHunyuan, GigaChat, VolcEngineMaasChat
+from langchain_community.document_loaders import TextLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.chat_models import ChatOpenAI
+from langchain_community.llms import GPT4All
+from langchain_community.llms.llamacpp import LlamaCpp
 from langchain.chains import QAGenerationChain
-from gptcache.adapter.langchain_models import LangChainChat
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 
 
 def get_args():
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument("--model", type=str, default="ollama",
+    arg_parser.add_argument("--device", type=str, default="gpu",
+                            choices=["cpu", "gpu"],
+                            help="Device to use for the model")
+    arg_parser.add_argument("--model", type=str, default="GPT4All",
                             help="The model to use for generating questions and answers")
+    arg_parser.add_argument("--model_path", type=str,
+                            default="/home/ubuntu/data/models/nous-hermes-llama2-13b.Q4_0.gguf",
+                            help="Path to the model")
+    arg_parser.add_argument("--max_tok", type=int, default=2048, help="Maximum number of tokens in the model")
     arg_parser.add_argument("--local_input_dir",
                             type=str,
                             default="/home/ubuntu/data/2024-02-26/sample/",
@@ -58,22 +58,9 @@ def list_all_files(root_path):
 
 
 def main(args):
-    onnx = Onnx()
-    cache_base = CacheBase('sqlite')
-    vector_base = VectorBase("faiss", dimension=onnx.dimension)
-    data_manager = get_data_manager(cache_base, vector_base)
-    cache.init(
-        pre_embedding_func=get_msg_func,
-        embedding_func=onnx.to_embeddings,
-        data_manager=data_manager,
-        similarity_evaluation=SearchDistanceEvaluation(),
-    )
-    if args.model == "chat":
-        cache.set_openai_key()
-
     text_splitter = RecursiveCharacterTextSplitter(chunk_overlap=500, chunk_size=2000)
 
-    chat = LangChainChat(chat=get_model(args))
+    model = get_model(args)
 
     if args.model == "chat":
         # thanks: https://www.reddit.com/r/LangChain/comments/12pwu0o/questions_about_qagenerationchain/
@@ -105,21 +92,21 @@ def main(args):
             ]
         )
 
-        chain = QAGenerationChain.from_llm(chat, text_splitter=text_splitter, prompt=CHAT_PROMPT)
+        chain = QAGenerationChain.from_llm(model, text_splitter=text_splitter, prompt=CHAT_PROMPT)
         filename_list = list_all_files(args.local_input_dir)
         for filename in filename_list:
             try:
                 loader = TextLoader(filename)
                 doc = loader.load()[0]
                 qa = chain.run(doc.page_content)
-                with open(f"{args.local_output_dir}/{args.file_name}", "w") as f:
+                with open(os.path.join(args.local_output_dir, args.file_name), "w") as f:
                     f.write(qa)
             except Exception as e:
                 print(e)
                 print(f"An error occurred when trying to process file: {filename}")
 
     else:
-        chain = QAGenerationChain.from_llm(chat, text_splitter=text_splitter)
+        chain = QAGenerationChain.from_llm(model, text_splitter=text_splitter)
         filename_list = list_all_files(args.local_input_dir)
         for filename in filename_list:
             # In order to be processed, the file must be a .txt file
@@ -127,10 +114,10 @@ def main(args):
                 continue
 
             try:
-                loader = TextLoader(filename)
+                loader = TextLoader(str(filename))
                 doc = loader.load()[0]
-                qa = chain.run(doc.page_content)
-                with open(f"{args.local_output_dir}/{args.file_name}", "w") as f:
+                qa = chain.invoke({"text": doc.page_content})
+                with open(os.path.join(args.local_output_dir, args.file_name), "w") as f:
                     f.write(qa)
             except Exception as e:
                 print(e)
@@ -138,40 +125,19 @@ def main(args):
 
 
 def get_model(args):
-    model_dict = {
-        "chat": ChatOpenAI(temperature=0),
-        "bedrock": BedrockChat,
-        "azure": AzureChatOpenAI,
-        "fake": FakeListChatModel,
-        "prompt": PromptLayerChatOpenAI,
-        "databricks": ChatDatabricks,
-        "everly": ChatEverlyAI,
-        "anthropic": ChatAnthropic,
-        "cohere": ChatCohere,
-        "google": ChatGooglePalm,
-        "mlflow": ChatMlflow,
-        "mlflowai": ChatMLflowAIGateway,
-        "ollama": ChatOllama,
-        "vertex": ChatVertexAI,
-        "jina": JinaChat,
-        "human": HumanInputChatModel,
-        "minimax": MiniMaxChat,
-        "anyscale": ChatAnyscale,
-        "lite": ChatLiteLLM,
-        "ernie": ErnieBotChat,
-        "javelin": ChatJavelinAIGateway,
-        "konko": ChatKonko,
-        "pai": PaiEasChatEndpoint,
-        "qianfan": QianfanChatEndpoint,
-        "fireworks": ChatFireworks,
-        "yandex": ChatYandexGPT,
-        "baichuan": ChatBaichuan,
-        "hunyuan": ChatHunyuan,
-        "giga": GigaChat,
-        "volcengine": VolcEngineMaasChat
-    }
-
-    return model_dict[args.model]
+    # https://python.langchain.com/docs/guides/local_llms
+    if args.model == "LlamaCpp":
+        raise NotImplementedError("LlamaCpp is not supported yet")
+    elif args.model == "GPT4All":
+        return GPT4All(
+            model=args.model_path,
+            max_tokens=args.max_tok,
+            device=args.device
+        )
+    elif args.model == "chat":
+        return ChatOpenAI(temperature=0)
+    else:
+        raise ValueError(f"Invalid model: {args.model}")
 
 
 if __name__ == "__main__":
