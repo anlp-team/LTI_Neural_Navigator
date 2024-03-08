@@ -23,7 +23,7 @@ from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTempla
 
 def get_args():
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument("--model", type=str, default="chat",
+    arg_parser.add_argument("--model", type=str, default="ollama",
                             help="The model to use for generating questions and answers")
     arg_parser.add_argument("--local_input_dir",
                             type=str,
@@ -104,22 +104,31 @@ def main(args):
         )
 
         chain = QAGenerationChain.from_llm(chat, text_splitter=text_splitter, prompt=CHAT_PROMPT)
+        filename_list = list_all_files(args.local_input_dir)
+        for filename in filename_list:
+            try:
+                loader = TextLoader(filename)
+                doc = loader.load()[0]
+                qa = chain.run(doc.page_content)
+                with open(f"{args.local_output_dir}/{args.file_name}", "w") as f:
+                    f.write(qa)
+            except Exception as e:
+                print(e)
+                print(f"An error occurred when trying to process file: {filename}")
 
     else:
         chain = QAGenerationChain.from_llm(chat, text_splitter=text_splitter)
-
-    filename_list = list_all_files(args.local_input_dir)
-
-    for filename in filename_list:
-        try:
-            loader = TextLoader(filename)
-            doc = loader.load()[0]
-            qa = chain.run(doc.page_content)
-            with open(f"{args.local_output_dir}/{args.file_name}", "w") as f:
-                f.write(qa)
-        except Exception as e:
-            print(e)
-            print(f"An error occurred when trying to process file: {filename}")
+        filename_list = list_all_files(args.local_input_dir)
+        for filename in filename_list:
+            try:
+                loader = TextLoader(filename)
+                doc = loader.load()[0]
+                qa = chain.run(doc.page_content)
+                with open(f"{args.local_output_dir}/{args.file_name}", "w") as f:
+                    f.write(qa)
+            except Exception as e:
+                print(e)
+                print(f"An error occurred when trying to process file: {filename}")
 
 
 def get_model(args):
@@ -185,7 +194,7 @@ if __name__ == "__main__":
     if args.use_s3:
         os.system(f"aws s3 cp --recursive {args.local_output_dir} {args.s3_output_dir}")
         # clean up the local tmp directory
-        os.system(f"rm -rf {args.local_tmp_dir}")
+        # os.system(f"rm -rf {args.local_tmp_dir}")  # not safe, don't do this :(
 
     print("Done!")
     print(f"Time: {time.time() - start_time:.2f}")
