@@ -21,6 +21,26 @@ from gptcache.adapter.langchain_models import LangChainChat
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 
 
+def get_args():
+    arg_parser = argparse.ArgumentParser()
+    arg_parser.add_argument("--model", type=str, default="chat",
+                            help="The model to use for generating questions and answers")
+    arg_parser.add_argument("--local_input_dir",
+                            type=str,
+                            default="/Users/yuanye/Desktop/S24/11711/projects/LTI_Neural_Navigator/data/2024-02-26/sample/",
+                            help="Path to the original document")
+    arg_parser.add_argument("--local_output_dir", type=str,
+                            default="/Users/yuanye/Desktop/S24/11711/projects/LTI_Neural_Navigator/annotated_sample",
+                            help="Path to the output directory for the annotated document")
+    arg_parser.add_argument("--num_qas", type=int, default=6, help="Number of questions and answers to generate")
+    arg_parser.add_argument("--use_s3", type=bool, default=False, help="Whether to use S3 for data storage")
+    arg_parser.add_argument("--s3_input_dir", type=str, default="s3://lti-neural-navigator/data/raw/bs")
+    arg_parser.add_argument("--s3_output_dir", type=str, default="s3://lti-neural-navigator/annotated_sample")
+    arg_parser.add_argument("--local_tmp_dir", type=str, default="/tmp/")
+
+    return arg_parser.parse_args()
+
+
 # get the content(only question) form the prompt to cache
 def get_msg_func(data, **_):
     return data.get("messages")[-1].content
@@ -140,22 +160,7 @@ def get_model(args):
 
 
 if __name__ == "__main__":
-    args = argparse.ArgumentParser()
-    args.add_argument("--model", type=str, default="chat", help="The model to use for generating questions and answers")
-    args.add_argument("--local_input_dir",
-                      type=str,
-                      default="/Users/yuanye/Desktop/S24/11711/projects/LTI_Neural_Navigator/data/2024-02-26/sample/",
-                      help="Path to the original document")
-    args.add_argument("--local_output_dir", type=str,
-                      default="/Users/yuanye/Desktop/S24/11711/projects/LTI_Neural_Navigator/annotated_sample",
-                      help="Path to the output directory for the annotated document")
-    args.add_argument("--num_qas", type=int, default=6, help="Number of questions and answers to generate")
-    args.add_argument("--use_s3", type=bool, default=False, help="Whether to use S3 for data storage")
-    args.add_argument("--s3_input_dir", type=str, default="s3://lti-neural-navigator/data/raw/bs")
-    args.add_argument("--s3_output_dir", type=str, default="s3://lti-neural-navigator/annotated_sample")
-    args.add_argument("--local_tmp_dir", type=str, default="/tmp/")
-
-    args = args.parse_args()
+    args = get_args()
 
     start_time = time.time()
 
