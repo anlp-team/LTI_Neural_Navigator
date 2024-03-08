@@ -27,16 +27,18 @@ def get_args():
                             help="The model to use for generating questions and answers")
     arg_parser.add_argument("--local_input_dir",
                             type=str,
-                            default="/Users/yuanye/Desktop/S24/11711/projects/LTI_Neural_Navigator/data/2024-02-26/sample/",
+                            default="/home/ubuntu/data/2024-02-26/sample/",
                             help="Path to the original document")
     arg_parser.add_argument("--local_output_dir", type=str,
-                            default="/Users/yuanye/Desktop/S24/11711/projects/LTI_Neural_Navigator/annotated_sample",
+                            default="/home/ubuntu/data/test_out/",
                             help="Path to the output directory for the annotated document")
-    arg_parser.add_argument("--num_qas", type=int, default=6, help="Number of questions and answers to generate")
+    arg_parser.add_argument("--num_qas", type=int, default=10, help="Number of questions and answers to generate")
+    arg_parser.add_argument("--models_dir", type=str, default="/home/ubuntu/data/models/",
+                            help="Path to the directory containing the models")
     arg_parser.add_argument("--use_s3", type=bool, default=False, help="Whether to use S3 for data storage")
     arg_parser.add_argument("--s3_input_dir", type=str, default="s3://lti-neural-navigator/data/raw/bs")
     arg_parser.add_argument("--s3_output_dir", type=str, default="s3://lti-neural-navigator/annotated_sample")
-    arg_parser.add_argument("--local_tmp_dir", type=str, default="/tmp/")
+    arg_parser.add_argument("--local_tmp_dir", type=str, default="/home/ubuntu/data/tmp/")
 
     return arg_parser.parse_args()
 
@@ -120,6 +122,10 @@ def main(args):
         chain = QAGenerationChain.from_llm(chat, text_splitter=text_splitter)
         filename_list = list_all_files(args.local_input_dir)
         for filename in filename_list:
+            # In order to be processed, the file must be a .txt file
+            if not filename.endswith(".txt"):
+                continue
+
             try:
                 loader = TextLoader(filename)
                 doc = loader.load()[0]
