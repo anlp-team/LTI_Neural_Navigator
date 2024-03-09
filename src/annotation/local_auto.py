@@ -24,7 +24,8 @@ def get_args():
                             help="The model to use for generating questions and answers")
     arg_parser.add_argument("--model_path", type=str,
                             # default="/home/ubuntu/data/models/nous-hermes-llama2-13b.Q4_0.gguf",
-                            default="/home/ubuntu/data/models/wizardlm-13b-v1.2.Q4_0.gguf",
+                            # default="/home/ubuntu/data/models/wizardlm-13b-v1.2.Q4_0.gguf",
+                            default="/home/ubuntu/data/models/gpt4all-13b-snoozy-q4_0.gguf",
                             help="Path to the model")
     arg_parser.add_argument("--max_tok", type=int, default=2048, help="Maximum number of tokens in the model")
     arg_parser.add_argument("--local_input_dir",
@@ -34,7 +35,9 @@ def get_args():
     arg_parser.add_argument("--local_output_dir", type=str,
                             default="/home/ubuntu/data/test_out/",
                             help="Path to the output directory for the annotated document")
-    arg_parser.add_argument("--num_qas", type=int, default=10, help="Number of questions and answers to generate")
+    arg_parser.add_argument("--num_qas", type=int, default=10,
+                            help="Number of questions and answers to generate for each chunk "
+                                 "(a long document may be split into multiple chunks)")
     arg_parser.add_argument("--models_dir", type=str, default="/home/ubuntu/data/models/",
                             help="Path to the directory containing the models")
     arg_parser.add_argument("--use_s3", type=bool, default=False, help="Whether to use S3 for data storage")
@@ -45,7 +48,8 @@ def get_args():
     arg_parser.add_argument("--debug", type=bool, default=True, help="Whether to print debug information")
     arg_parser.add_argument("--select_file_list", type=list,
                             # default=None,
-                            default=["/home/ubuntu/rag-project/data/2024-02-26/sample/sched_layout_fall.txt"],
+                            default=[
+                                "/home/ubuntu/rag-project/data/2024-02-26/sample/Graham_Neubig_|_Carnegie_Mellon_University_-_Language_Technologies_Institute.txt"],
                             help="List of files to process, only for debug")
 
     return arg_parser.parse_args()
@@ -100,7 +104,10 @@ def main(args):
             ]
         )
 
-        chain = QAGenerationChain.from_llm(model, text_splitter=text_splitter, prompt=CHAT_PROMPT)
+        chain = QAGenerationChain.from_llm(model,
+                                           model_name="chat",
+                                           text_splitter=text_splitter,
+                                           prompt=CHAT_PROMPT)
         if args.select_file_list is not None:
             filename_list = args.select_file_list
         else:
@@ -118,25 +125,44 @@ def main(args):
                 print(f"An error occurred when trying to process file: {filename}")
 
     else:
-        templ1 = f"""You are a smart assistant designed to help high school teachers come up with reading comprehension questions.
-                Given a piece of text, you must come up with {args.num_qas} question and answer pairs that can be used to test a student's reading comprehension abilities.
-                Here is an example surrounded by the ```, which you should follow to generate the questions and answers for the given text:
-                ```
-                text: "The Los Angeles Dodgers won the World Series in 2020. The World Series in 2020 was played in Arlington, Texas."
-                response: [
-                    {{{{
-                        "question": "Who won the World Series in 2020?",
-                        "answer": "The Los Angeles Dodgers won the World Series in 2020."
-                    }}}},
-                    {{{{
-                        "question": "Where was the World Series in 2020 played?",
-                        "answer": "The World Series in 2020 was played in Arlington, Texas."
-                    }}}}
-                ]
-                ```
-                When coming up with this question/answer pair, you must respond in the following format:
-                ```
-                [
+        # local models
+
+        # prepare prompt template
+        # todo: extract the template to a separate file
+        if args.model_name == "gpt4all":
+            templ = f"""
+            ### Instruction:
+            You are a smart assistant designed to help high school teachers come up with reading comprehension questions.
+            Given a piece of text, you must come up with {args.num_qas} question and answer pairs that can be used to test a student's reading comprehension abilities.
+            When coming up with question/answer pairs, you must respond in the following format:
+            ```
+            [
+                {{{{
+                    "question": "YOUR_QUESTION_HERE",
+                    "answer": "THE_ANSWER_HERE"
+                }}}},
+                {{{{
+                    "question": "YOUR_SECOND_QUESTION_HERE",
+                    "answer": "THE_SECOND_ANSWER_HERE"
+                }}}}
+            ]
+            ```
+            Everything between the ``` must be valid array.
+    
+            Please come up with {args.num_qas} question/answer pairs, in the specified JSON format, for the following text:
+            ----------------
+            {{text}}
+            ### Response:
+            """
+            PROMPT = PromptTemplate.from_template(templ)
+        else:
+            templ = f"""
+            ### Instruction:
+            You are a smart assistant designed to help high school teachers come up with reading comprehension questions.
+            Given a piece of text, you must come up with {args.num_qas} question and answer pairs that can be used to test a student's reading comprehension abilities.
+            When coming up with question/answer pairs, you must respond in the following format:
+            ```
+            [
                 {{{{
                     "question": "$YOUR_QUESTION_HERE",
                     "answer": "$THE_ANSWER_HERE"
@@ -145,51 +171,34 @@ def main(args):
                     "question": "$YOUR_SECOND_QUESTION_HERE",
                     "answer": "$THE_SECOND_ANSWER_HERE"
                 }}}}
-                ]
-                ```
-                Everything between the ``` must be valid array.
-                """
-        templ2 = f"""Please come up with {args.num_qas} question/answer pairs, in the specified format, for the following text:
-                ----------------
-                {{text}}"""
+            ]
+            ```
+            Everything between the ``` must be valid array.
+    
+            Please come up with {args.num_qas} question/answer pairs, in the specified JSON format, for the following text:
+            ----------------
+            {{text}}
+            ### Response:
+            """
+            PROMPT = PromptTemplate.from_template(templ)
 
-        templ = f"""
-        ### Instruction:
-        You are a smart assistant designed to help high school teachers come up with reading comprehension questions.
-        Given a piece of text, you must come up with {args.num_qas} question and answer pairs that can be used to test a student's reading comprehension abilities.
-        When coming up with question/answer pairs, you must respond in the following format:
-        ```
-        [
-            {{{{
-                "question": "$YOUR_QUESTION_HERE",
-                "answer": "$THE_ANSWER_HERE"
-            }}}},
-            {{{{
-                "question": "$YOUR_SECOND_QUESTION_HERE",
-                "answer": "$THE_SECOND_ANSWER_HERE"
-            }}}}
-        ]
-        ```
-        Everything between the ``` must be valid array.
-
-        Please come up with {args.num_qas} question/answer pairs, in the specified JSON format, for the following text:
-        ----------------
-        {{text}}
-        ### Response:
-        """
-        PROMPT = PromptTemplate.from_template(templ)
-
-        chain = QAGenerationChain.from_llm(model, text_splitter=text_splitter, prompt=PROMPT)
+        chain = QAGenerationChain.from_llm(model,
+                                           model_name=args.model_name,
+                                           text_splitter=text_splitter,
+                                           prompt=PROMPT)
         if args.select_file_list is not None:
             filename_list = args.select_file_list
         else:
             filename_list = list_all_files(args.local_input_dir)
-            
+
         for filename in filename_list:
             # In order to be processed, the file must be a .txt file
             if not filename.endswith(".txt"):
                 continue
             print(f"Processing file: {filename}")
+
+            with open(filename, "r") as file:
+                document_text = file.read()
 
             try:
                 loader = TextLoader(str(filename))
@@ -198,7 +207,13 @@ def main(args):
                 qa_pairs = qa["qa_pairs"]
                 normalized_filename = filename.split("/")[-1].replace(".txt", ".json")
                 with open(os.path.join(args.local_output_dir, normalized_filename), "w") as f:
-                    f.write(json.dumps(qa_pairs))
+                    output_dict = {
+                        "file_path": filename,
+                        "num_qa_pairs": len(qa_pairs),
+                        "qa_list": qa_pairs,
+                        "doc_text": document_text
+                    }
+                    f.write(json.dumps(output_dict))
                 print('*' * 50)
                 print(f"For file: {filename}, the questions and answers are:\n\n {qa_pairs}")
                 print('*' * 50)
@@ -211,8 +226,18 @@ def get_model(args):
     # https://python.langchain.com/docs/guides/local_llms
     if args.model == "LlamaCpp":
         raise NotImplementedError("LlamaCpp is not supported yet")
+        args.model_name = "llama2"
     elif args.model == "GPT4All":
         print(f"Using GPT4All, loading model from: {args.model_path}")
+
+        # set args.model_name
+        if "gpt4all" in args.model_path:
+            args.model_name = "gpt4all"
+        elif "wizardlm" in args.model_path:
+            args.model_name = "wizardlm"
+        elif "llama2" in args.model_path:
+            args.model_name = "llama2"
+
         return GPT4All(
             model=args.model_path,
             max_tokens=args.max_tok,
@@ -224,6 +249,7 @@ def get_model(args):
         )
     elif args.model == "chat":
         print(f"Using ChatGPT online model.")
+        args.model_name = "chat"
         return ChatOpenAI(temperature=0)
     else:
         raise ValueError(f"Invalid model: {args.model}")

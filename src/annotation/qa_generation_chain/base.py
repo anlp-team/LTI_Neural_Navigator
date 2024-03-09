@@ -19,6 +19,8 @@ class QAGenerationChain(Chain):
 
     llm_chain: LLMChain
     """LLM Chain that generates responses from user input and context."""
+    model_name: str
+    """Name of the language model."""
     text_splitter: TextSplitter = Field(
         default=RecursiveCharacterTextSplitter(chunk_overlap=500)
     )
@@ -64,6 +66,31 @@ class QAGenerationChain(Chain):
     def output_keys(self) -> List[str]:
         return [self.output_key]
 
+    def normalize_dirty_str(self, dirty_str: str) -> str:
+        if self.model_name == "chat":
+            raise NotImplementedError
+        elif self.model_name == "wizardlm":
+            return (dirty_str.split("```")[1]
+                    .replace("\\'", "'")
+                    .replace("\\n", "\n")
+                    .strip())
+        elif self.model_name == "llama2":
+            s = dirty_str[len("text="):][1:-1].strip()
+            return (s.replace("\\'", "'")
+                    .replace("\\n", "\n")
+                    .strip())
+        elif self.model_name == "gpt4all":
+            # gpt4all is really naughty
+            if "```" in dirty_str:
+                s = dirty_str.split("```")[1]
+            else:
+                s = dirty_str[len("text="):][1:-1].strip()
+            return (s.replace("\\'", "'")
+                    .replace("\\n", "\n")
+                    .strip())
+        else:
+            raise NotImplementedError
+
     def _call(
             self,
             inputs: Dict[str, Any],
@@ -75,15 +102,15 @@ class QAGenerationChain(Chain):
         )
         qa_ret = []
         for res in results.generations:
-            json_str = ((str(res[0]).split("```")[1])
-                        .replace("\\'", "'")
-                        .replace("\\n", "\n")
-                        .strip())
+            dirty_str = str(res[0])
             try:
+                json_str = self.normalize_dirty_str(dirty_str)
                 qa_list = json.loads(json_str)
                 qa_ret.extend(qa_list)
-            except json.JSONDecodeError as e:
-                print(f"Json cannot decode the string: {json_str}")
+            except NotImplementedError as e:
+                raise e
+            except Exception as e:
+                print(f"Json cannot decode the string: {dirty_str}")
                 print(f"Error: {e}")
 
         return {self.output_key: qa_ret}
