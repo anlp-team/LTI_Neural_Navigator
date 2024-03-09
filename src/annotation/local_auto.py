@@ -16,43 +16,44 @@ from qa_generation_chain import QAGenerationChain
 
 
 def get_args():
-    arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument("--device", type=str, default="NVIDIA A10G",
-                            choices=["cpu", "gpu"],
-                            help="Device to use for the model")
-    arg_parser.add_argument("--model", type=str, default="GPT4All",
-                            help="The model to use for generating questions and answers")
-    arg_parser.add_argument("--model_path", type=str,
-                            # default="/home/ubuntu/data/models/nous-hermes-llama2-13b.Q4_0.gguf",
-                            # default="/home/ubuntu/data/models/wizardlm-13b-v1.2.Q4_0.gguf",
-                            default="/home/ubuntu/data/models/gpt4all-13b-snoozy-q4_0.gguf",
-                            help="Path to the model")
-    arg_parser.add_argument("--max_tok", type=int, default=2048, help="Maximum number of tokens in the model")
-    arg_parser.add_argument("--local_input_dir",
-                            type=str,
-                            default="/home/ubuntu/rag-project/data/2024-02-26/sample/",
-                            help="Path to the original document")
-    arg_parser.add_argument("--local_output_dir", type=str,
-                            default="/home/ubuntu/data/test_out/",
-                            help="Path to the output directory for the annotated document")
-    arg_parser.add_argument("--num_qas", type=int, default=10,
-                            help="Number of questions and answers to generate for each chunk "
-                                 "(a long document may be split into multiple chunks)")
-    arg_parser.add_argument("--models_dir", type=str, default="/home/ubuntu/data/models/",
-                            help="Path to the directory containing the models")
-    arg_parser.add_argument("--use_s3", type=bool, default=False, help="Whether to use S3 for data storage")
-    arg_parser.add_argument("--s3_input_dir", type=str, default="s3://lti-neural-navigator/data/raw/bs")
-    arg_parser.add_argument("--s3_output_dir", type=str, default="s3://lti-neural-navigator/annotated_sample")
-    arg_parser.add_argument("--local_tmp_dir", type=str, default="/home/ubuntu/data/tmp/")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--device", type=str, default="NVIDIA A10G",
+                        choices=["cpu", "gpu"],
+                        help="Device to use for the model")
+    parser.add_argument("--model", type=str, default="GPT4All",
+                        help="The model to use for generating questions and answers")
+    parser.add_argument("--model_path", type=str,
+                        # default="/home/ubuntu/data/models/nous-hermes-llama2-13b.Q4_0.gguf",
+                        default="/home/ubuntu/data/models/wizardlm-13b-v1.2.Q4_0.gguf",
+                        # default="/home/ubuntu/data/models/gpt4all-13b-snoozy-q4_0.gguf",
+                        help="Path to the model")
+    parser.add_argument("--max_tok", type=int, default=2048, help="Maximum number of tokens in the model")
+    parser.add_argument("--local_input_dir",
+                        type=str,
+                        default="/home/ubuntu/rag-project/data/2024-02-26/sample/",
+                        help="Path to the original document")
+    parser.add_argument("--local_output_dir", type=str,
+                        default="/home/ubuntu/rag-project/annotated_sample/",
+                        help="Path to the output directory for the annotated document")
+    parser.add_argument("--num_qas", type=int, default=10,
+                        help="Number of questions and answers to generate for each chunk "
+                             "(a long document may be split into multiple chunks)")
+    parser.add_argument("--models_dir", type=str, default="/home/ubuntu/data/models/",
+                        help="Path to the directory containing the models")
+    parser.add_argument("--use_s3", type=bool, default=False, help="Whether to use S3 for data storage")
+    parser.add_argument("--s3_input_dir", type=str, default="s3://lti-neural-navigator/data/raw/bs")
+    parser.add_argument("--s3_output_dir", type=str, default="s3://lti-neural-navigator/annotated_sample")
+    parser.add_argument("--local_tmp_dir", type=str, default="/home/ubuntu/data/tmp/")
+    parser.add_argument("--incremental", type=bool, default=True, help="Whether to process the document incrementally")
 
-    arg_parser.add_argument("--debug", type=bool, default=True, help="Whether to print debug information")
-    arg_parser.add_argument("--select_file_list", type=list,
-                            # default=None,
-                            default=[
-                                "/home/ubuntu/rag-project/data/2024-02-26/sample/Graham_Neubig_|_Carnegie_Mellon_University_-_Language_Technologies_Institute.txt"],
-                            help="List of files to process, only for debug")
+    parser.add_argument("--debug", type=bool, default=False, help="Whether to print debug information")
+    parser.add_argument("--select_file_list", type=list,
+                        default=None,
+                        # default=[
+                        # "/home/ubuntu/rag-project/data/2024-02-26/sample/Graham_Neubig_|_Carnegie_Mellon_University_-_Language_Technologies_Institute.txt"],
+                        help="List of files to process, only for debug")
 
-    return arg_parser.parse_args()
+    return parser.parse_args()
 
 
 # get the content(only question) form the prompt to cache
@@ -67,6 +68,64 @@ def list_all_files(root_path):
             file_path = os.path.join(root, file)
             files_list.append(file_path)
     return files_list
+
+
+def split_file(file_path, max_size=25600) -> List[str]:
+    if os.path.getsize(file_path) <= max_size:
+        return [file_path]
+
+    new_file_list = []
+    with open(file_path, 'rb') as f:
+        chunk_num = 0
+        while True:
+            chunk = f.read(max_size)
+            if not chunk:
+                break
+            chunk_file_name = f"{file_path}_chunk{chunk_num}.txt"
+            new_file_list.append(chunk_file_name)
+            with open(chunk_file_name, 'wb') as chunk_file:
+                chunk_file.write(chunk)
+            chunk_num += 1
+
+    os.remove(file_path)
+    return new_file_list
+
+
+def process_files(file_list) -> List[str]:
+    new_file_list = []
+    for file_path in file_list:
+        if os.path.isfile(file_path):
+            new_file_list.extend(split_file(file_path))
+        else:
+            print(f"Warning: {file_path} is not a file or does not exist.")
+
+    return new_file_list
+
+
+def get_incremental_list(file_list, args):
+    input_dir = args.local_input_dir
+    output_dir = args.local_output_dir
+
+    # Get a list of already processed files
+    processed_files = list_all_files(output_dir)
+    # Get relative file names relative to the output directory
+    processed_files = [os.path.relpath(file, output_dir) for file in processed_files]
+    # construct the full path of the processed files in the input directory
+    processed_files = [os.path.join(input_dir, file) for file in processed_files]
+    processed_files = [file.replace(".json", ".txt") for file in processed_files]
+
+    # Filter out the files that have already been processed
+    incremental_list = list(set(file_list) - set(processed_files))
+
+    return incremental_list
+
+
+def print_all_files(file_list):
+    print("*" * 50)
+    print("The following files will be processed:")
+    for file in file_list:
+        print(file)
+    print("*" * 50)
 
 
 def main(args):
@@ -113,6 +172,13 @@ def main(args):
         else:
             filename_list = list_all_files(args.local_input_dir)
 
+        filename_list = process_files(filename_list)
+        # sort the file list with the file size from small to large
+        filename_list.sort(key=lambda x: os.path.getsize(x))
+        if args.incremental:
+            filename_list = get_incremental_list(filename_list, args)
+
+        print_all_files(filename_list)
         for filename in filename_list:
             try:
                 loader = TextLoader(filename)
@@ -160,6 +226,7 @@ def main(args):
             ### Instruction:
             You are a smart assistant designed to help high school teachers come up with reading comprehension questions.
             Given a piece of text, you must come up with {args.num_qas} question and answer pairs that can be used to test a student's reading comprehension abilities.
+            The questions you generated should be specific to the text and should not be too general.
             When coming up with question/answer pairs, you must respond in the following format:
             ```
             [
@@ -191,6 +258,13 @@ def main(args):
         else:
             filename_list = list_all_files(args.local_input_dir)
 
+        filename_list = process_files(filename_list)
+        # sort the file list with the file size from small to large
+        filename_list.sort(key=lambda x: os.path.getsize(x))
+        if args.incremental:
+            filename_list = get_incremental_list(filename_list, args)
+
+        print_all_files(filename_list)
         for filename in filename_list:
             # In order to be processed, the file must be a .txt file
             if not filename.endswith(".txt"):

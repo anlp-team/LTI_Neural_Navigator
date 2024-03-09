@@ -70,8 +70,13 @@ class QAGenerationChain(Chain):
         if self.model_name == "chat":
             raise NotImplementedError
         elif self.model_name == "wizardlm":
-            return (dirty_str.split("```")[1]
-                    .replace("\\'", "'")
+            if "```" in dirty_str:
+                s = dirty_str.split("```")[1].strip()
+                if s.startswith("json"):
+                    s = s[len("json"):].strip()
+            else:
+                s = dirty_str[len("text="):][1:-1].strip()
+            return (s.replace("\\'", "'")
                     .replace("\\n", "\n")
                     .strip())
         elif self.model_name == "llama2":
