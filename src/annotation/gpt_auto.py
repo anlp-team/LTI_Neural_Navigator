@@ -40,6 +40,7 @@ def generate_questions_and_answers(document, num_questions):
     )
     response_text = response.choices[0].message.content.strip()
     print(response_text)
+    print(len(response_text))
     questions_and_answers =response_text
 
     # except Exception as e:
@@ -49,7 +50,7 @@ def generate_questions_and_answers(document, num_questions):
 
 
 # Example usage
-document_path = "/home/stevenzhang/11711Homeworks/LTI_Neural_Navigator/test_zzh/output.txt"
+document_path = "test_zzh/output.txt"
 with open(document_path, "r") as file:
     document_text = file.read()
 
