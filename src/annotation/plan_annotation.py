@@ -48,9 +48,10 @@ def get_incremental_list(file_list, args):
 
 def print_all_files(file_list):
     print("*" * 50)
-    print("The following files will be processed:")
+    print(f"The following files will be processed:")
     for file in file_list:
         print(file)
+    print(f"Summary: {len(file_list)} files in total.")
     print("*" * 50)
 
 
