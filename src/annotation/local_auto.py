@@ -27,7 +27,9 @@ def get_args():
                         default="/home/ubuntu/data/models/wizardlm-13b-v1.2.Q4_0.gguf",
                         # default="/home/ubuntu/data/models/gpt4all-13b-snoozy-q4_0.gguf",
                         help="Path to the model")
-    parser.add_argument("--max_tok", type=int, default=2048, help="Maximum number of tokens in the model")
+    parser.add_argument("--max_tok", type=int, default=4096,
+                        help="Maximum context window size for the model "
+                             "(do not exceed the model's maximum context window size specified in the model card)!")
     parser.add_argument("--local_input_dir",
                         type=str,
                         default="/home/ubuntu/rag-project/data/2024-02-26/sample/",
@@ -122,9 +124,10 @@ def get_incremental_list(file_list, args):
 
 def print_all_files(file_list):
     print("*" * 50)
-    print("The following files will be processed:")
+    print(f"The following files will be processed:")
     for file in file_list:
         print(file)
+    print(f"Summary: {len(file_list)} files in total.")
     print("*" * 50)
 
 
@@ -275,6 +278,7 @@ def main(args):
                 document_text = file.read()
 
             try:
+                file_start_time = time.time()
                 loader = TextLoader(str(filename))
                 doc = loader.load()[0]
                 qa = chain.invoke({"text": doc.page_content})
@@ -289,7 +293,8 @@ def main(args):
                     }
                     f.write(json.dumps(output_dict))
                 print('*' * 50)
-                print(f"For file: {filename}, the questions and answers are:\n\n {qa_pairs}")
+                print(f"For file: {filename}, the questions and answers are:\n\n {qa_pairs}\n")
+                print(f"Time consumed: {time.time() - file_start_time:.2f} seconds.")
                 print('*' * 50)
             except Exception as e:
                 print(e)
@@ -317,7 +322,7 @@ def get_model(args):
             max_tokens=args.max_tok,
             device=args.device,
             n_batch=2048,
-            n_predict=2048,
+            n_predict=4090,
             seed=-1,
             verbose=args.debug,
         )

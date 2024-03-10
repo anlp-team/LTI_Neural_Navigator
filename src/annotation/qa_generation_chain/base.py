@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import json_repair
+from json_repair import repair_json
 from typing import Any, Dict, List, Optional
 
 from langchain_core.callbacks import CallbackManagerForChainRun
@@ -115,7 +117,14 @@ class QAGenerationChain(Chain):
             except NotImplementedError as e:
                 raise e
             except Exception as e:
-                print(f"Json cannot decode the string: {dirty_str}")
-                print(f"Error: {e}")
+                try:
+                    bad_json_str = self.normalize_dirty_str(dirty_str)
+                    qa_list = json_repair.loads(bad_json_str)
+                    if not isinstance(qa_list, list):
+                        raise ValueError(f"Json repairs failed, expected a list, but got {type(qa_list)}")
+                    qa_ret.extend(qa_list)
+                except Exception as e:
+                    print(f"Json cannot decode the string: {dirty_str}")
+                    print(f"Error: {e}")
 
         return {self.output_key: qa_ret}
