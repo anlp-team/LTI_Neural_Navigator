@@ -48,35 +48,45 @@ def json_repair_api(json_str):
     return good_json_string
 
 
-if __name__ == "__main__":
-    test_str = '''text='\n            ```\n            [\n                {\
-n                    "question": "What are the course codes and instructors for the three
- Mathematical Studies Algebra I classes?",\n                    "answer": "The course cod
-es and instructors for the three Mathematical Studies Algebra I classes are as follows: 1
-2.0 Lec MWF 03:00PM 03:50PM GHC 4301, Instructor: Conley A T; 12.0 Lec MWF 01:00PM 01:50P
-M WEH 8201, Instructor: Tice A R; and 12.0 Lec MWF 01:00PM 01:50PM WEH 8201, Instructor:
-Tice A R."\n                },\n                {\n                    "question": "What
-are the course codes for Matrix Algebra with Applications and Matrices and Linear Transfo
-rmations?",\n                    "answer": "The course code for Matrix Algebra with Appli
-cations is 10.0 Lec MWF 02:00PM 02:50PM DH 2302, Instructor: Koganemaru A T; and the cour
-se code for Matrices and Linear Transformations is 11.0 Lec 1 MWF 09:00AM 09:50AM MM A14,
- Instructor: Gheorghiciuc."\n                },\n                {\n                    "
-question": "What are the course codes and instructors for the five Linear Algebra classes
-?",\n                    "answer": "The course codes and instructors for the five Linear
-Algebra classes are as follows: 12.0 Lec MWF 03:00PM 03:50PM GHC 4301, Instructor: Conley
- A T; 12.0 Lec MWF 01:00PM 01:50PM WEH 8201, Instructor: Tice A R; 12.0 Lec MWF 01:00PM 0
-1:50PM WEH 8201, Instructor: Tice A R; 12.0 Lec MWF 03:00PM 03:50PM GHC 4301, Instructor:
- Conley A T; and 12.0 Lecture MWF 09:00AM 09:50AM MM A14, Instructor: Gheorghiciuc."\n
-             },\n                {\n                    "question": "What are the course
-codes for Matrix Algebra with Applications and Matrices and Linear Transformations?",\n
-                  "answer": "The course code for Matrix Algebra with Applications is 10.0
- Lec MWF 02:00PM 02:50PM DH 2302, Instructor: Koganemaru A T; and the course code for Mat
-rices and Linear Transformations is 11.0 Lec 1 MWF 09:00AM 09:50AM MM A14, Instructor: Gh
-eorghiciuc."\n                },\n                {\n                    "question": "Wha
-t are the course codes and instructors for the five Linear Algebra classes?",\n
-          "answer": "The course codes and instructors for the five Linear Algebra classes
- are as follows: 12.0 Lec MWF 03:00PM 03:50PM GHC 4301, Instructor'''
+def enum_list_to_json(enum_str) -> list:
+    pattern = r'\d+\.\s*"question":\s*"([^"]+)",\s*\\n\s*"answer":\s*"([^"]+)"'
+    matches = re.findall(pattern, enum_str)
 
-    # fixed_json_str = fix_json_string(normalize_dirty_str(test_str))
-    fixed_json_str = json_repair_api(test_str)
-    print(json.loads(fixed_json_str))
+    json_list = [{"question": match[0], "answer": match[1]} for match in matches]
+
+    return json_list
+
+
+if __name__ == "__main__":
+    test_str = '''text=\'1. "question": "What services does CaPS provide for
+graduate students?", \n                "answer": "CaPS provides counseling referrals with
+in Carnegie Mellon or the Pittsburgh community."\n            2. "question": "How can app
+ointments be made at University Health Services (UHS)?", \n                "answer": "App
+ointments can be made in person, by telephone at 412-268-2922, or online through the UHS
+website."\n            3. "question": "What is covered under the CMU Student Insurance Pl
+an?", \n                "answer": "The plan covers most visit fees to see physicians and
+advanced practice clinicians & nurse visits."\n            4. "question": "Who provides g
+eneral medical care at University Health Services (UHS)?", \n                "answer": "P
+hysicians, advanced practice clinicians, and registered nurses provide general medical ca
+re at UHS."\n            5. "question": "What services does the Student Health Insurance
+Program administer?", \n                "answer": "The program administers a high level o
+f coverage in a wide network of healthcare providers and hospitals."\n            6. "que
+stion": "How can appointments be made at Campus Wellness?", \n                "answer": "
+Appointments can be made by visiting the Campus Wellness website, walk-in, or by telephon
+e, 412-268-2157."\n            7. "question": "What is the role of registered dietitians
+and health promotion specialists at University Health Services (UHS)?", \n
+ "answer": "Registered dietitians and health promotion specialists assist students in add
+ressing nutrition, drug and alcohol issues, and other healthy lifestyle concerns."\n
+       8. "question": "What is the purpose of the Student Health Insurance Plan?", \n
+            "answer": "The plan offers a high level of coverage to provide students with
+access to quality medical care when needed."\n            9. "question": "How can student
+s review detailed information about university health insurance requirements and fees?",
+\n                "answer": "Students should visit the UHS website or their insurance pla
+n for detailed information about the university health insurance requirement and fees."\n
+            10. "question": "What is the belief of Carnegie Mellon regarding individual a
+nd collective well-being?", \n                "answer": "Carnegie Mellon believes that ou
+r individual and collective well-being is rooted in healthy connections to each other and
+ campus resources."\''''
+
+    clean_str = normalize_dirty_str(test_str)
+    print(enum_list_to_json(clean_str))
