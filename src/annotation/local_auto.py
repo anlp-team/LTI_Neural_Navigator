@@ -122,9 +122,10 @@ def get_incremental_list(file_list, args):
 
 def print_all_files(file_list):
     print("*" * 50)
-    print("The following files will be processed:")
+    print(f"The following files will be processed:")
     for file in file_list:
         print(file)
+    print(f"Summary: {len(file_list)} files in total.")
     print("*" * 50)
 
 
@@ -275,6 +276,7 @@ def main(args):
                 document_text = file.read()
 
             try:
+                file_start_time = time.time()
                 loader = TextLoader(str(filename))
                 doc = loader.load()[0]
                 qa = chain.invoke({"text": doc.page_content})
@@ -289,7 +291,8 @@ def main(args):
                     }
                     f.write(json.dumps(output_dict))
                 print('*' * 50)
-                print(f"For file: {filename}, the questions and answers are:\n\n {qa_pairs}")
+                print(f"For file: {filename}, the questions and answers are:\n\n {qa_pairs}\n")
+                print(f"Time consumed: {time.time() - file_start_time:.2f} seconds.")
                 print('*' * 50)
             except Exception as e:
                 print(e)
