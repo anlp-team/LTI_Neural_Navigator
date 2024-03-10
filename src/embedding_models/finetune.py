@@ -14,6 +14,7 @@ def json_to_examples(dir_path="./annotated_sample/"):
             with open(os.path.join(dir_path, filename), "r") as f:
                 data = json.load(f)
                 qa_list = data["qa_list"]
+                context = data["doc_text"]
                 for pair in qa_list:
                     if "question" not in pair or "answer" not in pair:
                         print(f"Invalid pair: {pair} in {filename}")
@@ -23,7 +24,7 @@ def json_to_examples(dir_path="./annotated_sample/"):
                     if isinstance(answer, list): # some answers are lists
                         answer = [str(a) for a in answer] # some answer items are list dicts
                         answer = "; ".join(answer)
-                    examples.append(InputExample(texts=[query, answer]))
+                    examples.append(InputExample(texts=[query, context]))
 
     return examples
 
