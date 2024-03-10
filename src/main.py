@@ -4,7 +4,7 @@ from langchain import hub
 from langchain_community.llms import GPT4All
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import GPT4AllEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores.chroma import Chroma
 from langchain_community.document_loaders import DirectoryLoader
 from langchain_core.output_parsers import StrOutputParser
@@ -45,6 +45,11 @@ def langchain(args):
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=0)
     all_splits = text_splitter.split_documents(data)
+
+    embeddings = HuggingFaceEmbeddings(
+        model_name=args.embed_model_ckpt,
+        
+    )
 
     vectorstore = Chroma.from_documents(documents=all_splits, embedding=GPT4AllEmbeddings())
 
