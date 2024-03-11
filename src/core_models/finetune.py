@@ -31,16 +31,16 @@ model = AutoModelForCausalLM.from_pretrained(
     # device_map={"": accelerator.device},
     # device_map={"": accelerator.process_index},
     device_map="auto",
-    # quantization_config=BitsAndBytesConfig(
-    #     load_in_4bit=True,
-    #     bnb_4bit_compute_dtype=torch.bfloat16,
-    #     bnb_4bit_quant_type="nf4",
-    # ),
     quantization_config=BitsAndBytesConfig(
-        load_in_8bit=True,
-        compute_dtype=torch.bfloat16,
-        quant_type="nf4",
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=torch.bfloat16,
+        bnb_4bit_quant_type="nf4",
     ),
+    # quantization_config=BitsAndBytesConfig(
+    #     load_in_8bit=True,
+    #     compute_dtype=torch.bfloat16,
+    #     quant_type="nf4",
+    # ),
     torch_dtype=torch.bfloat16,
 )
 print(f"accelerator.device: {accelerator.device}")
@@ -195,7 +195,7 @@ save_steps = len(dataset_tokenized["train"]) // (
 logging_steps = 100
 learning_rate = 2e-4
 max_grad_norm = 0.3
-max_steps = 5000
+max_steps = 1000
 warmup_ratio = 0.03
 lr_scheduler_type = "constant"
 epochs = 5
@@ -225,14 +225,34 @@ args = TrainingArguments(
     # report_to="none",
 )
 
-trainer = Trainer(
+# trainer = Trainer(
+#     model=model,
+#     tokenizer=tokenizer,
+#     args=args,
+#     data_collator=collate,
+#     train_dataset=dataset_tokenized["train"],
+#     eval_dataset=dataset_tokenized["test"],
+# )
+
+# model.config.use_cache = False
+# trainer.train()
+
+
+def prompt_instruction_format(sample):
+    return sample["text"]
+
+from trl import SFTTrainer
+
+trainer = SFTTrainer(
     model=model,
+    train_dataset=dataset["train"],
+    eval_dataset=dataset["test"],
+    peft_config=config,
+    max_seq_length=2048,
     tokenizer=tokenizer,
+    packing=True,
+    formatting_func=prompt_instruction_format,
     args=args,
-    data_collator=collate,
-    train_dataset=dataset_tokenized["train"],
-    eval_dataset=dataset_tokenized["test"],
 )
 
-model.config.use_cache = False
 trainer.train()
