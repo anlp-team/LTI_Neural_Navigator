@@ -116,15 +116,23 @@ def prep_data(dir_path):
                         )
                     )
                 elif "top_k_docs" in pair:
+                    top_k_docs = []
+                    # fill top_k_docs with empty strings if not enough
+                    for i in range(5):
+                        if str(i) in pair["top_k_docs"]:
+                            top_k_docs.append(pair["top_k_docs"][str(i)])
+                        else:
+                            top_k_docs.append("")
+
                     data.append(
                         langchain_prompt_multi.format(
                             question=query,
                             answer=answer,
-                            ref1=pair["top_k_docs"]["0"],
-                            ref2=pair["top_k_docs"]["1"],
-                            ref3=pair["top_k_docs"]["2"],
-                            ref4=pair["top_k_docs"]["3"],
-                            ref5=pair["top_k_docs"]["4"],
+                            ref1=top_k_docs[0],
+                            ref2=top_k_docs[1],
+                            ref3=top_k_docs[2],
+                            ref4=top_k_docs[3],
+                            ref5=top_k_docs[4],
                         )
                     )
                 else:
@@ -139,7 +147,7 @@ def prep_data(dir_path):
     return Dataset.from_dict({"text": data})
 
 
-dataset = prep_data("./annotated_sample/")
+dataset = prep_data("./dataset_with_ref/")
 dataset = dataset.train_test_split(test_size=0.1)
 
 
@@ -195,7 +203,7 @@ save_steps = len(dataset_tokenized["train"]) // (
 logging_steps = 100
 learning_rate = 2e-4
 max_grad_norm = 0.3
-max_steps = 5000
+max_steps = 1000
 warmup_ratio = 0.03
 lr_scheduler_type = "constant"
 epochs = 5
@@ -236,3 +244,23 @@ trainer = Trainer(
 
 model.config.use_cache = False
 trainer.train()
+
+
+# def prompt_instruction_format(sample):
+#     return sample["text"]
+
+# from trl import SFTTrainer
+
+# trainer = SFTTrainer(
+#     model=model,
+#     train_dataset=dataset["train"],
+#     eval_dataset=dataset["test"],
+#     peft_config=config,
+#     max_seq_length=2048,
+#     tokenizer=tokenizer,
+#     packing=True,
+#     formatting_func=prompt_instruction_format,
+#     args=args,
+# )
+
+# trainer.train()
