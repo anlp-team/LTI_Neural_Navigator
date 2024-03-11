@@ -13,7 +13,7 @@ from langchain_community.document_loaders import DirectoryLoader
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
-from transformers import BitsAndBytesConfig
+from transformers import BitsAndBytesConfig, AutoTokenizer, AutoModelForCausalLM, pipeline
 
 from rag.doc_reader import QuestionAnsweringModel, ContextSelector, AnswerProcessor
 from rag.embedder import EmbeddingModel, Embedder
@@ -29,7 +29,7 @@ def arg_parser():
     parser.add_argument("--topk", type=int, default=5, help="Maximum number of documents to retrieve")
     parser.add_argument("--generate_batch_size", type=int, default=0,
                         help="Batch size for generation, 0 for no batching")
-    parser.add_argument("--max_tokens", type=int, default=2048, help="Maximum tokens supported by the system")
+    parser.add_argument("--max_tokens", type=int, default=150, help="Maximum tokens supported by the system")
     parser.add_argument("--search_type", type=str, default="mmr", help="Type of search to perform",
                         choices=["similarity", "mmr", "similarity_score_threshold"])
     parser.add_argument("--device", type=str, default="cuda", help="Device to run the model on")
@@ -37,7 +37,8 @@ def arg_parser():
     parser.add_argument("--knowledge_base", type=str, default="/home/ubuntu/rag-project/data/sample",
                         help="Path to knowledge base")
     parser.add_argument("--core_model_id", type=str,
-                        default="meta-llama/Llama-2-7b-hf",
+                        # default="meta-llama/Llama-2-7b-hf",
+                        default="microsoft/phi-2",
                         help="Model ID for the core model")
     parser.add_argument("--embed_model_id", type=str,
                         default="mixedbread-ai/mxbai-embed-large-v1",
@@ -45,6 +46,7 @@ def arg_parser():
                         help="Model ID for the embedding model")
 
     parser.add_argument("--cache_dir", type=str, default="/mnt/datavol/cache", help="Directory to store cache")
+    parser.add_argument("--streaming_output", action="store_true", default=False, help="Stream output to console")
 
     return parser.parse_args()
 
@@ -93,44 +95,33 @@ def langchain(args):
 
     # prepare vector store
     vectorstore = Chroma.from_documents(documents=all_splits, embedding=embeddings)
+    retriever = vectorstore.as_retriever()
 
     # prepare core model
-    if args.generate_batch_size > 0:
-        gen_pipeline = HuggingFacePipeline.from_pretrained(
-            model_id=args.core_model_id,
-            task="text-generation",
-            device_map="auto",
-            batch_size=args.inference_batch_size,
-            model_kwargs={
-                "temperature": 0.7,
-                "max_length": 4096,
-                "torch_dtype": torch.bfloat16,
-                "load_in_8bit": True,
-                "quantization_config": BitsAndBytesConfig(load_in_8bit=True)
-            }
-        )
-    else:
-        gen_pipeline = HuggingFacePipeline.from_model_id(
-            model_id=args.core_model_id,
-            task="text-generation",
-            tokenizer=
-            device_map="auto",
-            batch_size=1,
-            model_kwargs={
-                "temperature": 0.7,
-                "max_length": 4096,
-                "torch_dtype": torch.bfloat16,
-                "load_in_8bit": True,
-                "quantization_config": BitsAndBytesConfig(load_in_8bit=True)
-            }
-        )
+    tokenizer = AutoTokenizer.from_pretrained(
+        args.core_model_id,
+        use_fast=True,
+        cache_dir=args.cache_dir
+    )
+    core_model = AutoModelForCausalLM.from_pretrained(
+        args.core_model_id,
+        torch_dtype=torch.bfloat16,
+        load_in_8bit=True,
+        quantization_config=BitsAndBytesConfig(load_in_8bit=True),
+        device_map="auto",
+        cache_dir=args.cache_dir
+    )
+    pipe = pipeline(
+        task="text-generation",
+        model=core_model,
+        tokenizer=tokenizer,
+        max_new_tokens=args.max_tokens,
+        device=None  # because we use device_map="auto"
+    )
+    gen_pipeline = HuggingFacePipeline(pipeline=pipe)
 
     # prepare prompt
     prompt = hub.pull("yeyuan/rag-prompt-llama")
-
-    # Chain
-    def format_docs(docs):
-        return "\n\n".join(doc.page_content for doc in docs)
 
     if args.generate_batch_size > 0:
         # Batch generation mode
@@ -149,25 +140,39 @@ def langchain(args):
             if question == "exit":
                 break
 
-            # Retrieve documents
-            topk_docs = vectorstore.search(question, k=args.topk, search_type=args.search_type)
-            formatted_topk_docs = format_docs(topk_docs)
-
-            # Rerank
-
             # Define the chain
-            chain = prompt | gen_pipeline.bind(stop=["\n\n"])
+            # TODO: add reranker to chain
+            chain = (
+                    {"context": retriever | format_docs, "question": RunnablePassthrough()}
+                    | prompt
+                    | gen_pipeline
+                    | StrOutputParser()
+            )
 
-            # Run the chain
-            output = chain.batch([{"question": question, "context": formatted_topk_docs}])
+            if args.streaming_output:
+                # Stream the chain
+                print("WARNING: Streaming output might not work well with some models.")
+                print("Answer:")
+                for ch in chain.stream(question):
+                    print(ch, end='')
 
-            # Parse the output
-            answer = StrOutputParser().parse(output[0])
-            print("Answer:", answer)
+            else:
+                # Run the chain
+                output = chain.invoke(question)
 
-            print("====== Reference documents ======")
-            for i, doc in enumerate(topk_docs):
-                print(f"[{i + 1}] {doc}")
+                # Parse the output
+                answer = StrOutputParser().parse(output[0])
+                print("Answer:", answer)
+
+
+def format_docs(docs):
+    return "\n\n".join(doc.page_content for doc in docs)
+
+
+def format_docs_and_print(docs):
+    s = "\n\n".join(doc.page_content for doc in docs)
+    print(s)
+    return s
 
 
 def get_data(data: List[str], batch_size: int) -> List[str]:
