@@ -91,7 +91,8 @@ def langchain(args):
         },
         encode_kwargs={
 
-        }
+        },
+        cache_folder=args.cache_dir
     )
 
     # prepare vector store
