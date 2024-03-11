@@ -39,9 +39,6 @@ def annotation(args):
     if args.incremental:
         todo_files = get_incremental_list(todo_files, args)
 
-    # debug
-    todo_files = ["/home/ubuntu/rag-project/annotated_sample/gpt4all-graham.json"]
-
     # sort files by file size
     todo_files.sort(key=os.path.getsize)
     print_all_files(todo_files)
