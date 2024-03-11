@@ -10,6 +10,11 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 def arg_parser():
     parser = argparse.ArgumentParser(description='Annotate reference genome')
+    parser.add_argument("--mode", type=str, default="question+answer",
+                        choices=["question-only", "question+answer"],
+                        help="Mode of annotation,"
+                             "question-only mode will generate dataset for core-model finetuning,"
+                             "question+answer mode will generate dataset for embedding model finetuning.")
     parser.add_argument("--embed_model_id", type=str,
                         # default="intfloat/e5-mistral-7b-instruct",
                         default="mixedbread-ai/mxbai-embed-large-v1",
@@ -20,7 +25,9 @@ def arg_parser():
     parser.add_argument("--src_path", type=str,
                         default="/home/ubuntu/rag-project/annotated_sample/")
     parser.add_argument("--dst_path", type=str,
-                        default="/home/ubuntu/rag-project/dataset_with_ref/")
+                        # default="/home/ubuntu/rag-project/dataset_with_ref/",  # core model dataset
+                        default="/home/ubuntu/rag-project/embedder_dataset/",  # embedding model dataset
+                        )
     parser.add_argument("--incremental", type=bool, default=True,
                         help="Whether to process only the files that have not been processed yet.")
 
@@ -82,17 +89,30 @@ def annotation(args):
         vectorstore = Chroma.from_documents(documents=all_splits, embedding=embeddings)
 
         for qa_pair in src_dict['qa_list']:
-            question = qa_pair['question']
             try:
-                top_k_docs = vectorstore.search(question, k=args.topk, search_type=args.search_type)
+                question = qa_pair['question']
+                answer = qa_pair['answer']
+                if isinstance(answer, list):
+                    str_ans = ";".join([str(ans) for ans in answer])
+                else:
+                    str_ans = str(answer)
+                qa_cat = question + "\n" + str_ans
+                if args.mode == "question-only":
+                    top_k_docs = vectorstore.search(question, k=args.topk, search_type=args.search_type)
+                elif args.mode == "question+answer":
+                    top_k_docs = vectorstore.search(qa_cat, k=args.topk, search_type=args.search_type)
+                else:
+                    raise ValueError(f"Invalid mode: {args.mode}")
                 dst_qa_pair = {
                     "question": question,
-                    "answer": qa_pair['answer'],
+                    "answer": answer,
                     "top_k_docs": {i: doc.page_content for i, doc in enumerate(top_k_docs)}
                 }
+                if args.mode == "question+answer":
+                    dst_qa_pair["qa_cat"] = qa_cat
                 dst_dict['qa_list'].append(dst_qa_pair)
             except Exception as e:
-                print(f"Error processing question: {question}")
+                print(f"Error processing question: {qa_pair}")
                 print(e)
 
         # Save the processed file
@@ -113,6 +133,8 @@ def list_all_files(root_path):
     files_list = []
     for root, dirs, files in os.walk(root_path):
         for file in files:
+            if not file.endswith(".json"):
+                continue
             file_path = os.path.join(root, file)
             files_list.append(file_path)
     return files_list
