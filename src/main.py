@@ -1,5 +1,6 @@
 import argparse
 import os
+import warnings
 from typing import List
 
 import torch
@@ -37,8 +38,8 @@ def arg_parser():
     parser.add_argument("--knowledge_base", type=str, default="/home/ubuntu/rag-project/data/sample",
                         help="Path to knowledge base")
     parser.add_argument("--core_model_id", type=str,
-                        # default="meta-llama/Llama-2-7b-hf",
-                        default="microsoft/phi-2",
+                        default="meta-llama/Llama-2-7b-chat-hf",
+                        # default="microsoft/phi-2",
                         help="Model ID for the core model")
     parser.add_argument("--embed_model_id", type=str,
                         default="mixedbread-ai/mxbai-embed-large-v1",
@@ -151,7 +152,7 @@ def langchain(args):
 
             if args.streaming_output:
                 # Stream the chain
-                print("WARNING: Streaming output might not work well with some models.")
+                # print("WARNING: Streaming output might not work well with some models.")
                 print("Answer:")
                 for ch in chain.stream(question):
                     print(ch, end='')
@@ -194,5 +195,8 @@ if __name__ == "__main__":
     # Do some initializations
     os.environ['HF_HOME'] = args.cache_dir
     os.environ['NLTK_DATA'] = args.cache_dir
+
+    warnings.filterwarnings('ignore',
+                            'MatMul8bitLt: inputs will be cast from torch.bfloat16 to float16 during quantization')
 
     langchain(args)
