@@ -28,6 +28,8 @@ modelpath = "meta-llama/Llama-2-7b-hf"
 # Load 4-bit quantized model
 model = AutoModelForCausalLM.from_pretrained(
     modelpath,
+    # device_map={"": accelerator.device},
+    # device_map={"": accelerator.process_index},
     device_map="auto",
     quantization_config=BitsAndBytesConfig(
         load_in_4bit=True,
@@ -41,6 +43,8 @@ model = AutoModelForCausalLM.from_pretrained(
     # ),
     torch_dtype=torch.bfloat16,
 )
+print(f"accelerator.device: {accelerator.device}")
+print(f"accelerator.process_index: {accelerator.process_index}")
 
 # Load (slow) Tokenizer, fast tokenizer sometimes ignores added tokens
 tokenizer = AutoTokenizer.from_pretrained(modelpath, use_fast=False)
@@ -110,6 +114,7 @@ def prep_data(dir_path):
                         context=context,
                     )[0].content
                 )
+    print(f"Prepared {len(data)} examples")
 
     return Dataset.from_dict({"text": data})
 
@@ -158,29 +163,45 @@ def collate(elements):
     return batch
 
 
-bs = 1  # batch size
-ga_steps = 1  # gradient acc. steps
+output_dir = "/home/ubuntu/experiments"
+per_device_train_batch_size = 4
+gradient_accumulation_steps = 4
+optim = "paged_adamw_32bit"
+save_steps = len(dataset_tokenized["train"]) // (
+    # accelerator.state.num_processes *
+    per_device_train_batch_size
+    * gradient_accumulation_steps
+)
+logging_steps = 10
+learning_rate = 2e-4
+max_grad_norm = 0.3
+max_steps = 1000
+warmup_ratio = 0.03
+lr_scheduler_type = "constant"
 epochs = 5
-steps_per_epoch = len(dataset_tokenized["train"]) // (bs * ga_steps)
+print(f"Save steps: {save_steps}")
 
 args = TrainingArguments(
-    output_dir="out",
-    per_device_train_batch_size=bs,
-    per_device_eval_batch_size=bs,
+    output_dir=output_dir,
+    per_device_train_batch_size=per_device_train_batch_size,
+    per_device_eval_batch_size=gradient_accumulation_steps,
+    optim=optim,
     evaluation_strategy="steps",
-    logging_steps=1,
-    eval_steps=steps_per_epoch,
-    save_steps=steps_per_epoch,
-    gradient_accumulation_steps=ga_steps,
+    logging_steps=logging_steps,
+    eval_steps=save_steps,
+    save_steps=save_steps,
+    gradient_accumulation_steps=gradient_accumulation_steps,
+    learning_rate=learning_rate,
+    max_grad_norm=max_grad_norm,
+    max_steps=max_steps,
+    warmup_ratio=warmup_ratio,
+    lr_scheduler_type=lr_scheduler_type,
     num_train_epochs=epochs,
-    lr_scheduler_type="constant",
-    optim="paged_adamw_32bit",
-    learning_rate=0.0002,
     group_by_length=True,
     fp16=True,
     ddp_find_unused_parameters=False,
     # deepspeed config
-    # deepspeed="./src/core_models/deepspeed_config.json",
+    deepspeed="./src/core_models/deepspeed_config.json",
     # report_to="none",
 )
 
