@@ -26,11 +26,17 @@ def arg_parser():
     # parser.add_argument("--question", type=str,
     #                     default="Where is CMU located?",
     #                     help="Question to ask")
-    parser.add_argument("--test_set", type=str, default="test_set.txt", help="Path to test set")
+    parser.add_argument("--test_set", type=str,
+                        default="/home/ubuntu/rag-project/testset/final_test.txt",
+                        help="Path to test set")
+    parser.add_argument("--test_output", type=str,
+                        default="/home/ubuntu/rag-project/testset/final_test_output.txt",
+                        help="Path to test output")
     parser.add_argument("--topk", type=int, default=5, help="Maximum number of documents to retrieve")
-    parser.add_argument("--generate_batch_size", type=int, default=0,
+    parser.add_argument("--generate_batch_size", type=int, default=10,
                         help="Batch size for generation, 0 for no batching")
-    parser.add_argument("--max_tokens", type=int, default=150, help="Maximum tokens supported by the system")
+    parser.add_argument("--max_tokens", type=int, default=150,
+                        help="Maximum new tokens to generate")
     parser.add_argument("--search_type", type=str, default="mmr", help="Type of search to perform",
                         choices=["similarity", "mmr", "similarity_score_threshold"])
     parser.add_argument("--device", type=str, default="cuda", help="Device to run the model on")
@@ -127,13 +133,47 @@ def langchain(args):
 
     if args.generate_batch_size > 0:
         # Batch generation mode
+        # Define the chain
+        # TODO: add reranker to chain
+        chain = (
+                {"context": retriever | format_docs, "question": RunnablePassthrough()}
+                | prompt
+                | gen_pipeline
+                | StrOutputParser()
+        )
+
+        # clear old output
+        with open(args.test_output, "w") as f:
+            pass
+
+        # get questions
         with open(args.test_set, "r") as f:
             questions = f.readlines()
             questions = [q.strip() for q in questions]
+
             # get iterator of questions
             for batch_questions in get_data(questions, args.generate_batch_size):
-                raise NotImplementedError
-                # TODO: https://python.langchain.com/docs/integrations/llms/huggingface_pipelines#batch-gpu-inference
+                # print questions
+                print("\n")
+                print("=" * 50)
+                print(f"Questions in the batch: {len(batch_questions)}")
+                for i, q in enumerate(batch_questions):
+                    print(f"[{i}] {q}")
+
+                # Run the chain
+                outputs = chain.batch(batch_questions)
+
+                # sanitize outputs
+                outputs = [o.replace('\n', '').strip() for o in outputs]
+
+                with open(args.test_output, "a") as fout:
+                    for output in outputs:
+                        fout.write(output + "\n")
+
+                # print answers
+                for i, output in enumerate(outputs):
+                    print(f"[{i}] {batch_questions[i]}")
+                    print(f"Answer: {output}")
 
     else:
         # interactive
@@ -175,7 +215,7 @@ def format_docs_and_print(docs):
     return s
 
 
-def get_data(data: List[str], batch_size: int) -> List[str]:
+def get_data(data: List[str], batch_size: int):
     questions_iter = iter(data)
     while True:
         batch_questions = []
