@@ -51,8 +51,6 @@ tokenizer = AutoTokenizer.from_pretrained(modelpath, use_fast=False)
 
 # Add tokens <|im_start|> and <|im_end|>, latter is special eos token
 tokenizer.pad_token = "</s>"
-tokenizer.add_tokens(["<|im_start|>"])
-tokenizer.add_special_tokens(dict(eos_token="<|im_end|>"))
 model.resize_token_embeddings(len(tokenizer))
 model.config.eos_token_id = tokenizer.eos_token_id
 
