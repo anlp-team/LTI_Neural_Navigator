@@ -23,7 +23,7 @@ from datasets import load_dataset, Dataset, DatasetDict
 
 accelerator = Accelerator()
 
-modelpath = "meta-llama/Llama-2-7b-hf"
+modelpath = "meta-llama/Llama-2-7b-chat-hf"  # "meta-llama/Llama-2-7b-hf"
 
 # Load 4-bit quantized model
 model = AutoModelForCausalLM.from_pretrained(
@@ -31,16 +31,16 @@ model = AutoModelForCausalLM.from_pretrained(
     # device_map={"": accelerator.device},
     # device_map={"": accelerator.process_index},
     device_map="auto",
-    quantization_config=BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_quant_type="nf4",
-    ),
     # quantization_config=BitsAndBytesConfig(
-    #     load_in_8bit=True,
-    #     compute_dtype=torch.bfloat16,
-    #     quant_type="nf4",
+    #     load_in_4bit=True,
+    #     bnb_4bit_compute_dtype=torch.bfloat16,
+    #     bnb_4bit_quant_type="nf4",
     # ),
+    quantization_config=BitsAndBytesConfig(
+        load_in_8bit=True,
+        compute_dtype=torch.bfloat16,
+        quant_type="nf4",
+    ),
     torch_dtype=torch.bfloat16,
 )
 print(f"accelerator.device: {accelerator.device}")
@@ -79,7 +79,7 @@ model.config.use_cache = False
 
 
 def prep_data(dir_path):
-    langchain_prompt = hub.pull("rlm/rag-prompt")
+    langchain_prompt = hub.pull("yeyuan/llama2-finetune-template")
 
     data = []
     for file in os.listdir(dir_path):
@@ -106,11 +106,11 @@ def prep_data(dir_path):
                     answer = "; ".join(answer)
 
                 data.append(
-                    langchain_prompt.format_messages(
+                    langchain_prompt.format(
                         question=query,
                         answer=answer,
                         context=context,
-                    )[0].content
+                    )[0]
                 )
     print(f"Prepared {len(data)} examples")
 
@@ -162,7 +162,7 @@ def collate(elements):
 
 
 output_dir = "/home/ubuntu/experiments"
-per_device_train_batch_size = 4
+per_device_train_batch_size = 16
 gradient_accumulation_steps = 4
 optim = "paged_adamw_32bit"
 save_steps = len(dataset_tokenized["train"]) // (
@@ -170,10 +170,10 @@ save_steps = len(dataset_tokenized["train"]) // (
     per_device_train_batch_size
     * gradient_accumulation_steps
 )
-logging_steps = 10
+logging_steps = 100
 learning_rate = 2e-4
 max_grad_norm = 0.3
-max_steps = 1000
+max_steps = 5000
 warmup_ratio = 0.03
 lr_scheduler_type = "constant"
 epochs = 5
@@ -199,7 +199,7 @@ args = TrainingArguments(
     fp16=True,
     ddp_find_unused_parameters=False,
     # deepspeed config
-    deepspeed="./src/core_models/deepspeed_config.json",
+    # deepspeed="./src/core_models/deepspeed_config.json",
     # report_to="none",
 )
 
