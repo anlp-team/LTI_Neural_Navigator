@@ -79,7 +79,9 @@ model.config.use_cache = False
 
 
 def prep_data(dir_path):
-    langchain_prompt = hub.pull("yeyuan/llama2-finetune-template")
+    langchain_prompt_no_context = hub.pull("yeyuan/llama2-finetune-template")
+    langchain_prompt_single = hub.pull("yeyuan/llama2-finetune-single-context")
+    langchain_prompt_multi = hub.pull("yeyuan/llama2-finetune-multi-context")
 
     data = []
     for file in os.listdir(dir_path):
@@ -105,13 +107,33 @@ def prep_data(dir_path):
                     ]  # some answer items are list dicts
                     answer = "; ".join(answer)
 
-                data.append(
-                    langchain_prompt.format(
-                        question=query,
-                        answer=answer,
-                        context=context,
-                    )[0]
-                )
+                if "ref_chunk" in pair:
+                    data.append(
+                        langchain_prompt_single.format(
+                            question=query,
+                            answer=answer,
+                            context=pair["ref_chunk"],
+                        )
+                    )
+                elif "top_k_docs" in pair:
+                    data.append(
+                        langchain_prompt_multi.format(
+                            question=query,
+                            answer=answer,
+                            ref1=pair["top_k_docs"]["0"],
+                            ref2=pair["top_k_docs"]["1"],
+                            ref3=pair["top_k_docs"]["2"],
+                            ref4=pair["top_k_docs"]["3"],
+                            ref5=pair["top_k_docs"]["4"],
+                        )
+                    )
+                else:
+                    data.append(
+                        langchain_prompt_no_context.format(
+                            question=query,
+                            answer=answer,
+                        )
+                    )
     print(f"Prepared {len(data)} examples")
 
     return Dataset.from_dict({"text": data})
