@@ -31,16 +31,16 @@ model = AutoModelForCausalLM.from_pretrained(
     # device_map={"": accelerator.device},
     # device_map={"": accelerator.process_index},
     device_map="auto",
-    quantization_config=BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_compute_dtype=torch.bfloat16,
-        bnb_4bit_quant_type="nf4",
-    ),
     # quantization_config=BitsAndBytesConfig(
-    #     load_in_8bit=True,
-    #     compute_dtype=torch.bfloat16,
-    #     quant_type="nf4",
+    #     load_in_4bit=True,
+    #     bnb_4bit_compute_dtype=torch.bfloat16,
+    #     bnb_4bit_quant_type="nf4",
     # ),
+    quantization_config=BitsAndBytesConfig(
+        load_in_8bit=True,
+        compute_dtype=torch.bfloat16,
+        quant_type="nf4",
+    ),
     torch_dtype=torch.bfloat16,
 )
 print(f"accelerator.device: {accelerator.device}")
@@ -116,15 +116,23 @@ def prep_data(dir_path):
                         )
                     )
                 elif "top_k_docs" in pair:
+                    top_k_docs = []
+                    # fill top_k_docs with empty strings if not enough
+                    for i in range(5):
+                        if str(i) in pair["top_k_docs"]:
+                            top_k_docs.append(pair["top_k_docs"][str(i)])
+                        else:
+                            top_k_docs.append("")
+
                     data.append(
                         langchain_prompt_multi.format(
                             question=query,
                             answer=answer,
-                            ref1=pair["top_k_docs"]["0"],
-                            ref2=pair["top_k_docs"]["1"],
-                            ref3=pair["top_k_docs"]["2"],
-                            ref4=pair["top_k_docs"]["3"],
-                            ref5=pair["top_k_docs"]["4"],
+                            ref1=top_k_docs[0],
+                            ref2=top_k_docs[1],
+                            ref3=top_k_docs[2],
+                            ref4=top_k_docs[3],
+                            ref5=top_k_docs[4],
                         )
                     )
                 else:
