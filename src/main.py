@@ -160,9 +160,7 @@ def langchain(args):
                 # Run the chain
                 output = chain.invoke(question)
 
-                # Parse the output
-                answer = StrOutputParser().parse(output[0])
-                print("Answer:", answer)
+                print("Answer:", output)
 
 
 def format_docs(docs):
