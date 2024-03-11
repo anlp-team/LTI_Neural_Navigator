@@ -139,7 +139,7 @@ def prep_data(dir_path):
     return Dataset.from_dict({"text": data})
 
 
-dataset = prep_data("./annotated_sample/")
+dataset = prep_data("./dataset_with_ref/")
 dataset = dataset.train_test_split(test_size=0.1)
 
 
@@ -225,34 +225,34 @@ args = TrainingArguments(
     # report_to="none",
 )
 
-# trainer = Trainer(
-#     model=model,
-#     tokenizer=tokenizer,
-#     args=args,
-#     data_collator=collate,
-#     train_dataset=dataset_tokenized["train"],
-#     eval_dataset=dataset_tokenized["test"],
-# )
-
-# model.config.use_cache = False
-# trainer.train()
-
-
-def prompt_instruction_format(sample):
-    return sample["text"]
-
-from trl import SFTTrainer
-
-trainer = SFTTrainer(
+trainer = Trainer(
     model=model,
-    train_dataset=dataset["train"],
-    eval_dataset=dataset["test"],
-    peft_config=config,
-    max_seq_length=2048,
     tokenizer=tokenizer,
-    packing=True,
-    formatting_func=prompt_instruction_format,
     args=args,
+    data_collator=collate,
+    train_dataset=dataset_tokenized["train"],
+    eval_dataset=dataset_tokenized["test"],
 )
 
+model.config.use_cache = False
 trainer.train()
+
+
+# def prompt_instruction_format(sample):
+#     return sample["text"]
+
+# from trl import SFTTrainer
+
+# trainer = SFTTrainer(
+#     model=model,
+#     train_dataset=dataset["train"],
+#     eval_dataset=dataset["test"],
+#     peft_config=config,
+#     max_seq_length=2048,
+#     tokenizer=tokenizer,
+#     packing=True,
+#     formatting_func=prompt_instruction_format,
+#     args=args,
+# )
+
+# trainer.train()
