@@ -2,34 +2,57 @@ from sentence_transformers import SentenceTransformer, InputExample, losses
 from torch.utils.data import DataLoader
 import json
 import os
+import random
 
 model_id = "mixedbread-ai/mxbai-embed-large-v1"
-model = SentenceTransformer(model_id)
+model = SentenceTransformer(model_id, cache_folder="/mnt/portData/cache")
 
 
-def json_to_examples(dir_path="./annotated_sample/"):
+def json_to_examples(dir_path, sample_file=100, sample_question=3):
     examples = []
-    for filename in os.listdir(dir_path):
+    all_files = os.listdir(dir_path)
+    random.shuffle(all_files)
+    all_files = all_files[:sample_file]
+
+    for filename in all_files:
         if filename.endswith(".json"):
             with open(os.path.join(dir_path, filename), "r") as f:
                 data = json.load(f)
                 qa_list = data["qa_list"]
                 context = data["doc_text"]
-                for pair in qa_list:
-                    if "question" not in pair or "answer" not in pair:
-                        print(f"Invalid pair: {pair} in {filename}")
+                qa_list = random.sample(qa_list, min(sample_question, len(qa_list)))
+                
+                for qa_pair in qa_list:
+                    if "question" not in qa_pair or "answer" not in qa_pair:
                         continue
-                    query = pair["question"]
-                    answer = pair["answer"]
-                    if isinstance(answer, list): # some answers are lists
-                        answer = [str(a) for a in answer] # some answer items are list dicts
-                        answer = "; ".join(answer)
-                    examples.append(InputExample(texts=[query, context]))
+                    question = qa_pair["question"]
+                    answer = qa_pair["answer"]
+
+                    if len(question) == 0:
+                        continue
+                    if "\n" in question:
+                        question = question.replace("\n", "; ")
+                    assert question[-1] != "\n"
+
+                    if "ref_chunk" in qa_pair:
+                        ref_chunk = qa_pair["ref_chunk"]
+                        context = ref_chunk
+                    if "top_k_docs" in qa_pair:
+                        top_k_docs = qa_pair["top_k_docs"]
+                        top_k_list = [value for key, value in top_k_docs.items()]
+                        # context = "\n".join(top_k_list)
+                        context = top_k_list[0]
+                    print(f"context size: {len(context)} vs { len(data['doc_text']) }")
+
+                    examples.append(InputExample(texts=[question, context]))
 
     return examples
 
 
-train_examples = json_to_examples()
+train_examples = []
+for dir_path in ["./embedder_dataset", "./dataset_with_ref"]:
+    train_examples.extend(json_to_examples(dir_path))
+
 train_dataloader = DataLoader(train_examples, shuffle=True, batch_size=16)
 train_loss = losses.MultipleNegativesRankingLoss(model)
 num_epochs = 1
@@ -40,7 +63,7 @@ model.fit(
     train_objectives=[(train_dataloader, train_loss)],
     epochs=num_epochs,
     warmup_steps=warmup_steps,
-    output_path="/home/ubuntu/models",
+    output_path="/home/ubuntu/models/mixedbread-ai-mxbai-embed-large-v1-finetuned",
 )
 
 # Save the model
