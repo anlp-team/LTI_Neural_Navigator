@@ -55,7 +55,7 @@ for dir_path in ["./embedder_dataset", "./dataset_with_ref"]:
     all_examples.extend(json_to_examples(dir_path))
 
 train_examples = all_examples[:int(len(all_examples) * 0.8)]
-test_examples = all_examples[int(len(examples) * 0.8):]
+test_examples = all_examples[int(len(all_examples) * 0.8):]
 
 train_dataloader = DataLoader(train_examples, shuffle=True, batch_size=16)
 train_loss = losses.MultipleNegativesRankingLoss(model)
