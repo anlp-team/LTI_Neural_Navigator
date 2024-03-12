@@ -20,6 +20,8 @@ from rag.doc_reader import QuestionAnsweringModel, ContextSelector, AnswerProces
 from rag.embedder import EmbeddingModel, Embedder
 from rag.retriever import DocumentDatabase, Ranker, Retriever
 
+from langchain.retrievers import ContextualCompressionRetriever
+from langchain.retrievers.document_compressors.cohere_rerank import CohereRerank
 
 def arg_parser():
     parser = argparse.ArgumentParser(description="LTI Neural Navigator")
@@ -105,6 +107,13 @@ def langchain(args):
     vectorstore = Chroma.from_documents(documents=all_splits, embedding=embeddings)
     retriever = vectorstore.as_retriever()
 
+    import getpass
+    os.environ["COHERE_API_KEY"] = getpass.getpass("Cohere API Key:")
+    compressor = CohereRerank()
+    compression_retriever = ContextualCompressionRetriever(
+        base_compressor=compressor, base_retriever=retriever
+    )
+
     # prepare core model
     tokenizer = AutoTokenizer.from_pretrained(
         args.core_model_id,
@@ -114,7 +123,7 @@ def langchain(args):
     core_model = AutoModelForCausalLM.from_pretrained(
         args.core_model_id,
         torch_dtype=torch.bfloat16,
-        load_in_8bit=True,
+        # load_in_8bit=True,
         quantization_config=BitsAndBytesConfig(load_in_8bit=True),
         device_map="auto",
         cache_dir=args.cache_dir
@@ -136,7 +145,7 @@ def langchain(args):
         # Define the chain
         # TODO: add reranker to chain
         chain = (
-                {"context": retriever | format_docs, "question": RunnablePassthrough()}
+                {"context": compression_retriever | format_docs, "question": RunnablePassthrough()}
                 | prompt
                 | gen_pipeline
                 | StrOutputParser()
@@ -185,7 +194,7 @@ def langchain(args):
             # Define the chain
             # TODO: add reranker to chain
             chain = (
-                    {"context": retriever | format_docs, "question": RunnablePassthrough()}
+                    {"context": compression_retriever | format_docs, "question": RunnablePassthrough()}
                     | prompt
                     | gen_pipeline
                     | StrOutputParser()
