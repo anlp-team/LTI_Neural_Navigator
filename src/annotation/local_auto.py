@@ -5,12 +5,12 @@ import time
 from typing import List
 
 from langchain_community.document_loaders import TextLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.chat_models import ChatOpenAI
 from langchain_community.llms import GPT4All
 from langchain_community.llms.llamacpp import LlamaCpp
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate, \
     PromptTemplate
+from langchain_text_splitters import CharacterTextSplitter
 
 from qa_generation_chain import QAGenerationChain
 
@@ -132,7 +132,13 @@ def print_all_files(file_list):
 
 
 def main(args):
-    text_splitter = RecursiveCharacterTextSplitter(chunk_overlap=500, chunk_size=2000)
+    text_splitter = CharacterTextSplitter(
+        separator="",
+        chunk_size=1000,
+        chunk_overlap=0,
+        length_function=len,
+        is_separator_regex=False,
+    )
 
     model = get_model(args)
 

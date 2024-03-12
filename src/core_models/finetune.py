@@ -78,76 +78,77 @@ model = get_peft_model(model, config)
 model.config.use_cache = False
 
 
-def prep_data(dir_path):
+def prep_data(dir_paths):
     langchain_prompt_no_context = hub.pull("yeyuan/llama2-finetune-template")
     langchain_prompt_single = hub.pull("yeyuan/llama2-finetune-single-context")
     langchain_prompt_multi = hub.pull("yeyuan/llama2-finetune-multi-context")
 
     data = []
-    for file in os.listdir(dir_path):
-        if not file.endswith(".json"):
-            continue
-        with open(os.path.join(dir_path, file), "r") as f:
-            # json
-            json_data = json.load(f)
-            if "qa_list" not in json_data or "doc_text" not in json_data:
+    for dir_path in dir_paths:
+        for file in os.listdir(dir_path):
+            if not file.endswith(".json"):
                 continue
-            qa_list = json_data["qa_list"]
-            context = json_data["doc_text"]
-
-            for pair in qa_list:
-                if "question" not in pair or "answer" not in pair:
-                    print(f"Invalid pair: {pair} in {file}")
+            with open(os.path.join(dir_path, file), "r") as f:
+                # json
+                json_data = json.load(f)
+                if "qa_list" not in json_data or "doc_text" not in json_data:
                     continue
-                query = pair["question"]
-                answer = pair["answer"]
-                if isinstance(answer, list):  # some answers are lists
-                    answer = [
-                        str(a) for a in answer
-                    ]  # some answer items are list dicts
-                    answer = "; ".join(answer)
+                qa_list = json_data["qa_list"]
+                context = json_data["doc_text"]
 
-                if "ref_chunk" in pair:
-                    data.append(
-                        langchain_prompt_single.format(
-                            question=query,
-                            answer=answer,
-                            context=pair["ref_chunk"],
-                        )
-                    )
-                elif "top_k_docs" in pair:
-                    top_k_docs = []
-                    # fill top_k_docs with empty strings if not enough
-                    for i in range(5):
-                        if str(i) in pair["top_k_docs"]:
-                            top_k_docs.append(pair["top_k_docs"][str(i)])
-                        else:
-                            top_k_docs.append("")
+                for pair in qa_list:
+                    if "question" not in pair or "answer" not in pair:
+                        print(f"Invalid pair: {pair} in {file}")
+                        continue
+                    query = pair["question"]
+                    answer = pair["answer"]
+                    if isinstance(answer, list):  # some answers are lists
+                        answer = [
+                            str(a) for a in answer
+                        ]  # some answer items are list dicts
+                        answer = "; ".join(answer)
 
-                    data.append(
-                        langchain_prompt_multi.format(
-                            question=query,
-                            answer=answer,
-                            ref1=top_k_docs[0],
-                            ref2=top_k_docs[1],
-                            ref3=top_k_docs[2],
-                            ref4=top_k_docs[3],
-                            ref5=top_k_docs[4],
+                    if "ref_chunk" in pair:
+                        data.append(
+                            langchain_prompt_single.format(
+                                question=query,
+                                answer=answer,
+                                context=pair["ref_chunk"],
+                            )
                         )
-                    )
-                else:
-                    data.append(
-                        langchain_prompt_no_context.format(
-                            question=query,
-                            answer=answer,
+                    elif "top_k_docs" in pair:
+                        top_k_docs = []
+                        # fill top_k_docs with empty strings if not enough
+                        for i in range(5):
+                            if str(i) in pair["top_k_docs"]:
+                                top_k_docs.append(pair["top_k_docs"][str(i)])
+                            else:
+                                top_k_docs.append("")
+
+                        data.append(
+                            langchain_prompt_multi.format(
+                                question=query,
+                                answer=answer,
+                                ref1=top_k_docs[0],
+                                ref2=top_k_docs[1],
+                                ref3=top_k_docs[2],
+                                ref4=top_k_docs[3],
+                                ref5=top_k_docs[4],
+                            )
                         )
-                    )
+                    else:
+                        data.append(
+                            langchain_prompt_no_context.format(
+                                question=query,
+                                answer=answer,
+                            )
+                        )
     print(f"Prepared {len(data)} examples")
 
     return Dataset.from_dict({"text": data})
 
 
-dataset = prep_data("./dataset_with_ref/")
+dataset = prep_data(["./embedder_dataset/", "./dataset_ref_chunk/"])
 dataset = dataset.train_test_split(test_size=0.1)
 
 
