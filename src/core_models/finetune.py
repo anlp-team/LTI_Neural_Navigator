@@ -191,7 +191,8 @@ def collate(elements):
     return batch
 
 
-output_dir = "/home/ubuntu/experiments"
+# output_dir = "/home/stevenzhang/11711Homeworks/LTI_Neural_Navigator/experiments"
+output_dir = '/home/ubuntu/experiments/'
 per_device_train_batch_size = 16
 gradient_accumulation_steps = 4
 optim = "paged_adamw_32bit"
