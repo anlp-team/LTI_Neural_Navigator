@@ -1,5 +1,6 @@
 from sentence_transformers import SentenceTransformer, InputExample, losses
 from torch.utils.data import DataLoader
+from sentence_transformers.evaluation import EmbeddingSimilarityEvaluator
 import json
 import os
 import random
@@ -42,16 +43,19 @@ def json_to_examples(dir_path, sample_file=100, sample_question=3):
                         top_k_list = [value for key, value in top_k_docs.items()]
                         # context = "\n".join(top_k_list)
                         context = top_k_list[0]
+                        
                     print(f"context size: {len(context)} vs { len(data['doc_text']) }")
-
                     examples.append(InputExample(texts=[question, context]))
 
     return examples
 
 
-train_examples = []
+all_examples = []
 for dir_path in ["./embedder_dataset", "./dataset_with_ref"]:
-    train_examples.extend(json_to_examples(dir_path))
+    all_examples.extend(json_to_examples(dir_path))
+
+train_examples = all_examples[:int(len(all_examples) * 0.8)]
+test_examples = all_examples[int(len(examples) * 0.8):]
 
 train_dataloader = DataLoader(train_examples, shuffle=True, batch_size=16)
 train_loss = losses.MultipleNegativesRankingLoss(model)
@@ -59,12 +63,17 @@ num_epochs = 1
 warmup_steps = int(len(train_examples) * num_epochs / 16 * 0.1)
 print(f"Warmup-steps: {warmup_steps}")
 
+# train and output evaluation results
+evaluator = EmbeddingSimilarityEvaluator.from_input_examples(test_examples, name="finetune-eval")
 model.fit(
     train_objectives=[(train_dataloader, train_loss)],
     epochs=num_epochs,
     warmup_steps=warmup_steps,
-    output_path="/home/ubuntu/models/mixedbread-ai-mxbai-embed-large-v1-finetuned",
+    evaluator=evaluator,
+    evaluation_steps=1,
+    output_path="./experiments/test",
 )
 
+
 # Save the model
-model.save("/home/ubuntu/models/mixedbread-ai-mxbai-embed-large-v1-finetuned")
+model.save("./experiments/test")
