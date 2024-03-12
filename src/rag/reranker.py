@@ -5,8 +5,8 @@ from langchain.pydantic_v1 import Extra, root_validator
 
 from langchain.callbacks.manager import Callbacks
 from langchain.retrievers.document_compressors.base import BaseDocumentCompressor
-
 from sentence_transformers import CrossEncoder
+
 
 # from config import bge_reranker_large
 
@@ -14,10 +14,10 @@ from sentence_transformers import CrossEncoder
 class BgeRerank(BaseDocumentCompressor):
     model_name: str = "avsolatorio/GIST-large-Embedding-v0"
     """Model name to use for reranking."""
-    top_n: int = 10
-    """Number of documents to return."""
     model: CrossEncoder = CrossEncoder(model_name)
     """CrossEncoder instance to use for reranking."""
+    top_n: int = 10
+    """Number of documents to return."""
 
     def bge_rerank(self, query, docs):
         model_inputs = [[query, doc] for doc in docs]
@@ -32,10 +32,10 @@ class BgeRerank(BaseDocumentCompressor):
         arbitrary_types_allowed = True
 
     def compress_documents(
-        self,
-        documents: Sequence[Document],
-        query: str,
-        callbacks: Optional[Callbacks] = None,
+            self,
+            documents: Sequence[Document],
+            query: str,
+            callbacks: Optional[Callbacks] = None,
     ) -> Sequence[Document]:
         """
         Compress documents using BAAI/bge-reranker models.
