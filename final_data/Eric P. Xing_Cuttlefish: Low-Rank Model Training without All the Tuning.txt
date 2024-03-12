@@ -1,0 +1,2243 @@
+3 2 0 2
+y a M 5
+]
+G L . s c [
+2 v 8 3 5 2 0 . 5 0 3 2 : v i X r a
+CUTTLEFISH: LOW-RANK MODEL TRAINING WITHOUT ALL THE TUNING
+Hongyi Wang 1 Saurabh Agarwal 2 Pongsakorn U-chupala 3 Yoshiki Tanaka 3 Eric P. Xing 4 1 5 Dimitris Papailiopoulos 6
+ABSTRACT Recent research has shown that training low-rank neural networks can effectively reduce the total number of trainable parameters without sacriﬁcing predictive accuracy, resulting in end-to-end speedups. However, low-rank model training necessitates adjusting several additional factorization hyperparameters, such as the rank of the factorization at each layer. In this paper, we tackle this challenge by introducing CUTTLEFISH, an automated low-rank training approach that eliminates the need for tuning factorization hyperparameters. CUTTLEFISH leverages the observation that after a few epochs of full-rank training, the stable rank (i.e., an approximation of the true rank) of each layer stabilizes at a constant value. CUTTLEFISH switches from full-rank to low-rank training once the stable ranks of all layers have converged, setting the dimension of each factorization to its corresponding stable rank. Our results show that CUTTLEFISH generates models up to 5.6× smaller than full-rank models, and attains up to a 1.2× faster end-to-end training process while preserving comparable accuracy. Moreover, CUTTLEFISH outperforms state-of-the-art low-rank model training methods and other prominent baselines. The source code for our implementation can be found at: https://github.com/hwang595/Cuttlefish.
+1 As neural network-based models have experienced expo- nential growth in the number of parameters, ranging from 23 million in ResNet-50 (2015) to 175 billion in GPT-3 (2020) and OPT-175B (2022) (Devlin et al., 2018; Brown et al., 2020; Fedus et al., 2021; Zhang et al., 2022), training these models has become increasingly challenging, even with the assistance of state-of-the-art accelerators like GPUs and TPUs. This problem is particularly pronounced in resource-limited settings, such as cross-device federated learning (Kairouz et al., 2019; Wang et al., 2020b; 2021b). In response to this challenge, researchers have explored the reduction of trainable parameters during the early stages of training (Frankle & Carbin, 2018; Waleffe & Rekatsinas, 2020; Khodak et al., 2020; Wang et al., 2021a) as a strategy for speeding up the training process.
+INTRODUCTION
+Previous research efforts have focused on developing several approaches to reduce the number of trainable parameters during training. One method involves designing compact neural architectures, such as MobileNets (Howard et al.,
+1Machine Learning Department, Carnegie Mellon Uni- versity 2Department of Computer Sciences, University of Wisconsin-Madison 3Sony Group Corporation 4Mohamed bin Zayed University of Artiﬁcial Inc. 6Department of Electrical and Computer Engineering, Univer- sity of Wisconsin-Madison. Correspondence to: Hongyi Wang <hongyiwa@andrew.cmu.edu>.
+Intelligence 5Petuum,
+2017) and EfﬁcientNets (Tan & Le, 2019), which demand fewer FLOPs. However, this may potentially compromise model performance. Another alternative is weight prun- ing, which reduces the number of parameters in neural net- works (Han et al., 2015a;b; Frankle & Carbin, 2018; Renda et al., 2020; Sreenivasan et al., 2022b). While unstruc- tured sparsity pruning methods can result in low hardware resource utilization, recent advancements have proposed structured pruning based on low-rank weight matrices to tackle this issue (Waleffe & Rekatsinas, 2020; Khodak et al., 2020; Wang et al., 2021a; Hu et al., 2021; Chen et al., 2021b; Vodrahalli et al., 2022). However, training low-rank models necessitates tuning additional hyperparameters for factoriza- tion, such as the width/rank of the factorization per layer, in order to achieve both compact model sizes, as measured by the number of parameters, and high accuracy. Striking the right balance between the size of a low-rank model and its accuracy is crucial, and depends on accurately tuning the rank of the factorized layers. As demonstrated in Figure 1, improper tuning of factorization ranks can lead to either large models or diminished predictive accuracy. Training low-rank networks from scratch may cause signiﬁ- cant accuracy loss (Waleffe & Rekatsinas, 2020; Wang et al., 2021a). To address this, previous studies have suggested starting with full-rank model training for a speciﬁc num- ber of epochs, E, before transitioning to low-rank model training (Waleffe & Rekatsinas, 2020; Wang et al., 2021a). However, varying the number of full-rank training epochs can inﬂuence the ﬁnal model accuracy, as illustrated in Fig-
+Proceedings of the 6 th MLSys Conference, Miami Beach, FL, USA, 2023. Copyright 2023 by the author(s).
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+ure 1. Thus, selecting the appropriate number of full-rank training epochs, E, is essential (e.g., neither E = 0 nor E = 120 yield the optimal model accuracy). Furthermore, to attain satisfactory accuracy, some earlier work (Wang et al., 2021a) has proposed excluding the factorization from the ﬁrst K layers, resulting in a “hybrid network” that bal- ances model size and accuracy through the choice of K.
+rapidly during the initial stages of training and then sta- bilizes around a constant value (as depicted in Figure 2). We exploit this observation to develop a simple heuristic for selecting the layer ranks R and the full-rank training duration E: (i) transition from full-rank model training to low-rank model training when all the layer’s stable ranks have converged to a constant, and (ii) use these constants as the rank of the factorization.
+93
+(E=40, K=1)
+(E=0, K=1)
+(E=120, K=1)
+95Validation Accuracy
+90
+1.0Model Parameters1e7
+Vanilla
+0.2
+(E=80, K=1)
+0.6
+91
+0.8
+92
+Cuttlefish(ours)
+94
+0.4
+Pufferfish
+Layer-6
+Layer-15
+0.4Rank Ratio
+5.0
+0.0
+0.0
+Layer-12
+12.5% of the Total Training Epochs
+2.5
+7.5
+Layer-3
+10.0
+0.2
+Layer-0
+Layer-9
+94.0
+0.4
+94.5
+0.6
+(E=80, K=5)
+Pufferfish
+(E=80, K=9)
+Cuttlefish(ours)
+(E=80, K=1)
+0.8
+1.0Model Parameters1e7
+Vanilla
+93.0
+95.0Validation Accuracy
+92.0
+(E=80, K=7)
+0.2
+93.5
+92.5
+Figure 1. Comparison between CUTTLEFISH and grid search tun- ing results: (top): ﬁxing K = 1 (the very ﬁrst convolution layer is always not factorized) and varying E ∈ {0, 40, 80, 120} and varying the selection of R by choosing various ﬁxed rank ratios. (bottom): ﬁxing a good choice of E, e.g., E = 80 and varying K and the rank ratio. The rank ratio varies among { 1 4 , 1 32 , 1 2 }. Experiments ran on ResNet-18 trained over CIFAR-10. In this paper, we introduce a novel method for automati- cally determining the hyperparameters associated with low- rank training, ensuring that the resulting factorized model achieves both a compact size and high ﬁnal accuracy. Challenges. We would like to emphasize several reasons why this problem presents considerable challenges. Firstly, the search space S is vast. For a two hidden layer fully connected (FC) neural network with 100 neurons in each layer (assuming the rank for each layer is 100) and train- ing with 100 epochs, the cardinality of the search space is |S| = 100 × 100 × 100 × 2 = 2 × 106. Furthermore, our objective of automatically optimizing low-rank train- ing factorization hyperparameters while maintaining the advantages of end-to-end training speedups renders tradi- tional neural architecture search (NAS) methods impractical. NAS necessitates concurrent training of both network ar- chitecture and network weights, resulting in computational requirements that substantially exceed those of standard model training.
+16 , 1
+8 , 1
+In this work, we present CUTTLEFISH, an automated low- rank factorized training method that eliminates the need for tuning factorization hyperparameters. We observe a key pattern in which the estimated rank of each layer changes
+Figure 2. The estimated ranks for various layers in ResNet-18 trained on CIFAR-10, using stable rank (which will be discussed in detail later), can be found in our results. The results for other tasks are available in the appendix.
+In addition to determining the factorization ranks and full- rank training duration, CUTTLEFISH also addresses the is- sue of deciding which layers to factorize. For convolutional neural networks (CNNs), CUTTLEFISH observes that factor- izing early layers does not lead to considerable speedups, as elaborated in Section 3.5. This observation, along with in- sights from prior research (Wang et al., 2021a), implies that factorizing early layers may negatively affect the ﬁnal model accuracy without offering signiﬁcant performance gains. To tackle this challenge, CUTTLEFISH performs lightweight proﬁling to identify the layers to factorize, ensuring that fac- torization occurs only in layers that can effectively enhance the training speed. Our contributions. We observe a stabilizing effect in the stable ranks of neural network (NN) layers during training, where their stable ranks initially change rapidly and then converge to a constant. Based on this observation, we de- vise a heuristic to adaptively select the rank of each layer and the duration of full-rank warm-up training. We im- plement our technique, called CUTTLEFISH, and assess it in large-scale training environments for both language and computer vision tasks. Our comprehensive experimental results demonstrate that CUTTLEFISH automatically selects all factorization hyperparameters during training on-the-ﬂy, eliminating the need for multiple experimental trials for fac- torization hyperparameter tuning. CUTTLEFISH strikes a balance between model size and ﬁnal predictive accuracy, excelling in at least one dimension of producing smaller, more accurate models and achieving considerable training speedups compared to state-of-the-art low-rank training, structured pruning, sparse training, quantized training, and learnable factorization methods (Rastegari et al., 2016; Fran- kle et al., 2019; Wang et al., 2020a; Yu & Huang, 2019; You
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+et al., 2019; Idelbayev & Carreira-Perpin´an, 2020; Khodak et al., 2020; Wang et al., 2021a).
+1.1 Related work.
+Several methods have been developed in the literature to eliminate redundancy in the parameters of modern NNs. Model compression strives to eliminate redundancy in the parameters of trained NNs (Han et al., 2015a). Over time, numerous methods have been devised to remove redundant weights in NNs, encompassing pruning (Li et al., 2016; Wen et al., 2016; Hu et al., 2016; Zhu & Gupta, 2017; He et al., 2017; Yang et al., 2017; Liu et al., 2018; Yu et al., 2018; 2019; Sreenivasan et al., 2022a), quantization (Rastegari et al., 2016; Zhu et al., 2016; Hubara et al., 2016; Wu et al., 2016; Hubara et al., 2017; Zhou et al., 2017), low-rank fac- torization (Xue et al., 2013; Sainath et al., 2013; Jaderberg et al., 2014; Wiesler et al., 2014; Koneˇcn`y et al., 2016), and knowledge distillation (Hinton et al., 2015; Yu et al., 2019; Sanh et al., 2019; Jiao et al., 2020; Li et al., 2023).
+The Lottery Ticket Hypothesis (LTH) suggests that smaller, randomly initialized subnetworks can be trained to attain accuracy levels comparable to those of the full network, al- though pinpointing these subnetworks can be computation- ally challenging (Frankle & Carbin, 2018). Iterative Mag- nitude Pruning (IMP) was devised to stabilize LTH while reducing computational costs through warm-up steps (Fran- kle et al., 2019). Other efforts have sought to eliminate the need for model weight rewinding (Renda et al., 2020) and to identify winning tickets at initialization (Wang et al., 2020a; Sreenivasan et al., 2022b). Moreover, researchers have explored sparsifying NNs during training (Evci et al., 2020). However, these sparsiﬁcation methods focus on un- structured sparsity, which does not yield actual speedups on current hardware. In contrast, low-rank training can lead to tangible acceleration.
+Low-rank factorized training, as well as other structured pruning methods, aim to achieve NNs with structured spar- sity during training, allowing for tangible speedups to be obtained (Waleffe & Rekatsinas, 2020; Khodak et al., 2020; You et al., 2020; Wang et al., 2021a; Chen et al., 2021b). Low-rank factorized training has also been employed in federated learning methods to improve communication efﬁ- ciency and hardware heterogeneity awareness (Hyeon-Woo et al., 2022; Yao et al., 2021). Low-rank factorization tech- niques have been shown to be combinable and used for train- ing low-rank networks from scratch (Ioannou et al., 2015). However, this method results in a noticeable loss of accu- racy, as demonstrated in (Wang et al., 2021a). To tackle this problem, (Khodak et al., 2020) introduces spectral initial- ization and Frobenius decay, while (Vodrahalli et al., 2022) proposes the Nonlinear Kernel Projection method as an alternative to SVD. Low-rank training has also been inves- tigated for ﬁne-tuning large-scale pre-trained models (Hu
+et al., 2021). These techniques all necessitate additional hyperparameters, which can be tedious to ﬁne-tune. The LC compression method attempts to resolve this issue by explicitly learning R during model training through alter- nating optimization (Idelbayev & Carreira-Perpin´an, 2020). However, this approach is computationally demanding. Our proposed CUTTLEFISH method automatically determines all factorization hyperparameters during training on-the-ﬂy, eliminating the heavy computation overhead and the need for multiple experimental trials for factorization hyperpa- rameter tuning.
+Alternative transformations have also been investigated, including Butterﬂy matrices (Chen et al., 2022), the fu- sion of low-rank factorization and sparsiﬁcation (Chen et al., 2021a), and block-diagonal matrices (Dao et al., 2022). Furthermore, novel architectures have been devel- oped for enhanced training or inference efﬁciency, such as SqueezeNet (Iandola et al., 2016), Eyeriss (Chen et al., 2016), ShufﬂeNet (Zhang et al., 2018), EfﬁcientNet (Tan & Le, 2019), MobileNets (Howard et al., 2017), Xcep- tion (Chollet, 2017), ALBERT (Lan et al., 2019), and Re- former (Kitaev et al., 2020).
+2 PRELIMINARY In this section, we present an overview of the core con- cepts of low-rank factorization for various NN layers, along with a selection of specialized training methods speciﬁcally designed for low-rank factorized training.
+2.1 Low-rank factorization of NN layers FC/MLP Mixer layer. A 2-layer fully connected (FC) neural network can be represented as f (x) = σ(σ(xW1)W2), where Ws are weight matrices, σ(·) is an arbitrary activation function, and x is the input data point. The weight matrix W can be factorized as UV(cid:62). A simi- lar approach can be applied to ResMLP/MLP mixer layers, where each learnable weight can be factorized in the same manner (Touvron et al., 2021a; Tolstikhin et al., 2021). Convolution layer. For a convolutional layer with dimen- sions (m, n, k, k), where m and n are the number of input and output channels and k represents the size of a convo- lution ﬁlter, a common approach involves factorizing the unrolled 2D matrix. We will discuss a popular method for factorizing a convolutional layer. Initially, the 4D tensor W is unrolled to obtain a 2D matrix of shape (mk2, n), where each column represents the weight of a vectorized convo- lution ﬁlter. The rank of the unrolled matrix is determined by min{mk2, n}. Factorizing the unrolled matrix results in U ∈ Rmk2×r and V(cid:62) ∈ Rr×n. Reshaping the factor- ized U, V(cid:62) matrices back to 4D yields U ∈ Rm×r×k×k and V(cid:62) ∈ Rr×n. Consequently, factorizing a convolutional layer produces a thinner convolutional layer U with r convo- lution ﬁlters and a linear projection layer V(cid:62). The V(cid:62)s can also be represented by a 1 × 1 convolutional layer, such as
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+V(cid:62) ∈ Rr×n×1×1, which is more suited for computer vision tasks since it operates directly in the spatial domain (Lin et al., 2013; Wang et al., 2021a). Multi-head attention (MHA) layer. A p-head attention layer learns p attention mechanisms on the key, value, and query (K, V, Q) of each input token:
+et al., 2020). Spectral initialization represents a special case of transitioning from full-rank to low-rank training with E = 0. Additionally, speciﬁc regularization techniques have been proposed to enhance the accuracy of low-rank net- works. For example, Frobenius decay applies weight decay on (cid:107)UV(cid:62)(cid:107)2 F during factorized low-rank training.
+F instead of (cid:107)U(cid:107)2
+F + (cid:107)V(cid:62)(cid:107)2
+MHA(Q, K, V) = Concat(head1, . . . , headp)WO.
+Each head performs the computation of:
+3 CUTTLEFISH: AUTOMATED LOW-RANK
+headi = Attention(QW(i) (cid:32) QW(i)
+Q , KW(i) Q W(i)(cid:62) K K(cid:62) (cid:112)d/p
+K , VW(i) V ) (cid:33)
+VW(i) V .
+= softmax
+where d is the hidden dimension. The trainable weights W(i) V , i ∈ {1, 2, . . . , p} can be factorized by simply decomposing all learnable weights W· in an atten- tion layer and obtaining U·V(cid:62)· (Vaswani et al., 2017).
+Q , W(i)
+K , W(i)
+2.2 Training methods for low-rank networks Hybrid NN architecture. It has been noted that factor- izing the initial layers may negatively impact a model’s accuracy (Koneˇcn`y et al., 2016; Waleffe & Rekatsinas, 2020; Wang et al., 2021a). One possible explanation is that NN layers can be viewed as feature extractors, and poor features extracted by the early layers can accumulate and propagate throughout the NN. To address this issue, the hybrid NN architecture was proposed, which only factor- izes the lower layers while keeping the initial layers full- rank (Wang et al., 2021a). The weights of a full-rank L-layer NN can be represented as W = {Wi|1 ≤ i ≤ L}. The corresponding hybrid model’s weights can be represented as H = {W1, W2, . . . , WK, UK+1, V(cid:62) K+1, . . . , UL−1, V(cid:62) L−1, WL}, where K is the number of layers that are not factorized and is treated as a hyperparameter to be tuned manually (Wang et al., 2021a). It is important to note that the last classiﬁcation layer, i.e., WL, is usually not factor- ized (Khodak et al., 2020; Wang et al., 2021a). Full-rank to low-rank training. Training low-rank fac- torized models from scratch often results in a decrease in accuracy (Waleffe & Rekatsinas, 2020; Khodak et al., 2020; Wang et al., 2021a). To mitigate this drop, it is common to train the full-rank model for E epochs before factorizing it (Waleffe & Rekatsinas, 2020; Khodak et al., 2020; Wang et al., 2021a). However, determining the appropriate number of full-rank training epochs is treated as a hyperparameter and typically tuned manually in experiments (Wang et al., 2021a). Observations indicate that ﬁnding the right number of full-rank training epochs is crucial for achieving optimal ﬁnal model accuracy in low-rank factorized NNs. Initialization and weight decay. Factorized low-rank networks can beneﬁt from tailored initialization meth- ods (Ioannou et al., 2015; Khodak et al., 2020). One such method, called spectral initialization, aims to approximate the behavior of existing initialization methods (Khodak
+FACTORIZED TRAINING
+In this section, we outline the problem formulation of CUT- TLEFISH, elaborate on each factorization hyperparameter, and describe CUTTLEFISH’s heuristics for determining all of these factorization hyperparameters.
+3.1 Problem formulation. The search space for adaptive factorized tuning is deﬁned by three sets of hyperparameters, namely S = (E, K, R) (full- rank training epochs, the number of initial layers that remain unfactorized, and layer factorization ranks). The objective of CUTTLEFISH is to ﬁnd an optimal ˆs ∈ S on-the-ﬂy, with minimal computational overhead during training, such that the resulting low-rank factorized models are both compact and maintain high accuracy, comparable to their full-rank counterparts.
+3.2 Components in the search space and the
+trade-offs among hyperparameter selections. Full-rank training epochs E. The value of E can range from 0 to T − 1. Neither too small (e.g., E = 0) nor too large (e.g., E = 120) values of E result in the best accuracy (Figure 1), highlighting the necessity of tuning E.
+full-rank layers K. As
+The number pre- hybrid viously mentioned, represented by H = can be NN architecture {W1, . . . , WK, UK+1, V(cid:62) L−1, WL}, where K is a hyperparameter to be tuned. The selection of K can range from 1 to L − 1, meaning the very ﬁrst and very last layers are always not factorized. Factorizing additional layers results in increased accuracy loss but also reduces the model size and computational complexity. Thus, an optimal choice for K should balance the trade-off between accuracy loss and model compression rate.
+of
+the weights
+of
+a
+K+1, . . . , UL−1, V(cid:62)
+Rank selections for factorized layers R. R speciﬁes the ranks used when factorizing the (L − K − 1) layers in a hybrid NN architecture, i.e., R = {ri|K + 1 ≤ i ≤ L − 1}. For a layer weight Wi ∈ Rm×n, the full rank of the layer is rank(Wi) = min{m, n}. Thus, 1 ≤ ri ≤ rank(Wi), ∀i ∈ {K + 1, . . . , L − 1}. Using a too small r for factorizing a layer may result in a decrease in accuracy. However, employing a relatively large r to factorize the layer could negatively impact the model compression rate.
+In this paper, we develop heuristics that automatically iden- tify optimal choices for each component within the search
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+space, i.e., ˆs ∈ S, in order to strike a balance between the ﬁnal accuracy and model size. Why is ﬁnding an appropriate s ∈ S challenging? Firstly, the search space’s cardinality, |S|, is vast. Further- more, the primary goal of low-rank factorized training is to accelerate model training. Therefore, it is crucial to identify ˆs without introducing signiﬁcant computational overhead. While Neural Architecture Search (NAS) style methods could potentially be employed to search for s ∈ S, they result in high computational overhead. Consequently, adopt- ing NAS-based algorithms is not suitable for our scenario, as our objective is to achieve faster training.
+CUTTLEFISH rank selection. We observe that different layers tend to converge to varying stable ranks (an example is shown in Figure 3, with similar trends found in other tasks, as detailed in the appendix). Middle layers generally converge to larger ρs, indicating greater redundancy. As a re- sult, it is unlikely that a ﬁxed rank ratio is optimal, as it may either fail to eliminate all redundancy in the layer weights or be too aggressive in compressing model weights, thereby compromising ﬁnal accuracy. CUTTLEFISH employs the scaled stable rank at epoch E (i.e., the transition point from full-rank to low-rank) to factorize the full-rank model and obtain a low-rank factorized model.
+3.3 Determining factorization ranks (R) for NN
+layers.
+In previous work, ranks of the factorized layers have typically been treated as a hyperparameter, with a ﬁxed global rank ratio ρ often employed, for example, R = {ρ · rank(Wi)|1 ≤ i ≤ L} (Khodak et al., 2020; Wang et al., 2021a). However, a crucial question to consider is do all layers converge to the same ρ during training? Rank estimation metric. One might wonder why we can- not simply use the normal rank for estimating the layer ranks of NNs. The answer is that the normal rank is al- ways full for layer weights of NNs. However, NN weight matrices are “nearly” low-rank when they exhibit a rapid spectral decay. Therefore, we require a metric to estimate layer ranks. In CUTTLEFISH, we utilize the stable rank, which serves as a valuable proxy for the actual rank since it remains largely unaffected by small singular values, to estimate the rank of model layer weights W. The def- inition of stable rank is stable rank(Σ) = 1(cid:62)Σ21 max(W) , σ2 where 1, σ2 max(·), and Σ represent the identity column vec- tor, the maximum squared singular value, and the diagonal matrix that stores all singular values in descending order, (cid:3), respectively. Another ad- i.e., 1(cid:62)Σ = (cid:2)σ1, . . . , σrank(W) vantage of using stable rank is that its calculation does not require specifying any additional hyperparameters. The scaled stable rank. Stable rank, which disregards minuscule singular values, often results in very low rank estimations. This can work well for relatively small tasks, such as CIFAR-10. However, for larger scale tasks like ImageNet, using stable rank directly leads to a non-trivial accuracy drop of 2.3% (details can be found in the appendix). To address this issue, we propose using scaled stable rank. Scaled stable rank assumes that the estimated rank of a randomly initialized matrix, i.e., W0 (model weight at the 0-th epoch), should be close or equal to full rank. Nev- ertheless, based on our experimental observations, stable rank estimation of randomly initialized weights tends not to be full rank. Therefore, we store the ratio of full rank to initial stable rank (denoted as ξ, e.g., if rank(W) = 512 and stable rank(Σ0) = 200, then ξ = 512/200). We scale each epoch’s stable rank by:
+scaled stable rank(Σ, ξ) = ξ · stable rank(Σ);
+ξ =
+rank(W0) stable rank(Σ0)
+, ∀t ∈ {1, 2, . . . , T }.
+0.05
+11
+3
+9
+65
+0.20
+49
+1
+1
+81
+41
+13
+13
+21
+17
+37
+53
+45
+73
+77
+Epochs
+17
+7
+9
+61
+29
+5
+89
+0.10
+5
+85
+25
+15
+57
+33
+69
+Layer Index
+0.15
+Figure 3. The rank ratios (ρs) of stable ranks for ResNet-18 trained on CIFAR-10, where darker colors indicate higher ρ values (results for other datasets can be found in the appendix).
+3.4 Determining full-rank training epochs E As discussed in Section 1, neither too small nor too large E values result in optimal accuracy. Furthermore, larger E values also lead to slower training time, as full-rank models have higher computational complexity. CUTTLEFISH is in- spired by the observation that the estimated ranks for all NN layers, R, change rapidly during the early training phase but stabilize in later training epochs. A reasonable heuristic, therefore, is to switch from full-rank training to low-rank training when the estimated ranks no longer vary signiﬁ- cantly. The question now is, how can we determine if the curves of the estimated ranks have stabilized? CUTTLEFISH tracks the sequences of stable ranks for each layer at each epoch, i.e., (cid:37) = {r0, r1, . . . , rt}. CUTTLEFISH measures the derivative of the estimated rank sequences for all layer
+d(cid:37)l dt d(cid:37)l cantly, using a condition: dt where (cid:15) is a close-to-zero rank stabilization threshold.
+weights (
+) to detect when they cease to change signiﬁ-
+≤ (cid:15), ∀l ∈ {K+1, . . . , L−1},
+3.5 Determining K for hybrid architectures K balances the ﬁnal accuracy and model compression rate. However, discerning the relationship between K and ﬁ- nal accuracy without fully training the model to conver- gence is challenging and impractical for achieving faster training speeds. For each task, CUTTLEFISH conducts lightweight proﬁling to measure the runtime of the low- rank NN when factorizing each layer stack, as layers within the same stack have identical weights and input sizes, and assesses whether it results in a signiﬁcant speedup. CUTTLEFISH only performs factorization (with proﬁling rank ratio candidates: ¯ρ) if it leads to meaningful accel- eration (determined by a threshold υ). For example, if
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+full-rank time > 1.5 × factorized time for υ = 1.5 when ¯ρ = 1 4 , then CUTTLEFISH proceeds with factorization. Fig- ure 4 illustrates one example benchmark, where factorizing the ﬁrst convolution stack (i.e., layer 2 to layer 5) does not yield a substantial speedup. Consequently, CUTTLEFISH does not factorize these layers and returns ˆK = 6.
+1.1x1.7x1.9x2.6x
+trained until it reaches full convergence. In our experiments, we set (cid:15) = 0.1 and υ = 1.5. Algorithm 1 CUTTLEFISH Input: The dataset D, initial full-rank neural network weights W 0 = {W0 L}, the training algorithm A(·), such as SGD, Adam, etc., the total number of epochs T , and a rank stabilization threshold (cid:15). Output: The trained low-rank factorized NN. Initialize the following: ˆE = T ; H = {}; (cid:37)K+1, . . . , (cid:37)L−1 = {}, . . . , {}; ˆK = Proﬁling(D, W, τ, ¯ρ) (Algorithm 2), ξl = rank(W0 l )/stable rank(Σ0 for t ∈ {0, 1, 2, . . . , T − 1} do
+1, . . . , W0
+l ), ∀l ∈ {1, . . . , L}.
+if t ≤ ˆE then
+W t+1 ← A(W t, D) for Wl ∈ W t do
+if K + 1 ≤ l < L then
+˜UlΣl ˜V(cid:62) rl = stable rank(Σl), (cid:37)l = (cid:37)l ∪ {rl};
+l = SVD(Wl);
+Figure 4. The per-iteration forward time in milliseconds, bench- marked using ResNet-18 on CIFAR-10 with a batch size of 1,024 on an EC2 p3.2xlarge instance.
+Why does not factorizing the initial layers result in a sig- niﬁcant speedup? The reason for this can be attributed to the concept of arithmetic intensity, which is deﬁned as the ratio of FLOPS to the bytes of data that must be accessed for a speciﬁc computation (Jeffers et al., 2016). When a certain layer has low arithmetic intensity, the GPU cannot operate at peak performance, and therefore, even if the FLOPs are substantially reduced, the actual speedup will not be sig- niﬁcant. For a convolution layer, its arithmetic intensity is proportional to O( Bmnk2HW mnk2+BmHW ) where B, H, W stand for the batch size, height, and width of the input image. In con- volution networks, it is generally assumed that the initial lay- ers have small mn but large HW , leading to BmHW (cid:29) mnk2 and O( Bmnk2HW mnk2+BmHW ) → O(nk2). For later lay- ers, where H, W are small and mnk2 are large, and thus mnk2 (cid:29) BmHW , O( Bmnk2HW mnk2+BmHW ) → O(BHW ). In the example shown in Figure 4, nk2 = 64 × 9 = 576 for the ﬁrst layer stack, while for the last layer stack, BHW = 1024 × 8 × 8 = 65, 536 (cid:29) 576. Consequently, the bottom layers exhibit much higher arithmetic intensity, and as a result, factorization leads to signiﬁcant speed im- provements. For Transformers, where each layer has identi- cal weight and input sizes (i.e., the same arithmetic inten- sity), we consistently factorize all Transformer layers except for the word/image sequence embedding layers.
+end
+if
+d(cid:37)l dx ˆE = t + 1;
+≤ (cid:15), ∀l ∈ {K + 1, . . . , L − 1} then
+else if t = ˆE + 1 then for Wl ∈ W t do
+if K + 1 ≤ l < L then
+˜UlΣl ˜V(cid:62) rl = scaled stable rank(Σl, ξl); Ul = ˜UlΣ ˜V(cid:62) l , V(cid:62) l = Σ l ; H = H ∪ {Ul[:, 1 : rl], V(cid:62) l [1 : rl, :]} (with necessary NN weights reshaping);
+l = SVD(Wl);
+1 2
+1 2 l
+else
+H = H ∪ {Wl};
+end
+end Ht = H; Ht+1 ← A(Ht, D);
+else
+Ht+1 ← A(Ht, D);
+end
+end
+Algorithm 2 Proﬁling Input: The dataset D, full-rank model weights W, the proﬁling iterations τ , and a proﬁling rank ratio candidates: ¯ρ.
+Output: Determined ˆK. init timer()
+for layer range (lbeg, lend) ∈ layer stacks do
+H = factorize layer stack(W, ¯ρ, lbeg, lend);
+start time = timer.tic(); for iter ∈ {1, 2, . . . , τ } do Train H for one iteration
+3.6 Putting things together The main algorithm of CUTTLEFISH is outlined in Algo- rithm 1. CUTTLEFISH begins with proﬁling to determine ˆK. Following this, the training method commences with full-rank training until the stable ranks for the layers to be factorized converge, i.e., at epoch ˆE. Subsequently, CUT- TLEFISH factorizes the partially trained full-rank network using the converged scaled stable ranks R to obtain the factorized low-rank model. Finally, the low-rank model is
+end
+end end time = timer.toc(); avg low-rank time = (end time-start time)/τ ; start time = timer.tic(); for iter ∈ {1, 2, . . . , τ } do
+Train W for one iteration;
+end end time = timer.toc(); avg fullrank time = (end time-start time)/τ ; if fullrank time > υ · avg low-rank time then
+ˆK = lend
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+4 EXPERIMENTS We have developed an efﬁcient implementation of CUT- TLEFISH and conducted extensive experiments to evaluate its performance across various vision and natural language processing tasks. Our study focuses on the following as- pects: (i) the sizes of factorized models CUTTLEFISH dis- covers and their ﬁnal accuracy; (ii) the end-to-end training speedups that CUTTLEFISH achieves in comparison to full- rank training and other baseline methods; (iii) how the ˆss found by CUTTLEFISH compare to manually tuned and explicitly learned ones. Our comprehensive experimental results demonstrate that CUTTLEFISH automatically selects all factorization hyperparameters during training on-the- ﬂy, eliminating the need for multiple experimental trials for factorization hyperparameter tuning. More speciﬁcally, the experimental results reveal that CUTTLEFISH generates models up to 5.6× smaller than full-rank models, and at- tains up to a 1.2× faster end-to-end training process while preserving comparable accuracy. Moreover, CUTTLEFISH outperforms state-of-the-art low-rank model training meth- ods and other prominent baselines. 4.1 Experimental setup and implementation details Pre-training ML tasks. We conducted experiments on various computer vision pre-training tasks, in- cluding CIFAR-10, CIFAR-100 (Krizhevsky et al., 2009), SVHN (Netzer et al., 2011), and ImageNet (ILSVRC2012) (Deng et al., 2009). For CIFAR-10, CIFAR- 100, and SVHN (Netzer et al., 2011), we trained VGG- 19-BN (referred to as VGG-19) (Simonyan & Zisserman, 2014) and ResNet-18 (He et al., 2016). In the case of the SVHN dataset, we utilized the original training images and excluded the additional images. For ImageNet, our ex- periments involved ResNet-50, WideResNet-50-2 (referred to as WideResNet-50), DeiT-base, and ResMLP-S36 (He et al., 2016; Zagoruyko & Komodakis, 2016; Touvron et al., 2021b;a). Further details about the machine learning tasks can be found in the appendix. Fine-tuning ML tasks. We experiment on ﬁne-tuning BERTBASE over the GLUE benchmark (Wang et al., 2018). Hyperparameters & training schedule. For VGG-19 and ResNet-18 training on CIFAR-10 and CIFAR-100, we train the NNs for 300 epochs, while on SVHN, we train the NNs for 200 epochs. We employ a batch size of 1,024 for CIFAR and SVHN tasks to achieve high arithmetic inten- sity. The initial learning rate is linearly scaled up from 0.1 to 0.8 within ﬁve epochs and then decayed at milestones of 50% and 75% of the total training epochs (Goyal et al., 2017). For WideResNet-50 and ResNet-50 training on the ImageNet dataset, we follow the hyperparameter settings in (Goyal et al., 2017), where the models are trained for 90 epochs with an initial learning rate of 0.1, which is decayed by a factor of 0.1 at epochs 30, 60, and 80 using a batch size of 256. In addition to (Goyal et al., 2017), we apply label smoothing as described in (Wang et al., 2021a). For DeiT
+and ResMLP, we train them from scratch, adhering to the training schedule proposed in (Touvron et al., 2021b). For the GLUE ﬁne-tuning benchmark, we follow the default hy- perparameter setup in (Devlin et al., 2018; Jiao et al., 2020). Since CUTTLEFISH generalizes spectral initialization (SI) and is compatible with Frobenius decay (FD), we deploy FD in conjunction with CUTTLEFISH when it contributes to better accuracy. Further details on hyperparameters and training schedules can be found in the appendix. Experimental environment. We employ the NVIDIA NGC Docker container for software dependencies. Experi- ments for CIFAR, SVHN, and GLUE tasks are conducted on an EC2 p3.2xlarge instance (featuring a single V100 GPU) using FP32 precision. For BERT ﬁne-tuning and ImageNet training of ResNet-50 and WideResNet-50, the experiments are carried out on an EC2 g4dn.metal instance (equipped with eight T4 GPUs) using FP32 precision. For ImageNet training of DeiT and ResMLP, the experiments are performed on a single p4d.24xlarge instance (housing eight A100 GPUs) with mixed-precision training enabled. Baseline methods. We implement CUTTLEFISH and all considered baselines in PyTorch (Paszke et al., 2019). The baseline methods under consideration are: (i) PUFFERFISH, which employs manually tuned s (Wang et al., 2021a). To compare with PUFFERFISH, we use the same factorized ResNet-18, VGG-19, ResNet-50, and WideResNet-50 as reported in (Wang et al., 2021a). For DeiT and ResMLP models, not explored in the original PUFFERFISH paper, we adopt the same heuristic of using a ﬁxed global rank ratio ρ = 1 4 , tuning K to match the factorized model sizes found by CUTTLEFISH, and setting E = 80 for the entire training epochs T = 300 (Wang et al., 2021a); (ii) the factorized low- rank training method with SI and FD proposed by (Khodak et al., 2020) (referred to as “SI&FD”), with ρs of SI&FD tuned to match the sizes of factorized models found by CUT- TLEFISH; (iii) training time structured pruning method, or “early bird ticket” (EB Train) (You et al., 2020); (iv) the IMP method where each pruning round follows the train- ing length and prunes 20% of the remaining model weights at each level, rewinding to the 6th epoch (Frankle et al., 2019); (v) Gradient Signal Preservation (GraSP) (Wang et al., 2020a); (vi) the learnable factorized low-rank training method, or LC model compression, where layer ranks R are explicitly optimized jointly with model weights W via an alternating optimization process (Idelbayev & Carreira- Perpin´an, 2020). For GLUE ﬁne-tuning, we compare CUT- TLEFISH against DistillBERT and TinyBERT (Sanh et al., 2019; Jiao et al., 2020); (vii) XNOR-Nets for training time quantization method (Rastegari et al., 2016), based on the public PyTorch implementation available at 1. CUTTLEFISH with FD. To implement FD, i.e., (cid:96)(·) + λ 2 (cid:107)UV(cid:62)(cid:107)2 F (where (cid:96)(·) stands for the loss function), one
+1https://github.com/jiecaoyu/
+XNOR-Net-PyTorch
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+6
+2
+10
+Full-rank
+16Layer Index
+4
+300
+14
+0
+12
+LC Compres.
+Pufferfish
+Cuttlefish
+8
+100
+200
+400
+500
+600Rank Selection 
+400
+Pufferfish
+Cuttlefish
+100
+600Rank Selection 
+200
+4
+2
+6
+8
+14
+12
+300
+0
+500
+16Layer Index
+Full-rank
+LC Compres.
+10
+300
+4
+600Rank Selection 
+14
+100
+Pufferfish
+16Layer Index
+8
+400
+Full-rank
+LC Compres.
+500
+6
+Cuttlefish
+200
+10
+12
+0
+2
+(b) VGG-19 on CIFAR-100 Figure 5. Comparisons on the selected ranks R found by CUTTLEFISH, PUFFERFISH, LC compression, and full ranks for VGG-19 trained on CIFAR-10, CIFAR-100, and SVHN datasets. has to compute the gradient on the regularization term, i.e.,
+(a) VGG-19 on CIFAR-10
+(c) VGG-19 on SVHN
+1.8%, respectively, because K = 1 is always used in SI&FD, which negatively affects the ﬁnal model accuracy. On Ima- geNet, CUTTLEFISH attains smaller factorized ResNet-50 (0.5M fewer parameters) and WideResNet-50 (2.7M fewer parameters) with higher top-1 and top-5 validation accuracy compared to PUFFERFISH. For DeiT and ResMLP, we use a ﬁxed rank ratio ρ = 1 4 and tune the Ks of PUFFERFISH to match the factorized low-rank model sizes of CUTTLE- FISH for fair comparisons. PUFFERFISH factorized DeiT and ResMLP consistently result in inferior model accuracy compared to CUTTLEFISH. This occurs because the model weights of DeiT and ResMLP are less likely to be low rank, so using ρ = 1 4 following the original PUFFERFISH heuristic leads to overly aggressive rank estimations. CUTTLEFISH, in contrast, detects this through a more appropriate rank estimation heuristic. End-to-end runtime and computational complexity. As discussed in Section 3.5, factorized low-rank training achieves substantial speedups when arithmetic intensity is high. One way to achieve high arithmetic intensity is by using a large batch size for training. Consequently, we use a large batch size of 1,024 and measure the end-to-end training time for the experiments on CIFAR. The results, presented in Table 1, demonstrate that CUTTLEFISH con- sistently leads to faster end-to-end training time (including full-rank epochs and all other overhead computations, such as proﬁling and stable rank computing) compared to full- rank training. For instance, CUTTLEFISH achieves 1.2× end-to-end training speedups on both ResNet-18 and VGG- 19 trained on CIFAR-10. CUTTLEFISH yields comparable runtime to PUFFERFISH for ResNet-18 and faster runtime on VGG-19 because it ﬁnds smaller K for VGG-19, i.e., K = 4, while PUFFERFISH uses K = 9. SI&FD achieves faster runtime than CUTTLEFISH due to its use of K = 1 (and generally higher computational complexities for the initial convolution layers). However, employing such an aggressive value for K inevitably results in accuracy loss, as discussed earlier. Both FC compression and IMP re- quire heavy computation to achieve small models, which are signiﬁcantly slower than full-rank training. XNOR-Nets employ binary model weights and activations, which re- sults in a reduction of ﬁnal accuracy for tasks compared to dense networks. Ideally, the use of binarized weights and activations should greatly speed up model training and sub-
+λ 2
+λ 2
+(cid:107)UV(cid:62)(cid:107)2
+F = λUV(cid:62)V; ∇V
+F = λU(cid:62)UV(cid:62)
+(cid:107)UV(cid:62)(cid:107)2
+∇U
+where one can see there is a shared term UV(cid:62), which does not need to be recomputed. We optimize the implementation to only compute UV(cid:62) once. For the hybrid NN architec- tures, normal (cid:96)2 weight decay is conducted over full-rank layers when FD is enabled for factorized low-rank layers. Extra BatchNorm layers. In experiments where FD is not enabled for CUTTLEFISH, we incorporate an ex- tra BatchNorm (BN) layer following the U layer, i.e., BNV(BNU(xU)V(cid:62)), drawing inspiration from the net- work architecture design of MobileNets (Howard et al., 2017). We also apply this approach to PUFFERFISH. 4.2 Experimental results and analysis How does CUTTLEFISH s compare to manually tuned/learned ones? A crucial question to consider is the appearance of the s returned by CUTTLEFISH. We dis- play the Rs discovered by CUTTLEFISH, PUFFERFISH, and LC compression for VGG-19 trained on CIFAR-10, CIFAR- 100, and SVHN datasets (results presented in Figure 5). Here, it is evident that CUTTLEFISH provides a selection of R that closely aligns with explicitly trained rank selections, i.e., LC compression, where rank selection and low-rank model weights are jointly learned during model training. This demonstrates the effectiveness of the rank selection heuristic employed by CUTTLEFISH. Parameter reduction and model accuracy. We thor- oughly investigate the effectiveness of CUTTLEFISH and conduct extensive comparisons against the baselines, with results displayed in Tables 1, 2, 3, and 4. The primary obser- vation is that CUTTLEFISH successfully reduces the number of parameters while only causing minimal loss in accuracy. Notably, for VGG-19 trained on CIFAR-10, CUTTLEFISH identiﬁes a factorized model that is 10.8× smaller than the full-rank (vanilla) VGG-19 model, while achieving even better validation accuracy. In comparison to PUFFERFISH (shown in Table 1), CUTTLEFISH discovers a factorized low- rank model that is 4.4× smaller with similar ﬁnal model accuracy for VGG-19 trained on CIFAR-10. To achieve a factorized model of the same size, SI&FD does not always yield comparable accuracy to the full-rank model. For in- stance, for CIFAR-10 and CIFAR-100 trained on VGG-19, SI&FD results in a non-trivial accuracy drop of 1.2% and
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+Table 1. The results, averaged across three independent trials with different random seeds, showcase the performance of CUTTLEFISH and other baselines on ResNet-18 and VGG-19 trained over CIFAR-10 and CIFAR-100 using a batch size of 1,024. The runtime benchmark is conducted on a single EC2 p3.2xlarge instance. †: The SI&FD baseline is tuned such that the model size is comparable (albeit slightly larger) to the models that CUTTLEFISH discovers. (cid:63): CUTTLEFISH is tested with both FD enabled and disabled, and the results with the best accuracy are reported in the table. ¶: XNOR-Net employs binary weights and activations; although the overall number of trainable parameters remains the same as the vanilla network, each model weight is quantized from 32-bit to 1-bit. Therefore, we report a compression rate of 3.125% for XNOR-Nets. A comprehensive ablation study can be found in the appendix.
+CIFAR-10
+CIFAR-100
+Model: ResNet-18
+Params. (M ) Val. Acc. (%)
+Time (hrs.)
+Params. (M ) Val. Acc. (%)
+Time (hrs.)
+Full-rank
+PUFFERFISH SI&FD † IMP XNOR-Net¶ CUTTLEFISH
+(cid:63)
+11.2 (100%)
+3.3 (29.9%)
+2.1 (18.5%)
+1.9 (16.8%)
+11.2 (3.1%)
+2.0 (17.9%)
+94.41±0.14 94.18±0.15 94.38±0.03 95.04±0.03 88.76±0.14 94.73±0.08
+0.82 (1×)
+0.70 (1.16×)
+0.59 (1.39×)
+6.55 (0.13×)
+3.61 (0.23×)
+0.70 (1.18×)
+11.2 (100%)
+3.4 (30.2%)
+2.7 (24.1%)
+2.4 (21.0%)
+11.2 (3.1%)
+2.6 (23.4%)
+75.95±0.23 72.43±0.18 75.80±0.17 75.51±0.09 57.23±0.40 75.57±0.24
+0.82 (1×)
+0.70 (1.17×)
+0.70 (1.16×)
+5.73 (0.14×)
+3.62 (0.23×)
+0.69 (1.19×)
+Model: VGG-19
+Params. (M ) Val. Acc. (%)
+Time (hrs.)
+Params. (M ) Val. Acc. (%)
+Time (hrs.)
+Full-rank
+PUFFERFISH SI&FD† LC Compress.
+IMP XNOR-Net¶ CUTTLEFISH
+(cid:63)
+20.0 (100%)
+8.1 (40.5%)
+2.0 (10.0%)
+1.7 (8.7%)
+1.7 (8.6%)
+20.0 (3.1%)
+1.9 (9.3%)
+93.41±0.15 93.36±0.09 92.23±0.08 93.23±0.15 93.68±0.28 86.61±0.10 93.54±0.10
+0.50 (1×)
+0.46 (1.09×)
+0.34 (1.44×)
+5.9 (0.08×)
+5.48 (0.09×)
+1.43 (0.35×)
+0.42 (1.18×)
+20.1 (100%)
+8.2 (40.6%)
+3.3 (16.5%)
+3.8 (19.0%)
+3.4 (16.8%)
+20.1 (3.1%)
+3.3 (16.3%)
+72.17±0.37 72.43±0.18 70.42±0.48 71.51±0.07 73.39±0.32 49.07±0.28 72.23±0.09
+0.49 (1×)
+0.46 (1.09×)
+0.39 (1.26×)
+15.98 (0.03×)
+3.96 (0.13×)
+1.43 (0.35×)
+0.44(1.14×)
+stantially decrease memory consumption during the process. However, PyTorch lacks an efﬁcient implementation of a binarized convolution operator. Consequently, our experi- ments utilized FP32 networks and activations to simulate binary networks, leading to a notably slower runtime com- pared to conventional FP32 training. This is because each layer’s output necessitates binarization, and model weights must be re-binarized for every iteration. For ImageNet ex- periments (presented in Table 2), the memory footprints are high, limiting us to a batch size of 256. CUTTLEFISH identi- ﬁes factorized ResNet-50 and WideResNet-50 models that achieve 1.2× and 1.3× end-to-end speedups for ImageNet training, respectively. Although the factorized models found by CUTTLEFISH are comparable to PUFFERFISH, it elimi- nates the need for extensive hyperparameter tuning for such large-scale tasks. 4.3 Computation overheads introduced by
+CUTTLEFISH.
+Computational overheads of proﬁling. The proﬁling process in CUTTLEFISH is a lightweight operation. For instance, with ResNet-18 on the CIFAR-10 dataset, we per- form proﬁling using τ = 11 iterations and exclude the running time for the ﬁrst iteration for both full-rank and low-rank models (i.e., running 22 iterations in total). We then average the running time ﬁgures for the remaining 10 iterations for benchmarking purposes. Averaged from three
+independent runs, the entire proﬁling stage takes 3.98 sec- onds, which accounts for a mere 0.16% of the total running time of CUTTLEFISH on ResNet-18 trained on the CIFAR- 10 dataset. Computational overheads of rank estimation. It is im- portant to emphasize that CUTTLEFISH needs to compute the singular values of the entire network weights at the end of each epoch. It is worth noting that to calculate stable ranks, only singular values are required, rather than singular vectors. This process can be accelerated by leveraging APIs, such as scipy.linalg.svdvals, which only compute singular values of a given matrix. Taking ResNet-18 trained on CIFAR-10 as an example, the average time taken for rank estimation using the stable rank is 0.49 seconds per epoch. For CUTTLEFISH, which requires E = 82.3 epochs (on average) for full-rank training, the stable rank estimation takes a total of 39.97 seconds, accounting for 1.6% of the entire end-to-end running time. 4.4 Ablation Study Accuracy and runtime efﬁciency of extra BNs. We con- duct additional ablation studies to examine the inﬂuence of incorporating extra BN layers on CUTTLEFISH perfor- mance. In our primary experiments, we use FD and disable extra BN layers to ensure accurate FD gradient computation when FD leads to better accuracy. Our ablation studies in- volve training ResNet-18 and VGG-19 on CIFAR-10 and
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+Table 2. The results presented include vanilla, PUFFERFISH, and CUTTLEFISH implementations of ResNet-50 and WideResNet-50, trained on ImageNet. The FLOPs numbers represent model inference latency, measured using simulated single-batch input with dimensions of (3, 224, 224). Runtime benchmarks are conducted on EC2 g4dn.metal instances.
+# Params. (M )
+Val. Acc. Top-1
+Val. Acc. Top-5
+FLOPs (G)
+Time (hrs.)
+WideResNet-50
+68.9 (100%)
+78.1
+94.0
+11.4
+147.8 (1×)
+PUFFERFISH
+CUTTLEFISH
+40.0 (58.1%)
+37.4 (54.3%)
+77.86±0.05 78.0±0.06
+93.97±0.05 94.04±0.09
+10.0
+10.0
+112.7 (1.31×)
+112.7 (1.31×)
+ResNet-50
+25.6 (100%)
+77.0
+93.4
+4.1
+67.0 (1×)
+PUFFERFISH
+CUTTLEFISH
+15.2 (59.5%)
+14.7 (57.4%)
+76.36±0.03 76.44±0.16
+93.21±0.03 93.21±0.03
+3.6
+3.6
+55.6 (1.20×)
+56.7 (1.18×)
+Table 3. The results for vanilla, PUFFERFISH, and CUTTLEFISH implementations of DeiT-base and ResMLP-S36, trained on Im- ageNet, are presented. FLOPs numbers, which measure model inference latency, are determined using simulated single-batch input with dimensions of (3, 224, 224).
+# Params. (M )
+Val. Acc. Top-1
+Val. Acc. Top-5
+FLOPs (G)
+DeiT-base
+86.6
+81.8
+95.6
+17.6
+PUFFERFISH
+58.3
+81.15±0.04
+95.58±0.04
+12.0
+CUTTLEFISH
+58.3
+81.52±0.03
+95.59±0.04
+12.0
+CUTTLEFISH, in this case, does not achieve exceptionally high compression rates (i.e., less than 2×). Consequently, the inclusion of extra BNs appears to provide the low-rank factorized model with additional capacity to enhance its accuracy. 2) For CIFAR experiments, we used a batch size of 1024, constrained by GPU memory, while a batch size of 256 was employed for ImageNet experiments. It is possible that extra BNs offer more substantial beneﬁts in smaller batch settings. Note that for Transformer model-based ex- periments, we do not enable extra BNs as LayerNorm is commonly used instead of BNs, which is beyond the scope of this ablation study.
+ResMLP-S36
+44.7
+80.1
+95.0
+8.9
+PUFFERFISH
+29.3
+77.78±0.20
+94.00±0.06
+5.9
+CUTTLEFISH
+29.4
+78.94±0.04
+94.52±0.05
+5.8
+CIFAR-100 datasets, as well as ResNet-50 on ImageNet, and evaluating model sizes, best validation accuracy (top-1 for ImageNet), end-to-end training time, and per-iteration time on low-rank models. The hyperparameters used in the ablation studies are consistent with those used for the main results in the Experiment section. The ablation study results, shown in Table 5, reveal that adding extra BN layers generally leads to a marginally larger model size and slower per-iteration and end-to-end runtimes. For example, when training ResNet-18 on CIFAR-10 without extra BNs, the end-to-end training time is 1.4% faster, and the per-iteration runtime is 2.8% faster. The impact of extra BNs on ﬁnal val- idation accuracy varies across experiments: enabling extra BNs slightly improves accuracy for ResNet-18 and VGG-19 on CIFAR-10, but not for CIFAR-100. However, for the Im- ageNet experiment, adding extra BNs leads to a non-trivial increase in model accuracy by an average of 0.21% across three independent runs with different random seeds. This improvement is signiﬁcant, considering it relates to top-1 accuracy for a 1000-class classiﬁcation problem. There are two potential explanations for why extra BNs help improve accuracy for ImageNet experiments more than CIFAR exper- iments: 1) The model capacity of ResNet-18 and VGG-19 seems sufﬁciently large for CIFAR datasets, allowing high compression rates (e.g., , 5×-10×). In contrast, for ResNet- 50 on ImageNet, the model capacity appears inadequate.
+1.0
+Conv46
+RR:0.063
+Conv48
+Conv35
+Conv22
+Conv39
+FC49
+RR:0.125
+Conv42
+Conv44
+RR:0.25
+Conv29
+2.5
+Conv24
+Conv23
+3.0Per Iter Time (ms.)
+0.2
+Conv33
+Conv21
+Conv31
+0.0
+Conv37
+Conv26
+0.0
+Conv47
+Conv36
+Conv38
+0.1
+0.4Scaled Stable RR
+Conv34
+2.0
+Conv30
+Conv28
+0.5
+Conv43
+Conv32
+1.5
+Conv27
+Full-rank
+0.3
+Conv25
+Conv45
+Conv41
+Conv40
+Full-rank
+Block-3-MLP
+Block-1-MLP
+Block-10-Attn.
+Block-10-MLP
+Block-12-MLP
+Block-8-Attn.
+Block-7-MLP
+Block-7-Attn.
+Block-8-MLP
+Block-11-MLP
+Block-2-Attn.
+RR:0.25
+6Per Iter Time (ms.)
+Block-4-MLP
+Block-11-Attn.
+4
+0.2
+Block-5-Attn.
+Block-5-MLP
+2
+RR:0.125
+0.0
+Block-12-Attn.
+0.6
+Block-1-Attn.
+Block-9-Attn.
+Block-4-Attn.
+Block-9-MLP
+Block-6-MLP
+Block-3-Attn.
+0.8Scaled Stable RR
+0.4
+Block-6-Attn.
+Block-2-MLP
+RR:0.063
+0
+Figure 6. Ablation study on the layer-wise costs of (Top): ResNet- 50 training on ImageNet (along with the scaled stable rank ratios selected by CUTTLEFISH); (Bottom): DeiT-Small training on ImageNet, batch size of both experiments are 128, and time for both experiments are measured on an EC2 p3.2xlarge instance with a batch size of 128. “RR” stands for rank ratio in the ﬁgure. Effectiveness of low-rank factorization on various layer types. In order to compare the efﬁciency of low-rank fac- torization against convolution, FC, MLP, and multi-head attention layers, we conducted an ablation study using ResNet-50 and DeiT-small on the ImageNet dataset. The per-iteration time of each layer was measured and the results are depicted in Figure 6 (for ResNet-50, we also illustrated the scaled stable rank ratios selected by CUTTLEFISH). We focused on forward computation time for this study, as it is well known that there is a constant factor between forward and backward computing time, and the former serves as a
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+Table 4. Vanilla BERTBASE, Distill BERT, Tiny BERT6, as well as CUTTLEFISH BERTBASE are evaluated on the GLUE benchmark. F1 scores are used as the metric for QQP and MRPC, while Spearman correlations are reported for STS-B, and accuracy scores are reported for the remaining tasks.
+Model
+# Params. (M )
+MNLI
+QNLI QQP
+RTE
+SST-2 MRPC CoLA STS-B Avg.
+BERTBASE Distill BERT
+108.3
+65.8
+83.9/84.4
+81.1/82.0
+90.9
+89.1
+87.6
+86.2
+66.8
+57.8
+92.2
+90.6
+88.6
+88.6
+60.1
+47.3
+88.6
+83.4
+82.5
+78.4
+Tiny BERT6
+67.0
+83.9/83.8
+90.6
+86.8
+72.9
+91.5
+90.6
+46.2
+89.3
+81.7
+CUTTLEFISH
+48.8
+83.7/84.4
+90.8
+86.7
+67.0
+92.3
+88.4
+56.8
+87.9
+82.0
+Table 5. In this ablation study, we evaluate the impact of extra BNs on ResNet-18 and VGG-19 trained on CIFAR-10 and CIFAR-100, as well as ResNet-50 trained on the ImageNet dataset. The end-to-end and per-iteration running time results are measured on a single p3.2xlarge EC2 instance for ResNet-18 and VGG-19, and a single g4dn.metal EC2 instance for ResNet-50. The results are averaged from three independent experiments using different random seeds.
+CIFAR-10
+CIFAR-100
+Model: ResNet-18
+Params. (M )
+Val. Acc. (%)
+Time End2end (hrs.)
+Time Iter. (ms)
+Params. (M )
+Val. Acc. (%)
+Time End2end (hrs.)
+Time Iter. (ms)
+w/ extra BNs
+2.02
+94.36±0.07
+0.716
+163.42±0.51
+2.62
+73.64±0.26
+0.719
+164.72±1.63
+w/o extra BNs
+1.97
+94.32±0.22
+0.706
+158.94±0.53
+2.60
+73.77±0.14
+0.689
+158.53±1.32
+Model: VGG-19
+Params. (M )
+Val. Acc. (%)
+Time End2end (hrs.)
+Time Iter. (ms)
+Params. (M )
+Val. Acc. (%)
+Time End2end (hrs.)
+Time Iter. (ms)
+w/ extra BNs
+1.86
+93.54±0.10
+0.422
+85.53±0.59
+3.31
+71.99±0.02
+0.436
+91.76±0.52
+w/o extra BNs
+1.86
+93.49±0.08
+0.419
+84.55±0.26
+3.31
+72.15±0.24
+0.432
+89.90±0.18
+ResNet-50 on ImageNet
+Params. (M )
+Top-1 Val. Acc. (%)
+Time End2end (hrs.)
+Time Iter. (sec.)
+w/ extra BNs
+14.7
+76.44±0.16
+56.7
+0.43±0.002
+w/o extra BNs
+14.7
+76.23±0.21
+55.6
+0.42±0.003
+good proxy for per-iteration time. Due to space constraints, we only plotted the results for the 21st convolution layer on- wards in the ResNet-50 experiments, although meaningful speedups were observed for the ﬁrst 20 layers as well. In the case of convolution layers, our experiments revealed an average speedup of 2.1× across all 49 layers when using a rank ratio of 1 4 . However, we observed that the last FC layer actually slowed down when factorized, regardless of the rank ratio used. This could be attributed to the small size of the FC layer, which incurs a large kernel launching overhead when split into two smaller layers, thereby nulli- fying any computation cost savings. Our experiments with DeiT showed that factorizing both multi-head attention and MLP layers resulted in signiﬁcant speedups for all 12 Trans- former encoder blocks. Additionally, factorizing the MLP layer led to greater speedup gains compared to factorizing the multi-head attention layer. Speciﬁcally, factorizing the multi-head attention layer resulted in 1.26× speedups on average, while factorizing the MLP layer resulted in 1.73× speedups on average for all 12 blocks at a rank ratio of 1 4 . 4.5 Limitations of CUTTLEFISH A limitation of CUTTLEFISH is that the hyperparameters s it tunes are inﬂuenced by the randomness of the training algo- rithm and model initialization. Consequently, different trial runs may not yield factorized models with identical sizes
+(although the variance is minimal). This can potentially impact exact reproducibility. 5 CONCLUSION We present CUTTLEFISH, an automated low-rank training method that eliminates the need for tuning additional factor- ization hyperparameters, i.e., S = (E, K, R). CUTTLEFISH leverages two key insights related to the emergence of stable ranks during training and the actual speedup gains achieved by factorizing different NN layers. Utilizing these insights, it designs heuristics for automatically selecting s ∈ S. Our extensive experiments demonstrate that CUTTLEFISH iden- tiﬁes low-rank models that are not only smaller, but also yield better ﬁnal accuracy in most cases when compared to state-of-the-art low-rank training methods.
+Acknowledgments
+We thank our shepherd, Bilge Acun, and the anonymous MLSys reviewers for their valuable insights and recom- mendations, which have enhanced our work. This research has been graciously funded by ONR Grant No. N00014- 21-1-2806, three Sony Faculty Innovation Awards, NSF IIS1563887, NSF CCF1629559, NSF IIS1617583, NSF IIS1955532, NSF CNS2008248, NSF IIS2123952, and NSF BCS2040381, and NGA HM04762010002.
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+REFERENCES
+Brown, T., Mann, B., Ryder, N., Subbiah, M., Kaplan, J. D., Dhariwal, P., Neelakantan, A., Shyam, P., Sastry, G., Askell, A., Agarwal, S., Herbert-Voss, A., Krueger, G., Henighan, T., Child, R., Ramesh, A., Ziegler, D., Wu, J., Winter, C., Hesse, C., Chen, M., Sigler, E., Litwin, M., Gray, S., Chess, B., Clark, J., Berner, C., McCandlish, S., Radford, A., Sutskever, I., and Amodei, D. Language In Advances in Neural models are few-shot learners. Information Processing Systems, 2020.
+Fedus, W., Zoph, B., and Shazeer, N. Switch transform- ers: Scaling to trillion parameter models with simple and efﬁcient sparsity. arXiv preprint arXiv:2101.03961, 2021.
+Frankle, J. and Carbin, M. The lottery ticket hypothesis: Finding sparse, trainable neural networks. arXiv preprint arXiv:1803.03635, 2018.
+Frankle, J., Dziugaite, G. K., Roy, D. M., and Carbin, M. Stabilizing the lottery ticket hypothesis. arXiv preprint arXiv:1903.01611, 2019.
+Chen, B., Dao, T., Winsor, E., Song, Z., Rudra, A., and R´e, C. Scatterbrain: Unifying sparse and low-rank attention. In Advances in Neural Information Processing Systems, 2021a.
+Goyal, P., Doll´ar, P., Girshick, R., Noordhuis, P., Wesolowski, L., Kyrola, A., Tulloch, A., Jia, Y., and He, K. Accurate, large minibatch sgd: Training imagenet in 1 hour. arXiv preprint arXiv:1706.02677, 2017.
+Chen, B., Dao, T., Liang, K., Yang, J., Song, Z., Rudra, A., and Re, C. Pixelated butterﬂy: Simple and efﬁcient sparse In International training for neural network models. Conference on Learning Representations, 2022.
+Han, S., Mao, H., and Dally, W. J. Deep compres- sion: Compressing deep neural networks with pruning, trained quantization and huffman coding. arXiv preprint arXiv:1510.00149, 2015a.
+Chen, P., Yu, H.-F., Dhillon, I., and Hsieh, C.-J. Drone: Data-aware low-rank compression for large nlp models. Advances in neural information processing systems, 34: 29321–29334, 2021b.
+Han, S., Pool, J., Tran, J., and Dally, W. Learning both weights and connections for efﬁcient neural network. Advances in neural information processing systems, 28, 2015b.
+Chen, Y.-H., Emer, J., and Sze, V. Eyeriss: A spatial ar- chitecture for energy-efﬁcient dataﬂow for convolutional neural networks. ACM SIGARCH Computer Architecture News, 44(3):367–379, 2016.
+He, K., Zhang, X., Ren, S., and Sun, J. Deep residual learn- ing for image recognition. In Proceedings of the IEEE conference on computer vision and pattern recognition, pp. 770–778, 2016.
+Chollet, F. Xception: Deep learning with depthwise separa- ble convolutions. In Proceedings of the IEEE conference on computer vision and pattern recognition, pp. 1251– 1258, 2017.
+He, Y., Zhang, X., and Sun, J. Channel pruning for acceler- ating very deep neural networks. In Proceedings of the IEEE International Conference on Computer Vision, pp. 1389–1397, 2017.
+Dao, T., Chen, B., Sohoni, N., Desai, A., Poli, M., Grogan, J., Liu, A., Rao, A., Rudra, A., and R´e, C. Monarch: Expressive structured matrices for efﬁcient and accurate training. arXiv preprint arXiv:2204.00595, 2022.
+Deng, J., Dong, W., Socher, R., Li, L.-J., Li, K., and Fei-Fei, L. Imagenet: A large-scale hierarchical image database. In 2009 IEEE conference on computer vision and pattern recognition, pp. 248–255. Ieee, 2009.
+Devlin, J., Chang, M.-W., Lee, K., and Toutanova, K. Bert: Pre-training of deep bidirectional transformers for lan- guage understanding. arXiv preprint arXiv:1810.04805, 2018.
+Evci, U., Gale, T., Menick, J., Castro, P. S., and Elsen, E. Rigging the lottery: Making all tickets winners. In International Conference on Machine Learning, pp. 2943– 2952. PMLR, 2020.
+Hinton, G., Vinyals, O., and Dean, J. the knowledge in a neural network. arXiv:1503.02531, 2015.
+Distilling arXiv preprint
+Howard, A. G., Zhu, M., Chen, B., Kalenichenko, D., Wang, W., Weyand, T., Andreetto, M., and Adam, H. Mobilenets: Efﬁcient convolutional neural networks for mobile vision applications. arXiv preprint arXiv:1704.04861, 2017.
+Hu, E. J., Shen, Y., Wallis, P., Allen-Zhu, Z., Li, Y., Wang, S., Wang, L., and Chen, W. Lora: Low-rank adaptation of large language models. arXiv preprint arXiv:2106.09685, 2021.
+Hu, H., Peng, R., Tai, Y.-W., and Tang, C.-K. Net- work trimming: A data-driven neuron pruning approach arXiv preprint towards efﬁcient deep architectures. arXiv:1607.03250, 2016.
+Hubara, I., Courbariaux, M., Soudry, D., El-Yaniv, R., and Bengio, Y. Binarized neural networks. In Advances in
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+neural information processing systems, pp. 4107–4115, 2016.
+Kitaev, N., Kaiser, L., and Levskaya, A. Reformer: The In International Conference on
+efﬁcient transformer. Learning Representations, 2020.
+Hubara, I., Courbariaux, M., Soudry, D., El-Yaniv, R., and Bengio, Y. Quantized neural networks: Training neural networks with low precision weights and activations. The Journal of Machine Learning Research, 18(1):6869–6898, 2017.
+Koneˇcn`y, J., McMahan, H. B., Yu, F. X., Richt´arik, P., Suresh, A. T., and Bacon, D. Federated learning: Strate- gies for improving communication efﬁciency. arXiv preprint arXiv:1610.05492, 2016.
+Hyeon-Woo, N., Ye-Bin, M., and Oh, T.-H. Fedpara: Low- rank hadamard product for communication-efﬁcient fed- erated learning. In International Conference on Learning Representations, 2022.
+Krizhevsky, A., Hinton, G., et al. Learning multiple layers of features from tiny images. Master’s thesis, Department of Computer Science, University of Toronto, 2009.
+Iandola, F. N., Han, S., Moskewicz, M. W., Ashraf, K., Dally, W. J., and Keutzer, K. Squeezenet: Alexnet-level accuracy with 50x fewer parameters and¡ 0.5 mb model size. arXiv preprint arXiv:1602.07360, 2016.
+Lan, Z., Chen, M., Goodman, S., Gimpel, K., Sharma, P., and Soricut, R. Albert: A lite bert for self-supervised learning of language representations. arXiv preprint arXiv:1909.11942, 2019.
+Idelbayev, Y. and Carreira-Perpin´an, M. A. Low-rank com- pression of neural nets: Learning the rank of each layer. In Proceedings of the IEEE/CVF Conference on Com- puter Vision and Pattern Recognition, pp. 8049–8059, 2020.
+Ioannou, Y., Robertson, D., Shotton, J., Cipolla, R., and Cri- minisi, A. Training cnns with low-rank ﬁlters for efﬁcient image classiﬁcation. arXiv preprint arXiv:1511.06744, 2015.
+Li, D., Wang, H., Shao, R., Guo, H., Xing, E., and Zhang, H. Mpcformer: fast, performant and private transformer inference with mpc. In The Eleventh International Con- ference on Learning Representations, 2023.
+Li, H., Kadav, A., Durdanovic, I., Samet, H., and Graf, H. P. Pruning ﬁlters for efﬁcient convnets. arXiv preprint arXiv:1608.08710, 2016.
+Lin, M., Chen, Q., and Yan, S. Network in network. arXiv
+preprint arXiv:1312.4400, 2013.
+Izsak, P., Berchansky, M., and Levy, O.
+train bert with an academic budget. arXiv:2104.07705, 2021.
+How to arXiv preprint
+Liu, Z., Sun, M., Zhou, T., Huang, G., and Darrell, T. Re- thinking the value of network pruning. arXiv preprint arXiv:1810.05270, 2018.
+Jaderberg, M., Vedaldi, A., and Zisserman, A. Speeding up convolutional neural networks with low rank expansions. arXiv preprint arXiv:1405.3866, 2014.
+Loshchilov, I. and Hutter, F. Decoupled weight decay reg- In International Conference on Learning
+ularization. Representations, 2019.
+Jeffers, J., Reinders, J., and Sodani, A. Intel Xeon Phi pro- cessor high performance programming: knights landing edition. Morgan Kaufmann, 2016.
+Jiao, X., Yin, Y., Shang, L., Jiang, X., Chen, X., Li, L., Wang, F., and Liu, Q. Tinybert: Distilling bert for natural In EMNLP 2020, pp. 4163– language understanding. 4174, 2020.
+Kairouz, P., McMahan, H. B., Avent, B., Bellet, A., Bennis, M., Bhagoji, A. N., Bonawitz, K., Charles, Z., Cormode, G., Cummings, R., et al. Advances and open problems in federated learning. arXiv preprint arXiv:1912.04977, 2019.
+Khodak, M., Tenenholtz, N. A., Mackey, L., and Fusi, N. Ini- tialization and regularization of factorized neural layers. In International Conference on Learning Representations, 2020.
+Netzer, Y., Wang, T., Coates, A., Bissacco, A., Wu, B., and Ng, A. Y. Reading digits in natural images with In NIPS workshop on unsupervised feature learning. deep learning and unsupervised feature learning, volume 2011, pp. 5, 2011.
+Paszke, A., Gross, S., Massa, F., Lerer, A., Bradbury, J., Chanan, G., Killeen, T., Lin, Z., Gimelshein, N., Antiga, L., et al. Pytorch: An imperative style, high-performance deep learning library. In Advances in neural information processing systems, pp. 8026–8037, 2019.
+Rastegari, M., Ordonez, V., Redmon, J., and Farhadi, A. Xnor-net: Imagenet classiﬁcation using binary convolu- tional neural networks. In Computer Vision–ECCV 2016: 14th European Conference, Amsterdam, The Netherlands, October 11–14, 2016, Proceedings, Part IV, pp. 525–542. Springer, 2016.
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+Renda, A., Frankle, J., and Carbin, M. Comparing rewinding and ﬁne-tuning in neural network pruning. In Interna- tional Conference on Learning Representations, 2020.
+Vodrahalli, K., Shivanna, R., Sathiamoorthy, M., Jain, S., and Chi, E. Algorithms for efﬁciently learning low-rank neural networks. arXiv preprint arXiv:2202.00834, 2022.
+Sainath, T. N., Kingsbury, B., Sindhwani, V., Arisoy, E., and Ramabhadran, B. Low-rank matrix factorization for deep neural network training with high-dimensional out- put targets. In Acoustics, Speech and Signal Processing (ICASSP), 2013 IEEE International Conference on, pp. 6655–6659. IEEE, 2013.
+Sanh, V., Debut, L., Chaumond, J., and Wolf, T. Distilbert, a distilled version of bert: smaller, faster, cheaper and lighter. arXiv preprint arXiv:1910.01108, 2019.
+Simonyan, K. and Zisserman, A. Very deep convolu- tional networks for large-scale image recognition. arXiv preprint arXiv:1409.1556, 2014.
+Sreenivasan, K., Sohn, J.-y., Yang, L., Grinde, M., Nagle, A., Wang, H., Xing, E., Lee, K., and Papailiopoulos, D. Rare gems: Finding lottery tickets at initialization. Advances in Neural Information Processing Systems, 2022a.
+Sreenivasan, K., yong Sohn, J., Yang, L., Grinde, M., Nagle, A., Wang, H., Xing, E., Lee, K., and Papailiopoulos, D. Rare gems: Finding lottery tickets at initialization. In Advances in Neural Information Processing Systems, 2022b.
+Waleffe, R. and Rekatsinas, T. Principal component net- works: Parameter reduction early in training. arXiv preprint arXiv:2006.13347, 2020.
+Wang, A., Singh, A., Michael, J., Hill, F., Levy, O., and Bowman, S. R. Glue: A multi-task benchmark and anal- ysis platform for natural language understanding. arXiv preprint arXiv:1804.07461, 2018.
+Wang, C., Zhang, G., and Grosse, R. Picking winning tickets before training by preserving gradient ﬂow. International Conference on Learning Representations, 2020a.
+Wang, H., Yurochkin, M., Sun, Y., Papailiopoulos, D., and Khazaeni, Y. Federated learning with matched averaging. In International Conference on Learning Representations, 2020b.
+Wang, H., Agarwal, S., and Papailiopoulos, D. Pufferﬁsh: Communication-efﬁcient models at no extra cost. Pro- ceedings of Machine Learning and Systems, 3, 2021a.
+Wang, J., Charles, Z., Xu, Z., Joshi, G., McMahan, H. B., Al-Shedivat, M., Andrew, G., Avestimehr, S., Daly, K., Data, D., et al. A ﬁeld guide to federated optimization. arXiv preprint arXiv:2107.06917, 2021b.
+Tan, M. and Le, Q. V. Efﬁcientnet: Rethinking model scaling for convolutional neural networks. arXiv preprint arXiv:1905.11946, 2019.
+Tolstikhin, I. O., Houlsby, N., Kolesnikov, A., Beyer, L., Zhai, X., Unterthiner, T., Yung, J., Steiner, A., Keysers, D., Uszkoreit, J., et al. Mlp-mixer: An all-mlp architec- ture for vision. Advances in Neural Information Process- ing Systems, 34, 2021.
+Touvron, H., Bojanowski, P., Caron, M., Cord, M., El- Nouby, A., Grave, E., Izacard, G., Joulin, A., Synnaeve, G., Verbeek, J., et al. Resmlp: Feedforward networks for image classiﬁcation with data-efﬁcient training. arXiv preprint arXiv:2105.03404, 2021a.
+Wen, W., Wu, C., Wang, Y., Chen, Y., and Li, H. Learning structured sparsity in deep neural networks. In Advances in neural information processing systems, pp. 2074–2082, 2016.
+Wiesler, S., Richard, A., Schluter, R., and Ney, H. Mean- normalized stochastic gradient for large-scale deep learn- In Acoustics, Speech and Signal Processing ing. (ICASSP), 2014 IEEE International Conference on, pp. 180–184. IEEE, 2014.
+Wu, J., Leng, C., Wang, Y., Hu, Q., and Cheng, J. Quantized convolutional neural networks for mobile devices. In Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition, pp. 4820–4828, 2016.
+Touvron, H., Cord, M., Douze, M., Massa, F., Sablayrolles, A., and J´egou, H. Training data-efﬁcient image transform- ers & distillation through attention. In International Con- ference on Machine Learning, pp. 10347–10357. PMLR, 2021b.
+Xue, J., Li, J., and Gong, Y. Restructuring of deep neural network acoustic models with singular value decomposi- tion. In Interspeech, pp. 2365–2369, 2013.
+Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł., and Polosukhin, I. Atten- tion is all you need. In Advances in neural information processing systems, pp. 5998–6008, 2017.
+Yang, T.-J., Chen, Y.-H., and Sze, V. Designing energy- efﬁcient convolutional neural networks using energy- aware pruning. In Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition, pp. 5687– 5695, 2017.
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+Yao, D., Pan, W., Wan, Y., Jin, H., and Sun, L. Fedhm: Efﬁcient federated learning for heterogeneous models via low-rank factorization. arXiv preprint arXiv:2111.14655, 2021.
+You, H., Li, C., Xu, P., Fu, Y., Wang, Y., Chen, X., Baraniuk, R. G., Wang, Z., and Lin, Y. Drawing early-bird tickets: Towards more efﬁcient training of deep networks. arXiv preprint arXiv:1909.11957, 2019.
+You, H., Li, C., Xu, P., Fu, Y., Wang, Y., Chen, X., Bara- niuk, R. G., Wang, Z., and Lin, Y. Drawing early-bird tickets: Toward more efﬁcient training of deep networks. In International Conference on Learning Representations, 2020.
+Yu, J. and Huang, T. S. Universally slimmable networks and improved training techniques. In Proceedings of the IEEE/CVF international conference on computer vision, pp. 1803–1811, 2019.
+Yu, J., Yang, L., Xu, N., Yang, J., and Huang, T. Slimmable neural networks. In International Conference on Learn- ing Representations, 2019.
+Yu, R., Li, A., Chen, C.-F., Lai, J.-H., Morariu, V. I., Han, X., Gao, M., Lin, C.-Y., and Davis, L. S. Nisp: Pruning networks using neuron importance score propagation. In Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition, pp. 9194–9203, 2018.
+Zagoruyko, S. and Komodakis, N. Wide residual networks.
+arXiv preprint arXiv:1605.07146, 2016.
+Zhang, S., Roller, S., Goyal, N., Artetxe, M., Chen, M., Chen, S., Dewan, C., Diab, M., Li, X., Lin, X. V., et al. Opt: Open pre-trained transformer language models. arXiv preprint arXiv:2205.01068, 2022.
+Zhang, X., Zhou, X., Lin, M., and Sun, J. Shufﬂenet: An extremely efﬁcient convolutional neural network for mo- bile devices. In Proceedings of the IEEE conference on computer vision and pattern recognition, pp. 6848–6856, 2018.
+Zhou, A., Yao, A., Guo, Y., Xu, L., and Chen, Y. Incre- mental network quantization: Towards lossless cnns with low-precision weights. arXiv preprint arXiv:1702.03044, 2017.
+Zhu, C., Han, S., Mao, H., and Dally, W. J. Trained ternary quantization. arXiv preprint arXiv:1612.01064, 2016.
+Zhu, M. and Gupta, S. To prune, or not to prune: exploring the efﬁcacy of pruning for model compression. arXiv preprint arXiv:1710.01878, 2017.
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+A ARTIFACT APPENDIX
+A.1 Abstract
+Execution: We provide scripts to execute and launch the experiments. Detailed descriptions and instructions can be found in the README of our GitHub repository.
+We have made available the necessary artifacts to repli- cate all results presented in the paper. Our experi- ments utilize Amazon EC2 computing resources, includ- ing p3.2xlarge (for ResNet-18 and VGG-19 training on CIFAR-10 and CIFAR-100 datasets, as well as BERT ﬁne- tuning on the GLUE benchmark), g4dn.metal (for example, ResNet-50 and WideResNet-50 training on ImageNet), and p4d.24xlarge (for DeiT-base and ResMLP execution on Im- ageNet) instances. Additionally, we employ the NVIDIA driver and Docker to construct the software stack.
+Metrics: We collect metrics such as the number of param- eters, validation accuracy (or similar scores for assessing model quality), wall-clock time (including end-to-end and per iteration/epoch durations), and computational complexity (measured in FLOPS).
+Output: Our existing code writes checkpoints to the local disk and also prints experimental outputs/logs directly.
+Experiments: N/A
+How much disk space required (approximately)?: Around 1 Terabyte of disk space.
+To facilitate the replication of all reported experiments, we provide scripts in our GitHub repository, accessible at https://github.com/hwang595/Cuttlefish. Running those provided scripts will set up and launch experiments to reproduce our experimental results. For ease of reproducibility, we also offer a public Amazon Machine Image (AMI) – ami-05c0b3732203032b3 (in the region of US West (Oregon)) where experimental environments and the ImageNet dataset, which is time-consuming to download and set up are prepared.
+A.2 Artifact check-list (meta-information)
+How much time is needed to prepare workﬂow (approxi- mately)?: Setting up the experimental environment should take less than an hour. Downloading the ImageNet (ILSVRC 2012) dataset can take a few days. If the evaluators have access to AWS, we have also provided a public AMI - ami- 05c0b3732203032b3 (in the region of US West (Oregon)) which has the datasets and dependencies pre-installed.
+How much time is needed to complete experiments (ap- proximately)?: Completing the CIFAR-10 and CIFAR-100 experiments with CUTTLEFISH typically takes less than an hour for each task (see Table 1 for details). BERT ﬁne-tuning experiments on all GLUE datasets require approximately a few hours, while ImageNet experiments may take several days to a week to reach full convergence for each method.
+In this section, we offer meta-information regarding the conﬁguration, datasets, implementation, and other aspects of our artifacts.
+Algorithm: Our artifact encompasses the CUTTLEFISH automatic low-rank training schedule, along with the baseline methods compared in the main paper, such as PUFFERFISH, SI&FD, XNOR-Net, GraSP, and others.
+Program: N/A
+Publicly available?:
+All our code is publicly avail- able on the GitHub repository: https://github. com/hwang595/Cuttlefish. For easy setup on AWS, we also provide a public AMI - with ID ami- 05c0b3732203032b3 (in the region of US West (Oregon)), which can be used to launch large-scale experiments.
+Code licenses (if publicly available)?: N/A
+Data licenses (if publicly available)?: We use CIFAR-10, CIFAR-100, SVHN, Imagenet (ILSVRC 2012) datasets and the GLUE benchmark which come with their own licenses. All datasets are publicly available.
+Compilation: All methods and baselines are implemented in PyTorch, therefore requiring no compilation.
+Workﬂow framework used?: N/A
+Transformations: N/A
+Binary: N/A
+Archived (provide DOI)?: We use Zenedo to cre- ate a publicly accessible archival repository for our GitHub repository, i.e., https://doi.org/10.5281/ zenodo.7884872.
+Data set: For our main experiments, we employ CIFAR- 10, CIFAR-100, SVHN, ImageNet (ILSVRC 2012), and GLUE datasets. As preparing the ImageNet dataset can be time-consuming, we provide a ready-to-use public AMI - ami-05c0b3732203032b3 in the US West (Oregon) region for convenience.
+A.3 Description
+We have made available the code necessary to replicate all the experiments presented in this paper through a public GitHub repos- itory that contains comprehensive documentation, allowing users to seamlessly execute the experiments.
+Run-time environment: N/A
+A.3.1 How delivered
+Hardware: Our experiments were conducted using Ama- zon EC2 instances, speciﬁcally p3.2xlarge, g4dn.metal, and p4d.24xlarge.
+Run-time state: N/A
+Our entire codebase is available on the GitHub repository: https://github.com/hwang595/Cuttlefish. To fa- cilitate easy setup on AWS, we offer a public AMI - identiﬁed by ami-05c0b3732203032b3 (in the region of US West (Oregon)) - which can be utilized to launch large-scale experiments.
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+A.3.2 Hardware dependencies
+run.
+For all our experiments we used p3.2xlarge, g4dn.metal, and p4d.24xlarge Amazon EC2 instances. To reproduce our results, one instance of each type is required.
+A.3.3 Software dependencies
+We established our experimental environments using Docker, conﬁguring them through PyTorch Docker containers from NVIDIA GPU Cloud (NGC). The experiments involving the CIFAR-10, CIFAR-100, SVHN, and ImageNet datasets were based on the NGC container nvcr.io/nvidia/pytorch:20.07-py3, while those focused on the GLUE benchmark utilized the nvcr.io/nvidia/pytorch:22.01-py3 container. Since there are addi- tional software dependencies not included in the Docker containers, we have supplied installation scripts, accompanied by instructions in the README ﬁle of our GitHub repository, to facilitate the installation of these necessary components.
+A.3.4 Data sets
+For all our experiments we used CIFAR-10, CIFAR-100, SVHN, ImageNet (ILSVRC 2012), and GLUE datasets. For CIFAR- 10, CIFAR-100, SVHN, and GLUE datasets, our code will automatically download them. For the ImageNet dataset, we have it ready and provided via the public AMI - with ID ami- 05c0b3732203032b3 (in the region of US West (Oregon)).
+A.4
+Installation
+In the GitHub README, we offer comprehensive instructions for installing dependencies and conﬁguring the Docker environments.
+A.5 Experiment workﬂow
+We have provided a detailed README along with our GitHub repository which provides bash scripts to execute and launch the experiments.
+A.6 Evaluation and expected result
+During the experiment, logs containing details such as accuracy and running time will be displayed directly. However, given the inherent variability in machine learning tasks and the diversity of hardware and system conﬁgurations, it is important to note that the exact accuracy and running time ﬁgures reported in the paper may not be replicated. Nevertheless, by using the artifacts provided, one can expect to achieve comparable accuracy and running time outcomes.
+A.7 Experiment customization
+The experiment can be customized by trying on different hardware setups. One example of this will be to run these experiments on slower GPUs (or other hardware, e.g., CPUs). Another option would be to try to support more model architectures using the heuristics of CUTTLEFISH (an interesting example will be adopting CUTTLEFISH for some recently designed large language models).
+A.8 Notes
+If the evaluator utilizes our provided AMI, the initial disk ini- tialization will take an extended period of time during the ﬁrst
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+B EXPERIMENTAL SETUP
+In this section, we delve into the speciﬁcs of the datasets B.1 and model architectures B.2 employed in our experiments. Ad- ditionally, we elaborate on the software environment B.3 and the implementation details of all methods included in our experi- ments B.4. Our code can be accessed at https://github. com/hwang595/Cuttlefish.
+Hugging Face 2. In accordance with prior work (Devlin et al., 2018; Jiao et al., 2020; Hu et al., 2021), we exclude the problematic WNLI downstream task.
+B.2 Model architectures
+In this section, we provide a summary of the network architectures utilized in our experiments.
+B.1 Dataset
+We carried out experiments across multiple computer vision and NLP tasks to evaluate the performance of CUTTLEFISH and the other considered baselines. In this section, we discuss the speciﬁcs of each task in greater detail.
+CIFAR-10 and CIFAR-100. Both CIFAR-10 and CIFAR- 100 comprise 60,000 color images with a resolution of 32×32 pixels, where 50,000 images are used for training and 10,000 for validation (since there is no provided test set for CIFAR- 10 and CIFAR-100, we follow the convention of other papers by conducting experiments and reporting the highest achievable accuracy on the validation datasets) (Krizhevsky et al., 2009). CIFAR-10 and CIFAR-100 involve 10-class and 100-class clas- siﬁcation tasks, respectively. For data processing, we employ standard augmentation techniques: channel-wise normalization, random horizontal ﬂipping, and random cropping. Each color channel is normalized with the following mean and standard deviation values: µr = 0.485, µg = 0.456, µb = 0.406; σr = 0.229, σg = 0.224, σb = 0.225. The normalization of each channel pixel is achieved by subtracting the corresponding channel’s mean value and dividing by the color channel’s standard deviation.
+SVHN. The SVHN dataset comprises 73,257 training images and 26,032 validation images, all of which are colored with a resolution of 32×32 pixels (Netzer et al., 2011). This classiﬁ- cation dataset consists of 10 classes. As there is no clear test- validation split for the SVHN dataset, we follow the convention of other papers by conducting experiments and reporting the highest achievable accuracy on the validation datasets. There are 531,131 additional images for SVHN, but we do not include them in our experiments for this paper. For data processing, we employ the same data augmentation and normalization techniques used for CIFAR-10 and CIFAR-100, as described above.
+ImageNet (ILSVRC 2012). The ImageNet ILSVRC 2012 dataset consists of 1,281,167 colored training images spanning 1,000 classes and 50,000 colored validation images, also cov- ering 1,000 classes (Deng et al., 2009). Augmentation tech- niques include normalization, random rotation, and random hor- izontal ﬂip. The training images are randomly resized and cropped to a resolution of 224×224 using the torchvision API torchvision.transforms.RandomResizedCrop. The validation images are ﬁrst resized to a resolution of 256×256 and then center cropped to a resolution of 224×224. Each color channel is normalized with the following mean and stan- dard deviation values: µr = 0.485, µg = 0.456, µb = 0.406; σr = 0.229, σg = 0.224, σb = 0.225. Each channel pixel is normalized by subtracting the corresponding channel’s mean value and then dividing by the color channel’s standard deviation.
+ResNet-18, ResNet-50, and WideResNet-50-2. The ResNet-18 and ResNet-50 architectures are derived from the orig- inal design with minor modiﬁcations (He et al., 2016). The WideResNet-50-2 adheres to the original wide residual network design (Zagoruyko & Komodakis, 2016). As we employed ResNet- 18 for CIFAR-10 classiﬁcation, we adjusted the initial convolution layer to use a 3 × 3 convolution with padding at 1 and stride at 1. Our ResNet-18 implementation follows the GitHub repository 3. For all ResNet-18, ResNet-50, and WideResNet-50-2 networks, the strides used for the four convolution layer stacks are respec- tively 1, 2, 2, 2. Bias terms for all layers are deactivated (owing to the BatchNorm layers), except for the ﬁnal FC layer.
+VGG-19-BN. In our experiments, we employ the VGG-19-BN network architecture, which is a modiﬁed version of the original VGG-19 (Simonyan & Zisserman, 2014). The original VGG- 19 network consists of 16 convolution layers and 3 FC layers, including the ﬁnal linear classiﬁcation layer. We adopt the VGG- 19 architectures from (Frankle & Carbin, 2018; Khodak et al., 2020), which remove the ﬁrst two FC layers following the last convolution layer while retaining the ﬁnal linear classiﬁcation layer. This results in a 17-layer architecture, but we continue to refer to it as VGG-19-BN since it stems from the original VGG-19 design. Another modiﬁcation is replacing the max pooling layer after the last convolution layer (conv16) with an average pooling layer. The detailed architecture is displayed in Table 7. We follow the implementation of the pytorch-cifar GitHub repository mentioned above. Due to the BatchNorm layers, bias terms for all layers are deactivated, except for the ﬁnal FC layer.
+DeiT and ResMLP. Our implementations of DeiT-base and ResMLP-S36 are sourced directly from the model implementa- tions provided by the Pytorch Image Models (i.e., timm) library 4. For DeiT-base, we do not use the scaled ImageNet resolution ver- sion and we deactivate the distillation options. More speciﬁcally, we initiate the training of a deit base patch16 224 model from scratch, as provided by the timm library. For training, we employ the training method and hyperparameters speciﬁed in the original GitHub repository 5. For ResMLP-S36, we adhere to the same training methodology used for DeiT-base, utilizing the resmlp 36 224 provided by the timm library.
+BERTBASE, DistillBERT, and TinyBERT. The imple- mentations of BERTBASE, DistillBERT, and TinyBERT6 are directly provided by Hugging Face. For BERTBASE, we use the model named bert-base-cased. For DistillBERT, we
+2https://github.com/huggingface/
+transformers/tree/main/examples/pytorch/ text-classification
+3https://github.com/kuangliu/
+pytorch-cifar
+4https://github.com/rwightman/
+GLUE benchmark. For the GLUE benchmark, we utilize the data preparation and pre-processing pipeline implemented by
+pytorch-image-models
+5https://github.com/facebookresearch/deit
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+Table 6. The ResNet-18, ResNet-50, and WideResNet-50-2 network architectures used in our experiments. It should be noted that when using ResNet-18 for CIFAR-10 training, we make corresponding adjustments to the initial convolution layer. Each convolution layer is followed by a BatchNorm layer. In the notation used in this table, “7 × 7, 64” signiﬁes that the convolution layer contains 64 convolution kernels, i.e., each kernel has a dimension of 7 × 7 and the output dimension is 64.
+Model
+ResNet-18
+ResNet-50
+WideResNet-50-2
+Conv 1
+Layer stack 1
+Layer stack 2
+Layer stack 3
+Layer stack 4
+3×3, 64 padding 1 stride 1 -
+(cid:20) 3×3, 64 3×3, 64
+(cid:21)
+×2
+(cid:20) 3×3, 128 3×3, 128
+(cid:21)
+×2
+(cid:20) 3×3, 256 3×3, 256
+(cid:21)
+×2
+(cid:20) 3×3, 512 3×3, 512
+(cid:21)
+×2
+7×7, 64 padding 3 stride 2
+7×7, 64 padding 3 stride 2
+Max Pool, kernel size 3, stride 2, padding 1 (cid:34) 1×1, 64 3×3, 64 1×1, 256 (cid:34) 1×1, 128 3×3, 128 1×1, 512 (cid:34) 1×1, 256 3×3, 256 1×1, 1024 (cid:34) 1×1, 512 3×3, 512 1×1, 2048
+(cid:35)
+(cid:35)
+(cid:34) 1×1, 128 3×3, 128 1×1, 256 (cid:34) 1×1, 256 3×3, 256 1×1, 512 (cid:34) 1×1, 512 3×3, 512 1×1, 1024 (cid:34) 1×1, 1024 3×3, 1024 1×1, 2048
+×3
+×3
+(cid:35)
+(cid:35)
+×4
+×4
+(cid:35)
+(cid:35)
+×6
+×6
+(cid:35)
+(cid:35)
+×3
+
+×3
+FC
+Avg Pool, kernel size 4 512 × 10
+Adaptive Avg Pool, output size (1, 1) 2048 × 1000 2048 × 1000
+employ the model named distilbert-base-cased. For BERTBASE, we use the model named bert-base-cased again. For TinyBERT6, we utilize the model named huawei-noah/TinyBERT General 6L 768D. All model names are --model name or path in Hugging Face.
+supplied through the API of
+B.3 Software details
+For the experiments on CIFAR-10, CIFAR-100, and SVHN, which include CUTTLEFISH and all considered baseline meth- ods, our software setup is built on the NVIDIA NGC Docker container for PyTorch. We use the docker image nvcr.io/nvidia/pytorch:20.07-py3 to set up the ex- periment environment on p3.2xlarge EC2 instances. The CUDA version we used is 11.6. For the BERTBASE ﬁne-tuning experiment on the GLUE benchmark, we employ the docker im- age, nvcr.io/nvidia/pytorch:22.01-py3. We install Hugging Face with version 4.17.0.dev0.
+ﬁne-tune the num workers and enable pin memory for all ex- periments to achieve faster end-to-end runtimes. For the DeiT and ResMLP experiments on ImageNet, we enable mixed-precision training using PyTorch AMP.
+Examples of factorized low-rank layers. As discussed, a full-rank layer W can be factorized to obtain U and V(cid:62). For fully connected (or linear) layers in ResMLP, BERT, and DeiT models, the dimensions of U and V(cid:62) are straightforward. For instance, if W is a (784, 784) linear projection implemented using nn.Linear in PyTorch, then U and V(cid:62) can be implemented using (784, r) and (r, 784) as input dimensions for nn.Linear in PyTorch. For convolution layers, we use 1 × 1 convolution for V(cid:62), following the suggestion of (Wang et al., 2021a). As a concrete example, when factorizing the 16th convolution layer in the VGG-19 architecture we used with r = 32, our factorization results in U as a 512 × 32 × 3 × 3 dimensional nn.Conv2d layer in PyTorch and V(cid:62) as a 32×512×1×1 dimensional nn.Conv2d layer in PyTorch. Other factorized low-rank convolution networks in our implementations follow the same approach.
+B.4 Implementation details
+For all our experiments, we set
+C DETAILS ON HYPERPARAMETERS.
+torch.backends.cudnn.benchmark = True
+and
+torch.backends.cudnn.deterministic = False
+In this section, we discuss general-purpose hyperparameters, such as learning rate and training schedule, used in our experiments for each task. Additionally, we discuss the hyperparameter setup of CUTTLEFISH and the details on the ﬁnal ˆs ∈ S that CUTTLEFISH manages to ﬁnd for each experiment.
+to optimize the running speed of the experiments, as the cuDNN benchmark searches for im- plementations. However, perfect reproducibility cannot be guaranteed under this setup. To measure runtime, we em- ploy torch.cuda.Event(enable timing=True) to de- termine the elapsed time between two CUDA Event records. We
+the fastest
+low-level
+C.1 General purpose hyperparameters
+CIFAR-10 and CIFAR-100. For the CIFAR-10 and CIFAR- 100 tasks, training on ResNet-18 and VGG-19, we train for T = 300 epochs in total using the SGD optimizer with momentum
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+Table 7. A detailed description of the VGG-19 architecture in our experiments. After each convolution layer, a BatchNorm layer followed by a ReLU activation is included (though not shown in the table). The shapes for convolution layers are represented as (m, n, k, k).
+Parameter
+Shape
+Layer hyperparameter
+layer1.conv1.weight
+3 × 64 × 3 × 3
+stride:1;padding:1
+layer2.conv2.weight
+64 × 64 × 3 × 3
+stride:1;padding:1
+pooling.max
+N/A
+kernel size:2;stride:2
+layer3.conv3.weight
+64 × 128 × 3 × 3
+stride:1;padding:1
+layer4.conv4.weight
+128 × 128 × 3 × 3
+stride:1;padding:1
+pooling.max
+N/A
+kernel size:2;stride:2
+layer5.conv5.weight
+128 × 256 × 3 × 3
+stride:1;padding:1
+layer6.conv6.weight
+256 × 256 × 3 × 3
+stride:1;padding:1
+layer7.conv7.weight
+256 × 256 × 3 × 3
+stride:1;padding:1
+layer8.conv8.weight
+256 × 256 × 3 × 3
+stride:1;padding:1
+pooling.max
+N/A
+kernel size:2;stride:2
+layer9.conv9.weight
+256 × 512 × 3 × 3
+stride:1;padding:1
+layer10.conv10.weight
+512 × 512 × 3 × 3
+stride:1;padding:1
+layer11.conv11.weight
+512 × 512 × 3 × 3
+stride:1;padding:1
+layer12.conv12.weight
+512 × 512 × 3 × 3
+stride:1;padding:1
+pooling.max
+N/A
+kernel size:2;stride:2
+layer13.conv13.weight
+512 × 512 × 3 × 3
+stride:1;padding:1
+layer14.conv14.weight
+512 × 512 × 3 × 3
+stride:1;padding:1
+layer15.conv15.weight
+512 × 512 × 3 × 3
+stride:1;padding:1
+layer16.conv16.weight
+512 × 512 × 3 × 3
+stride:1;padding:1
+pooling.avg
+N/A
+kernel size:2
+classiﬁer.weight
+512 × 10
+N/A
+classiﬁer.bias
+10
+N/A
+(Nesterov momentum disabled). We use a batch size of B = 1, 024, scaling an initial learning rate from γ = 0.1 to γ = 0.8 in 5 epochs linearly, following the procedure proposed in (Goyal et al., 2017). We set momentum and weight decay coefﬁcients at 0.9 and 1 × 10−4, respectively (weight decay is disabled for BatchNorm layers). We employ a multi-step learning rate schedule, decaying the learning rate by a factor of 0.1 at the 150-th and 225-th epochs (to γ = 0.08 and γ = 0.008 respectively). The methodology we follow for this multi-step learning rate decay is to decay the learning rate by a factor of 0.1 at the points of 50% and 75% of the entire training epochs.
+(Nesterov momentum disabled) and a batch size of 256. We set momentum and weight decay coefﬁcients at 0.9 and 1 × 10−4, respectively (weight decay is disabled for BatchNorm layers). We employ a multi-step learning rate schedule, decaying the learning rate by a factor of 0.1 at the 30-th, 60-th, and 80-th epochs (to γ = 0.01, γ = 0.001, and 0.0001 respectively), following (Goyal et al., 2017). We adopt the label smoothing technique with a probability of 0.1 to achieve better ﬁnal accuracy and to compare against PUFFERFISH (Wang et al., 2021a). For the comparison against PUFFERFISH, GraSP, and EBTrain, we disable the learning rate decay at the 80-th epoch and label smoothing to align the experiment setup.
+SVHN. For the SVHN task, training on ResNet-18 and VGG- 19, we train for T = 200 epochs in total using the SGD optimizer with momentum (Nesterov momentum disabled). We train SVHN for a shorter number of epochs, as it is a relatively easier task compared to CIFAR-10 and CIFAR-100. We use a batch size of B = 1, 024, scaling an initial learning rate from γ = 0.1 to γ = 0.8 in 5 epochs linearly, following the procedure proposed in (Goyal et al., 2017). We set momentum and weight decay coefﬁ- cients at 0.9 and 1 × 10−4, respectively (weight decay is disabled for BatchNorm layers). We employ a multi-step learning rate schedule, decaying the learning rate by a factor of 0.1 at the 100-th and 150-th epochs (to γ = 0.08 and γ = 0.008 respectively).
+ImageNet (ILSVRC 2012) on DeiT and ResMLP. For ImageNet training on DeiT and ResMLP, we adhere to the training schedule proposed by (Touvron et al., 2021b), wherein the models are trained on ImageNet directly from scratch. Our experiments adopt the model initialization, data augmentation, and Exponential Moving Average (EMA) methods suggested by (Touvron et al., 2021b). We do not enable distillation for DeiT and ResMLP. The AdamW optimizer is used for our experiments (Loshchilov & Hutter, 2019). More details on the hyperparameter values can be found at https://github.com/facebookresearch/ deit/blob/main/README_deit.md, where we use the de- fault hyperparameter setup and set the batch size to 256.
+ImageNet (ILSVRC 2012) on CNNs. For the ImageNet training task on ResNet-50 and WideResNet-50-2, we train for T = 90 epochs in total using the SGD optimizer with momentum
+BERT ﬁne-tuning on the GLUE benchmark. We directly utilize the training script provided by Hugging
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+Face transformers/tree/main/examples/pytorch/ text-classification. We set the maximum sequence length to 128 and the batch size to 32, using the AdamW optimizer (Loshchilov & Hutter, 2019) for all downstream tasks in the GLUE benchmark. For each downstream task in GLUE, we conduct a small hyperparameter sweep within the range of {1e − 5, 2e − 5, 3e − 5, 4e − 5}, employing early stopping. For the relatively small downstream task MRPC, we ﬁne-tune for 5 epochs, while for all other downstream tasks, we ﬁne-tune for 3 epochs. We disable weight decay and learning rate warm-up during the ﬁne-tuning process.
+at
+https://github.com/huggingface/
+C.2 CUTTLEFISH hyperparameters
+CIFAR-10, CIFAR-100, and SVHN. For ResNet-18 and VGG-19 models trained on CIFAR-10, CIFAR-100, and SVHN datasets, we report the details of the hyperparameters ˆs ∈ S dis- covered by CUTTLEFISH and the manually tuned hyperparameters used by PUFFERFISH in Table 8. It is evident that CUTTLEFISH identiﬁes larger K values and smaller E values (except for CIFAR- 10) compared to PUFFERFISH for ResNet-18, while for VGG-19, CUTTLEFISH discovers smaller E values with slightly longer E values than PUFFERFISH. Additionally, the selected ranks, i.e., R, for CUTTLEFISH, PUFFERFISH, and LC compression (only for VGG-19) methods are illustrated in Figure 7. Notably, CUT- TLEFISH consistently returns lower estimated ranks for bottom layers than PUFFERFISH, as these layers contain greater redun- dancy. The most striking observation from Figure 7 is that the R values returned by CUTTLEFISH closely align with the explicitly learned R values of LC compression, demonstrating CUTTLE- FISH’s effectiveness. Another interesting ﬁnding from Figure 7 is that more challenging tasks generally require higher ranks for the factorized low-rank network to achieve satisfactory accuracy. For example, both CUTTLEFISH and LC compression identify larger R values for CIFAR-100 and smaller R values for SVHN and CIFAR-10. This is because CIFAR-100, a 100-class classiﬁcation task, is more challenging than CIFAR-10 and SVHN for a given model architecture.
+that the model weights are more like full-rank, i.e., contain less redundancy.
+From Figure 9, we can see that to approximate the major infor- mation of the weight matrix, e.g., preserving 80% of the singular value information, relatively higher Rs should be used, e.g., ρ = 1 2 . Additionally, the attention weights, such as Wq, Wk, Wv, as well as the projection layer after the query, key, and value layers (i.e., Wo in our notation) tend to have lower ranks (higher redundancy) compared to the FFN layers, i.e., FC1 and FC2 in Figure 9. In CUTTLEFISH, for DeiT and ResMLP models, we use a global rank ratio ρ = 1 2 for all factorized layers. It is worth noting that the linear projection layer after each Wq, Wk, Wv has dimensions of (768, 768). Using ρ for this layer, the factorized U, V(cid:62) layers will have dimensions of (768, 384), (384, 768), which will not result in any model size reduction or computational complexity savings. Thus, we opt not to factorize the linear projection layers in each multi-head attention layer in DeiT-base. For ResMLP-S36, we factorize all layers except for the embedding layers with a ﬁxed global rank ratio of ρ = 1 2 .
+A concern arises from the fact that our proposed stable rank se- lection heuristic for choosing R may not generally apply to both CNN and Transformer models, as Transformer model weights tend to have higher ranks. To address this issue, future work can adjust CUTTLEFISH’s rank selection heuristic to:
+max{scaled stable rank(Σ),
+accumulative rank(Σ, p)}
+Here, accumulative rank(Σ, p) measures the smallest rank value r such that (where σs represent the singular values of a model weight matrix W, and are also the elements on the diagonal of matrix Σ):
+r (cid:88)
+σi ≥ p ·
+rank(W) (cid:88)
+σj.
+i=1
+j=1
+ImageNet (ILSVRC 2012) on CNNs. For ResNet-50 and WideResNet-50-2 trained on ImageNet, we report the details of the hyper-parameters ˆs ∈ S found by CUTTLEFISH and the manually tuned hyper-parameters by PUFFERFISH in Table 9. We can ob- serve that for both ResNet-50 and WideResNet-50-2, CUTTLEFISH identiﬁes the same K and longer E compared to PUFFERFISH. The ranks (Rs) chosen by CUTTLEFISH and PUFFERFISH can be found in Figure 8, where it is evident that CUTTLEFISH employs lower ranks to factorize layers in ResNet-50 and WideResNet50-2 while using longer full-rank training epochs.
+In the DeiT example mentioned earlier, we know that the accumulative rank(Σ, 80%) for most model layers is gen- erally greater than 1 2 × rank(W) and the scaled stable rank for these layers is generally lower than those values. Consequently, the new metric deﬁned above will consistently return 1 2 ×rank(W) for all factorized layers in the DeiT-base model. Another hyperparam- eter tuning we performed in our experiments is decaying the base learning rate by a certain fraction after switching from full-rank to low-rank training at epoch ˆE. For CUTTLEFISH DeiT-base, we decay the base learning rate by 1 3 . For CUTTLEFISH ResMLP-S36, we decay the base learning rate by 1 2 .
+ImageNet (ILSVRC 2012) on DeiT and ResMLP. For DeiT-base and ResMLP-S36 trained on ImageNet, we report the details of the hyperparameters ˆs ∈ S found by CUTTLEFISH and the manually tuned hyperparameters by PUFFERFISH in Table 10. We can observe that for DeiT-base and ResMLP-S36, CUTTLEFISH identiﬁes the same K and longer E compared to PUFFERFISH. When selecting the ranks Rs, we found that even with scaled stable rank, the factorized low-rank models still result in a signiﬁcant ﬁnal accuracy drop. To understand why this occurs, we plot the cumulative distribution function (CDF) of the singular values of the Transformer encoder layers in the DeiT-base model at the full- rank to low-rank switching epoch, i.e., ˆE (the results are shown in Figure 9). If the curves are closer to the reference line, it indicates
+CUTTLEFISH begins factorizing layers after the ﬁrst embedding layer, which is simply a convolution layer, i.e., K = 1 for both DeiT-base and ResMLP-S36. Since we tune K for PUFFER- FISH such that the end model sizes match CUTTLEFISH DeiT and ResMLP, PUFFERFISH starts factorizing layers from the 7th encoder block for DeiT, i.e., K = 19 (6 blocks, 3 layers in each block), and the 18th ResMLP block, i.e., K = 52 (17 blocks, 3 layers in each block).
+GLUE Benchmark on BERTBASE. For BERTBASE ﬁne- tuning on the GLUE benchmark, the ﬁne-tuning epochs for all downstream tasks are typically small, such as T = 3, 5. Therefore, we set E = 1 for CUTTLEFISH. Additionally, we free the fully connected layers following each multi-head attention layer when
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+Table 8. The hyperparameters ˆs ∈ S optimized by CUTTLEFISH for ResNet-18 and VGG-19 models trained on CIFAR-10 use a batch size of 1,024. The runtime benchmark was conducted on a single EC2 p3.2xlarge instance, equipped with one V100 GPU.
+CIFAR-10
+CIFAR-100
+SVHN
+Model: ResNet-18
+E
+K
+E
+K
+E
+K
+CUTTLEFISH
+PUFFERFISH
+82.3±10.1 80
+5
+3
+55.7±8.7 80
+5
+3
+61.0±2.2 80
+5
+3
+SI&FD
+0
+1
+0
+1
+0
+1
+Model: VGG-19
+E
+K
+E
+K
+E
+K
+CUTTLEFISH
+PUFFERFISH
+97.3±1.2 80
+4
+9
+86.0±5.7 80
+4
+9
+84.0±0.8 80
+4
+9
+SI&FD
+0
+1
+0
+1
+0
+1
+Table 9. The hyperparameters ˆs ∈ S obtained by CUTTLEFISH, as well as the manually tuned s from PUFFERFISH, for ResNet-50 and WideResNet-50-2 trained on ImageNet using a batch size of 256.
+ImageNet
+Model: ResNet-50
+E
+K
+CUTTLEFISH
+PUFFERFISH
+19.3±0.5 10
+40
+40
+Model: WideResNet-50-2
+E
+K
+CUTTLEFISH
+PUFFERFISH
+21.3±0.5 10
+40
+40
+ﬁne-tuning the factorized BERTBASE. As in LoRA, during the ﬁne- tuning stage, we do not update the feed-forward network (FFN) in BERT at all; we freeze the FC1 and FC2 layers contained in the FFN (Hu et al., 2021). We perform learning rate sweeping over the learning rates γs for all methods during GLUE ﬁne-tuning. The tuned learning rates are shown in Table 11. For the relatively challenging CoLA task, we ﬁne-tune all models except for the vanilla BERTBASE for 5 epochs instead of 3 epochs. For the RTE task, we ﬁne-tune Distill BERT for 5 epochs.
+C.3 Hyperparameters for other baselines.
+SI&FD. We adjust the ﬁxed global rank ratios, denoted as ρs, for SI&FD so that the resulting model sizes align with the fac- torized low-rank models produced by CUTTLEFISH. Detailed information on the ρs used in our experiments can be found in Table 12.
+in the LC compression setup to ensure consistency with the VGG- 19 architecture used in our experiments.
+D ADDITIONAL EXPERIMENTAL RESULTS
+D.1 Ablation study.
+Combining CUTTLEFISH with Frobenius decay. In this section, we present the results of an ablation study examining the combination of Frobenius decay (FD) with CUTTLEFISH across various machine learning tasks. The results can be found in Ta- ble 13 and Table 14. It is evident that applying FD to CUTTLEFISH does not consistently lead to better model accuracy. For instance, combining CUTTLEFISH with FD yields a 1.8% higher accuracy for ResNet-18 training on CIFAR-100. However, for other tasks, incorporating FD with ResNet-18 either results in worse ﬁnal model accuracy or only marginal accuracy improvements. This observation aligns with the ﬁndings of (Vodrahalli et al., 2022), indicating that FD does not always enhance the accuracy of factor- ized low-rank models.
+LC compression. The implementation and hyperparameter conﬁgurations for our experiments are taken directly from the original GitHub repository6 associated with (Idelbayev & Carreira- Perpin´an, 2020). We modiﬁed the VGG-19 model implementation
+6https://github.com/UCMerced-ML/
+LC-model-compression
+The impact of scaled stable rank. As mentioned in the main paper, the use of stable rank can lead to overly aggressive low rank estimations, potentially harming the ﬁnal accuracy of factorized low-rank models. To address this issue, CUTTLEFISH employs scaled stable rank. The ablation study results are pre-
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+10
+8
+Cuttlefish
+Full-rank
+300
+2
+500Rank Selection 
+100
+14
+Pufferfish
+400
+200
+16Layer Index
+0
+4
+12
+6
+4
+Full-rank
+8
+16Layer Index
+12
+0
+10
+400
+Pufferfish
+2
+500Rank Selection 
+300
+100
+Cuttlefish
+6
+14
+200
+14
+6
+0
+Cuttlefish
+8
+100
+Pufferfish
+2
+Full-rank
+200
+4
+500Rank Selection 
+400
+300
+12
+16Layer Index
+10
+(a) ResNet-18 on CIFAR-10
+(b) ResNet-18 on CIFAR-100
+(c) ResNet-18 on SVHN
+Full-rank
+0
+LC Compres.
+10
+12
+400
+200
+8
+600Rank Selection 
+Pufferfish
+500
+14
+300
+Cuttlefish
+100
+4
+2
+16Layer Index
+6
+0
+Cuttlefish
+12
+300
+14
+500
+400
+8
+100
+200
+LC Compres.
+600Rank Selection 
+Pufferfish
+10
+Full-rank
+16Layer Index
+4
+2
+6
+Full-rank
+0
+400
+500
+200
+6
+8
+Pufferfish
+300
+10
+16Layer Index
+LC Compres.
+14
+12
+100
+Cuttlefish
+600Rank Selection 
+2
+4
+(d) VGG-19 on CIFAR-10
+(e) VGG-19 on CIFAR-100
+(f) VGG-19 on SVHN
+Figure 7. The ranks (R) determined by CUTTLEFISH, PUFFERFISH, and LC compression (available only for VGG-19 experiments) for various layers in ResNet-18 ((a), (b), (c)) and VGG-19 ((d), (e), (f)) were trained on CIFAR-10 using a batch size of 1,024.
+44
+Pufferfish
+200
+46
+38
+Cuttlefish
+40
+50Layer Index
+48
+36
+42
+600
+Full-rank
+1000Rank Selection 
+400
+800
+Full-rank
+42
+48
+800
+38
+50Layer Index
+40
+1000Rank Selection 
+Pufferfish
+36
+46
+400
+200
+Cuttlefish
+44
+600
+(a) ResNet-50 on ImageNet
+(b) WideResNet-50-20 on ImageNet
+Figure 8. The ranks Rs obtained by CUTTLEFISH and PUFFERFISH methods for different layers in ResNet-50 (a) and WideResNet-50-2 (b) trained on ImageNet with a batch size of 256.
+sented in Table 15. We ﬁnd that for CIFAR-10 and CIFAR-100 datasets, utilizing scaled stable rank is crucial for achieving satis- factory ﬁnal accuracy in factorized low-rank networks. For SVHN, which is a comparatively simpler task, even the vanilla stable rank is sufﬁcient to attain good accuracy. Thus, in our main paper’s reported experiment, we use vanilla stable rank for SVHN and scaled stable rank for CIFAR-10 and CIFAR-100. For larger scale tasks on ImageNet, it is evident that adopting scaled stable rank is essential; otherwise, the model accuracy will suffer a signiﬁcant drop, as shown in Table 16.
+Rank varying trend of other datasets. In our main paper, we presented the rank varying trend only for ResNet-18 on CIFAR- 10. In this section, we expand our analysis and report additional experimental results on rank varying trends. Speciﬁcally, we pro- vide results for VGG-19 trained on CIFAR-10, as well as VGG-19 and ResNet-18 on CIFAR-100 and SVHN datasets. For ResNet-50 on ImageNet, we also show the same results. Figures 10 and 14 display the results for VGG-19 on CIFAR-10, while Figures 11, 15, 16, 13, and 17 illustrate the results for the remaining datasets.
+D.2 Additional experimental results.
+BERT pre-training using CUTTLEFISH. We perform BERT pre-training on the Wikipedia and Bookcorpus datasets, adhering to the training schedule and codebase of the 24h BERTLARGE for faster training speed and due to limited computing resources (Izsak et al., 2021). The results, shown in Table 17, indi- cate that CUTTLEFISH enables pre-training a BERT model with only 72% of the total model parameters while achieving the same ﬁnal MLM loss.
+Overall, our observations indicate that the stable rank of the net- work layers ﬂuctuates signiﬁcantly in the early stages of training but eventually converges to a constant value. This trend holds across all the datasets we analyzed.
+Comparison of CUTTLEFISH to EB Train and GraSP. Furthermore, we compare CUTTLEFISH with two other state-of- the-art approaches, namely EB Train and GraSP (as shown in Table 18). Notably, CUTTLEFISH outperforms both EB Train and GraSP in terms of accuracy while achieving smaller model sizes.
+ResNet-18 and VGG-19 Experiments on SVHN. The re- sults of ResNet-18 and VGG-19 experiments on the SVHN dataset
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+Table 10. The tuned hyperparameters ˆs ∈ S, as determined by CUTTLEFISH, and the manually tuned s from PUFFERFISH for DeiT-base and ResMLP-S36, trained on the ImageNet dataset using a batch size of 256.
+ImageNet
+Model: DeiT-base
+E
+K
+CUTTLEFISH
+PUFFERFISH
+59.5±6.5 80
+1
+19
+Model: ResMLP-S36
+E
+K
+CUTTLEFISH
+PUFFERFISH
+40.5±1.5 80
+1
+52
+layer0-FC2
+40
+0
+layer0-FC1
+80
+60
+layer0-Proj
+0
+100Sig Val Percentage (%)
+80
+layer0-QKV
+60
+40
+ref. line
+20
+20
+100Dim Percentage (%)
+60
+100Dim Percentage (%)
+layer11-FC1
+60
+100Sig Val Percentage (%)
+80
+80
+layer11-FC2
+20
+layer11-Proj
+0
+40
+0
+layer11-QKV
+20
+Ref. line
+40
+(a) Encoder 0 of DeiT-base
+(b) Encoder 11 of DeiT-base
+Figure 9. The Cumulative Distribution Function (CDF) of singular values for the ﬁrst Transformer encoder (i.e., Encoder 0, denoted as layer0 in the ﬁgure) (a) and the last Transformer encoder (i.e., Encoder 11, denoted as layer11 in the ﬁgure) (b) of DeiT-base trained on the ImageNet dataset using a batch size of 256. Other Transformer encoders exhibit similar trends.
+are presented in Table 19.
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+Table 11. Tuned learning rates, denoted as γs, for vanilla BERTBASE, Distill BERT, Tiny BERT6, and CUTTLEFISH BERTBASE on the GLUE benchmark.
+Model
+# Params. (M ) MNLI
+QNLI
+QQP
+RTE
+SST-2 MRPC
+CoLA
+STS-B
+BERTBASE
+108.3
+2e-5
+2e-5
+2e-5
+4e-5
+2e-5
+2e-5
+4e-5
+2e-5
+Distill BERT
+65.8
+2e-5
+2e-5
+2e-5
+2e-5
+4e-5
+2e-5
+2e-5
+2e-5
+Tiny BERT6
+67.0
+2e-5
+2e-5
+2e-5
+2e-5
+2e-5
+2e-5
+2e-5
+2e-5
+CUTTLEFISH
+48.8
+2e-5
+2e-5
+2e-5
+3e-5
+3e-5
+2e-5
+3e-5
+2e-5
+Table 12. The ﬁxed rank ratios (ρs) employed in SI&FD experiments for CIFAR-10, CIFAR-100, and SVHN on ResNet-18 and VGG-19.
+Model: ResNet-18
+CIFAR-10
+CIFAR-100
+SVHN
+SI&FD
+0.08
+0.105
+0.032
+Model: VGG-19
+CIFAR-10
+CIFAR-100
+SVHN
+SI&FD
+0.1
+0.165
+0.059
+Table 13. The ablation study results, averaged across three independent trials with different random seeds, showcase the performance of CUTTLEFISH combined with Frobenius decay (FD) on ResNet-18 and VGG-19 trained on CIFAR-10 using a batch size of 1,024.
+CIFAR-10
+CIFAR-100
+SVHN
+Model: ResNet-18
+# Params. (M )
+Val. Acc. (%)
+# Params. (M )
+Val. Acc. (%)
+# Params. (M )
+Val. Acc. (%)
+CUTTLEFISH wo. FD
+2.0
+94.52±0.01
+2.6
+73.75±0.24
+0.96
+96.47±0.02
+CUTTLEFISH w. FD
+2.0
+94.62±0.09
+2.6
+75.54±0.18
+0.94
+96.34±0.08
+Model: VGG-19
+# Params. (M )
+Val. Acc. (%)
+# Params. (M )
+Val. Acc. (%)
+# Params. (M )
+Val. Acc. (%)
+CUTTLEFISH wo. FD
+1.9
+93.49±0.18
+3.3
+72.27±0.25
+1.2
+96.33±0.04
+CUTTLEFISH w. FD
+1.9
+93.42±0.25
+3.3
+72.15±0.27
+1.2
+96.33±0.02
+Table 14. The ablation study results, averaged across three independent trials, demonstrate the performance of CUTTLEFISH combined with Frobenius decay (FD) on ResNet-50 trained on ImageNet using a batch size of 256.
+Model: ResNet-50
+# Params. (M )
+Top-1 Val. Acc. (%)
+Top-5 Val. Acc. (%)
+CUTTLEFISH wo. FD
+14.7
+76.16±0.04
+92.97±0.06
+CUTTLEFISH w. FD
+14.7
+76.44±0.16
+93.21±0.03
+Table 15. The ablation study results (averaged over 3 independent trials with varying random seeds) for CUTTLEFISH using both scaled stable rank and vanilla stable rank on ResNet-18 and VGG-19, trained on CIFAR-10, CIFAR-100, and SVHN with a batch size of 1, 024.
+CIFAR-10
+CIFAR-100
+SVHN
+Model: ResNet-18
+# Params. (M )
+Val. Acc. (%)
+# Params. (M )
+Val. Acc. (%)
+# Params. (M )
+Val. Acc. (%)
+CUTTLEFISH vanilla stable rank
+1.2
+94.27±0.05
+1.6
+74.21±0.20
+0.94
+96.47±0.02
+CUTTLEFISH scaled stable rank
+2.0
+94.62±0.09
+2.6
+75.54±0.18
+1.4
+96.53±0.08
+Model: VGG-19
+# Params. (M )
+Val. Acc. (%)
+# Params. (M )
+Val. Acc. (%)
+# Params. (M )
+Val. Acc. (%)
+CUTTLEFISH vanilla stable rank
+1.1
+93.07±0.10
+1.9
+70.62±0.23
+1.2
+96.33±0.04
+CUTTLEFISH scaled stable rank
+1.9
+93.49±0.18
+3.3
+72.27±0.25
+2.0
+96.42±0.07
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+Table 16. The ablation study results (averaged over 3 independent trials with distinct random seeds) for CUTTLEFISH using both scaled stable rank and vanilla stable rank on DeiT-base, ResNet-50, and WideResNet-50, trained on ImageNet with a batch size of 256.
+# Params. (M )
+Top-1 Val. Acc.
+Top-5 Val. Acc.
+CUTTLEFISH DeiT-base vanilla stable rank
+12.5
+64.80±0.82
+85.46±0.60
+CUTTLEFISH DeiT-base scaled stable rank
+58.3
+81.52±0.03
+95.59±0.04
+CUTTLEFISH WideResNet-50 vanilla stable rank
+29.1
+76.86±0.01
+93.50±0.03
+CUTTLEFISH WideResNet-50 scaled stable rank
+37.4
+78.0±0.06
+94.04±0.09
+CUTTLEFISH ResNet-50 vanilla stable rank
+11.9
+74.96±0.01
+92.39±0.07
+CUTTLEFISH ResNet-50 scaled stable rank
+14.7
+76.44±0.16
+93.21±0.03
+Table 17. Vanilla and CUTTLEFISH BERT pre-training on Wikipedia and Bookcorpus datasets.
+Model
+# Params. (M ) MLM Loss
+Vanilla BERTLARGE
+345
+1.58
+Cuttleﬁsh BERTLARGE
+249
+1.6
+Layer-0
+Layer-9
+Layer-3
+Layer-6
+0.4Rank Ratio
+10.0
+7.5
+2.5
+5.0
+0.0
+12.5% of the Total Training Epochs
+0.2
+Layer-15
+Layer-12
+0.0
+Layer-13
+0
+Layer-1
+0.0
+0.4
+20
+Layer-7
+Layer-10
+0.6
+Layer-16
+60
+100
+120Epochs
+Layer-4
+0.2
+80
+40
+Layer-11
+20
+Layer-5
+0.6
+0
+0.4
+Layer-8
+40
+0.0
+120Epochs
+Layer-2
+60
+0.2
+80
+100
+Layer-14
+150
+100
+0.4Rank Ratio
+0.0
+Layer-15
+250Epochs
+0.2
+Layer-0
+0
+Layer-12
+Layer-6
+Layer-9
+200
+50
+Layer-3
+Layer-13
+Layer-7
+Layer-16
+0.2
+0.4
+200
+50
+250Epochs
+Layer-4
+Layer-1
+0.0
+0
+150
+100
+Layer-10
+100
+Layer-8
+0
+0.2
+50
+0.4
+Layer-14
+Layer-2
+200
+150
+Layer-5
+Layer-11
+0.0
+250Epochs
+Figure 10. The stable ranks for various layers in ResNet-18 (the top row) and VGG-19 (the bottom row) trained on CIFAR-10 using stable rank.
+250Epochs
+0
+100
+150
+Layer-12
+0.4Rank Ratio
+200
+Layer-9
+50
+Layer-0
+0.2
+Layer-6
+Layer-3
+Layer-15
+50
+150
+200
+Layer-1
+0.0
+0
+Layer-13
+0.6
+Layer-7
+Layer-16
+0.2
+Layer-4
+250Epochs
+100
+Layer-10
+0.4
+Layer-14
+0.2
+0.6
+100
+150
+Layer-5
+0.4
+50
+Layer-11
+250Epochs
+Layer-8
+200
+Layer-2
+0
+0.0
+100
+Layer-12
+200
+Layer-6
+0
+150
+250Epochs
+0.6Rank Ratio
+Layer-15
+Layer-0
+0.4
+0.2
+50
+Layer-3
+Layer-9
+200
+Layer-1
+0
+100
+150
+Layer-10
+Layer-13
+0.6
+Layer-7
+0.4
+Layer-4
+0.2
+250Epochs
+50
+Layer-14
+0.2
+200
+Layer-11
+Layer-5
+0.4
+150
+Layer-8
+100
+0.0
+250Epochs
+0
+50
+Layer-2
+Figure 11. The stable ranks for various layers in ResNet-18 (the top row) and VGG-19 (the bottom row) trained on CIFAR-100 using stable rank with batch size 1, 024.
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+0.4Rank Ratio
+200Epochs
+0.0
+150
+100
+0
+0.2
+Layer-12
+50
+Layer-0
+Layer-6
+Layer-9
+Layer-3
+Layer-15
+50
+Layer-16
+Layer-10
+125
+25
+0.6
+150
+100
+Layer-4
+175
+0.4
+0
+Layer-1
+75
+0.0
+0.2
+200Epochs
+Layer-13
+Layer-7
+150
+200Epochs
+0
+0.2
+0.4
+0.6
+25
+100
+0.0
+Layer-8
+Layer-14
+Layer-2
+50
+125
+175
+Layer-11
+75
+Layer-5
+Layer-9
+50
+0.2
+Layer-3
+0.0
+0
+Layer-6
+Layer-15
+Layer-12
+0.4Rank Ratio
+200Epochs
+150
+100
+Layer-0
+200Epochs
+25
+50
+Layer-13
+175
+0.2
+150
+Layer-7
+0.0
+Layer-4
+Layer-1
+0
+Layer-10
+125
+100
+75
+0.4
+Layer-2
+100
+150
+25
+0
+0.2
+200Epochs
+0.4
+50
+Layer-14
+125
+Layer-11
+0.0
+75
+175
+Layer-5
+Layer-8
+Figure 12. The stable ranks for various layers in ResNet-18 (the top row) and VGG-19 (the bottom row) trained on SVHN using stable rank with batch size 1, 024.
+Layer-44
+Layer-47
+0.0
+60
+0.2
+40
+Layer-35
+0.3
+Layer-38
+80Epochs
+Layer-41
+20
+Layer-32
+0
+0.1
+0.4Rank Ratio
+10
+80Epochs
+Layer-33
+Layer-45
+20
+0.4
+Layer-42
+60
+0.2
+0.1
+40
+Layer-48
+Layer-36
+30
+0
+50
+Layer-39
+0.3
+70
+Layer-37
+20
+80Epochs
+0
+0.05
+Layer-49
+Layer-46
+Layer-40
+0.20
+Layer-34
+0.15
+40
+0.10
+60
+Layer-43
+Figure 13. The stable ranks for various layers in ResNet-50 trained on ImageNet using stable rank with batch size 256.
+37
+0.15
+1
+1
+21
+33
+0.05
+49
+0.20
+29
+9
+9
+53
+73
+45
+77
+13
+17
+17
+Epochs
+65
+85
+0.10
+25
+57
+Layer Index
+3
+69
+5
+89
+61
+15
+11
+5
+13
+41
+7
+81
+(a) ResNet-18
+25
+Layer Index
+33
+29
+17
+Epochs
+45
+49
+15
+69
+57
+61
+5
+5
+65
+0.1
+53
+7
+9
+9
+21
+37
+81
+1
+0.2
+73
+13
+13
+11
+41
+3
+17
+77
+(b) VGG-19 Figure 14. The stable ranks for various layers in ResNet-18 and VGG-19 trained on CIFAR-10 using stable rank.
+Table 18. Comparison of CUTTLEFISH and other baseline methods: PUFFERFISH, EB Train (30%, 50%) and GraSP (30%, 60%) over the task of ResNet-50 on ImageNet.
+Model
+# Params.
+Val. Acc.
+Val. Acc.
+ResNet-50
+(M )
+Top-1(%)
+Top-5(%)
+Full-rank
+25.6
+75.99
+92.98
+PUFFERFISH
+15.2
+75.62
+92.55
+EB Train (30%)
+16.5
+73.86
+91.52
+EB Train (50%)
+15.1
+73.35
+91.36
+GraSP (30%)
+17.9
+74.64
+92.08
+GraSP (60%)
+10.2
+74.02
+91.86
+CUTTLEFISH
+14.7
+75.80
+92.70
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+61
+13
+41
+77
+73
+45
+37
+7
+21
+1
+15
+5
+89
+57
+69
+33
+Layer Index
+25
+5
+85
+0.4
+9
+65
+49
+29
+0.2
+17
+17
+13
+Epochs
+1
+81
+11
+3
+53
+0.3
+0.1
+9
+(a) ResNet-18
+9
+11
+9
+13
+41
+29
+53
+49
+1
+15
+61
+57
+69
+65
+81
+3
+Epochs
+17
+0.2
+13
+5
+5
+33
+Layer Index
+25
+77
+73
+45
+37
+7
+21
+0.1
+(b) VGG-19 Figure 15. The stable ranks for various layers in ResNet-18 and VGG-19 trained on CIFAR-100 using stable rank.
+13
+17
+17
+69
+57
+89
+61
+15
+5
+5
+7
+45
+73
+77
+85
+0.10
+25
+Layer Index
+0.15
+21
+9
+1
+53
+9
+65
+49
+0.05
+33
+37
+Epochs
+3
+11
+81
+1
+29
+41
+13
+(a) ResNet-18
+61
+15
+5
+5
+0.4
+57
+65
+49
+77
+37
+45
+73
+Layer Index
+25
+33
+69
+9
+0.2
+17
+3
+11
+1
+21
+7
+29
+9
+0.3
+53
+13
+41
+13
+Epochs
+0.1
+(b) VGG-19 Figure 16. The stable ranks for various layers in ResNet-18 and VGG-19 trained on SVHN using stable rank.
+9
+50
+46
+53
+0.05
+21
+44
+42
+Layer Index
+36
+37
+45
+13
+Epochs
+41
+29
+0.15
+57
+1
+17
+34
+73
+48
+61
+65
+69
+33
+0.20
+25
+49
+0.10
+38
+77
+5
+32
+40
+Figure 17. The stable ranks for various layers in ResNet-50 trained on ImageNet using stable rank.
+
+
+CUTTLEFISH: Low-rank Model Training without All The Tuning
+Table 19. The results, averaged over three independent trials with different random seeds, showcase the performance of CUTTLEFISH and other baselines on ResNet-18 and VGG-19 trained on the SVHN dataset using a batch size of 1,024. Runtime benchmarks are conducted on a single EC2 p3.2xlarge instance.
+Model: ResNet-18
+Params. (M )
+Val. Acc. (%)
+Time (hrs.)
+Full-rank
+11.2
+96.27±0.08
+0.81
+PUFFERFISH
+3.3
+96.54±0.06
+0.71
+SI&FD
+0.94
+96.45±0.04
+0.38
+IMP
+0.96
+96.43±0.01
+9.40
+CUTTLEFISH
+0.96
+96.47±0.02
+0.65
+CUTTLEFISH+FD
+0.94
+96.34±0.08
+0.65
+Model: VGG-19
+Params. (M )
+Val. Acc. (%)
+Time (hrs.)
+Full-rank
+20.0
+96.31±0.05
+0.49
+PUFFERFISH
+8.1
+96.08±0.11
+0.45
+SI&FD
+1.2
+96.04±0.16
+0.30
+FC Compress.
+1.1
+96.42±0.07
+6.68
+CUTTLEFISH
+1.2
+96.33±0.04
+0.39
+CUTTLEFISH+FD
+1.2
+96.33±0.02
+0.39

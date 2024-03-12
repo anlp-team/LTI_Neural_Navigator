@@ -1,0 +1,164 @@
+3 2 0 2
+b e F 6 1
+]
+D S . s c [
+1 v 5 9 0 8 0 . 2 0 3 2 : v i X r a
+PAAPLOSS: A PHONETIC-ALIGNED ACOUSTIC PARAMETER LOSS FOR SPEECH ENHANCEMENT
+Muqiao Yang1, Joseph Konan1, David Bick1, Yunyang Zeng1, Shuo Han1, Anurag Kumar2, Shinji Watanabe1, Bhiksha Raj1
+1 Carnegie Mellon University, 2Meta Reality Labs Research
+ABSTRACT
+Despite rapid advancement in recent years, current speech en- hancement models often produce speech that differs in perceptual quality from real clean speech. We propose a learning objective that formalizes differences in perceptual quality, by using domain knowl- edge of acoustic-phonetics. We identify temporal acoustic parame- ters – such as spectral tilt, spectral ﬂux, shimmer, etc. – that are non-differentiable, and we develop a neural network estimator that can accurately predict their time-series values across an utterance. We also model phoneme-speciﬁc weights for each feature, as the acoustic parameters are known to show different behavior in differ- ent phonemes. We can add this criterion as an auxiliary loss to any model that produces speech, to optimize speech outputs to match the values of clean speech in these features. Experimentally we show that it improves speech enhancement workﬂows in both time- domain and time-frequency domain, as measured by standard eval- uation metrics. We also provide an analysis of phoneme-dependent improvement on acoustic parameters, demonstrating the additional interpretability that our method provides. This analysis can suggest which features are currently the bottleneck for improvement.
+Index Terms— Speech Enhancement, Acoustic parameters,
+Phonetic alignment
+1. INTRODUCTION
+Speech enhancement (SE) tries to extract clean speech from signals that have been degraded mainly by noise. The ability to remove noise from speech is extremely useful, as noisy environments com- monly affect applications such as VoIP and phone calls, hearing aids, and downstream speech processing tasks. Our focus is on the more ubiquitous single-channel speech enhancement which does not re- quire multi-microphone speech capture.
+Other approaches have sought to address these issues, including optimization of perceptual evaluation metrics. However, these are non-differentiable, so approximations offer limited improvements [13], [14], require cumbersome optimization [14], [15] or offer lit- tle to no interpretability through domain knowledge [16]. We aim to address these problems in this paper and we try to accomplish it by incorporating domain knowledge through fundamental speech features which we refer to as acoustic parameters.
+Before the rise of DNNs, features such as pitch, jitter, shim- mer, spectral tilt – to name a few – were used as inputs to shallow models, such as in speaker and emotion recognition [17]. They lost popularity as DNNs gained more success operating directly on wave- forms or spectrograms. Their non-differentiable computations also inhibit their straightforward use in optimization of DNNs. Neverthe- less, these parameters provide critical information about frequency content, energy/amplitude, and other spectral qualities of the speech signal. Prior perceptual studies have shown important associations of these features to voice quality [18]–[20]. [21] introduced a differ- entiable estimator of utterance-level statistics for these parameters and improved state-of-the-art SE models through an auxiliary loss aimed to minimize the differences between parameter values of clean and enhanced speech. Similarly, we work with 25 acoustic param- eters enumerated in the extended Geneva Minimal Acoustic Param- eter Set [17]. However, unlike prior work which considered these acoustic parameters at the global (utterance) level through summary statistics, we incorporate the temporal aspects of these acoustic pa- rameters [22]. Furthermore, we incorporate the associations between acoustic parameters and phonemes which have been studied previ- ously in the sub-ﬁeld of acoustic-phonetic. For example, plosives typically have a high amplitude followed by a very low amplitude, as they are produced by complete closure in the vocal tract followed by a sudden release of pressure [23]. Nasality in sounds introduces anti-formants because the nasal cavity introduces resonances that in- terfere with the resonances of the vocal tract [24]. Each vowel also has different formant structures based on the resonances created by different locations of constriction in the vocal tract [25].
+In the last decade, single-channel SE has greatly improved by moving from traditional signal processing techniques to deep neu- ral networks (DNN) [1]–[5]. Deep Noise Suppression (DNS) chal- lenges have further stimulated single-channel SE work by providing a large corpus of audio synthesized over a wide range of noise types and levels [6], [7]. It also provides a common test set to measure performance.
+Single-channel SE models are usually trained by comparing en- hanced speech to clean speech using point-wise differences between waveforms or spectrograms. While this paradigm has been effec- tive, SE models often still generate unnatural sounding speech [8]. Limitations with these classic losses include failure to capture pitch [9], and relatively low improvement for low-energy phonemes [10]. Additionally, [11] and [12] describe that (cid:96)1 or (cid:96)2 difference at the signal level is not highly correlated with speech quality.
+In this paper, we introduce a phonetic-aligned acoustic param- eter (PAAP) loss to improve speech outputs from SE systems. We accomplish this by minimizing the difference between phonetically- aligned acoustic parameters in enhanced speech and clean speech. This is done with a two-step approach. First, we introduce a dif- ferentiable estimator of temporal acoustic parameters, to obtain the time series of each parameter across an utterance. Second, we cal- culate differentiable phoneme-speciﬁc weights for each acoustic pa- rameter based on their ability to predict phoneme logits. This al- lows us to put different emphases on acoustic parameters at one time step, depending on the predicted phoneme at the same time step. These two components allow us to optimize the original model end-
+
+
+to-end to match clean speech with phonetic-aligned acoustic parame- ters. Our approach leads to improvements over competitive SE mod- els. More importantly though, we demonstrate the interpretability of our method, by analyzing the phoneme-dependent improvement on acoustic parameters.
+2. RELATED WORK
+Various works have tried to introduce losses aimed at improving the perceptual quality. Some techniques include optimization of non- differentiable perceptual metrics through generative adversarial net- works (GAN) [15], reinforcement learning [14], and convex approxi- mations of metrics [13]. However, as shown in [21], current methods fail to capture the aforementioned acoustic parameters, and explicit supervision of retaining them improved model outputs.
+Other methods have attempted to use phonetic information in enhancing perceptual quality, such as [16]. However, their loss func- tion did not explicitly use domain knowledge of phonemes and the phonetic information was only implicitly captured in wav2vec em- beddings. Recently, [26] performed a study of phonetic-aware tech- niques for speech enhancement but relies on uninterpretable Hu- BERT features [27]. Both techniques are evaluated on the Valentini dataset, which is much smaller and less varied than in our experi- ments. Moreover, our method allows interpretability through both acoustic parameters and phonemes, as illustrated in the experiments section. Lastly, [21] also used the acoustic parameters for optimiza- tion of perceptual quality. However, it did not factor in temporal or phonetic information. As these acoustic parameters vary greatly over an utterance, and between phonemes, modeling this phoneme and temporal dependencies can be helpful for improved performance.
+3. METHOD
+We propose to use a phonetic-aligned acoustic parameter loss to ﬁne- tune SE models. Note that this objective function can be applied to any architecture, and even any task that involves speech outputs. In this section we describe the use in SE as a concrete example. However it only requires a waveform as input, and it is end-to-end differentiable, so the PAAP Loss can be applied to any model that produces waveform.
+The overall learning paradigm is summarized in Algorithm 1. We will present the temporal acoustic parameter estimation in Sub- section 3.1, the phonetic-alignment and weighting in Subsection 3.2, and the overall ﬁne-tuning process with the proposed PAAP Loss in Subsection 3.3.
+3.1. Temporal Acoustic Parameter Estimation
+First, we take the pre-trained SE model as our seed model Φ, and pass in the noisy audio XN to obtain the enhanced waveform XE (line 3). On top of the seed models, we use a pre-trained estimator network Ψ to predict the acoustic parameters given a raw waveform. The acoustic parameters include a set of 25 low-level descriptors, covering prosodic, excitation, vocal tract, and spectral descriptors that are found to be the most expressive of the acoustic characteris- tics as standardized feature set.
+Unlike prior work which models these acoustic parameters at the utterance level through summary statistics, we incorporate the tem- poral feature of these acoustic parameters in the modeling. We pass the enhanced and clean waveforms to the model to predict temporal acoustic parameter matrices, DE and DC respectively (lines 4-5). The estimator network ﬁrst performs short-time Fourier Transform (STFT) on the raw waveform, and then passes the spectrogram to a
+Algorithm 1: Overall workﬂow of applying PAAP Loss in one iteration of our SE paradigm. 1 Input: Noisy waveform XN , clean waveform XC , seed model Φ, pre-trained acoustic low-level descriptor estimator Ψ, estimated acoustic-phonetic weights w.
+2 Output: calculated PAAP Loss (cid:96)PAAP 3 XE ← Φ(XN ) ; // Enhanced waveform from current model 4 DC ← Ψ(XC ) ; // Estimated clean acoustic parameters 5 DE ← Ψ(XE) ; // Estimated enhanced acoustic parameters 6 (cid:96)PAAP ← 0 7 N ← len(XC ) ; 8 for i ← 1 to N do 9
+// the total number of frames
+j ← Index of phoneme at XC i i )2 · wj i − DC (cid:96)PAAP ← (cid:96)PAAP + (DE N · (cid:96)PAAP
+10 11 (cid:96)PAAP ← 1 12 return (cid:96)PAAP
+sequential neural network to obtain the predicted temporal acoustic parameters. We note that using the estimated clean acoustic parame- ters in PAAP Loss rather than ground-truth allows much greater ease of use by other researchers, as they do not have to synthesize labels from another toolkit, as in [21]. This beneﬁts us by making our loss more accessible in an arbitrary SE network.
+3.2. Phonetic Alignment
+The next component of the PAAP Loss is the set of acoustic-phonetic weights w, as we would like to weigh the acoustic parameters dif- ferently based on their importance to predict phoneme logits. These acoustic-phonetic weights are estimated using clean speech, through linear regression between the acoustic parameters and their corre- sponding segmented phoneme logits:
+w = ((DC )(cid:62)DC ))−1((DC )(cid:62)PC )
+(1) where PC indicates the phoneme logits of the clean waveform. Each column wi is the vector of weights from the 25 acoustic param- eters to phoneme i, plus a bias term. Each weight wij corresponds to how much a unit change in acoustic parameter i changes the log- probability of phoneme j.
+The weights reﬂect how much information each feature contains about each phoneme, so we can use it to emphasize optimization on differences between clean and enhanced parameter values that are more signiﬁcant for the current phoneme.
+We obtain PC using an unsupervised phonetic aligner with a vo- cabulary of 40 phonemes, and one index for silence. We retain the silence index as we expect the relationship between acoustic param- eters and phonemes will be different over non-speech regions of the utterance, and we would like to include this in the modeling. The unsupervised phonetic aligner allows ﬂexibility to apply our method on datasets without ground-truth transcriptions.
+3.3. Fine-tuning with PAAP Loss
+During ﬁne-tuning, we ﬁrst predict the phoneme index j for each frame across time, using the argmax of predicted phoneme logits from clean audio. We will then use wj, the acoustic-phonetic weight for phoneme j. We calculate the squared difference between the clean and enhanced acoustic parameters at the current time step, and then perform dot-product with wj (line 8-10). Note that these
+
+
+FullSubNet
+Demucs
+Metrics
+Noisy
+Baseline
+PAAP Loss
+Baseline
+PAAP Loss
+PESQ (↑) STOI (↑) DNSMOS (↑) NORESQA (↑) WER (↓)
+1.58 91.52 2.48 2.92 19.0
+2.89 96.41 3.21 4.08 12.6
+3.00 96.70 3.27 4.13 12.1
+2.65 96.54 3.31 3.93 15.0
+2.99 97.12 3.34 3.99 13.2
+Table 1: Evaluation results of using the PAAP Loss compared with noisy audios and baseline models on the synthetic test set.
+weights are used to incorporate phonetic information in the acous- tic parameter differences, not to directly predict phoneme logits. In this way, the PAAP Loss calculates the weighted difference between acoustic parameters for each time step.
+In our implementation, we use STFT with hop length of 160 and window length of 512 to determine the total number of frames N . Both the phoneme logits and acoustic parameters have N vectors of values. We iterate the above process over all frames in the utterance, and average the PAAP Loss by the total number of frames. The PAAP Loss is used as an auxiliary loss alongside the original loss of the SE model to ﬁne-tune the network. We follow the optimal setting of [21] by keeping all weights frozen except the speech enhancement model. In our work, this applies to both acoustic-phonetic weights w and the weights of the temporal acoustic estimator network Ψ.
+4. EXPERIMENTS
+4.1. Data
+We used data and scripts from the Deep Noise Suppression (DNS) Challenge from InterSpeech 2020 [6] to synthesize 50,000 pairs of 30-second (s) noisy and clean audio for training. We further synthe- sized another 10,000 audio pairs for validation set. The synthesis is performed under the default setting, where the Signal to Noise Ratio (SNR) is sampled uniformly between 0 and 40 decibels (dB). Then, noise audios from DNS noise set are selected with sufﬁcient duration to span the selected clean utterance from Librivox, and added to the clean [28].
+Our baseline models pre-process their input data slightly before training, and we follow each model’s respective conﬁguration during its ﬁne-tuning. Demucs splits 30s audios into 10s segments with a 2s stride, and FullSubNet randomly samples a 3.072s segment from the 30s audio during each iteration.
+For the ﬁnal evaluation of the models, we use the DNS 2020 synthetic test set with no reverberation. This set consists of 150 ut- terances from Graz University’s clean speech dataset [29], combined with noise categories randomly sampled from more than 100 noise classes. The SNR levels of the test set were uniformly sampled be- tween 0 and 25 dB.
+4.2. Experimental Results
+To demonstrate that our proposed method is robust at improving var- ious architectures, we select state-of-the-art Demucs [30] and Full- SubNet [31] representing time domain and time-frequency domain models, respectively. These models are also open-sourced, so we use their pre-trained checkpoints to allow the reproducibility of the results of our work. For our unsupervised phonetic aligner, we use a wav2vec2-based method [32].
+In our experiments, we weigh the PAAP Loss by a factor of 0.1 before adding to the original loss to ﬁne-tune the seed SE model. In
+Fig. 1: Acoustic improvement (in %) for FullSubNet (upper) and Demucs (lower) by using the proposed PAAP Loss, where acoustic improvement is reduction in MAE as deﬁned in Section 4.3.1.
+the ﬁne-tuning process, the pre-trained temporal acoustic parameter estimator is a 3-layer bi-directional long short-term memory (LSTM) [33] with 512 hidden units. Table 1 shows the evaluation results eval- uation by ﬁne-tuning FullSubNet and Demucs with the additional PAAP Loss.
+We ﬁrst look at Perceptual Evaluation of Speech Quality (PESQ) and Short-Time Objective Intelligibility (STOI) as they are canonical evaluations for speech enhancement. We see signiﬁcant improve- ments in these metrics using our PAAP loss. Note that these are strong state-of-the-art models and hence improvements are hard to achieve. PESQ in particular improves by almost 4% and 13% for FullSubNet and Demucs respectively.
+Since our goal is to improve perceptual quality, the gold stan- dard evaluation is mean opinion score from humans. This is calcu- lated as the average of ratings on a 1-5 scale. Conducting a Mean Opinion Score (MOS) study is costly so we include two of the cur- rent state-of-the-art estimation approaches to estimate MOS, DNS- MOS [34], and NORESQA-MOS (Non-matching Reference based Speech Quality Assessment) [35]. We observe that our PAAP loss once again shows improvements in these metrics for both models.
+Finally, we also calculate word error rate (WER) to evaluate whether our enhancement reduces distortions that affect downstream speech processing applications. Since we do not have ground-truth transcriptions, we use WavLM [36] base model from HuggingFace on clean speech to get the transcriptions as reference. We then apply the same recognizer to baseline and our enhanced speech to com- pare. We see improvements in WER as well, demonstrating that our method beneﬁts both human perceptual quality and the ability to in- terface with speech technologies.
+4.3. Analysis
+4.3.1. Acoustic improvement
+Fig. 1 provides a visualization of the percentage improvement of the 25 acoustic parameters after using the PAAP Loss to ﬁne-tune the model. The acoustic improvement is measured by the reduction in mean absolute error (MAE) between the acoustic parameters of the enhanced and clean speech. Formally, if DE, DC ∈ RN ×25 are the
+
+
+enhanced and clean estimated acoustics, for each acoustic parameter j we compute
+MAE(DE
+j , DC
+j ) =
+1 N
+N (cid:88)
+i=1
+|DE
+ij − DC ij|
+and then average over all acoustic parameters to get MAE(DE, DC ). Formally, the acoustic improvement as reduction in MAE is
+MAE(DE, DC ) − MAE(DB, DC ) MAE(DB, DC )
+100%
+where DB stands for the acoustic parameters from the baseline enhancement model. For FullSubNet, we can observe that the PAAP Loss has the most improvement on MFCC features and loudness. On the other hand, for Demucs, most of the acoustic improvement of features are at the similar level with FullSubNet, except that the loudness and the F0 on a semitone frequency scale have a larger boost of 30%. Among all the acoustic features, the acoustic im- provements are relatively small for formant frequencies and formant bandwidths for both models, but we conclude that we are getting a consistent improvement on all of the acoustic low-level descriptors across different categories of SE models.
+4.3.2. Phoneme-dependent acoustic improvement
+In the previous section, we looked at overall improvements for each acoustic parameter. Now we break down the analysis further by showing the improvement in each acoustic parameter segmented by phoneme. The acoustic improvement is calculated by ﬁrst creating phoneme alignments with the phonetic aligner on the clean speech. Then for each frame, we take the difference in acoustic parameters for clean and enhanced speech, and add this difference to the running total of the corresponding aligned phoneme. At the end, we average the differences per phoneme by the number of frames.
+We connect this analysis with the acoustic-phonetic properties mentioned in the introduction. Recall that plosives have very char- acteristic behavior with amplitude features. Also recall that vowels and nasals have speciﬁc formant characteristics. We include plots of per-phoneme acoustic parameter improvement for loudness and F1 frequency to represent the amplitude and formant characteristics, respectively.
+We plot the phoneme-dependent improvement for loudness and formant-1 (F1) frequency in Fig. 2. Each phoneme represents one point, where the colors/shapes indicate different phoneme cate- gories. We separate out vowels, and then use the place of articulation as the classiﬁcation standard of consonants. This includes dorsals, labials and coronals, which correspond to consonants where the articulation is performed with tongue dorsum, lips, and tongue front respectively. We also separate /HH/ as the only consonant in English with the place of articulation in the larynx. Therefore, we use ﬁve different colors/shapes in total to represent phoneme categories in the ﬁgure.
+With this knowledge, we can see that our phonetically-aligned acoustic parameter loss results in the expected improvements given the above domain knowledge. The highest improvements in loud- ness are in plosives such as /B/, /P/, /K/, /G/, /D/, and /DH/, where the average improvement is around 90%. The goal of the PAAP Loss was to learn the relations between phonemes and acoustic pa- rameters over time, and ﬁne-tune enhancement models to account for this. Now we observe models ﬁne-tuned with PAAP Loss pro- duce speech with more improvement in acoustic parameters for the speciﬁc phonemes that are relevant for that particular parameter.
+(2)
+(3)
+Fig. 2: Reduction in error of loudness / F1 frequency vs. average value of acoustic parameter for each phoneme.
+We also see the expected clustering of improvement for F1 fre- quency. Nearly all the highest improvements are seen with vow- els, as formant structure is more important for vowels than conso- nants. The overall acoustic improvement of vowels is around 45%, higher than any group of consonants. The nasals /N/ and /M/, also mentioned in the introduction for their formant structure, showed similar improvements to many vowels. The other consonants that showed high improvement, /L/ and /R/ are liquid consonants, which are known to be more similar to vowels than other consonants.
+5. CONCLUSION In this work, we propose a novel auxiliary objective for speech en- hancement, the phonetic-aligned acoustic parameter (PAAP) loss, which minimizes the differences between important temporal acous- tic parameters that are weighted by phoneme types. We ﬁne-tune competitive speech enhancement models with the addition of PAAP Loss, and experiments show that performance increases across all evaluation metrics, including measures of perceptual quality, and WER from competitive ASR models. We provide a detailed analysis of the phoneme-dependent acoustic improvement to show that the acoustic parameters improve most in expected phoneme categories.
+6. ACKNOWLEDGEMENT This work used the Extreme Science and Engineering Discovery En- vironment (XSEDE) [37], which is supported by National Science Foundation grant number ACI-1548562. Speciﬁcally, it used the Bridges system [38], which is supported by NSF award number ACI-1445606, at the Pittsburgh Supercomputing Center (PSC).
+
+
+7. REFERENCES
+[1] H. Zhao, S. Zarar, I. Tashev, and C.-H. Lee, “Convolutional-recurrent neural networks for speech enhancement,” in Proc. ICASSP, IEEE, 2018, pp. 2401–2405.
+[2]
+F. Weninger, F. Eyben, and B. Schuller, “Single-channel speech sep- aration with memory-enhanced recurrent neural networks,” in Proc. ICASSP, 2014, pp. 3709–3713.
+[3] Y. Xu, J. Du, L.-R. Dai, and C.-H. Lee, “A regression approach to speech enhancement based on deep neural networks,” IEEE/ACM Transactions on Audio, Speech, and Language Processing, vol. 23, no. 1, pp. 7–19, 2015.
+[4]
+F. Weninger, H. Erdogan, S. Watanabe, E. Vincent, J. L. Roux, J. R. Hershey, and B. Schuller, “Speech enhancement with LSTM recurrent neural networks and its application to noise-robust ASR,” in LVA/ICA, 2015.
+[5]
+P. Plantinga, D. Bagchi, and E. Fosler-Lussier, “Phonetic feedback for speech enhancement with and without parallel speech data,” in Proc. ICASSP, IEEE, 2020, pp. 6679–6683.
+[6] C. K. Reddy, V. Gopal, R. Cutler, E. Beyrami, R. Cheng, H. Dubey, S. Matusevych, R. Aichner, A. Aazami, S. Braun, et al., “The inter- speech 2020 deep noise suppression challenge: Datasets, subjective testing framework, and challenge results,” Proc. Interspeech, 2020.
+[7] H. Dubey, V. Gopal, R. Cutler, A. Aazami, S. Matusevych, S. Braun, S. E. Eskimez, M. Thakker, T. Yoshioka, H. Gamper, et al., “ICASSP 2022 deep noise suppression challenge,” in Proc. ICASSP, IEEE, 2022, pp. 9271–9275.
+[8] C. K. Reddy, E. Beyrami, J. Pool, R. Cutler, S. Srinivasan, and J. Gehrke, “A scalable noisy speech dataset and online subjective test framework,” Proc. Interspeech, pp. 1816–1820, 2019.
+[9]
+J. Turian and M. Henry, “I’m sorry for your loss: Spectrally-based audio distances are bad at pitch,” arXiv preprint arXiv:2012.04572, 2020.
+[10]
+P. Plantinga, D. Bagchi, and E. Fosler-Lussier, “Perceptual loss with recognition model for single-channel enhancement and robust ASR,” arXiv preprint arXiv:2112.06068, 2021.
+[11]
+P. Manocha, A. Finkelstein, R. Zhang, N. J. Bryan, G. J. Mysore, and Z. Jin, “A differentiable perceptual audio metric learned from just noticeable differences,” Proc. Interspeech, 2020.
+[12]
+S.-W. Fu, C. Yu, T.-A. Hsieh, P. Plantinga, M. Ravanelli, X. Lu, and Y. Tsao, “Metricgan+: An improved version of metricgan for speech enhancement,” Proc. Interspeech, 2021.
+[13]
+J. M. Martin-Do˜nas, A. M. Gomez, J. A. Gonzalez, and A. M. Peinado, “A deep learning loss function based on the perceptual evaluation of the speech quality,” IEEE Signal Processing Letters, vol. 25, no. 11, pp. 1680–1684, 2018.
+[14] Y. Koizumi, K. Niwa, Y. Hioka, K. Kobayashi, and Y. Haneda, “DNN- based source enhancement self-optimized by reinforcement learning using sound quality measurements,” in Proc. ICASSP, 2017, pp. 81– 85.
+[15]
+S.-W. Fu, C.-F. Liao, Y. Tsao, and S.-D. Lin, “Metricgan: Genera- tive adversarial networks based black-box metric scores optimization for speech enhancement,” in International Conference on Machine Learning, PMLR, 2019, pp. 2031–2041.
+[16]
+T.-A. Hsieh, C. Yu, S.-W. Fu, X. Lu, and Y. Tsao, “Improving per- ceptual quality by phone-fortiﬁed perceptual loss using Wasserstein distance for speech enhancement,” Proc. Interspeech, 2021.
+[17]
+F. Eyben, K. R. Scherer, B. W. Schuller, J. Sundberg, E. Andr´e, C. Busso, L. Y. Devillers, J. Epps, P. Laukka, S. S. Narayanan, et al., “The geneva minimalistic acoustic parameter set (GeMAPS) for voice research and affective computing,” IEEE transactions on affective computing, vol. 7, no. 2, pp. 190–202, 2015.
+[18] G. d. Krom, “Some spectral correlates of pathological breathy and rough voice quality for different types of vowel fragments,” Journal of Speech, Language, and Hearing Research, vol. 38, no. 4, pp. 794– 811, 1995.
+[19]
+J. Hillenbrand, R. Cleveland, and R. Erickson, “Acoustic correlates of breathy vocal quality,” Journal of speech and hearing research, vol. 37, pp. 769–78, Sep. 1994.
+[20] H. Kasuya, S. Ogawa, Y. Kikuchi, and S. Ebihara, “An acoustic anal- ysis of pathological voice and its application to the evaluation of la- ryngeal pathology,” Speech Communication, 1986.
+[21] M. Yang, J. Konan, D. Bick, A. Kumar, S. Watanabe, and B. Raj, “Improving speech enhancement through ﬁne-grained speech charac- teristics,” in Proc. Interspeech, 2022.
+[22] Y. Zeng, J. Konan, S. Han, D. Bick, M. Yang, A. Kumar, S. Watanabe, and B. Raj, “TAPLoss: A temporal acoustic parameter loss for speech enhancement,” in Proc. ICASSP, 2023.
+[23] A. Alwan, J. Jiang, and W. Chen, “Perception of place of articulation for plosives and fricatives in noise,” Speech communication, vol. 53, no. 2, pp. 195–209, 2011.
+[24] W. Styler, “On the acoustical features of vowel nasality in english and french,” The Journal of the Acoustical Society of America, vol. 142, no. 4, pp. 2469–2482, 2017.
+[25] H. G. Yi, M. K. Leonard, and E. F. Chang, “The encoding of speech sounds in the superior temporal gyrus,” Neuron, vol. 102, no. 6, pp. 1096–1110, 2019.
+[26] O. Tal, M. Mandel, F. Kreuk, and Y. Adi, “A Systematic Comparison of Phonetic Aware Techniques for Speech Enhancement,” in Proc. Interspeech, 2022, pp. 1193–1197.
+[27] W.-N. Hsu, B. Bolte, Y.-H. H. Tsai, K. Lakhotia, R. Salakhutdinov, and A. Mohamed, “Hubert: Self-supervised speech representation learning by masked prediction of hidden units,” IEEE/ACM Transac- tions on Audio, Speech, and Language Processing, vol. 29, pp. 3451– 3460, 2021.
+[28]
+J. F. Gemmeke, D. P. Ellis, D. Freedman, A. Jansen, W. Lawrence, R. C. Moore, M. Plakal, and M. Ritter, “Audio set: An ontology and human-labeled dataset for audio events,” in Proc. ICASSP, IEEE, 2017, pp. 776–780.
+[29] G. Pirker, M. Wohlmayr, S. Petrik, and F. Pernkopf, “A pitch track- ing corpus with evaluation on multipitch tracking scenario,” in Proc. Interspeech, 2011.
+[30] A. Defossez, G. Synnaeve, and Y. Adi, “Real time speech enhance- ment in the waveform domain,” arXiv preprint arXiv:2006.12847, 2020.
+[31] X. Hao, X. Su, R. Horaud, and X. Li, “Fullsubnet: A full-band and sub-band fusion model for real-time single-channel speech enhance- ment,” in Proc. ICASSP, IEEE, 2021, pp. 6633–6637.
+[32]
+[33]
+J. Zhu, C. Zhang, and D. Jurgens, “Phone-to-audio alignment with- out text: A semi-supervised approach,” in Proc. ICASSP, IEEE, 2022, pp. 8167–8171. S. Hochreiter and J. Schmidhuber, “Long short-term memory,” Neural Computation, vol. 9, no. 8, pp. 1735–1780, 1997.
+[34] C. K. Reddy, V. Gopal, and R. Cutler, “DNSMOS P. 835: A non- intrusive perceptual objective speech quality metric to evaluate noise suppressors,” in Proc. ICASSP, IEEE, 2022.
+[35]
+P. Manocha and A. Kumar, “Speech quality assessment through mos using non-matching references,” in Proc. Interspeech, 2022.
+[36]
+S. Chen, C. Wang, Z. Chen, Y. Wu, S. Liu, Z. Chen, J. Li, N. Kanda, T. Yoshioka, X. Xiao, et al., “WavLM: Large-scale self-supervised pre- training for full stack speech processing,” IEEE Journal of Selected Topics in Signal Processing, 2022.
+[37]
+J. Towns, T. Cockerill, M. Dahan, I. Foster, K. Gaither, A. Grimshaw, V. Hazlewood, S. Lathrop, D. Lifka, G. D. Peterson, R. Roskies, J. R. Scott, and N. Wilkins-Diehr, “Xsede: Accelerating scientiﬁc discov- ery,” Computing in Science & Engineering, vol. 16, no. 5, pp. 62–74, Sep. 2014.
+[38] N. A. Nystrom, M. J. Levine, R. Z. Roskies, and J. R. Scott, “Bridges: A uniquely ﬂexible hpc resource for new communities and data an- alytics,” in Proceedings of XSEDE Conference: Scientiﬁc Advance- ments Enabled by Enhanced Cyberinfrastructure, 2015, pp. 1–8.

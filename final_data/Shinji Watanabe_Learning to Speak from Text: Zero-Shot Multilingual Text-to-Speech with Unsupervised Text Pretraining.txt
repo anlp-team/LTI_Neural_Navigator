@@ -1,0 +1,489 @@
+3 2 0 2
+y a M 7 2
+] S A . s s e e [
+3 v 6 9 5 2 1 . 1 0 3 2 : v i X r a
+Learning to Speak from Text: Zero-Shot Multilingual Text-to-Speech with Unsupervised Text Pretraining
+Takaaki Saeki1 , Soumi Maiti2 , Xinjian Li2 , Shinji Watanabe2 , Shinnosuke Takamichi1 and Hiroshi Saruwatari1 1The University of Tokyo, Japan 2Carnegie Mellon University, USA takaaki saeki@ipc.i.u-tokyo.ac.jp, {smaiti, swatanab}@andrew.cmu.edu
+Abstract
+While neural text-to-speech (TTS) has achieved human-like natural synthetic speech, multilingual TTS systems are limited to resource-rich languages due to the need for paired text and studio-quality audio data. This paper proposes a method for zero- shot multilingual TTS using text-only data for the target language. The use of text-only data allows the development of TTS systems for low-resource languages for which only textual resources are available, making TTS accessible to thousands of languages. Inspired by the strong cross-lingual transferability of multilingual language models, our framework first performs masked language model pretraining with multilingual text-only data. Then we train this model with a paired data in a super- vised manner, while freezing a language-aware em- bedding layer. This allows inference even for lan- guages not included in the paired data but present in the text-only data. Evaluation results demonstrate highly intelligible zero-shot TTS with a character error rate of less than 12% for an unseen language.
+1 Introduction Recent advances in end-to-end neural text-to-speech synthe- sis (TTS) [Li et al., 2019b; Kim et al., 2021] have yielded significant improvements in naturalness and speech qual- ity. However, the data-intensive nature and the requirement of paired text and studio-quality audio data have limited multilingual TTS systems to resource-rich languages, which are small portions of the more than 6,000 languages in the world [Jr, 2005]. To address the limitation, current research in multilingual TTS aims not only to exploit resource-rich lan- guages [Zen et al., 2012; Li and Zen, 2016] but also to build models for low-resource languages [Prakash et al., 2019].
+Previous work has addressed low-resource TTS by using untranscribed speech data with vector-quantized variational autoencoder (VQ-VAE) [Zhang and Lin, 2020] or automatic speech recognition (ASR) models [Ni et al., 2022]. Another study [Saeki et al., 2022b] has built a massively multilin- gual TTS model jointly using paired TTS, paired ASR, un- paired speech, and unpaired text data. However, these ap- proaches still rely on speech data for the target languages and
+Training
+Text data forlanguage C
+Paired data for language B
+Synthesis
+Multilingual TTS
+Paired data for language A
+Figure 1: Our concept. We aim to build TTS model on languages for which only text data is available, to support low-resource languages.
+face the challenge of data collection, when audio recordings for these languages are hard to obtain. In this study, we fo- cus on the use of a text-only data for multilingual TTS as shown in Fig. 1. Previous research [Wu and Dredze, 2019; Pires et al., 2019] has shown the strong cross-lingual trans- ferability of multilingual language models such as multilin- gual BERT [Devlin et al., 2019] in natural language pro- cessing (NLP) tasks. By leveraging multilingual pretrain- ing, the model can generalize to other languages, even if it has never seen the target data in those languages. Our work applies the framework of multilingual masked language model (MLM) pretraining to TTS, with the goal of achieving zero-shot cross-lingual transfer of pronunciation and prosody. Zero-shot TTS using text data enables the development of TTS systems for languages where only textual resources are available, which potentially opens up TTS to thousands of languages [Ebrahimi and Kann, 2021; Li et al., 2022].
+In this paper, we propose a multilingual TTS framework that leverages unsupervised text pretraining. Fig. 2 illus- trates the proposed framework. We use a typical end-to-end TTS architecture consisting of token embedding, encoder, and decoder. Our model also has a language-aware embed- ding layer, which includes the token embedding layer, a lan- guage embedding layer, and a bottleneck layer. As shown in Fig. 2(a), we first pretrain the language-aware embedding layer and the encoder of the TTS model with multilingual text data. We then fine-tune the encoder and decoder of the TTS model with paired data, while the language-aware embedding layer is frozen, as illustrated in Fig. 2(b). This allows zero- shot TTS for a language not included in the paired data but present in the text data, as shown on the right in Fig. 2(c).
+Our contributions are as follows. 1) We propose a zero-shot
+
+
+de ruhu ...Multilingual TTS for seen languagesZero-shot TTS for unseen languageFreeze
+<Mask>
+(b) Supervised learning with paired data(c) Inference
+TextText
+Decoder
+Decoder
+de ruhu ...Text
+Bytes or IPA
+es deru huen skro ...
+Bytes or IPA
+Bytes or IPA
+Bytes or IPA
+Language-awareembedding layer
+Language-awareembedding layer
+Text
+Encoder
+Decoder
+Encoder
+Encoder
+Encoder
+Language-awareembedding layer
+Language-awareembedding layer
+(a) Unsupervised multilingual text pretraining
+es
+Figure 2: Proposed framework. (a) We perform MLM pretraining on multilingual text data and then (b) train TTS model on paired data with frozen language-aware embedding layer. (c) Zero-shot TTS is performed with language IDs that are not included in paired data.
+multilingual TTS framework that achieves highly intelligible TTS for an unseen language, resulting in a character error rate of less than 12%. 2) Our method also improves TTS for seen languages, resulting in byte-based models without grapheme- to-phoneme (G2P) modules that outperform the phoneme- based baselines. 3) Our ablation studies provide additional insights, including the effectiveness of the frozen language- aware embedding layer. The experiments were conducted on public datasets and the implementation is available1. We en- courage readers to listen to our audio samples2.
+2 Method Our model has a typical neural TTS model architecture con- sisting of token embedding, encoder, and decoder. First, we use MLM pretraining with multilingual text data to learn cross-lingual representations. Then we perform supervised learning with paired data to learn the mapping from linguis- tic features to speech features. The model performs inference even for languages that are not present in the paired data.
+2.1 Unsupervised Multilingual Text Pretraining Fig. 2(a) illustrates the unsupervised pretraining method. It uses multilingual text data consisting of languages that are not included in the paired data. Let X = (xn ∈ V |n = 1, · · · , N ) denote the input text token sequence of length N , where V denotes a vocabulary constructed for pretraining.
+1https://github.com/Takaaki-Saeki/zm-text-tts 2https://takaaki-saeki.github.io/zm-tts-text demo
+We define Dtext as the text dataset. Let Ltext denote the set of language IDs included in Dtext. First, the masked token sequence X m and a language ID ltext ∈ Ltext are fed to the model. Let the token embedding sequence and language em- n ∈ Rd|n = 1, · · · , N ) and el ∈ Rd, bedding be Z m = (zm respectively. The embedding layers output Z m and el as:
+Z m = Embed(X m; θT),
+el = Embed(ltext; θL),
+where θT and θL denote the model parameters of the to- ken embedding and language embedding layers, respectively. Then the token and language embeddings obtained in Eq. (1) are added and fed to a bottleneck layer to project them into a hidden input vector. Let Hin = (hin,n ∈ Rd|n = 1, · · · , N ) and Hout = (hout,n ∈ Rd|n = 1, · · · , N ) denote hidden vectors in the encoder input and output, respectively. Then the conditional probability p(X|X−Π) is computed as:
+Hin = Bottleneck(Z m + el; θB), Hout = Encoder(Hin; θE),
+p(X|X−Π) = Softmax(PredictionNet(Hout; θP)),
+where θB, θE, θP denote the model parameters of the bot- tleneck layer, the encoder and a prediction network, respec- tively. In Eq. (4), Softmax(·) denotes a softmax function. We define the network with the model parameters {θB, θT, θL} as language-aware embedding layer, which jointly embeds the token sequence X and the language ID ltext as in Eq. (1) and (2). Let Π = (πk ∈ N|k = 1, · · · , K) be the indexes of the masked tokens of length K. With the probability com- puted in Eq. (4), the training objective can be defined as:
+Lmlm =
+1 K
+K (cid:88)
+k=1
+log p(xπk |X m),
+{ˆθE, ˆθB, ˆθT, ˆθL} = arg min θE,θB,θT,θL
+Lmlm.
+We use UTF-8 bytes or International Phonetic Alphabet (IPA) symbols for the input token sequence X. For each to- ken type, the vocabulary V is constructed from Dtext, which includes a start/end of sentence token ([SOS/EOS]). We ex- tracted International IPA sequences using an open-source toolkit3. To obtain the masked token X m, we use the same masking ratio and category as in the original BERT pre- training [Devlin et al., 2019] for each token type. Randomly, 12 % of the tokens are replaced with the [MASK] token, and 1.5 % of them are replaced with random tokens. Also, 1.5 % of the tokens are left unchanged and Lmlm is computed as in Eq. (5) for those 15 % of tokens that have indices Π.
+2.2 Supervised Learning with Paired Data Fig. 2(b) illustrates the supervised learning of the TTS model with paired data. We define the paired data and the set of lan- guage IDs as Dpaired and Lpaired, respectively. Note that we assume Lpaired ⊂ Ltext. Let Y = (yt ∈ RD|t = 1, · · · , T ) denote the speech feature sequence with the length of T . We first initialize the model parameters {θE, θB, θT, θL} with
+3https://github.com/espeak-ng/espeak-ng
+(1)
+(2) (3) (4)
+(5)
+
+
+those obtained in the pretraining described in § 2.1. Let θD denote the model parameter of the decoder. The speech fea- tures are predicted with teacher forcing as:
+Hout = Encoder(Bottleneck(Z + el)),
+ˆY = Decoder(Hout, Y ; θD),
+where Z is the unmasked token embedding sequence. Note that the unmasked token sequence is used in Eq. (6), while the masked token sequence is used in Eq. (2) Let Ltts( ˆY , Y ) denote the training objective of the TTS model. Then we consider two types of schemes. Updating language-aware embedding layer We only freeze the parameter of the language embedding layer θL while updating the rest of the parameters. Therefore the train- able model parameters can be written as {ˆθD, ˆθE, ˆθB, ˆθT} = arg min θD,θE,θB,θT
+Ltts( ˆY , Y ).
+Previous work has confirmed that multilingual BERT has high cross-lingual transferability for various NLP tasks [Wu and Dredze, 2019]. This scheme corresponds to a simple fine- tuning of BERT [Wu and Dredze, 2019], which updates all the parameters during training for the downstream tasks4. Freezing language-aware embedding layer We freeze the bottleneck layer and the token embedding layer along with the language embedding, updating the encoder and decoder. The training process can be written as
+{ˆθD, ˆθE} = arg min
+Ltts( ˆY , Y ).
+θD,θE
+In contrast to the scheme represented in Eq. (8), the scheme in Eq. (9) preserves the parameters of the language-aware em- bedding layer to facilitate cross-lingual transfer. In the evalu- ation, we use the scheme formulated in Eq. (9), except for the ablation study in § 3.4.
+2.3 Let Lsyn denote the set of language IDs used for inference. The text token sequence X and the language ID lsyn ∈ Lsyn are fed to the model as in Eq. (1), and the encoder output is predicted as in Eq. (6). Unlike Eq. (7), the speech features are predicted as:
+Inference
+ˆY = Decoder(Hout; θD). (10) The output waveform is obtained by feeding the predicted features ˆY to a pretrained neural vocoder.
+Fig. 2(c) illustrates the inference process. The left and right sides of the figure show the typical multilingual TTS and our zero-shot TTS. Previous work [Li et al., 2019a] has typically assumed seen languages, and the inference is performed with the language IDs Lseen ⊂ Lpaired. However, it is challenging to perform TTS for unseen languages Lunseen ∩ Lpaired = ∅. While other work [Saeki et al., 2022b] has built a massively multilingual TTS model that even achieves zero-shot TTS from ASR data, it uses paired data for the target languages.
+4We freeze the language embedding layer to address the mis- match between language embedding of seen and unseen languages.
+(6)
+(7)
+(8)
+(9)
+Our work attempts to only use the linguistic knowledge to im- prove the zero-shot TTS. Thus, the inference process is writ- ten as L′ unseen ⊂ Ltext. In the evaluation, we denote the inference with Lunseen and L′ unseen as Fully zero-shot TTS and Text-seen zero-shot TTS, respec- tively. Fully zero-shot TTS performs zero-shot TTS without pretraining as in the IPA-based previous method [Staib et al., 2020], which is the baseline method in our evaluations.
+unseen ∩ Lpaired = ∅ and L′
+2.4 Model Architecture Our model is an autoregressive TTS model based on Trans- former TTS [Li et al., 2019b], which has also been used in the previous work on byte-based multilingual TTS [He et al., 2021]. During the supervised learning described in § 2.2 and inference described in § 2, we use x-vector [Snyder et al., 2018] for the speaker embedding and add it to the encoder output through a projection layer. During supervised learn- ing, we use the average x-vectors computed from the training data. For evaluation purposes, we perform zero-shot synthe- sis with the average x-vector from the test data of the target language and feed it to the model. Note that we also conduct the evaluation with x-vectors from seen languages.
+For the bottleneck layer with θB, we use a residual network consisting of Layer Normalization [Ba et al., 2016], down projection, ReLU [Nair and Hinton, 2010], and up projection with the residual connection, which is used in previous work on language adaptation [Bapna and Firat, 2019].
+3 Experimental Evaluations 3.1 Experimental Setting Dataset We carried out all the evaluations with publicly available datasets. Table 1 shows the sizes of the data for each lan- guage. For the unsupervised text pretraining described in § 2.1, we used transcripts from VoxPopuli [Wang et al., 2021], M-AILABS [Munich Artificial Intelligence Labora- tories GmbH, 2017], and CSS10 [Park and Mulc, 2019], re- sulting in a total of about 2.8 GB of spoken text across 19 languages. We used CSS10 for the supervised learning de- scribed in § 2.2, and we selected seven European languages as the seen languages, with Spanish as the unseen language. It The paired data consisted of one speaker per language. should be noted that Spanish is not actually a low-resource language, but we chose to use it for evaluation purposes in order to 1) compare our zero-shot TTS methods with the ora- cle methods using the paired data for the target language and 2) ensure a sufficient number of evaluators for the subjective evaluation. We used 5 and 100 utterances as dev and test sets, respectively, with the remaining data used for training.
+Training Details The sampling rate was set to 16 kHz. An 80-dimension of mel filter bank, 1024 samples of FFT length, and 256 samples of frame shit were used for speech analysis. For the pretraining described in § 2.1, we trained the model for 1.2M iterations using the Noam optimizer [Vaswani et al., 2017] with the learning rate and warm-up step set to 1.0 and 10000, respectively. For the TTS model described in
+
+
+Languages Code Text-only data
+Text
+Paired data
+Audio
+Seen languages for evaluation Lseen German French Dutch Finnish Hungarian Russian Greek
+de fr nl fi hu ru el
+359MB 372MB 336MB 308MB 104MB 4.9MB 0.39MB
+0.73MB 0.94MB 0.75MB 0.47MB 0.51MB 1.5MB 0.39MB
+16.13h 19.15h 14.10h 21.36h 10.53h 10.00h 4.13h
+Unseen language for evaluation Lunseen Spanish
+es
+345MB
+0.0MB (1.2MB)
+0.00h (23.81h)
+Languages not included in CSS10
+English Estonian Croatian Italian Lithuanian Polish Romanian Slovak Slovenian
+en et hr it lt pl ro sk sl
+338MB 87MB 2.0MB 334MB 89MB 102MB 67MB 94MB 81MB
+Table 1: Amount of text-only and paired data for each language. Parentheses indicate amount of original data in CSS10.
+§ 2.4, we used a 6-block Transformer encoder [Vaswani et al., 2017] and a 6-block Transformer decoder, with a post- net consisting of five convolutional layers with a kernel size of five. The attention dimension and the number of atten- tion heads were set to 512 and 8, respectively. For the bot- tleneck layer described in § 2.4, we set the hidden dimen- sion after the down projection to 256. The PredictionNet in Eq. (4) consisted of a linear layer, a GELU activation func- tion [Hendrycks and Gimpel, 2016], Layer Normalization, and a linear layer with the hidden dimension of 512. We also used guided attention loss [Tachibana et al., 2018] to improve the training efficiency. For the supervised learn- ing described in § 2.2, we trained the models for 2.47M it- erations (200 epochs). The Noam optimizer was used with the warm-up step of 50000. For the neural vocoder, we trained HiFi-GAN [Kong et al., 2020] for 2M iterations with LibriTTS [Zen et al., 2019], VCTK [Veaux et al., 2017], and CSS10. For the x-vector described in § 2.4, we used a model trained on VoxCeleb1 and VoxCeleb2 [Na- grani et al., 2017] published in SpeechBrain [Ravanelli et al., 2021]. We used ESPnet2-TTS [Watanabe et al., 2018; Hayashi et al., 2021] for the implementation.
+Baselines We developed baseline models without the pretraining.
+Seen language Monolingual: We trained a model for each language independently. Our preliminary study found that Transformer TTS was unstable5 and could not synthesize in- telligible speech in the monolingual condition due to the lack of training data. Therefore, we used Tacotron2 [Shen et al., 2018] only for the monolingual models, as in the original pa- per of the dataset [Park and Mulc, 2019]. Multilingual w/o LIDs: We trained a multilingual Transformer TTS model us- ing the paired data shown in Table 1 without language IDs
+5The original paper [Li et al., 2019b] also reports the instability.
+(LIDs). Multilingual w/ LIDs: We trained a multilingual Transformer TTS model with the paired data of the unseen language. It also used the language IDs.
+Unseen language We compared Fully zero-shot TTS and Text-seen zero-shot TTS defined in § 2.3. In Oracle, we used the Monolingual and Multilingual w/ LIDs, which used the paired data of the unseen language. In Fully zero-shot TTS, we used Multilingual w/o LIDs to synthesize speech from text tokens in the unseen language. This method corresponds to the conventional multilingual TTS model using bytes [He et al., 2021] or IPA symbols [Staib et al., 2020].
+Evaluation Metrics To objectively measure the synthetic speech quality, we used mel cepstral distortion (MCD) [Fukada et al., 1992] with the mel cepstrum dimension set to 25. We also evaluated the intelligibility using CERs computed with a multilingual ASR model [Radford et al., 2022]. We used a pretrained large model that is publicly available6. To evaluate the nat- uralness, we carried out listening tests to calculate five-scale mean opinion scores (MOS) of synthesized speech for each method. Forty native speakers were recruited through Ama- zon Mechanical Turk [Paolacci et al., 2010] for each of the tests. Furthermore, we leveraged a publicly available auto- matic MOS (AMOS) prediction model [Saeki et al., 2022a] to evaluate the naturalness. Note that the model was trained on English and Chinese datasets, but previous work [Seki et al., 2022] has reported that it also showed a correlation coef- ficient higher than 0.8 for another language (Japanese).
+3.2 Evaluation Results on Seen Languages We evaluated our framework on the seen languages included in the paired data, as defined in § 2.3. Table 2 lists the results in MCD and CER. Lower values are better for both metrics. As we can see, the byte-based or IPA-based models with the proposed multilingual pretraining performed the best across all languages and metrics. Among the baselines, byte-based monolingual and multilingual models tended to have higher MCD and CER than IPA-based models, and failed to synthe- size intelligible speech in some languages. For example, the baseline byte-based models showed the high CER values for French, which has a deep orthography, meaning that a single character has different pronunciations depending on the con- text. We observed that our method improved the byte-based models and they outperformed the IPA-based baseline models for all the metrics and languages. It is worth noting that the proposed byte-based models even outperformed the proposed IPA-based models except for el and ru. These results suggest that our framework is effective in building a TTS model for languages without G2P modules.
+3.3 Evaluation Results on Unseen Language We evaluated our method on zero-shot TTS for the unseen language defined in § 2.3. As described in § 2.4, we first used the x-vector from the es speaker to compute the MCD. Table 3 lists the results. The baseline models showed the CERs of over 40% and MCDs of over 10.0. However, our
+6https://github.com/openai/whisper
+
+
+Method
+fi MCD CER MCD CER MCD CER MCD CER MCD CER MCD CER MCD CER
+de
+fr
+ru
+hu
+nl
+el
+Natural
+
+2.75
+
+4.52
+
+2.12
+
+4.73
+
+4.86
+
+6.22
+
+7.14
+Baseline (Monolingual)
+Bytes monolingual IPA monolingual
+7.70 7.38
+8.61 4.07
+11.76 8.96
+91.82 17.86
+11.43 >100 25.30 11.89
+8.33 7.23
+56.03 27.62
+10.22 7.59
+93.05 24.62
+7.49 7.80
+15.33 19.20
+10.20 8.16
+85.98 21.79
+Baseline (Multilingual)
+Bytes multilingual w/o LIDs Bytes multilingual w/ LIDs IPA multilingual w/o LIDs IPA multilingual w/ LIDs
+7.68 6.51 6.31 6.16
+37.46 13.19 10.64 9.76
+8.71 10.84 7.44 6.88
+41.35 55.79 20.86 14.97
+9.38 45.92 12.89 >100 35.32 8.10 23.54 7.63
+6.26 6.78 5.53 5.17
+29.19 27.22 19.56 10.63
+6.48 9.09 5.59 5.28
+33.82 42.97 14.03 9.11
+8.46 8.47 7.76 6.95
+46.33 39.37 34.49 19.48
+7.64 7.25 6.90 6.90
+36.24 23.56 19.33 16.97
+Proposed (Unsupervised text pretraining)
+Bytes multilingual IPA multilingual
+5.65 5.88
+3.79 5.52
+6.48 6.61
+7.15 7.72
+7.38 7.25
+10.62 15.85
+4.99 5.18
+5.28 8.62
+5.01 5.30
+6.05 7.37
+6.52 7.00
+13.74 14.42
+6.57 6.53
+11.75 11.06
+Table 2: Evaluation results for seen languages. Bold indicates best scores in baseline and proposed methods.
+es
+Method
+es x-vector MCD CER
+Natural
+
+2.71
+Oracle
+Bytes monolingual IPA monolingual IPA multilingual
+8.65 8.47 6.20
+10.70 5.28 5.32
+Baseline (Fully zero-shot TTS)
+Bytes multilingual IPA multilingual
+11.22 10.75
+64.07 44.75
+fr x-vector CER
+2.71
+- 6.99
+66.45 44.37
+(a) Token embedding 𝑍(b) Encoder inputs 𝐻!"
+Proposed (Text-seen zero-shot TTS)
+Bytes multilingual IPA multilingual
+9.05 9.44
+18.27 11.69
+13.74 13.33
+Figure 3: Visualization of token and language embedding. Pairs of similar languages (es–fr and de–nl) are overlapping in token embed- ding space, while output of bottleneck layer separates them.
+Table 3: Evaluation results for unseen language.
+proposed text preraining improved the metrics, resulting in CERs of less than half for both byte and IPA-based methods. Also, in contrast to the results for the seen languages, the IPA-based model outperformed the byte-based one in terms of CER. Compared with the oracle case with the paired data of the unseen language, our proposed zero-shot TTS showed higher MCD and CER but achieved only 1% difference in CER compared to the oracle byte-based monolingual model. These results demonstrate the effectiveness of our method in achieving intelligible zero-shot TTS for the unseen language. To investigate the case where the target speaker informa- tion is completely unavailable, we also used the x-vector from a seen language. We chose the fr speaker because es and fr are both categorized as Western Romance in Glottolog [Ham- marstr¨om et al., 2021]. Table 3 lists the results. Note that this case does not have the MCD results, since a different speaker than the ground-truth speech was used. We can see that the unsupervised text pretraining also improved the zero- shot performance when using the x-vector from the fr speaker. In the proposed byte-based model, the cross-lingual x-vector showed the lower CER. This might result from that the es x-vector was not present in the training data whereas the fr x-vector was present in the training data.
+3.4 Ablation Study To further evaluate our method, we conducted several abla- tion studies. Table 4 lists the results. Bytes multilingual rep- resents the byte-based proposed method in the evaluation of § 3.2 and 3.3. Note that it used the frozen language-aware embedding layer as formulated in Eq. (9). Some additional studies of our method are also presented in the Appendix.
+In W/o bottleneck layer, we excluded the bottleneck layer and simply added the token and language embedding to ob- tain the encoder input in Eq. (2). We found that removing the bottleneck layer led to a performance drop in all the lan- guages and metrics, with an average increase of 0.53 in MCD and 4.16% in CER. The largest increase was observed in the unseen language, with an increase of 1.21 in MCD. This sug- gests that the bottleneck layer, which projects the token and language embedding into the hidden input text representation with nonlinear dimensionality reduction, is effective in im- proving the generalization for zero-shot TTS.
+We also evaluated the effect of including language IDs in the proposed method by comparing it with a version that ex- cluded language IDs, referred to as W/o language ID. It cor- responds to a simple multilingual BERT pretraining [Wu and Dredze, 2019] that uses only text tokens across different lan- guages. We observed that the use of language IDs led to an
+
+
+Method
+de
+fr
+Seen
+ru
+fi
+Unseen es
+Avg.
+MCD CER MCD CER MCD CER MCD CER MCD CER MCD CER
+Bytes multilingual
+5.65
+3.79
+6.48
+7.15
+7.38
+10.62
+4.99
+5.28
+9.05
+18.27
+6.46
+9.58
+W/o bottleneck layer W/o language ID W/o initializing encoder Updating language-aware embedding layer
+6.06 6.07 5.59 6.05
+5.01 5.09 3.75 6.22
+7.15 7.09 6.52 6.75
+9.09 9.99 9.31 6.93
+7.71 7.77 7.12 7.46
+28.52 22.58 16.47 11.42
+5.33 5.23 4.86 5.16
+6.47 6.99 5.03 8.00
+10.26 10.45 9.02 9.48
+24.01 32.70 21.91 17.21
+6.99 6.96 6.42 6.75
+13.74 14.06 11.85 10.62
+Table 4: Ablation studies on training and model configurations. Bold indicates best metrics on average (Avg.).
+Proposed (IPA multilingual)
+Baseline (IPA monolingual)
+ru (AMOS)
+fi (AMOS)
+Baseline (IPA multilingual w/ LIDs)
+Baseline (IPA multilingual w/o LIDs)
+Natural
+nl (AMOS)
+fr (AMOS)
+11.522.533.544.5defr
+Avg (AMOS)
+Baseline (Bytes multilingual w/o LIDs)
+hu (AMOS)
+el (AMOS)
+Proposed (Bytes multilingual)
+11.522.533.544.5de (MOS)fr (MOS)
+de (AMOS)
+Figure 4: MOS and AMOS results for seen languages. Error bars in MOS results represent 95% confidence intervals.
+Method
+de
+hu
+MCD CER MCD CER
+Natural
+
+2.75
+
+2.12
+Oracle
+IPA monolingual IPA multilingual
+7.38 6.16
+4.07 9.76
+7.59 5.28
+24.62 9.11
+Baseline (Fully zero-shot TTS)
+IPA multilingual
+10.31
+38.75
+9.93
+52.62
+Proposed (Text-seen zero-shot TTS)
+Proposed (Bytes multilingual)
+Proposed (IPA multilingual)es (MOS)es (AMOS)
+11.522.533.544.5
+Oracle (IPA monolingual)
+0.556
+Baseline (IPA multilingual)
+Natural
+0.444es (AB test)p-value: 0.011
+Oracle (IPA multilingual)
+Bytes multilingual
+10.00
+28.01
+9.40
+50.11
+Table 5: Analysis on different unseen languages.
+Figure 5: MOS, AMOS, and AB test results for unseen language. Error bars in MOS results represent 95% confidence intervals.
+average improvement of 0.5 MCD and 4.48% CER, indicat- ing the effectiveness of our approach in using language IDs. In W/o initializing encoder, we did not initialize the en- coder θE before the supervised leaning described in § 2.2. Instead, we only initialized the parameters θT, θL, and θB with the parameters pretrained in § 2.1. Through this eval- uation, we investigated whether the performance gain with our method resulted from the initialization of the language- aware embedding layer or the encoder. We observed that W/o initializing encoder resulted in an improvement of 0.04 in MCD and only a 2.27% increase in CER on average, sug- gesting that our method benefits more from the pretraining of the language-aware embedding layer than from the encoder. In Updating language-aware embedding layer, we updated the language-aware embedding layer during supervised learn- ing, as formulated in Eq. (8). We observed that freezing the language-aware embedding layer led to better performance for most languages and metrics, resulting in an average dif- ference of 0.29 in MCD and 1.04% in CER.
+3.5 Dependency on Unseen Languages We conducted evaluations on the zero-shot TTS for different unseen languages. The eight European languages included in the paired data are composed of Indo-European and Uralic language families defined in Glottolog [Hammarstr¨om et al., 2021]. In this evaluation, we selected de and hu from each of the families. During supervised learning in § 2.2, we ex- cluded the paired data for each of de and hu and instead in- cluded the paired data for es. Table 5 lists the results. We chose the IPA-based baseline method, which had shown bet- ter results in § 3.3. We observed that the pretraining im- proved the CER by around 10% and MCD by around 0.3 for de. However, the improvement in CER for hu was limited to 2%, while the MCD was improved by around 0.5. These results suggest that the performance of our zero-shot TTS is language dependent, as observed in previous work on cross- lingual transfer for NLP tasks [Wu and Dredze, 2019].
+Fig. 3 visualize the token embedding Z and encoder in- puts Hin averaged on each utterance. We used a t-distributed
+
+
+stochastic neighbor embeddings (t-SNE) [der Maaten and Hinton, 2008]. We observed overlaps in the token embed- ding for (es, fr) and (de, nl), which are classified as Western Romance and West Germanic in Glottolog, respectively. The encoder inputs are separated in the embedding space for each language. The results in Table 5 and the visualization sug- gest that the cross-lingual transfer works better when simi- lar languages sharing the token embedding space are present during supervised learning. However, for languages with dis- tinct token and language embeddings, the cross-lingual trans- ferability might be limited. We leave the further analysis on language dependencies as a topic for future research.
+3.6 Subjective Evaluations on Naturalness We conducted evaluations on naturalness as described in § 3.1. Fig. 4 shows the results for seen languages. Note that we conducted the listening tests for de and fr. For each language, either of the proposed methods showed the high- est MOS, while we did not observe any significant differ- ence between the proposed methods and the best baseline method, which was the IPA-based multilingual model with LIDs. To further validate our results, we also evaluated the naturalness with an AMOS prediction model, as shown in Fig. 4. We observed that the either of the proposed meth- ods showed the highest scores in all the languages. On aver- age, the byte-based and IPA-based proposed models showed 2.89 and 2.84, respectively, while the best baseline method obtained 2.837. Additionally, we observed that the byte-based proposed model often scored higher than the IPA-based pro- posed models, which is consistent with the results in Table 2. Fig. 5 shows the results for unseen languages. The ora- cle methods had the highest MOS of 3.76 and 3.96, and the baseline zero-shot method had the lowest MOS of 3.29. The proposed methods outperformed the baseline method, and the byte- and IPA-based models had the MOS of 3.44 and 3.32, respectively. The AMOS results were consistent with the lis- tening test results, with the proposed zero-shot TTS methods outperforming the baseline method. In this evaluation, the proposed byte-based model scored 3.21 on the AMOS, while the oracle IPA-based model scored 3.20. To further validate the results, we conducted a preference AB test on naturalness with 25 rators. As shown in Fig. 5, our byte-based model significantly outperformed the baseline IPA-based model.
+4 Related Work Multilingual TTS While previous work on multilingual TTS has primarily focused on resource-rich languages [Zen et al., 2012; Li and Zen, 2016], there is growing interest in developing TTS models on low-resource languages. Sev- eral studies have explored the input tokens shared across lan- guages such as bytes [Li et al., 2019a; He et al., 2021], IPA symbols [Gutkin, 2017], and articulatory features [Lux and Vu, 2022], to transfer knowledge from resource-rich to low- resource languages. Grapheme tokens can eliminate the per-
+7The AMOS tended to be lower than the MOS. While the MOS prediction model has a high correlation, it may produce errors in predicting absolute values, as reported in previous work [Saeki et al., 2022a]. The relative relationships are more reliable in the AMOS.
+language G2P knowledge, and previous work has built a byte- based TTS model for around 40 languages [He et al., 2021]. There has been work using the phonological features derived from IPA to achieve the zero-shot TTS [Staib et al., 2020]. Our framework achieves the zero-shot cross-lingual transfer with bytes by leveraging multilingual text pretraining. There have been studies on using untranscribed speech data for low- resource scenarios by leveraging VQ-VAE [Zhang and Lin, 2020] or an ASR model [Ren et al., 2019; Ni et al., 2022]. Other work [Saeki et al., 2022b] has trained a massively multilingual TTS using paired TTS, paired ASR, unpaired speech, and unpaired text data. While it also performs text- only training as in our work, it still uses the paired speech-text data of the target languages. Our framework is simple and scalable, while pioneering a novel paradigm with the zero- shot TTS approach that relies only on text data. Cross-lingual representation learning for NLP There have been studies on learning cross-lingual representations that can be applied to various NLP tasks in different lan- guages [Gouws et al., 2015; Ruder et al., 2019]. Recent work has highlighted the strong cross-lingual transferability of multilingual BERT [Devlin et al., 2019], which has been observed to perform surprisingly well when transferred to other languages [Wu and Dredze, 2019; Conneau and Lam- ple, 2019]. Building on this, our work leverages multilingual MLM pretraining for TTS, which improves byte-based TTS models without G2P knowledge and achieves zero-shot TTS. Language model pretraining for TTS Previous research has explored self-supervised text pretraining techniques for TTS. BERT models have been used to extract contextual embeddings and enhance the prosody of TTS [Hayashi et al., 2019; Xu et al., 2021]. Other studies have used phonemes jointly with graphemes [Jia et al., 2021] or sub- phonemes [Zhang et al., 2022] as the inputs of the MLM pre- training. Our work proposes multilingual MLM pretraining for TTS using text tokens shared across languages, rather than focusing on monolingual pretraining.
+5 Conclusions We presented a multilingual TTS framework that leverages unsupervised text pretraining. Our framework achieved highly intelligible zero-shot TTS for an unseen language, re- It also improved the sulting in a CER of less than 12%. TTS for seen languages, with byte-based models without G2P modules outperforming the IPA-based baselines. Our abla- tion studies provided additional insights, including the effec- tiveness of the frozen language embedding layer. Limitations and future work Our proposed framework has limitations. The performance gap remains between the oracle models and our zero-shot TTS models in terms of in- telligibility, speech quality, and naturalness, as seen in the evaluation in § 3.3 and § 3.6. Further studies are needed to improve our zero-shot TTS. Our framework also has a limi- tation with language dependency, as the results in § 3.5 sug- gest that this dependency is caused by the presence of similar languages during supervised learning. Our future work will focus on studying this language dependency further and de- veloping a method that performs better for various languages.
+
+
+Acknowledgments Part of this work was supported by JSPS KAKENHI Grant Number 21H05054, 22H03639, and 22J12040. This work used the Bridges system [Nystrom et al., 2015], which is sup- ported by NSF award number ACI-1445606, at the Pittsburgh Supercomputing Center. We would like to thank the research teams at Google through the internship of the first author for providing various insights on this topic.
+References [Ba et al., 2016] J. L. Ba, J. R. Kiros, and G. E Hinton. Layer normalization. arXiv preprint arXiv:1607.06450, 2016. [Ba˜n´on et al., 2020] M. Ba˜n´on, P. Chen, B. Haddow, K. Heafield, H. Hoang, M. Espl`a-Gomis, M. L Forcada, A. Kamran, F. Kirefu, P. Koehn, et al. Paracrawl: Web- scale acquisition of parallel corpora. In Proc. ACL, pages 4555–4567, 2020.
+[Bapna and Firat, 2019] A. Bapna and O. Firat. Simple, scal- In Proc.
+able adaptation for neural machine translation. EMNLP-IJCNLP, pages 1538–1548, 2019.
+[Conneau and Lample, 2019] A. Conneau and G. Lample. In Proc.
+Cross-lingual NeurIPS, pages 7059–7069, 2019.
+language model pretraining.
+[der Maaten and Hinton, 2008] L. Van der Maaten and JMLR,
+G. Hinton. 9(11):2579–2605, 2008.
+Visualizing data using t-sne.
+[Devlin et al., 2019] J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova. BERT: Pre-training of deep bidirectional transformers for language understanding. In Proc. NAACL, pages 4171–4186, 2019.
+[Ebrahimi and Kann, 2021] A. Ebrahimi and K. Kann. How to adapt your pretrained multilingual model to 1600 lan- guages. In Proc. ACL-IJCNLP, pages 4555–4567, 2021. [Fukada et al., 1992] T. Fukada, K. Tokuda, T. Kobayashi, and S. Imai. An adaptive algorithm for mel-cepstral anal- ysis of speech. In Proc. ICASSP, pages 137–140, 1992. [Gouws et al., 2015] S. Gouws, Y. Bengio, and G. Corrado. Bilbowa: Fast bilingual distributed representations with- In Proc. ICML, pages 748–756, out word alignments. 2015.
+[Gutkin, 2017] A. Gutkin. Uniform multilingual multi- speaker acoustic model for statistical parametric speech In Proc. Inter- synthesis of low-resourced languages. speech, pages 2183–2187, 2017.
+[Hammarstr¨om et al., 2021] H. Hammarstr¨om, R. Forkel, M. Haspelmath, and S. Bank. Glottolog 4.5. Max Planck Institute for the Science of Human History, 2021.
+[Hayashi et al., 2019] T. Hayashi, S. Watanabe, T. Toda, K. Takeda, S. Toshniwal, and K. Livescu. Pre-trained text embeddings for enhanced text-to-speech synthesis. In Proc. Interspeech, pages 4430–4434, 2019. R.
+[Hayashi et al., 2021] T.
+Yamamoto, T. Yoshimura, P. Wu, J. Shi, T. Saeki, Y. Ju, Y. Ya- Espnet2-tts: suda, S. Takamichi, and S. Watanabe.
+Hayashi,
+Extending the edge of tts research. arXiv:2110.07840, 2021.
+arXiv preprint
+[He et al., 2021] M. He,
+and F. K Soong. Multilingual byte2speech models for scal- arXiv preprint able low-resource speech synthesis. arXiv:2103.03541, 2021.
+J. Yang, L. He,
+[Hendrycks and Gimpel, 2016] D. Hendrycks and K. Gim- pel. Gaussian error linear units (gelus). arXiv preprint arXiv:1606.08415, 2016.
+[Jia et al., 2021] Y. Jia, H. Zen, J. Shen, Y. Zhang, and Y. Wu. PnG BERT: Augmented BERT on phonemes arXiv preprint and graphemes arXiv:2103.15060, 2021.
+for neural TTS.
+[Jr, 2005] R. G Gordon Jr. Ethnologue, languages of the world. https://www.ethnologue.com/, 2005. Accessed: 2023-05-27.
+[Kim et al., 2021] J. Kim, J. Kong, and J. Son. Conditional variational autoencoder with adversarial learning for end- to-end text-to-speech. In Proc. ICML, pages 5530–5540, 2021.
+[Kong et al., 2020] J. Kong, J. Kim, and J. Bae. HiFi-GAN: Generative adversarial networks for efficient and high fi- delity speech synthesis. Proc. NeurIPS, 33:17022–17033, 2020.
+[Li and Zen, 2016] B. Li and H. Zen. Multi-language multi- speaker acoustic modeling for LSTM-RNN based statis- In Proc. Interspeech, tical parametric speech synthesis. pages 2468–2472, 2016.
+[Li et al., 2019a] B. Li, Y. Zhang, T. Sainath, Y. Wu, and W. Chan. Bytes are all you need: End-to-end multilin- gual speech recognition and synthesis with bytes. In Proc. ICASSP, pages 5621–5625, 2019.
+[Li et al., 2019b] N. Li, S. Liu, Y. Liu, S. Zhao, and M. Liu. Neural speech synthesis with Transformer network. In Proc. AAAI, pages 6706–6713, 2019.
+[Li et al., 2022] X. Li, F. Metze, D. R Mortensen, A. W Black, and S. Watanabe. ASR2K: Speech recognition for around 2000 languages without audio. arXiv preprint arXiv:2209.02842, 2022.
+[Lux and Vu, 2022] F. Lux and T. Vu. Language-agnostic meta-learning for low-resource text-to-speech with artic- ulatory features. In Proc. ACL, pages 6858–6868, 2022. [Munich Artificial Intelligence Laboratories GmbH, 2017]
+Intelligence Laboratories GmbH. Munich Artificial The M-AILABS speech dataset. https://www.caito.de/ 2019/01/the-m-ailabs-speech-dataset/, 2017. Accessed: 2023-05-27.
+[Nagrani et al., 2017] A. Nagrani, J. S. Chung, and A. Zis- serman. VoxCeleb: A large-scale speaker identification dataset. In Proc. Interspeech, pages 2616–2620, 2017. [Nair and Hinton, 2010] V. Nair and G. E Hinton. Rectified linear units improve restricted boltzmann machines. In Proc. ICML, 2010.
+
+
+[Ni et al., 2022] J. Ni, L. Wang, H. Gao, K. Qian, Y. Zhang, S. Chang, and M. Hasegawa-Johnson. Unsupervised text-to-speech synthesis by unsupervised automatic speech recognition. In Proc. Interspeech, pages 461–465, 2022. [Nystrom et al., 2015] N. A Nystrom, M. J Levine, R. Z Roskies, and J Ray Scott. Bridges: a uniquely flexible hpc resource for new communities and data analytics. In Proc. XSEDE, pages 1–8, 2015.
+[Paolacci et al., 2010] G. Paolacci, J. Chandler, and P. G Ipeirotis. Running experiments on amazon mechanical turk. Judgment and Decision making, 5(5):411–419, 2010. [Park and Mulc, 2019] K. Park and T. Mulc. CSS10: A col- lection of single speaker speech datasets for 10 languages. Proc. Interspeech, pages 1566–1570, 2019.
+[Pires et al., 2019] T. Pires, E. Schlinger, and D. Garrette. How multilingual is multilingual BERT? In Proc. ACL, pages 4996–5001, 2019.
+[Prakash et al., 2019] A. Prakash, A L. Thomas, S Umesh, and H. A Murthy. Building multilingual end-to-end speech In Proc. SSW, pages synthesisers for Indian languages. 194–199, 2019.
+[Radford et al., 2022] A. Radford,
+J. W Kim, T. Xu, G. Brockman, C. McLeavey, and I. Sutskever. Robust speech recognition via large-scale weak supervision. arXiv preprint arXiv:2212.04356, 2022.
+[Ravanelli et al., 2021] M.
+Parcollet, P. Plantinga, A. Rouhe, S. Cornell, L. Lugosch, J. Zhong, C. Subakan, N. Dawalatabad, A. Heba, et al. SpeechBrain: A general-purpose speech toolkit. arXiv preprint arXiv:2106.04624, 2021.
+Ravanelli,
+T.
+[Ren et al., 2019] Y. Ren, X. Tan, T. Qin, S. Zhao, Z. Zhao, and T.-Y. Liu. Almost unsupervised text to speech and au- tomatic speech recognition. In Proc. ICML, pages 5410– 5419, 2019.
+[Ruder et al., 2019] S. Ruder, I. Vuli´c, and A. Søgaard. A survey of cross-lingual word embedding models. JAIR, 65:569–631, 2019.
+[Saeki et al., 2022a] T. Saeki, D. Xin, W. Nakata, T. Ko- riyama, S. Takamichi, and H. Saruwatari. UTMOS: UTokyo-SaruLab system for VoiceMOS Challenge 2022. In Proc. Interspeech, pages 4521–4525, 2022.
+[Saeki et al., 2022b] T. Saeki, H. Zen, Z. Chen, N. Morioka, G. Wang, Y. Zhang, A. Bapna, A. Rosenberg, and B. Ram- abhadran. Virtuoso: Massive multilingual speech-text joint semi-supervised learning for text-to-speech. arXiv preprint arXiv:2210.15447, 2022.
+[Seki et al., 2022] K. Seki, S. Takamichi, T. Saeki, and H. Saruwatari. Text-to-speech synthesis from dark data with evaluation-in-the-loop data selection. arXiv preprint arXiv:2210.14850, 2022.
+[Shen et al., 2018] J. Shen, R. Pang, R. J Weiss, M. Schus- ter, N. Jaitly, Z. Yang, Z. Chen, Y. Zhang, Y. Wang, RJ Skerrv-Ryan, et al. Natural TTS synthesis by condi- tioning WaveNet on mel spectrogram predictions. In Proc. ICASSP, pages 4779–4783, 2018.
+[Snyder et al., 2018] D. Snyder, D. Garcia-Romero, G. Sell, D. Povey, and S. Khudanpur. X-vectors: Robust dnn em- beddings for speaker recognition. In Proc. ICASSP, pages 5329–5333, 2018.
+[Staib et al., 2020] M. Staib, T. H. Teh, A. Torresquintero, D. S R. Mohan, L. Foglianti, R. Lenain, and J. Gao. Phonological features for 0-shot multilingual speech syn- thesis. In Proc. Interspeech, pages 2942–2946, 2020. [Tachibana et al., 2018] H. Tachibana, K. Uenoyama, and S. Aihara. Efficiently trainable text-to-speech system based on deep convolutional networks with guided atten- tion. In Proc. ICASSP, pages 4784–4788, 2018.
+[Vaswani et al., 2017] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N Gomez, Ł. Kaiser, and I. Polo- sukhin. Attention is all you need. In Proc. NeurIPS, vol- ume 30, 2017.
+[Veaux et al., 2017] C. Veaux, J. Yamagishi, K. MacDonald, et al. CSTR VCTK corpus: English multi-speaker corpus for CSTR voice cloning toolkit. University of Edinburgh. The Centre for Speech Technology Research (CSTR), 2017. [Wang et al., 2021] C. Wang, M. Riviere, A. Lee, A. Wu, C. Talnikar, D. Haziza, M. Williamson, J. Pino, and E. Dupoux. VoxPopuli: A large-scale multilingual speech corpus for representation learning, semi-supervised learn- In Proc. ACL, pages 993–1003, ing and interpretation. 2021.
+[Watanabe et al., 2018] S. Watanabe, T. Hori, S. Karita, T. Hayashi, J. Nishitoba, Y. Unno, N.-E. Y. Soplin, J. Hey- mann, M. Wiesner, N. Chen, et al. ESPnet: End-to-end speech processing toolkit. Proc. Interspeech, pages 2207– 2211, 2018.
+[Wu and Dredze, 2019] S. Wu and M. Dredze. Beto, Bentz, Becas: The surprising cross-lingual effectiveness of BERT. In Proc. EMNLP-IJCNLP, pages 833–844, 2019. [Xu et al., 2021] G. Xu, W. Song, Z. Zhang, C. Zhang, X. He, and B. Zhou. Improving prosody modelling with cross-utterance BERT embeddings for end-to-end speech synthesis. In Proc. ICASSP, pages 6079–6083, 2021. [Zen et al., 2012] H. Zen, N. Braunschweiler, S. Buchholz, M. JF Gales, K. Knill, S. Krstulovic, and J. Latorre. Sta- tistical parametric speech synthesis based on speaker and language factorization. TASLP, 20(6):1713–1724, 2012. [Zen et al., 2019] H. Zen, V. Dang, R. Clark, Y. Zhang, R. J Weiss, Y. Jia, Z. Chen, and Y. Wu. LibriTTS: A corpus derived from LibriSpeech for text-to-speech. In Proc. In- terspeech, pages 1526–1530, 2019.
+[Zhang and Lin, 2020] H. Zhang and Y. Lin. Unsupervised learning for sequence-to-sequence text-to-speech for low- resource languages. Proc. Interspeech, pages 3161–3165, 2020.
+[Zhang et al., 2022] G. Zhang, K. Song, X. Tan, D. Tan, Y. Yan, Y. Liu, G. Wang, W. Zhou, T. Qin, T. Lee, et al. Mixed-Phoneme BERT: Improving BERT with mixed phoneme and sup-phoneme representations for text to speech. In Proc. Interspeech, pages 456–460, 2022.
+
+
+Method
+de
+fr
+Seen
+ru
+fi
+Unseen es
+Avg.
+MCD CER MCD CER MCD CER MCD CER MCD CER MCD CER
+Spoken Text Written Text Spoken+Written Text
+5.65 5.81 5.54
+3.79 4.55 3.72
+6.48 6.94 6.34
+7.15 9.10 7.51
+7.38 7.61 7.07
+10.62 21.24 15.33
+4.99 5.22 4.96
+5.28 12.73 5.44
+9.05 9.50 8.82
+18.27 18.44 17.48
+6.46 6.76 6.35
+9.58 12.52 10.04
+Table 6: Comparison of text data domain for unsupervised text pretraining.
+Method
+de
+fr
+Seen
+ru
+fi
+Unseen es
+Avg.
+MCD CER MCD CER MCD CER MCD CER MCD CER MCD CER
+Residual layer Transformer encoder
+5.65 5.77
+3.79 4.63
+6.48 6.36
+7.15 6.61
+7.38 7.17
+10.62 11.25
+4.99 4.90
+5.28 6.50
+9.05 8.89
+18.27 14.15
+6.46 6.44
+9.58 9.97
+Table 7: Comparison of bottleneck layer architecture.
+A Text data for pretraining
+We investigated the effect of different types of text data used in pretraining Dtext on the performance of our method. As described in § 3.1, we used spoken texts from VoxPop- uli, M-AILABS, and CSS10 in the evaluations presented in § 3. However, we can acquire a large amount of text data from datasets designed for NLP or from web-crawled text resources. These data typically consist of written texts and cover a wide range of domains. To investigate the effective- ness of using written texts for our multilingual TTS, we used ParaCrawl [Ba˜n´on et al., 2020], a web-crawled text dataset built for machine translation, for Dtext during the unsuper- vised pretraining described in § 2.1. For the investigation, we randomly sampled the same amount of texts as in Table 1 for each language. We then trained our model using the fol- lowing three different cases. 1) Spoken Text: Only using the spoken text for pretraining as in the previous evaluations, 2) Written Text: Only using the text data from ParaCrawl, and 3) Spoken+Written Text: We combined the text data in Spo- ken Text and Written Text. We used the byte-based proposed model presented in § 3.2 and § 3.3. Table 6 lists the results.
+encoder as the bottleneck layer (referred to as Transformer- encoder), comparing it with the original residual layer de- tailed in § 2.4 (referred to as Residual layer). Table 7 lists the results.
+For the seen languages, the superior performance between the residual layer and the transformer encoder varied, depend- ing on the specific language and evaluation metrics. However, for the unseen language, the Transformer encoder showed higher performance, achieving an improvement of 4.12 in CER. Looking at the average scores across all languages, the Transformer encoder had a slightly lower MCD, while the CER was reduced by 0.39 when using the residual layer. These results suggest that the use of a deeper layer can im- prove the generalizability of the proposed model. Neverthe- less, the overall performance of both models remains compa- rable in terms of average metrics.
+C Effect of excluding some languages from
+paired data.
+We observed that Spoken Text outperformed Written Text in all the metrics and languages, resulting in an average dif- ference of 0.3 in MCD and 2.94% in CER. These results demonstrate the effectiveness of using spoken text for pre- training. Spoken+Written Text showed on average 0.11 lower MCD and 0.46% higher CER compared to Spoken Text. How- ever, for the unseen language, Spoken+Written Text outper- formed Spoken Text in MCD and CER. These results suggest that adding written text data can improve the generalization of our TTS models for the zero-shot scenarios.
+In this section, we have deliberately excluded several lan- guages from the paired data used for the supervised learning described in § 2.2 in order to study their impact. As shown in Table 1, the paired data originally included the languages de, fr, nl, fi, hu, ru, and el. As a comparison case, we first ex- cluded fr, which belongs to Italic languages as es according to Glottolog [Hammarstr¨om et al., 2021]. We also removed de and nl, which belong to Germanic languages, from the paired data. Consequently, in the comparison case, supervised learn- ing was performed only with fi, ru, hu, and el. Table 8 lists the results. Original corresponds to the case shown in Ta- ble 1, while Excluded denotes the case where only fi, ru, hu, and el were used.
+B Architecture of bottleneck layer
+As described in § 2.4, we used the residual layer for our bot- tleneck layer. Also, we demonstrated the effectiveness of the residula bottleneck layer for both seen and unseen lan- guages in the evaluation presented in § 3.4. In this section, we explored an alternative architecture for the bottleneck layer. We conducted experiments using a single-layer Transformer
+The three languages listed on the left-hand side of Table 8 (ru, hu, fi) represent the seen languages in both cases. In- terestingly, the Original scenario generally outperformed the Excluded scenario for these languages. These results indi- cate that in the context of multilingual TTS training, perfor- mance can potentially be improved by including a wider va- riety of languages rather than restricting to similar languages.
+
+
+Method
+ru
+hu
+fi
+de
+fr
+MCD CER MCD CER MCD CER MCD CER MCD CER MCD CER
+es
+Original (de, fr, nl, fi, hu, ru, el) Excluded (fi, hu, ru, el)
+7.38 7.00
+10.62 11.11
+5.01 5.32
+6.05 6.92
+4.99 4.98
+5.28 5.46
+5.65 10.39
+3.79 34.11
+6.48 10.90
+7.15 49.65
+9.05 10.00
+Table 8: Effects of excluding languages from paired data.
+(a) Baseline (Bytes)(b) Proposed(Bytes)
+both the baseline and the proposed methods. The top part of Fig. 6 represents results from the fifth layer, while the bottom part corresponds to results from the sixth layer. The left side of the figure shows the results of the baseline method, while the right side shows the results of the proposed method.
+We observe that the fifth layer of the baseline model shows a discontinuity in the attention map, which leads to instabil- ity of the linguistic content. Conversely, in the fifth layer of the proposed model, the attention map is significantly more continuous than in the baseline method. These results sug- gest that our unsupervised text pretraining can improve cross- attention in the absence of paired speech-text data. The re- sults are also reflected in the intelligibility difference between the baseline and the proposed methods presented in § 3.3.
+Figure 6: Cross-attention maps obtained from byte-based baseline and proposed methods, which correspond to first attention head in fifth and sixth layers of decoder.
+This suggests the effectiveness of massively multilingual TTS training, as supported by previous work [Saeki et al., 2022b]. The two languages (de, fr) were included in the paired data for Original, but were excluded from the paired data for Ex- cluded. We observed that the zero-shot setting resulted in a decrease in performance. Comparing the de results in Table 5 with those in Table 8, we confirmed that excluding fr, nl, and es resulted in a 6.1% performance degradation in CER. Also, es was absent from the paired data in both the Original and Excluded scenarios. An examination of the es results revealed a 6.53% increase in CER for the Excluded scenario. These results demonstrate the importance of including linguistically similar languages in the paired data.
+D Observation of cross-attention map. In this section, we show the cross-attention maps obtained during inference from both the byte-based proposed and the baseline methods defined in § 3.1. In both cases, an utterance sampled from an unseen language (Spanish) was used. Fig. 6 shows the cross-attention maps corresponding to the first at- tention head in the fifth and sixth layers of the decoder. It should be noted that we have cross-attention maps for other heads and layers. The results shown in Fig. 6 are derived from attention maps that have a diagonal shape in higher layers for
+18.27 24.80

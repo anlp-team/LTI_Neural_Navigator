@@ -1,0 +1,273 @@
+3 2 0 2
+y a M 1
+] L C . s c [
+1 v 6 2 9 0 0 . 5 0 3 2 : v i X r a
+JOINT MODELLING OF SPOKEN LANGUAGE UNDERSTANDING TASKS WITH INTEGRATED DIALOG HISTORY
+Siddhant Arora1, Hayato Futami2, Emiru Tsunoo2, Brian Yan1, Shinji Watanabe1
+1Carnegie Mellon University, 2Sony Group Corporation, Japan
+ABSTRACT
+Most human interactions occur in the form of spoken conversations where the semantic meaning of a given utterance depends on the con- text. Each utterance in spoken conversation can be represented by many semantic and speaker attributes, and there has been an interest in building Spoken Language Understanding (SLU) systems for au- tomatically predicting these attributes. Recent work has shown that incorporating dialogue history can help advance SLU performance. However, separate models are used for each SLU task, leading to an increase in inference time and computation cost. Motivated by this, we aim to ask: can we jointly model all the SLU tasks while incor- porating context to facilitate low-latency and lightweight inference? To answer this, we propose a novel model architecture that learns dialog context to jointly predict the intent, dialog act, speaker role, and emotion for the spoken utterance. Note that our joint prediction is based on an autoregressive model and we need to decide the pre- diction order of dialog attributes, which is not trivial. To mitigate the issue, we also propose an order agnostic training method. Our experiments show that our joint model achieves similar results to task-speciﬁc classiﬁers and can effectively integrate dialog context to further improve the SLU performance.1
+Index Terms— spoken language understanding, spoken dialog
+system, end-to-end systems, joint modelling, speaker attributes
+1. INTRODUCTION
+Spoken dialogue systems aim to enable dialogue agents to engage in a more natural conversation with humans. They have commonly represented a possible dialogue by a series of frames [1, 2]. Each frame represents the type of task the user seeks and has attributes representing the information that can help the system to complete the task. These spoken dialog systems aim to automatically identify the topic of conversations as well as other dialog frame attributes (e.g., dialogue act, emotion) to engage in conversation with the user. Conventional Spoken Language Understanding (SLU) [3, 4] systems independently process each utterance in a conversation. However, the meaning of an utterance in a spoken dialog depends on the context. Prior work has shown dialogue context to be partic- ularly useful in resolving ambiguities and co-references [5, 6]. As a result, there has been extensive work on incorporating context to im- prove Natural Language Understanding (NLU) performance [7–9]. Prior work [10–12] on conversational speech has also shown strong improvements in ASR performance by incorporating dialog context. Thus, several approaches [13–16] have looked into incorporating dialog history in pipeline based SLU systems. Recently, there has been some work [17–19] in incorporating context to improve end- to-end (E2E) SLU performance. One such approach [17] integrates
+dialog history into an E2E SLU system by using ASR transcripts of previous spoken utterances. There has also been an effort [18] to incorporate context directly from the audio of previous utterances.
+However, these works mostly focus on building a single model for each SLU task like intent classiﬁcation, dialog act classiﬁcation, and emotion recognition. To jointly predict all the SLU tasks, we have to execute all models separately. Consequently, these models not only have a large memory footprint but also have high latency, which can affect the naturalness of spoken conversations [20] when these systems are deployed in commercial applications like voice as- sistants. Prior work has shown that jointly modeling different speech processing tasks together in a united framework can perform com- parable to task-speciﬁc models [21, 22] while reducing latency [23]. Motivated by this work, we ask the following questions: (i) Can we jointly model all SLU tasks while incorporating context in a single uniﬁed implementation without much loss in performance? (ii) Does incorporating the SLU tags predicted at previous spoken utterances by the joint model help in better modeling spoken dialogue context? We seek to answer these questions by proposing a novel E2E SLU architecture that jointly models all the SLU tasks while effectively learning context from previous spoken utterances. This joint model uses an autoregressive decoder to predict dialog attributes one by one and the order in which the model predicts the SLU attributes may impact model performance. Hence, we investigate (iii) if we can use order agnostic training to make the model automatically pre- dict in the optimal ordering during inference. Inspired by prior work on ASR [24], we also investigate (iv) if an intermediate CTC loss ad- vances SLU performance further. We conduct extensive experiments on the recently released HarperValley [25] Bank dataset, which con- sists of dialogs between users and consumer bank agents. Our results show that our joint model performs at par with the individual classi- ﬁers for each SLU task, and incorporating dialog context and order agnostic training can further lead to signiﬁcant improvements in per- formance. Our code and models are made publicly available as part of the ESPnet-SLU [26] toolkit.
+The key contributions of our work are summarised below. • We propose a novel joint model that uses dialog context to jointly predict the intent, dialog act, speaker role and emotion. • We propose order agnostic training of the joint model and show an improvement in performance across all SLU tasks. • We investigate the efﬁcacy of using SLU tags predicted from
+previous utterances to model dialog context.
+We show that incorporating the usage of intermediate CTC loss can advance SLU performance.
+2. BACKGROUND: DIALOG CONTEXT IN SLU
+1Our code & models are publicly available as part of ESPnet-SLU toolkit.
+The formulation for SLU with integrated dialog context extends the well-studied framework of NLU systems [7–9]. For NLU systems,
+
+
+dialog context sequence is represented as sequence of C utterances, i.e., S = {sc|c = 1, . . . , C}. Each utterance in the dialog con- text sequence is represented as sc = {wcn ∈ V|n = 1, . . . , Nc}, with length Nc and vocabulary V. Each utterance has a tag for each of the NLU tasks. In this work, each utterance has a tag from la- bel sets Lda, Lic,Lsr and Ler indicating dialogue act classiﬁcation, intent classiﬁcation, speaker role prediction, and emotion recogni- tion, respectively. This produces a label sequence of the same length C for each task, for instance, Y da = {yda c ∈ Lda|c = 1, . . . ,C}. Using the maximum a posteriori theory, NLU models seek to out- put ˆY da, ˆY ic, ˆY sr, and ˆY er that maximise the posterior distribution P (Y da|S),P (Y ic|S),P (Y sr|S) and P (Y er|S) given S, respectively. SLU introduces an additional complexity of modeling dialog context from the spoken utterance. Dialog context sequence is formed by C spoken utterances, i.e., X = {xc|c = 1, . . . , C}. Each spoken utterance xc = {xct ∈ Rd|t = 1, . . . , Tc} is a se- quence of d dimensional speech feature of length Tc frames. Similar to the NLU formulation, SLU systems seek to estimate the label se- quence ˆY da, ˆY ic, ˆY sr and ˆY er that maximise the posterior distribution P (Y da|X),P (Y ic|X),P (Y sr|X) and P (Y er|X) given X, respec- tively. We can model these posterior distributions as described in the subsections below.
+2.1. Seperate E2E model with dialog context
+Prior work [17] models each posterior, e.g., P (Y da|X), using a se- quence of transcripts S by applying the Viterbi approximation:
+P (Y da|X) =
+(cid:88)
+P (Y da|S,X)P (S|X)
+(1)
+S
+≈ max
+S
+P (Y da|S,X)P (S|X)
+(2)
+Their approach then assumes the conditional c |s1:c−1 from x1:c−1,yda yda
+1:c−1 to simplify the Eq 2:
+independence of
+P (Y da|X) ≈ max
+S
+C (cid:89)
+c=1
+P (yda
+c |s1:c−1, xc)P (S|X)
+(3)
+Transcripts are computed using a separate ASR module that seeks to estimate ˆS that maximises P (S|X). Using ˆS, we can modify Eq 3:
+P (Y da|X) ∼
+C (cid:89)
+P (yda
+c |ˆs1:c−1, xc)
+(4)
+c=1
+Prior work [17] models P (yda c |ˆs1:c−1, xc) in Eq. 4 by passing ASR transcripts ˆs1:c−1 to a pretrained language model (LM) like BERT [27] and then concatenating these context embeddings to the acoustic embedding obtained from xc. They focus on building a sep- arate model for each of the SLU tasks, which in the above description is dialogue act classiﬁcation. Thus, to predict all the SLU tasks, all the separate models that estimate P (Y da|X),P (Y ic|X),P (Y sr|X), and P (Y er|X) independently need to be executed which can in- crease latency and computational cost and also does not consider the dependency between SLU tasks.
+3. PROPOSED JOINT E2E MODEL W/ DIALOG CONTEXT
+In this work, we extend the prior work [17] on dialog integra- tion discussed in section 2.1 and propose to jointly model all SLU tasks. We denote a single target containing all the SLU tags as
+DecodercjoinY
+CTC
+JointEncoder
+Concatccont
+xSContext || YContext
+SemanticEncodercaco
+AcousticEncoder
+Fig. 1: Diagram of our joint E2E model incorporating dialog history for jointly predicting all SLU tasks
+R = (Y da,Y ic,Y sr,Y er) and modify Eq. 4 with rc = (yda as shown below:
+c ,yic
+c ,ysr
+c ,yer c )
+P (R|X) ∼
+C (cid:89)
+P (rc|r1:c−1,ˆs1:c−1, xc)
+(5)
+c=1
+The SLU tags predicted for the previous spoken utterances i.e. r1:c−1 = (yda 1:c−1,yer 1:c−1) may be incorporated (Eq. 5) to better model the dialog context unlike in prior work [17] which assumes conditional independence of yda 1:c−1. In §5.1, we conﬁrm experimentally whether this previous SLU tag condition is helpful. Further, by jointly modeling all the SLU tasks, we expect signiﬁcantly lower latency and lightweight inference.
+1:c−1,yic
+1:c−1,ysr
+c |s1:c−1 from yda
+To realize this formulation, we propose a joint model architec- ture shown in Fig. 1. The input speech signal for each utterance i.e., xc in Eq. 5, is passed through an acoustic encoder (Encoderaco) to generate acoustic embeddings caco.
+caco = Encoderaco(xc)
+(6)
+We concatenate ASR transcripts ˆs1:c−1 and SLU tags r1:c−1 for all previous spoken utterances and pass them through semantic encoder (Encodersem) like a pretrained LM to encode the dialog history:
+ccont = Encodersem(concat(ˆs1:c−1, r1:c−1))
+(7)
+The output of the semantic encoder is also passed to a linear layer to ensure that context embeddings ccont have the same hidden dimen- sion as acoustic embeddings caco. The acoustic and context embed- dings are concatenated together (concat(caco, ccont)) and attended by a joint encoder Encoderjoin to produce the joint embedding cjoin:
+cjoin = Encoderjoin(concat(caco, ccont))
+(8)
+The model is trained using joint CTC-attention training [28], where the CTC objective function is used to train the attention model encoder as an auxiliary task. Because we use an autoregres- sive decoder to predict tags one by one (Eq. 11), the likelihood P (rc|xc,ˆs1:c−1, r1:c−1) is dependent on the order of SLU tags in the target sequence rc. This has been referred to as label ambiguity (or permutation) problem in prior work [29, 30]. Inspired by prior work on permutation invariant training [30–32], we use CTC objec- tive function to perform permutation-free training as shown in Eq. 9, which is referred to as order agnostic training in this work. Let z be the output sequence variable computed from the joint embedding cjoin, then the optimal permutation order ˆπ is computed as:
+ˆπ = argmin
+π∈P
+LossCTC(z,rπ
+c ),
+(9)
+where P is the set of 4! possible permutations of SLU tags (da,ic,sr,er), π is one such permutation and rπ c is the reference target with the order of SLU tags indicated by π. Later, the optimal
+
+
+Model
+DA (↑)
+IC (↑)
+SR (↑)
+ER (↑)
+RTF (↓)
+Slowest
+Total
+Latency (msec.) (↓) Slowest
+Total
+Parameters (↓)
+Train time (sec.) (↓)
+Separate E2E model without context* ([18]) Separate E2E model with context* ([18]) Separate E2E models without context §2.1
+54.0 58.3 55.5
+47.1
+91.9
+91.4
+1.58
+3.28
+1153
+4515
+457.6M
+4296
+Joint E2E model without context §3 Joint E2E model with context §3
++ order agnostic training (Eq. 9) (proposed) + previous SLU tag condition (Eq. 5) (ablation)
+55.8 58.1 58.8 58.3
+47.7 86.1 86.5 86.5
+91.5 95.0 95.1 94.6
+90.6 90.9 91.1 90.8
+1.15 1.14 1.15 1.23
+1.58 1.57 1.58 1.54
+293 286 289 310
+1153 1133 1140 1080
+114.4M 152.7M 152.7M 165.4M
+1381 1960 2040 2613
+Table 1: Results presenting the performance of our joint model both with and without using dialog context on dialog act (DA) recognition, intent classiﬁcation (IC), speaker role (SR) prediction and emotion recognition (ER). * We show DA results of prior work although they have different data preparation setup (sec. 4.1). Best joint model results are bolded and further underlined if they surpass separate E2E models.
+Model
+DA (↑)
+IC (↑)
+SR (↑)
+ER (↑)
+Model
+DA (↑)
+IC (↑)
+SR (↑)
+ER (↑)
+Joint E2E Model without context
+w/ inter ctc
+54.8 55.8
+47.6 47.7
+91.1 91.5
+90.9 90.6
+Joint E2E Model with context Joint E2E Model with oracle context
+58.1 58.5
+86.1 87.0
+95.0 95.2
+90.9 91.1
+Table 2: Results showing the impact of intermediate CTC to advance SLU performance.
+Table 3: Results showing the robustness of using the ASR transcripts instead of the oracle transcripts.
+permutation ˆπ is used for computing the attention decoder loss2.
+For each pair of optimal decoding order and reference target
+(ˆπ,rc), the attention likelihood is calculated as shown below.
+hl = Decoder(cJOIN, (r ˆπ PAttn((r ˆπ
+c )1:l−1) c )l|xc, ˆs1:c−1, r1:c−1, (r ˆπ
+c )1:l−1) = SoftmaxOut(hl),
+where SoftmaxOut denotes a linear layer followed by the softmax c )l is the lth term in target sequence. The joint like- function and (r ˆπ lihood PAttn(r ˆπ c |xc, ˆs1:c−1, r1:c−1) can then be computed as a prod- uct of the individual likelihood for each of the SLU tags (i.e., from l in [1,4]). It is important to note that this “order agnostic train- ing” does not add any new model parameters. During inference, the model automatically picks the tag order, i.e., unlike training, we do not enforce the predicted tag order to have the minimum CTC loss. Further, our joint models can also be trained with an auxiliary ASR objective [26, 33] by making the model generate both the SLU tags r ˆπ c and ASR transcript sc.
+4. EXPERIMENT SETUP
+4.1. Datasets
+To show the effectiveness of our joint model, we conducted exper- iments on publicly available HarperValleyBank [25] spoken dialog corpus, where dialogs are simulated conversations between bank em- ployees and customers. The corpus consists of 1,446 conversations with 23 hours of audio and 25,730 utterances with human anno- tated transcripts. The utterances are spoken by 59 unique speakers and have annotations for the dialog act, intent of the conversation, speaker role, and emotional valence.
+(10)
+(11)
+we also removed non-lexical tokens such as [noise],[laughter] from the transcript. Our training set contains 1,174 conversations (9.2 hours of audio, 15,424 utterances), valid set contains 73 conversa- tions (0.6 hours of audio, 964 utterances) and our test set contains 199 conversations (1.6 hours of audio, 2903 utterances). We report macro F1 for dialog act prediction and accuracy for intent classi- ﬁcation, speaker role prediction and emotion recognition as recom- mended by prior work [17, 25]. The latency of our system is reported using two metrics: (1) Real time factor (RTF), which is the average time taken to process an input audio ﬁle as a ratio of the duration of input and (2) Endpoint latency which is the elapsed time from the utterance end to getting predictions for SLU tasks. We also show the training time per epoch for all our models.
+4.2. Architecture details and training
+Our approach is compared to state-of-the-art SLU task-speciﬁc baselines referred to as “Separate E2E models without context” (optimizes P (yda c |ˆs1:c−1, xc) in Eq. 4). We also compared with our proposed model without context, i.e., “Joint E2E model without context” which optimizes P (rc|xc) instead of P (rc|r1:c−1, xc, ˆs1:c−1) in Eq. 5. This baseline joint E2E model does not incorporate order agnostic training deﬁned in Eq. 9 and in- stead is trained using a ﬁxed order (yda, yic, ysr, yer) of SLU tags. To understand the efﬁcacy of our proposed modiﬁcations to [17], we ﬁrst trained a joint model (referred to as “Joint E2E model with context”) that does not use SLU tags of previous spoken utterances (i.e. optimize P (rc|xc, ˆs1:c−1) instead of P (rc|r1:c−1, xc, ˆs1:c−1) in Eq. 5) and also does not utilize order agnostic training. In our ablation study, we further trained proposed joint model that incor- porates “order agnostic training” as deﬁned in Eq. 9 and another joint model that incorporates “previous SLU tag condition” i.e. tags predicted for previous spoken utterances (r1:c−1 in Eq. 5).
+c |xc) instead of P (yda
+In this work, we trained a joint model that performs intent clas- siﬁcation, dialog act recognition, emotion recognition and speaker attribute prediction. Dialogue act recognition is a multi-label multi- class classiﬁcation whereas all other tasks are single-label multi- class classiﬁcation. We followed the setup in prior work [18] and split the conversations into train, valid and test set3. Similar to [17],
+2We use the CTC loss to compute optimal order instead of decoder loss
+for lightweight modeling.
+3However, the prior work [17, 18] also uses an off the shelf ASR model to realign the audio with transcripts making their results not directly comparable to results obtained by our setup.
+Our models were implemented in pytorch [34] and experiments were conducted through the ESPNet-SLU [26, 35] toolkit. All the models were trained using an auxiliary ASR objective. Our task- speciﬁc baselines consist of 12 layer conformer [36, 37] encoder that inputs features extracted by a strong self-supervised speech model WavLM [38] and 6 layer transformer [39, 40] decoder. Our “Joint E2E model without context” has a similar architecture as task spe- ciﬁc baselines. Prior work [24] used an intermediate CTC loss at- tached to an intermediate layer in the encoder network to regularize CTC training and improve performance. Inspired by this work, we experimented with adding intermediate CTC loss at layers 4, 6 and
+
+
+8 of our conformer encoder. The “Joint E2E model without con- text” is used to generate dialog context4 ˆs1:i−1. We incorporated the usage of Transformers library [41] to get BERT-base-uncased [27] as semantic encoder (encoderSEM in Eq. 7). The conformer archi- tecture with intermediate CTC loss is leveraged as the joint encoder (encoderJOIN in Eq. 8) in our proposed models. Teacher forcing is used for all our models with integrated dialog context i.e., the con- text was created using ground truth transcripts during training. The training and inference of our models were performed using a single NVIDIA Tesla V100-32GB GPU. The inference was computed us- ing 4 parallel jobs and we use the time when the utterance has been processed by all the jobs (i.e. time taken by slowest job) as well as the sum of time taken by all the jobs to compute latency metrics. All hyperparameters were selected based on validation performance.
+5. RESULTS
+5.1. Main Results
+Table 1 shows the results of our joint model both with and with- out using dialog context. The performance of our “Separate E2E models without context” (section 2.1) is similar to the baseline re- sults reported in prior work [18], though these results are not di- rectly comparable because of different data preparation setups. Our “Joint E2E model without context” performs at par with these task- speciﬁc models while signiﬁcantly reducing latency5 and the num- ber of trainable model parameters, showcasing the utility of jointly modeling all SLU tasks. We investigated integrating dialog context in the joint model (“Joint E2E model with context” in Table 1) using formulation described in section 3 and observe a signiﬁcant improve- ment in performance, particularly for intent, dialog acts, and speaker role identiﬁcation, providing evidence that our proposed methodol- ogy can effectively encode the context. We further observe a per- formance gain using “order agnostic training”, as deﬁned in Eq. 9, which conﬁrms our hypothesis that the ordering of SLU tags while training can impact model performance. While our order agnos- tic training framework increases the training time as it requires the computation of CTC loss over all possible permutations of SLU tags (Eq. 9), this increase in training time is not very signiﬁcant. We also experimented with “previous SLU tag condition” (i.e. attending to r1:c−1 in Eq. 5) using only utterance-level annotated tags, i.e., dia- log act, emotion, and speaker role, to encode context. This model achieves a performance gain in intent classiﬁcation and dialog act prediction with comparable results on predicting other SLU tasks. We plan to further investigate the utility of SLU tags from previous spoken utterances in future work. Our joint E2E model with context also achieved similar performance to “Separate E2E model with con- text” [18] with no knowledge distillation from a text-based system, although the two models have different data preparation setups.
+To better understand our joint model, we also perform an abla- tion study in Table 2 and infer that using intermediate CTC loss can stabilize training and improve the performance of our joint model.
+5.2. Using oracle context
+To understand the impact of errors in ASR transcripts , we compute results of our joint E2E model with oracle context, i.e., using ground truth transcripts as ˆs1:c−1 in Eq. 5. Table 3 shows only a slight in- crease in performance compared with the model that uses ASR tran- scripts to encode context, indicating that it is robust to ASR errors.
+4The Word Error Rate (WER) of ASR transcripts is 11.7. 5Task-speciﬁc baselines are executed one after other in sequential order.
+Order
+Training (%)
+Inference (%)
+Sample Training Utterance
+(sr, ic, da, er) (da, ic, sr, er)
+(ic, sr, da, er) (ic, da, sr, er) (sr, da, ic, er)
+35.0 27.9
+16.4 14.5 6.2
+40.1 36.0
+6.8 7.5 9.5
+i’ve ordered your replacement debit card uh well james my name is jennifer jones and i would like to reset my password please thank you for calling have a great day you too bye hello this is harper valley national bank my name is patricia how can i help you today
+Table 4: Results showcasing the optimal order of SLU tags found during training using Eq. 9 and predicted order of SLU tags during inference. We report sample training utterance for each tag order.
+5.3. Predicted ordering of SLU tags
+We analyze the optimal order of SLU tags found during training us- ing Eq. 9 in Table 4 and observe that optimal permutation sequence ˆπ are among only 5 of 4! possible permutations of SLU tags. We compare it to the tag order predicted by our joint E2E model with context and order agnostic training. The predicted order of SLU tags during inference has a similar trend to the optimal order of SLU tags found during training, with (sr, ic, da, er) and (da, ic, sr, er) being the two most common orders. Further the training utterances with optimal order (sr, da, ic, er) are usually spoken at the start of the conversation and are mainly greetings, as shown in Table 4. We hy- pothesize that this tag order is optimal for these utterances as it is challenging to detect the intent of the conversation from these greet- ing utterances, and hence intent is predicted after the model decodes dialogue act and speaker role tags. This gives model the ability to incorporate the dependency on these tags to better extract the intent of current utterance. Our analysis is similar for other tag orders and we infer that we can validate the optimal tag order found for train- ing utterances. After a more ﬁne-grained analysis, we observe that test utterances that are similar to training utterances with optimal tag order π are also predicted by the joint model in the same tag order π during inference. This ﬁnding provides initial evidence to the hypothesis that the joint model learns to automatically predict in the optimal tag order during inference using order agnostic training. Based on this interesting insight and performance gains observed in Table 1, we recommend future studies on jointly modeling different SLU tasks to incorporate order agnostic training in their framework.
+6. CONCLUSION
+We propose a novel model architecture that can jointly model intent classiﬁcation, dialogue act prediction, speaker role identiﬁcation and emotion recognition with full integration of dialog history in spoken conversations. Our results show that the joint model achieves com- parable performance to task-speciﬁc models with the additional ben- eﬁts of low latency and lightweight inference. Our joint model can also successfully capture dialog context to improve the prediction performance of all SLU tasks signiﬁcantly. We experimentally con- ﬁrm that order agnostic training can further enhance performance. In future work, we plan to explore E2E integration of dialog context as well as knowledge distillation from a text-based system.
+7. ACKNOWLEDGEMENT
+This work used the Extreme Science and Engineering Discovery En- vironment (XSEDE) [42], which is supported by NSF grant number ACI-1548562. Speciﬁcally, it used the Bridges system [43], which is supported by NSF award number ACI-1445606, at the Pittsburgh Supercomputing Center (PSC).
+
+
+8. REFERENCES
+[1] R. De Mori, F. Bechet, D. Hakkani-Tur, et al., “Spoken language understanding,” IEEE Signal Processing Magazine, vol. 25, no. 3, pp. 50–58, 2008.
+[2]
+J. F. Allen, D. K. Byron, M. Dzikovska, et al., “Toward conversational human-computer interaction,” AI magazine, vol. 22, no. 4, pp. 27–27, 2001.
+[3] B. Agrawal, M. M¨uller, M. Radfar, et al., “Tie your embeddings down: Cross-modal latent spaces for end-to-end spoken language understanding,” arXiv preprint arXiv:2011.09044, 2020.
+[4]
+S. Cha, W. Hou, H. Jung, et al., “Speak or chat with me: End-to-end spoken language understanding with ﬂexible inputs,” arXiv, 2021.
+[5] A. Bhargava, A. Celikyilmaz, D. Hakkani-T¨ur, et al., “Easy contex- tual intent prediction and slot detection,” in Proc. ICASSP, 2013, pp. 8337–8341.
+[6]
+P. Xu and R. Sarikaya, “Contextual domain classiﬁcation in spoken language understanding systems using recurrent neural network,” in Proc. ICASSP, 2014, pp. 136–140.
+[7]
+P. Colombo, E. Chapuis, M. Manica, et al., “Guiding attention in sequence-to-sequence models for dialogue act prediction,” in Pro- ceedings of the AAAI Conference on Artiﬁcial Intelligence, vol. 34, 2020, pp. 7594–7601.
+[8] C. Bothe, C. Weber, S. Magg, et al., “A context-based approach for di- alogue act recognition using simple recurrent neural networks,” arXiv preprint arXiv:1805.06280, 2018.
+[9] V. Raheja and J. Tetreault, “Dialogue act classiﬁcation with context- aware self-attention,” arXiv preprint arXiv:1904.02594, 2019.
+[10]
+S. Kim, S. Dalmia, and F. Metze, “Gated embeddings in e2e speech recognition for conversational-context fusion,” in Proc. ACL, 2019, pp. 1131–1141.
+[11] ——, “Cross-Attention End-to-End ASR for Two-Party Conversa-
+tions,” in Proc. Interspeech, 2019, pp. 4380–4384.
+[12]
+T. Hori, N. Moritz, C. Hori, et al., “Transformer-based long-context end-to-end speech recognition.,” in Proc. Interspeech, 2020, pp. 5011– 5015.
+[13] Y.-N. Chen, D. Hakkani-T¨ur, G. T¨ur, et al., “End-to-end memory net- works with knowledge carryover for multi-turn spoken language un- derstanding.,” in Proc. Interspeech, 2016, pp. 3245–3249.
+[14] C. Sankar, S. Subramanian, C. Pal, et al., “Do neural dialog systems use the conversation history effectively? an empirical study,” arXiv preprint arXiv:1906.01603, 2019.
+[15] A. Bapna, G. Tur, D. Hakkani-Tur, et al., “Sequential dialogue con- text modeling for spoken language understanding,” arXiv preprint arXiv:1705.03455, 2017.
+[16] V. Vukoti´c, C. Raymond, and G. Gravier, “A step beyond local ob- servations with a dialog aware bidirectional gru network for spoken language understanding,” in Proc. Interspeech, 2016, pp. 3241–3244.
+[17]
+J. Ganhotra, S. Thomas, H.-K. J. Kuo, et al., “Integrating dialog his- tory into end-to-end spoken language understanding systems,” arXiv preprint arXiv:2108.08405, 2021.
+[18] V. Sunder, S. Thomas, H.-K. J. Kuo, et al., “Towards end-to-end in- tegration of dialog history for improved spoken language understand- ing,” in Proc. ICASSP, 2022, pp. 7497–7501.
+[19] N. Tomashenko, C. Raymond, A. Caubri`ere, et al., “Dialogue history integration into end-to-end signal-to-concept spoken language under- standing systems,” in Proc. ICASSP, 2020, pp. 8509–8513.
+[20]
+S. Arora, S. Dalmia, X. Chang, et al., “Two-pass low latency end- to-end spoken language understanding,” in Proc. Interspeech, 2022, pp. 3478–3482.
+[21]
+T. O’Malley, A. Narayanan, Q. Wang, et al., “A conformer-based asr frontend for joint acoustic echo cancellation, speech enhancement and speech separation,” in Proc. ASRU, 2021, pp. 304–311.
+[22] W. Zhang, C. Boeddeker, S. Watanabe, et al., “End-to-end dereverber- ation, beamforming, and speech recognition with improved numerical stability and advanced frontend,” in Proc. ICASSP, 2021, pp. 6898– 6902.
+[23]
+S.-Y. Chang, R. Prabhavalkar, Y. He, et al., “Joint endpointing and decoding with end-to-end models,” in Proc. ICASSP, 2019, pp. 5626– 5630.
+[24]
+J. Lee and S. Watanabe, “Intermediate loss regularization for CTC- based speech recognition,” in Proc. ICASSP, 2021, pp. 6224–6228.
+[25] M. Wu, J. Nafziger, A. Scodary, et al., “Harpervalleybank: A domain- speciﬁc spoken dialog corpus,” arXiv preprint arXiv:2010.13929, 2020.
+[26]
+S. Arora, S. Dalmia, P. Denisov, et al., “Espnet-slu: Advancing spo- ken language understanding through espnet,” in Proc. ICASSP, 2022, pp. 7167–7171.
+[27]
+J. Devlin, M. Chang, K. Lee, et al., “BERT: pre-training of deep bidi- rectional transformers for language understanding,” in Proc. NAACL- HLT, 2019, pp. 4171–4186.
+[28]
+S. Kim, T. Hori, and S. Watanabe, “Joint CTC-attention based end-to- end speech recognition using multi-task learning,” in Proc. ICASSP, 2017, pp. 4835–4839.
+[29] C. Weng, D. Yu, M. L. Seltzer, et al., “Deep neural networks for single-channel multi-talker speech recognition,” IEEE/ACM Transac- tions on Audio, Speech, and Language Processing, vol. 23, no. 10, pp. 1670–1679, 2015.
+[30]
+J. R. Hershey, Z. Chen, J. Le Roux, et al., “Deep clustering: Dis- criminative embeddings for segmentation and separation,” in Proc. ICASSP, 2016, pp. 31–35.
+[31] D. Yu, M. Kolbæk, Z.-H. Tan, et al., “Permutation invariant training of deep models for speaker-independent multi-talker speech separation,” in Proc. ICASSP, 2017, pp. 241–245.
+[32] X. Chang, Y. Qian, K. Yu, et al., “End-to-end monaural multi-speaker asr system without pretraining,” in Proc. ICASSP, 2019, pp. 6256– 6260.
+[33] A. Deoras, R. Sarikaya, G. Tur, et al., “Joint decoding for speech recognition and semantic tagging,” in Proc. Interspeech, 2012, pp. 1067–1070.
+[34] A. Paszke, S. Gross, F. Massa, et al., “Pytorch: An imperative style, high-performance deep learning library,” Proc. NeurIPS, vol. 32, pp. 8024–8035, 2019.
+[35]
+S. Watanabe, T. Hori, S. Karita, et al., “ESPnet: End-to-end speech processing toolkit,” in Proc. Interspeech, 2018, pp. 2207–2211.
+[36] A. Gulati, J. Qin, C. Chiu, et al., “Conformer: Convolution-augmented transformer for speech recognition,” in Proc. Interspeech, 2020, pp. 5036–5040.
+[37]
+P. Guo, F. Boyer, X. Chang, et al., “Recent developments on esp- net toolkit boosted by conformer,” in Proc. ICASSP, 2021, pp. 5874– 5878.
+[38]
+S. Chen, C. Wang, Z. Chen, et al., “WavLM: Large-scale self- supervised pre-training for full stack speech processing,” arXiv preprint arXiv:2110.13900, 2021.
+[39] A. Vaswani, N. Shazeer, N. Parmar, et al., “Attention is all you need,”
+Proc. NeurIPS, vol. 30, pp. 5998–6008, 2017.
+[40]
+S. Karita, N. Chen, T. Hayashi, et al., “A comparative study on transformer vs RNN in speech applications,” in Proc. ASRU, 2019, pp. 449–456.
+[41]
+T. Wolf, L. Debut, V. Sanh, et al., “Transformers: State-of-the-art nat- ural language processing,” in Proc. EMNLP, 2020, pp. 38–45.
+[42]
+J. Towns, T. Cockerill, M. Dahan, et al., “XSEDE: Accelerating scien- tiﬁc discovery,” Computing in Science & Engineering, vol. 16, no. 5, pp. 62–74, 2014.
+
+
+[43] N. A. Nystrom, M. J. Levine, R. Z. Roskies, et al., “Bridges: A uniquely ﬂexible HPC resource for new communities and data analyt- ics,” in Proc. XSEDE Conference: Scientiﬁc Advancements Enabled by Enhanced Cyberinfrastructure, 2015.

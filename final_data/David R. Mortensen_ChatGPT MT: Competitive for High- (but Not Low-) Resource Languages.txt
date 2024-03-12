@@ -1,0 +1,432 @@
+3 2 0 2
+p e S 4 1
+] L C . s c [
+1 v 3 2 4 7 0 . 9 0 3 2 : v i X r a
+ChatGPT MT: Competitive for High- (but not Low-) Resource Languages
+Nathaniel R. Robinson1,2∗
+Perez Ogayo1∗ David R. Mortensen1 Graham Neubig1
+1Language Technologies Institute, Carnegie Mellon University 2 Center for Language and Speech Processing, Johns Hopkins University nrobin38@jhu.edu, {aogayo, dmortens, gneubig}@cs.cmu.edu * Authors contributed equally
+Abstract
+Large language models (LLMs) implicitly learn to perform a range of language tasks, including machine translation (MT). Previous studies ex- plore aspects of LLMs’ MT capabilities. How- ever, there exist a wide variety of languages for which recent LLM MT performance has never before been evaluated. Without published ex- perimental evidence on the matter, it is difficult for speakers of the world’s diverse languages to know how and whether they can use LLMs for their languages. We present the first exper- imental evidence for an expansive set of 204 languages, along with MT cost analysis, using the FLORES-200 benchmark. Trends reveal that GPT models approach or exceed traditional MT model performance for some high-resource languages (HRLs) but consistently lag for low- resource languages (LRLs), under-performing traditional MT for 84.1% of languages we cov- ered. Our analysis reveals that a language’s resource level is the most important feature in determining ChatGPT’s relative ability to trans- late it, and suggests that ChatGPT is especially disadvantaged for LRLs and African languages.
+1
+Introduction
+Despite the majority of the world’s languages be- ing low-resource, current MT systems still perform poorly on them or do not include them at all. Some commercial systems like Google Translate1 sup- port a number of LRLs, but many systems do not support any, and in either case the majority of LRLs are largely neglected in language technologies.
+prospect of LLM translation is exciting, since theo- retically, generative LLMs could support more lan- guages than commercial systems like Google’s.2 But only beginning steps have been made to test this hypothesis. While some studies outlined in §4 have evaluated MT with recent LLMs, evaluation is still lacking for many languages. This brings up im- portant questions, such as: Can end users in need of MT for a variety of languages use ChatGPT? Are ChatGPT and other LLMs reliable translators? For which languages are they reliable? Initially we hypothesize that LLMs translate HRLs better than LRLs. But due to limited information about the training data and methods for powerful LLMs like ChatGPT (GPT-3.5 and variants) and GPT-4, hy- potheses like this must be experimentally verified. We attempt a significant expansion of experimen- tal verification for such hypotheses by testing Chat- GPT’s performance on the FLORES-200 bench- mark (Team et al., 2022), containing 204 language varieties.We emphasize that, rather than optimizing LLM MT for a few languages, we focus on helping end users of various language communities know how and when to use LLM MT. We expect that our contributions may benefit both direct end users, such as LRL speakers in need of translation, and indirect users, such as researchers of LRL transla- tion considering ChatGPT to enhance specialized MT systems. In summary, we contribute:
+1. MT scores on 203 languages for ChatGPT and comparisons with GPT-4, Google Translate, and NLLB (Team et al., 2022)
+In recent years, generative LLMs have shown increasingly impressive translation abilities (Rad- ford et al., 2019; Brown et al., 2020). Even more recently, LLM tools like ChatGPT have become popular and accessible to end users. This marks an important shift, since a majority of LLM users are now consumers rather than researchers. The
+2. Evidence that LLMs are competitive with tra- ditional MT models for many HRLs but lag for LRLs (with baselines outperforming Chat- GPT on 84.1% of languages evaluated)
+3. Evidence
+that
+few-shot prompts offer
+2Google Translate currently supports only 133 languages
+1https://translate.google.com
+with systems deemed high enough quality for deployment.
+
+
+marginal benefits for LLM translation
+4. A decision tree analysis of language features’ correlation with LLM effectiveness in MT, suggesting ChatGPT is especially disadvan- taged for LRLs and African languages
+5. A cost comparison across MT systems
+Our experiments are motivated by the interests of LLM users speaking a variety of languages. In addition to evaluating a large language set (§3), we chose to analyse language features (§3.4), to draw generalizations for even more LRL speakers. We compare MT costs because they impact end users (§3.7). We keep ChatGPT central to our analyses because of its current popularity among consumers.
+2 Methodology
+We used data for 204 language varieties from FLORES-200 (Team et al., 2022). We used the 1012 devtest sentences for our main experiments and the 997 dev sentences for follow-up experi- ments. We queried the OpenAI API3 to trans- late our test set from English into the target lan- guages. We explored ENG→X translation only because the FLORES-200 English data was taken from Wikipedia. Thus OpenAI’s GPT models were likely trained on those exact English sentences, making fair X→ENG evaluation infeasible.
+2.1 Experimental setup
+We evaluated ChatGPT’s (gpt-3.5-turbo) MT for our full language set. We compared with NLLB- MOE (Team et al., 2022) as our baseline, as it is the current state-of-the-art open-source MT model that covers such a wide variety of languages. NLLB is a discriminative transformer trained on super- vised bi-text data (the traditional MT paradigm). We obtained scores for NLLB outputs of ENG→X translation into 201 of the language varieties in our set (as reported by Team et al. (2022)).
+We used both zero- and five-shot prompts for ChatGPT MT. (See §2.3.) Previous studies (Hendy et al., 2023; Gao et al., 2023; Moslem et al., 2023; Brown et al., 2020; Zhu et al., 2023) suggest that few-shot prompts produce slightly (albeit not con- sistently) better translations. But zero-shot prompts are more convenient and affordable for users.
+We also compare with results for subsets of our selected languages from two other MT engines.
+3https://platform.openai.com
+Google Translate API was an important baseline for our analysis because it is popular among end users. We also included it to represent commercial MT systems in our study. Because Google’s API does not support all 204 of the FLORES-200 languages, we obtained results only for the 115 non-English languages it supports.
+Lastly, we obtained MT results from GPT-4, since it is a popular LLM and has been shown to outperform ChatGPT on MT (Jiao et al., 2023; Wang et al., 2023). Because the cost of GPT- 4 use exceeds that of ChatGPT by 1900%, our resources did not permit its evaluation on all 203 non-English languages. Instead we selected a 20-language subset by picking approximately every 10th language, with languages sorted by chrF++ differentials between ChatGPT and NLLB (chrfGP T −chrfN LLB). We chose this criterion in order to have 20 languages with a range of relative ChatGPT performance and a variety of resource levels. We used only five-shot prompts for GPT-4.
+2.2
+Implementation details
+We conducted all LLM experiments with gpt-3.5-turbo (ChatGPT) and gpt-4-0613 (GPT-4). We used top_p 1, temperature 0.3, context_length −1, and max_tokens4 500.
+To evaluate the outputs, we used:5
+spBLEU: BLEU (Papineni et al., 2002) is standard in MT evaluation. We find spBLEU scores (Goyal et al., 2022) via sacreBLEU (Post, 2018) with the SPM-200 tokenizer (Team et al., 2022). chrF2++: We use sacreBLEU’s implemantation of chrF++ (Popovi´c, 2017). We adopt it as our main metric, as it overcomes some of BLEU’s weak- nesses, and refer to it as chrF for brevity.
+2.3 Zero- and few-shot prompts
+Previous works (Gao et al., 2023; Jiao et al., 2023) investigated LLM prompting to optimize MT per- formance. We adopt Gao et al. (2023)’s recom- mended prompts for both zero- and few-shot MT (Table 1). We are interested in multiple n-shot prompt settings because, as mentioned in §2.1, they
+4Although some languages had higher token counts than others (see §3.4), we found that adjusting max_tokens had a minimal effect on MT performance. We thus decided to maintain the same value of max_tokens across all languages for experimental consistency.
+5We excluded learned MT metrics like COMET (Rei et al., 2020) and BLEURT (Sellam et al., 2020), since they do not support many LRLs.
+
+
+Shot Prompt zero This is an English to [TGT] translation, please provide the [TGT] translation for this sentence. Do not provide any explanations or text apart from the translation. [SRC]: [src-sentence] [TGT]:
+five This is an English to [TGT] translation, please provide
+the [TGT] translation for these sentences: [SRC]: [src-sentence] [TGT]: [tgt-sentence] [SRC]: [src-sentence] [TGT]: [tgt-sentence] [SRC]: [src-sentence] [TGT]: [tgt-sentence] [SRC]: [src-sentence] [TGT]: [tgt-sentence] [SRC]: [src-sentence] [TGT]: [tgt-sentence] Please provide the translation for the following sentence. Do not provide any explanations or text apart from the translation. [SRC]: [src-sentence] [TGT]:
+Table 1: Prompts used for zero- and five-shot settings
+present different benefits to LLM users. We ex- plored zero-shot (no in-context example), one-shot (1 example), and five-shot (5 examples). We em- ployed both zero- and five-shot prompts in our main experiments over 203 languages, and we analyzed all three n-shot settings for a subset of languages on FLORES-200 dev sets.
+The languages in FLORES-200 represent 22 lan- guage families. To experiment with multiple n-shot settings, we selected one language from each of the 12 families containing at least two members in the set. We chose four HRLs (≥1M Wikipedia pages6), four LRLs (25K-1M pages), and four extremely LRLs (≤25K pages). These languages also employ a variety of scripts. See Table 2.
+Language French Chinese Turkish Finnish Tamil Tagalog Kiswahili Amharic Santali Lao Papiamento Luo
+Code fra zho tur fin tam tgl swh amh sat lao pap luo
+Family Indo-European Sino-Tibetan Turkic Uralic Dravidian Austronesian Niger-Congo Afroasiatic Austroasiatic Kra-Dai Creole Nilo-Saharan
+Script Wiki. # Latn 12.7M Hans 7.48M Latn 2.48M Latn 1.46M Taml 496K Latn 239K Latn 167K Ethi 46.2K Olck 20.0K Laoo 14.0K Latn 6.84K Latn 0
+Table 2: Diverse subset of languages experiments with few-shot settings. Wiki. # is the number of Wikipedia pages in the language.
+6Throughout
+the paper we use the "Total pages" count from https://en.wikipedia.org/wiki/List_of_ Wikipedias, accessed 7 August 2023, as a proxy for the re- source level of a language.
+ChatGPT (0-shot) ChatGPT (5-shot) GPT-4 NLLB Google
+#langs. 203 203 20 201 115
+avg. chrF BLEU 16.7 32.3 17.3 33.1 24.6 44.6 27.1 45.3 34.6 52.2
+avg.
+Table 3: Languages evaluated, average chrF, and aver- age BLEU for each MT system. Best scores are bold.
+3 Results and Analysis
+3.1 Traditional MT generally beats LLMs
+Table 3 shows the number of languages we eval- uated for each MT system, as noted in §2.1, with average chrF and BLEU scores across those lan- guages. The best performing model on average was (1) Google, then (2) NLLB, (3) GPT-4, and (4) ChatGPT. Unabridged results are in Table 11 in Appendix A. Supplementary materials can also be browsed on our repository.7 (Also see the interac- tive score visualizer on our Zeno browser.8)
+Table 4 shows a meaningful subset of scores: chrF for the 20 languages evaluated on both LLM systems. Of the 11 languages evaluated on all four systems, Google performed best for 10 of them. Notably, GPT-4 surpassed NLLB in five languages and Google in one (Moroccan Arabic, acm_Arab).
+Lang. ssw_Latn sna_Latn ckb_Arab mag_Deva ibo_Latn hau_Latn pbt_Arab tam_Taml kat_Geor gle_Latn kmr_Latn war_Latn ajp_Arab lim_Latn ukr_Cyrl fra_Latn lvs_Latn ron_Latn tpi_Latn acm_Arab
+GPT-4 ChatGPT Google NLLB 43.3 43.4 47.2 58.5 41.4 53.5 39.4 53.7 48.1 58.0 39.3 57.4 51.3 47.9 56.3 69.7 54.8 61.3 41.6 31.9
+24.1 29.2 33.1 44.6 27.7 40.3 26.7 42.7 41.4 53.0 34.3 54.0 48.4 45.1 56.3 71.7 57.3 65.3 49.5 46.5
+6.7 16.3 24.8 39.9 16.3 22.4 21.1 34.5 33.5 47.5 27.4 49.5 47.5 42.7 55.4 71.3 55.2 64.2 39.2 46.1
+44.4 47.7 - 43.5 53.2 - 55.8 51.4 60.1 40.0 - - - 58.6 72.7 - 65.0 - -
+Table 4: chrF (↑) scores across models for all languages we used to evaluate GPT-4. Best scores are bold. Chat- GPT scores here are 5-shot, to compare with GPT-4.
+On the 20 languages for which we tested it, GPT-
+7https://github.com/cmu-llab/gpt_mt_benchmark 8https://hub.zenoml.com/project/cabreraalex/
+GPT%20MT%20Benchmark
+
+
+4 improved over ChatGPT by 6.5 chrF on aver- age. The standard deviation of performance differ- ence with NLLB (chrFGP T −chrFN LLB) was 8.6 for GPT-4, compared with ChatGPT’s 12.7 for the same languages, suggesting a more consistent ad- vantage across language directions. GPT-4 offered larger improvements for LRLs, whereas HRL per- formance plateaued between the LLMs. Previous studies have found GPT-4 improving multilingual capabilities over ChatGPT on a range of tasks (Xu et al., 2023; Zhang et al., 2023; OpenAI, 2023). This may account for its superior MT performance. Google Translate outperformed all other systems in chrF on 100 of the 115 languages for which we evaluated it, with an average improvement of 2.0 chrF points over the next best system for each lan- guage. (See Appendix A for unabridged results.) Google’s was the best performing MT system over- all, though NLLB has broader language coverage. NLLB outperformed ChatGPT in chrF on 169 (84.1%) of the 201 languages for which we ob- tained scores for both, with NLLB scoring an aver- age of 11.9 chrF points higher than the better n-shot ChatGPT setting for each language. This trend is corroborated by Zhu et al. (2023). Table 5 has both BLEU and chrF scores from both systems for the five languages with the most negative chrF deltas (chrFGP T − chrFN LLB) on top, followed by the five languages with the highest positive deltas on bottom. For many of the subsequent sections of this paper we focus on comparing ChatGPT and NLLB, since we evaluted them on the most languages.
+Lang. srp_Cyrl kon_Latn tso_Latn kac_Latn nso_Latn
+ChatGPT BLEU chrF 3.26 8.50 15.0 2.95 16.7
+1.36 0.94 2.92 0.04 3.69
+NLLB BLEU chrF 59.7 45.3 50.0 37.5 50.8
+43.4 18.9 26.7 14.3 26.5
+jpn_Jpan nno_Latn zho_Hans zho_Hant acm_Arab
+28.4 37.1 36.3 26.0 28.2
+32.9 58.7 31.0 24.4 44.7
+20.1 33.4 26.6 12.4 11.8
+27.9 53.6 22.8 14.0 31.9
+Table 5: Lowest (top) and highest (bottom) chrF dif- ferences between zero-shot ChatGPT and NLLB. Best scores for each metric in bold (with BLEU blue).
+3.2 ChatGPT under-performs for LRL
+Using Team et al.’s (2022) resource categoriza- tion, we find that ChatGPT performs worse on LRLs than HRLs, corroborating findings of pre-
+vious works (Jiao et al., 2023; Zhu et al., 2023). There is a strong positive correlation between Chat- GPT and NLLB chrF scores, but the correlation is higher for HRLs (ρ=0.85) than LRLs (ρ=0.78), indicating that ChatGPT struggles to keep up with NLLB for LRLs.
+Figure 1 shows scatter plots where dots rep- resent languages, with ChatGPT’s (positive or negative) relative improvement over NLLB chrF ( chrfGP T −chrfN LLB ) on the y-axis. When lan- chrfN LLB guages are grouped by family or script, some trends are apparent (in part because we ordered groups by descending average scores). For example, Chat- GPT fairs better with Uralic and Indo-European languages and clearly worse with Niger-Congo and Nilo-Saharan languages. However, the clear- est natural correlation appears when languages are grouped by resource level, approximated by num- ber of Wikipedia pages (Figure 1, bottom). Note the relative improvement (y-axis) is typically nega- tive since ChatGPT rarely outperformed NLLB.
+In the five-shot setting, ChatGPT outperformed NLLB on 47% of the HRLs designated by Team et al. (2022), but only on 6% of the LRLs. These findings contrast with what is commonly observed in multilingual MT models (Liu et al., 2020; Fan et al., 2020; Siddhant et al., 2022; Bapna et al., 2022; Team et al., 2022), where LRLs benefit the most. This highlights the need to investigate how decoder-only models may catch up with encoder- decoder models in low-resource applications. It underscores the importance of smaller specialized models when large multitask models cannot over- come low-resource challenges.
+3.3 Few-shot prompts offer marginal
+improvement
+Our main experiments suggested that n-shot set- ting had only a modest effect on MT performance. We conducted a more concentrated study of n-shot prompts using dev sets for the 12 languages in Ta- ble 2. Results in Table 6 show five-shot prompts performing best. For some LRLs, this was simply a result of ChatGPT’s failure to model the language. In Santali’s case, for example, zero-shot ChatGPT was unable to produce the Ol Chiki script at all. In the five-shot setting, it was able to imitate the script characters from the context, but without any coher- ence or accuracy. Excepting Santali as an outlier, five-shot settings offered generally marginal im- provements over zero-shot (the most cost-effective
+
+
+Figure 1: ChatGPT relative improvement over NLLB chrF, with languages organized by family, script, and number of Wikipedia pages. Red stars represent averages per group. In the bottom plot, languages are grouped into quartiles of equal size (with dotted lines at the Q1, median, and Q3). More expansive visualizations with language labels for each value can be found in Appendix C.
+of the settings), with an average improvement of only 1.41 chrF across all 12 languages (0.31 if we exclude Santali). Zero-shot prompts actually produced the best chrF score for six of the 12 lan- guages. The one-shot setting performed worst. We noted this trend of few-shot contexts offering only meager and inconsistent improvements throughout our experiments, with five-shot MT improving on zero-shot by only 0.88 average chrF across all 203 language directions. (See Appendix A.)
+0-shot
+1-shot
+5-shot
+fra zho fin tur tgl tam swh amh pap lao luo sat
+BLEU 55.4 30.0 34.6 38.2 35.9 13.8 39.7 3.4 26.6 4.8 0.8 0.0
+chrF 71.3 29.9 56.6 58.6 60.2 35.3 60.6 10.1 51.5 21.6 7.6 0.3
+BLEU 50.4 28.2 31.7 34.8 35.2 11.7 36.0 3.2 29.3 4.4 0.2 2.2
+chrF 70.3 30.8 56.3 57.6 59.6 34.3 59.5 9.6 54.1 20.8 4.6 11.3
+BLEU 55.4 30.7 34.6 38.3 36.1 11.9 40.0 3.9 34.8 5.3 0.2 3.0
+chrF 71.2 31.1 56.7 58.6 60.1 34.6 60.5 10.6 56.1 22.1 5.2 13.8
+3.4
+Importance of language features
+We were interested in which language features de- termined LLMs’ effectiveness compared to tradi- tional MT. Analyzing this may reveal trends helpful to end users deciding which MT system to use, es- pecially if their language is not represented here but shares some of the features we consider. In this section we focus on comparing ChatGPT and NLLB, since we evaluated the most languages with them. We focus on zero-shot ChatGPT, as it is the most common and convenient setting for end users. We encoded each of the 203 languages in our set as a feature vector. In these language feature vec- tors we included four numerical features: num- ber of Wikipedia pages in the language (wiki_ct), size of the language’s bi-text corpus in the Oscar MT database9 (oscar_ct) (Abadji et al., 2022), percentage of ASCII characters10 in the FLORES- 200 dev set for the language (ascii_percentage), and average number of tokens per dev set sen- tence in FLORES-200 with ChatGPT’s tokenizer
+Table 6: Three n-shot settings for 12 diverse languages
+9https://oscar-project.org 10Percentage of characters with an encoding between 0 and
+128, inclusive, using the Python built-in ord function
+
+
+(token_ct). We also included two categorical language family (family) and script features: the language was written in (script); and one binary feature: the FLORES resource designa- tion of the language–with 1 for high-resource and 0 for low-resource (hi/lo). Before analysis, we one-hot encoded the two categorical features into 48 binary features like family_Niger-Congo and script_Latn.
+We selected token_ct as a feature because we observed languages in low-resource scripts having many tokens. For example, ChatGPT’s tokenizer encodes multiple tokens for every character in Ol Chiki script. This tendency for GPT models with low-resource scripts has been noted in previous studies (Ahia et al., 2023).
+We fit a decision tree with these feature vectors to regress on ChatGPT’s relative improvement over NLLB in chrF ( chrfGP T −chrfN LLB ), for each of the chrfN LLB 201 languages with NLLB scores. When we used max_depth 3, the tree in Figure 2 was learned. Lan- guages are delimited first by wiki_ct; then LRLs are separated into Niger-Congo languages and oth- ers, while HRLs are delimited by token_ct. The only group where ChatGPT beat NLLB is of lan- guages with more than 58,344 Wikipedia pages, fewer than 86 tokens per average sentence, and less than 15.5% ASCII characters. This group contains some East Asian HRLs. The group where Chat- GPT was least advantaged contains Niger-Congo languages with fewer than 3,707 Wikipedia pages.
+We also fit a random forest regressor with the same features and labels to find feature importance values. Only ten features had importance ≥ 0.01, shown in Table 7. The most important feature by far was wiki_ct. (This feature correlates strongly with ChatGPT’s relative improvement, ρ = 0.68.) family_Niger-Congo was much more important than any other family feature. No script feature had an importance exceeding 0.01. In general, fea- tures for resource level and tokenization were more important than family or script.
+ChatGPT has a blind spot not only for Niger- Congo languages, but for African languages in gen- eral. Figure 1 shows ChatGPT is least advantaged for the two exclusively African families, Niger- Congo and Nilo-Saharan; and the two exclusively African scripts, Tifinagh (Tfng) and Ge’ez (Ethi).
+feature wiki_ct token_ct ascii_percentage family_Niger-Congo oscar_ct family_Afroasiatic family_Indo-European family_Sino-Tibetan family_Creole family_Nilo-Saharan
+importance 0.514 0.157 0.104 0.054 0.040 0.025 0.025 0.022 0.012 0.011
+Table 7: Ten most important language features to predict ChatGPT’s effectiveness relative to NLLB
+3.5
+Impact of script
+Prior research suggests that ChatGPT output qual- ity is sensitive to language script (Bang et al., 2023). Our own analysis in §3.4 actually suggests that script is the least important language feature in pre- dicting ChatGPT’s MT effectiveness. However, dif- ferences in performance are clear when comparing scripts used for the same language. Table 8 shows one script typically outperforming the other, by an average of 14.3 chrF points for zero-shot. Five- shot contexts narrowed the gap slightly to 12.0. Al- though transliteration is a deterministic process for many languages, these performance gaps suggest that ChatGPT has not implicitly learned it as part of a translation task. We hypothesize that ChatGPT’s observed sensitivity to script in earlier studies may be particular to the languages and tasks evaluated.
+BLEU
+chrF
+Lang. ace_Arab ace_Latn arb_Arab arb_Latn bjn_Arab bjn_Latn kas_Arab kas_Deva knc_Arab knc_Latn min_Arab min_Latn taq_Latn taq_Tfng zho_Hans zho_Hant
+0-shot 1.27 4.98 37.60 5.33 1.96 10.96 3.99 2.31 0.51 2.61 1.56 11.51 0.82 0.62 36.33 29.30
+5-shot 2.26 4.35 37.85 8.38 3.05 12.29 3.30 2.68 1.06 0.91 3.49 13.07 0.28 1.37 36.51 30.38
+0-shot 8.41 19.82 53.79 22.79 10.43 35.92 15.51 12.91 5.26 13.38 10.06 36.99 8.18 5.23 31.03 24.82
+5-shot 9.75 17.96 53.81 26.92 13.24 37.98 14.33 13.91 4.67 8.11 14.88 38.43 6.24 8.31 31.89 26.02
+Table 8: ChatGPT performance on languages with mul- tiple scripts. Each better scoring script is bold.
+3.6 LLMs often get the language wrong
+LLMs’ performing worse than NLLB may be due in large part to their translating into the wrong lan- guage. Using FLORES-200’s dev data, we trained
+
+
+Figure 2: Decision tree predicting ChatGPT relative improvement over NLLB chrF, from language features.
+a logistic regression language identifier for 100 epochs. Language identification accuracies for four of the models we evaluated are in Table 9. Zero- shot ChatGPT only translated on target 72% of the time. This expectedly improved with five-shot prompts, and GPT-4 performed even better, still just shy of NLLB. LLMs’ tendency to translate off target is corroborated by Zhu et al. (2023).
+model ChatGPT (0-shot) ChatGPT (5-shot) GPT-4 (5-shot) NLLB
+lang. ID acc. 72% 83% 90% 91%
+Table 9: Proportion of the time each model translated into the correct target language
+3.7 Cost comparison
+the tiktoken tokenizer11 used by both models, and inference prices from OpenAI’s website.12 Con- veniently, Google Translate costs nothing for the first 500K input characters. But since frequent MT users may have already expended this allowance, we calculated costs from their rates beyond the first 500K.13 As the full NLLB-MOE model (54.5B pa- rameters) is difficult to run on standard computing devices, Team et al. (2022) also provided a version with only 3.3B parameters that achieves similar performance. Since users commonly opt for the smaller model, and since the performance differ- ence does not impact our estimates significantly, we estimated the costs to run the 3.3B-parameter NLLB model using a single GPU on Google Co- lab. Details of our estimation method are in Ap- pendix B.1. Table 10 contains the average cost for each system across the languages we evaluated with it.
+Our results suggest that GPT-4 is a better translator than ChatGPT. However in considering the needs of MT end users, it would be remiss not to consider the respective costs of the systems evaluated. GPT- 4’s high cost (roughly 2000% that of ChatGPT’s) prohibited us from evaluating it on all FLORES- 200 languages. In general, using few-shot prompts for LLMs is more costly than zero-shot prompts, since users are charged for both input and output tokens. And for this same reason, some languages are more costly than others in LLM MT. Previous work has found that Google Translate has associ- ated costs comparable to those of five-shot Chat- GPT (Neubig and He, 2023). NLLB is the least expensive system we evaluated.
+We estimated cost values for each MT system and language: the expense, in USD, of translat- ing the full FLORES-200 devtest English set into the language. We estimated costs of GPT models using the prompts employed in our experiments,
+model NLLB ChatGPT (0-shot) ChatGPT (5-shot) Google GPT-4 (5-shot)
+cost $0.09 $0.35 $1.32 $2.66 $25.93
+Table 10: Estimated cost in USD to translate FLORES- 200 devtest ENG→X with each system, averaged across all languages we evaluated with each
+Figure 3 displays chrF scores for the 11 lan- guages on which we evaluated all four MT sys- tems (top), and the same scores divided by the approximate cost of each model (bottom). Bars for GPT-4 drop significantly in the bottom chart be- cause of its high cost. Note from the top chart that
+11https://github.com/openai/tiktoken 12https://openai.com/pricing 13https://cloud.google.com/translate/pricing
+
+
+Figure 3: chrF scores for the 11 languages on which we evaluted all MT systems (top), followed by the same scores divided by the estimated cost of each system for each language (bottom)
+Google Translate scores the best, but the bottom chart shows that NLLB has the best scores for its price. Zero-shot ChatGPT also tops five-shot in the bottom chart, suggesting that while few-shot prompts provide modest score improvements, they may not be worth the extra cost. See Appendix B for fuller visualizations with all 203 languages.
+4 Related Work
+We are not the first researchers to explore LLM MT. However, most existing studies do not provide benchmarks for a large number or languages. Wang et al. (2023) studied GPT model discourse MT, but only for four languages. Gao et al. (2023) studied prompt engineering for GPT model MT, a helpful precursor to our work, but only for three languages. Moslem et al. (2023) probed the abilities of GPT models for adaptive and domain-appropriate MT and term extraction, only including six languages in five directions. Jiao et al. (2023) produced MT benchmarks for ChatGPT and GPT-4, but only for five languages, none of them LRLs.14 They cor- roborated our findings that GPT models lag behind traditional MT models, but that GPT-4 outperforms ChatGPT. Hendy et al. (2023) explored 18 lan- guage pairs in a similar study, including four LRLs, but they focused more on MT performance across text domains, in-context learning, and reasoning than on multilingual benchmarks.
+In all the heretofore mentioned works combined, researchers explored only 18 languages, including five LRLs. This few-language approach does not
+14In this section, we define LRLs as languages having fewer
+than 1M Wikipedia pages.
+address the needs of LLM users seeking to trans- late any languages other than the small few repre- sented. In a work most comparable to our own, Zhu et al. (2023) attempted to address this issue. They provided benchmarks comparing LLMs and tradi- tional MT models across 102 languages, including 68 LRLs. Their results corroborate our own conclu- sions that LLMs lag behind traditional MT models, especially for LRLs. However, their analysis fo- cuses primarily on few-shot learning and prompt engineering, including some topics somewhat re- moved from end user needs (such as the viability of nonsensical prompts in few-shot settings). Our work differs from existing studies in our focus on end users. We include more languages than any ex- isting work (204 languages, including 168 LRLs), to address the needs of various LRL communities. Our analysis suggests which language features pre- dict LLM effectiveness, to help end users make hypotheses even about languages not represented in our study. We evaluate monetary costs, since they are a concern for LLM users.
+5 Conclusion
+We provide benchmarks for LLM ENG→X MT performance across 203 languages, with compar- isons to state-of-the-art commercial and open- source MT models. For many HRLs, LLMs like ChatGPT perform competitively with these tra- ditional models. But for LRLs, traditional MT remains dominant, despite LLMs’ increased pa- rameter size. Our decision-tree analysis reveals language features that predict ChatGPT’s transla- tion effectiveness relative to NLLB, finding that ChatGPT is especially disadvantaged for LRLs and African languages, and that the number of Wikipedia pages a language has is a strong pre- dictor of ChatGPT’s effectiveness in it. We present evidence that few-shot learning offers generally marginal improvements for ENG→X MT, which may not justify its additional cost. We provide MT users with scores and cost estimates for four LLM and traditional MT systems, to help them determine which to use for their languages.
+Future work in this vein may include more trans- lation directions (e.g. X→ENG and non-English- centric), and human evaluation of LLM MT outputs to reveal trends along dimensions like fluency and accuracy. We open-source software and outputs of the models we evaluated on our repository.
+
+
+Limitations
+We acknowledge limitations of using ChatGPT models for research. Since they are closed-source models, there is much we do not know about their architectural and training details, which can impact our understanding of their capabilities and biases. For instance, OpenAI’s implementation of mecha- nisms to prevent the generation of harmful or toxic content may inadvertently impact the quality of the model’s output. This can be a concern when eval- uating the reliability and accuracy of the results. OpenAI continuously updates and deprecates mod- els behind the ChatGPT API, so our assessment may not be immaculate for future versions.
+While FLORES-200 is large and diverse, it is likely not representative of the vast array of lan- guages worldwide. Some low-resource sets within FLORES-200 may contain noisy or corrupted data, potentially affecting the validity of the automatic metrics we employ in our reporting of scores. Ad- ditionally, FLORES-200 sets were translated from English Wikipedia. We avoided any X→ENG translation directions, since it is likely that GPT models were trained on English Wikipedia. How- ever, the semantic proximity of the other language sets to the original English source could potentially provide an advantage to these models in generat- ing them. We also acknowledge the absence of non-English-centric translation directions from this study; we leave this for future work.
+Lastly, the unavailability of semantic MT eval- uation techniques like COMET (Rei et al., 2020) or BLEURT (Sellam et al., 2020) for LRLs hinders our ability to conduct comprehensive semantic eval- uations and may leave some aspects of the transla- tion quality unexplored. Human evaluation (which we leave for future work) may also reveal much in this area. These limitations surrounding model transparency, representative data, and evaluation should be taken into account when interpreting the findings of this work. Future studies may benefit from addressing these challenges to enhance the robustness and reliability of MT conclusions.
+Ethics Statement
+The new prominance of LLMs in language tech- nologies has numerous ethical implications. This study makes it apparent that even powerful LLMs like ChatGPT have significant limitations, such as an inability to translate a large number of low- resource languages. It also suggests that although
+these LLMs are trained on large and diverse data sets, they still have implicit biases, such as a clear disadvantage in MT for African languages. We hope to stress the importance of acknowledging and publicizing the limits and biases of these LLMs. This is especially relevant because a majority of LLM users may not be familiar or experienced with artificial intelligence (AI) engineering practices, and the commercial entities providing LLMs often have a monetary incentive to deliberately downplay the models’ limitations. This can lead to unethi- cal exploitation of users, who may attempt to use LLMs in applications where their limitations and biases can cause harm. Part of our goal in this work is to bring these discussions to the forefront of AI research. Ethical considerations like these should be a top concern for AI researchers, es- pecially when many recent AI advancements are piloted by powerful commercial corporations.
+We hope also to acknowledge some of the ethical considerations involved in our own research. As we strive to develop improved open-source and acces- sible translation systems, it is essential to acknowl- edge that some language communities may have reservations about having their languages trans- lated. Another crucial point is that utilizing the FLORES-200 test set in this research may inadver- tently contribute to its incorporation into OpenAI’s training data. OpenAI’s current position is that API requests are not used for training (Schade, 2023), but if this position were altered or disregarded, it could compromise the reliability of this test set for future GPT iterations. (This is a consideration for many commercial LLMs, though we only used OpenAI’s in the current work.) This scenario has a potential negative impact on the MT community, since many researchers depend on FLORES-200 and other MT benchmarks for large, diverse, high- quality data to conduct system comparisons.
+Acknowledgements
+We thank Simran Khanuja for her help in running our Google Translate baseline and her general sup- port. We also thank Alex Cabrera for his help developing our Zeno browser. This material is based on research sponsored in part by the Air Force Research Laboratory under agreement num- ber FA8750-19-2-0200. The U.S. Government is authorized to reproduce and distribute reprints for Governmental purposes notwithstanding any copy- right notation thereon. The views and conclusions
+
+
+contained herein are those of the authors and should not be interpreted as necessarily representing the official policies or endorsements, either expressed or implied, of the Air Force Research Laboratory or the U.S. Government. This work was also sup- ported in part by the National Science Foundation under grant #2040926, a grant from the Singapore Defence Science and Technology Agency.
+References
+Julien Abadji, Pedro Ortiz Suarez, Laurent Romary, and Benoît Sagot. 2022. Towards a Cleaner Document- Oriented Multilingual Crawled Corpus. arXiv e- prints, page arXiv:2201.06642.
+Orevaoghene Ahia, Sachin Kumar, Hila Gonen, Jungo Kasai, David R. Mortensen, Noah A. Smith, and Yu- lia Tsvetkov. 2023. Do all languages cost the same? tokenization in the era of commercial language mod- els.
+Yejin Bang, Samuel Cahyawijaya, Nayeon Lee, Wen- liang Dai, Dan Su, Bryan Wilie, Holy Lovenia, Ziwei Ji, Tiezheng Yu, Willy Chung, Quyet V. Do, Yan Xu, and Pascale Fung. 2023. A multitask, multilin- gual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity.
+Ankur Bapna, Isaac Caswell, Julia Kreutzer, Orhan Fi- rat, Daan van Esch, Aditya Siddhant, Mengmeng Niu, Pallavi Baljekar, Xavier Garcia, Wolfgang Macherey, Theresa Breiner, Vera Axelrod, Jason Riesa, Yuan Cao, Mia Xu Chen, Klaus Macherey, Maxim Krikun, Pidong Wang, Alexander Gutkin, Apurva Shah, Yan- ping Huang, Zhifeng Chen, Yonghui Wu, and Mac- duff Hughes. 2022. Building machine translation systems for the next thousand languages.
+Tom Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared D Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, Sandhini Agarwal, Ariel Herbert-Voss, Gretchen Krueger, Tom Henighan, Rewon Child, Aditya Ramesh, Daniel Ziegler, Jeffrey Wu, Clemens Winter, Chris Hesse, Mark Chen, Eric Sigler, Ma- teusz Litwin, Scott Gray, Benjamin Chess, Jack Clark, Christopher Berner, Sam McCandlish, Alec Radford, Ilya Sutskever, and Dario Amodei. 2020. In Ad- Language models are few-shot learners. vances in Neural Information Processing Systems, volume 33, pages 1877–1901. Curran Associates, Inc.
+Angela Fan, Shruti Bhosale, Holger Schwenk, Zhiyi Ma, Ahmed El-Kishky, Siddharth Goyal, Man- deep Baines, Onur Celebi, Guillaume Wenzek, Vishrav Chaudhary, Naman Goyal, Tom Birch, Vi- taliy Liptchinsky, Sergey Edunov, Edouard Grave, Michael Auli, and Armand Joulin. 2020. Be- yond english-centric multilingual machine transla- tion. CoRR, abs/2010.11125.
+Yuan Gao, Ruili Wang, and Feng Hou. 2023. How to design translation prompts for chatgpt: An empirical study. arXiv e-prints, pages arXiv–2304.
+Naman Goyal, Cynthia Gao, Vishrav Chaudhary, Peng- Jen Chen, Guillaume Wenzek, Da Ju, Sanjana Kr- ishnan, Marc’Aurelio Ranzato, Francisco Guzmán, and Angela Fan. 2022. The Flores-101 evaluation benchmark for low-resource and multilingual ma- chine translation. Transactions of the Association for Computational Linguistics, 10:522–538.
+Amr Hendy, Mohamed Abdelrehim, Amr Sharaf, Vikas Raunak, Mohamed Gabr, Hitokazu Matsushita, Young Jin Kim, Mohamed Afify, and Hany Hassan Awadalla. 2023. How good are gpt models at ma- chine translation? a comprehensive evaluation. arXiv preprint arXiv:2302.09210.
+Wenxiang Jiao, WX Wang, JT Huang, Xing Wang, and ZP Tu. 2023. Is chatgpt a good transla- tor? yes with gpt-4 as the engine. arXiv preprint arXiv:2301.08745.
+Yinhan Liu, Jiatao Gu, Naman Goyal, Xian Li, Sergey Edunov, Marjan Ghazvininejad, Mike Lewis, and Luke Zettlemoyer. 2020. Multilingual denoising pre- training for neural machine translation. Transac- tions of the Association for Computational Linguis- tics, 8:726–742.
+Yasmin Moslem, Rejwanul Haque, and Andy Way. 2023. Adaptive machine translation with large language models. arXiv preprint arXiv:2301.13294.
+Graham Neubig and Zhiwei He. 2023. Zeno GPT Ma-
+chine Translation Report.
+OpenAI. 2023. Gpt-4 technical report.
+Kishore Papineni, Salim Roukos, Todd Ward, and Wei- Jing Zhu. 2002. Bleu: A method for automatic evalu- ation of machine translation. In Proceedings of the 40th Annual Meeting on Association for Computa- tional Linguistics, ACL ’02, page 311–318, USA. Association for Computational Linguistics.
+Maja Popovi´c. 2017. chrF++: words helping charac- ter n-grams. In Proceedings of the Second Confer- ence on Machine Translation, pages 612–618, Copen- hagen, Denmark. Association for Computational Lin- guistics.
+Matt Post. 2018. A call for clarity in reporting BLEU scores. In Proceedings of the Third Conference on Machine Translation: Research Papers, pages 186– 191, Belgium, Brussels. Association for Computa- tional Linguistics.
+Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, Ilya Sutskever, et al. 2019. Language models are unsupervised multitask learners. OpenAI blog, 1(8):9.
+
+
+Ricardo Rei, Craig Stewart, Ana C Farinha, and Alon Lavie. 2020. Comet: A neural framework for mt eval- uation. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 2685–2702.
+Michael Schade. 2023. How your data is used to im-
+prove model performance.
+Thibault Sellam, Dipanjan Das, and Ankur Parikh. 2020. Bleurt: Learning robust metrics for text generation. In Proceedings of the 58th Annual Meeting of the As- sociation for Computational Linguistics, pages 7881– 7892.
+Aditya Siddhant, Ankur Bapna, Orhan Firat, Yuan Cao, Mia Xu Chen, Isaac Caswell, and Xavier Garcia. 2022. Towards the next 1000 languages in mul- tilingual machine translation: Exploring the syn- ergy between supervised and self-supervised learning. CoRR, abs/2201.03110.
+NLLB Team, Marta R. Costa-jussà, James Cross, Onur Çelebi, Maha Elbayad, Kenneth Heafield, Kevin Hef- fernan, Elahe Kalbassi, Janice Lam, Daniel Licht, Jean Maillard, Anna Sun, Skyler Wang, Guillaume Wenzek, Al Youngblood, Bapi Akula, Loic Bar- rault, Gabriel Mejia Gonzalez, Prangthip Hansanti, John Hoffman, Semarley Jarrett, Kaushik Ram Sadagopan, Dirk Rowe, Shannon Spruit, Chau Tran, Pierre Andrews, Necip Fazil Ayan, Shruti Bhosale, Sergey Edunov, Angela Fan, Cynthia Gao, Vedanuj Goswami, Francisco Guzmán, Philipp Koehn, Alexandre Mourachko, Christophe Ropers, Safiyyah Saleem, Holger Schwenk, and Jeff Wang. 2022. No language left behind: Scaling human- centered machine translation.
+Longyue Wang, Chenyang Lyu, Tianbo Ji, Zhirui Zhang, Dian Yu, Shuming Shi, and Zhaopeng Tu. 2023. Document-level machine translation with large lan- guage models. arXiv preprint arXiv:2304.02210.
+Liang Xu, Anqi Li, Lei Zhu, Hang Xue, Changtai Zhu, Kangkang Zhao, Haonan He, Xuanwei Zhang, Qiyue Kang, and Zhenzhong Lan. 2023. Superclue: A com- prehensive chinese large language model benchmark.
+Wenxuan Zhang, Sharifah Mahani Aljunied, Chang Gao, Yew Ken Chia, and Lidong Bing. 2023. M3exam: A multilingual, multimodal, multilevel benchmark for examining large language models.
+Wenhao Zhu, Hongyi Liu, Qingxiu Dong, Jingjing Xu, Shujian Huang, Lingpeng Kong, Jiajun Chen, and Lei Li. 2023. Multilingual machine translation with large language models: Empirical results and analysis.
+
+
+A Unabridged Result Table
+In Table 11 we report full results for 203 target lan- guages in ENG→X translation directions, across four MT systems: two LLMs (ChatGPT and GPT-4, with two n-shot settings for ChatGPT), one open- source encoder-decoder MT model (NLLB), and one commercial system (Google). We order in them in increasing order of performance, with zero- shot ChatGPT performing the worst and Google performing the best overall. We obtained scores for 203 target languages with ChatGPT, 201 with NLLB, 115 with Google Translate, and 20 with GPT-4. Our scores are spBLEU (Goyal et al., 2022) using the SPM-200 tokenizer (Team et al., 2022) and chrF2++ (Popovi´c, 2017). All results are also available on our repository, and interactive visu- alizations and histograms can be browsed on our Zeno browser.
+B Unabridged Bar Charts and Cost
+Estimation
+See Figures 4 and 5 for chrF and BLEU scores across all MT systems and languages. Google Translate and NLLB are generally the best perform- ers in both metrics, though GPT-4 and ChatGPT are occasionally best. An “x” indicates where we did not evaluate one of the systems for a language. Fig- ures 6 and 7 display chrF and BLEU scores divided by the estimated cost of each MT system. The cost value is measured as the amount in USD that it would cost to translate the entire FLORES-200 devtest set for each language.
+These visualizations are also available on our repository. (Also see our Zeno browser for interac- tive visualizations of our results.) We also include cost estimates and scores divided thereby for all languages and MT systems in Table 14. We ex- clude cost estimates by language for NLLB and Google because there is very little variation be- tween languages. Our estimated cost of translat- ing FLORES-200 devtest ENG→ is approximately $0.09 for every target language. And the respective estimate for Google Translate is roughly $2.66 re- gardless of the target language, since Google’s API only charges for input characters.
+B.1 Details about estimating NLLB cost
+To estimate the cost of running NLLB’s 3.3B- parameter model for translation, we used one GPU from Google Colab to translate the full FLORES-200 devtest set from English into six
+languages representing six high- and low-resource scripts–Burmese (mya_Mymr), Simplified Chinese (zho_Hans), Standard Arabic (arb_Arab), Hindi (hin_Deva), Armenian (hye_Armn), and French (fra_Latn)–and measured the time for each. We assumed that runtime t is determined by an equa- tion with unknown coefficients x1, x2, and x3:
+t = x1ninput + x2noutput + x3
+where ninput represents the number of input to- kens and noutput is the number of output tokens. In this case, x1 represents the rate at which the encoder processes input tokens, x2 represents the rate at which the decoder undergoes inference, and x3 is the amount of time to perform all other com- putations, independent of the number of tokens. We estimated x1, x2, and x3 via a least-squares solution to the linear system defined by the six languages for which we obtained runtime t:
+
+      
+ninput noutput(mya) 1 ninput noutput(zho) 1 ninput noutput(arb) 1 ninput noutput(hin) 1 ninput noutput(hye) 1 ninput noutput(fra) 1
+
+      
+
+
+x1 x2 x3
+
+ =
+
+      
+tmya tzho tarb thin thye tfra
+where ninput is the number of tokens in the En- glish devtest set, and noutput for each language is the number of tokens in the NLLB-MOE model output provided by Team et al. (2022). (We used the same tokenizer that we had used for GPT model cost estimation, for simplicity.) After estimating x1, x2, and x3, we used them in Equation 1 to esti- mate t values for all 201 languages for which we obtained NLLB MT scores. We then used Google Colab’s estimated rate of $0.35/hour for use of one GPU to estimate costs for each language.
+C Visualizations Comparing ChatGPT
+and NLLB
+See Figures 8 and 9. They are also posted on our repository. (Also see our Zeno browser for interac- tive visualizations of our results.)
+D Estimating Wikipedia Page Counts
+As mentioned in §2.3, we used the "Total pages" count from https://en.wikipedia.org/wiki/ List_of_Wikipedias, accessed 7 August 2023, as a proxy for the resource level of a language (refered
+(1)
+
+      
+
+
+to as wiki_ct in §3.4). We had to make some deci- sions regarding macrolanguage and microlanguage matches when making these estimates. Many of the languages in FLORES-200 (Team et al., 2022) are in fact microlanguages of a macrolangauge not in- cluded in the dataset. In some cases this microlan- guage was did not have a listed Wikipedia page count, so we used the macrolanguage page count instead. Table 12 lists all the languages for which we used the Wikipedia page count of a macrolan- guage (with a different ISO 639-3 code), based on our best judgment. In every case this was because the FLORES-200 microlanguage was not listed.
+There were also cases where we decided to list zero for a microlanguage’s wiki_ct, even if its macrolanguage was listed with a nonzero number of pages. This was in cases where we could reason- ably assume that the macrolanguage’s Wikipedia pages were likely (either all or predominantly) in another microlanguage or dialect. We list the lan- guages that we considered in this manner in Ta- ble 13.
+regarding wiki_ct assignment based on the script of a lan- guage. We recorded zero Wikipedia pages for kas_Deva and 13,210 for kas_Arab (all of the Kashmiri pages) because a majority of Kashmiri pages seem to be in Perso-Arabic script. (There may be a few in Devanagari, but we simplify by as- suming none are.) We also recorded zero pages for mni_Beng because, although Wikipedia has pages in Meitei, they appear to be in the Meitei Mtei script, not Bengali Beng. Lastly, we as- signed Wikipedia’s count for ‘Classical Chinese’ (zh-classical) to zho_Hant and its count for ‘Chinese’ to zho_Hans (though it is possible that some of the ‘Chinese’ pages may be in the Tradi- tional Chinese (Hant) script).
+We also made some decisions
+In all other cases, if a language did not have a listed number of Wikipedia pages, we took this to mean it had zero.
+
+
+Table 11: BLEU and chrF results on ENG→X directions. “0-shot" and “5-shot" are ChatGPT with zero- and five-shot settings, respectively. “NLLB" is the NLLB-MOE model, and “Google" is Google Translate. We used five-shot settings only for GPT-4. Models are listed in order of their effectiveness in MT (with zero-shot ChatGPT performing the worst and Google Translate performing the best).
+Language
+spBLEU200
+chrF2++
+ace_Arab ace_Latn acm_Arab acq_Arab aeb_Arab afr_Latn ajp_Arab aka_Latn als_Latn amh_Ethi apc_Arab arb_Arab arb_Latn ars_Arab ary_Arab arz_Arab asm_Beng ast_Latn awa_Deva ayr_Latn azb_Arab azj_Latn bak_Cyrl bam_Latn ban_Latn bel_Cyrl bem_Latn ben_Beng bho_Deva bjn_Arab bjn_Latn bod_Tibt bos_Latn bug_Latn bul_Cyrl cat_Latn ceb_Latn ces_Latn cjk_Latn ckb_Arab crh_Latn cym_Latn dan_Latn deu_Latn dik_Latn dyu_Latn dzo_Tibt ell_Grek epo_Latn est_Latn eus_Latn ewe_Latn fao_Latn fij_Latn fin_Latn fon_Latn fra_Latn fur_Latn fuv_Latn gaz_Latn gla_Latn
+0-shot 1.3 5.0 28.2 30.9 24.2 47.2 31.5 3.2 33.6 3.5 30.4 37.6 5.3 35.9 19.3 26.2 8.2 31.3 15.6 0.2 3.5 16.6 5.5 0.5 10.9 19.5 1.6 21.8 11.9 2.0 11.0 0.2 40.0 5.2 44.1 47.8 28.0 40.8 0.2 4.7 6.0 48.0 52.3 47.7 0.2 0.5 0.1 35.8 37.9 35.3 19.1 0.6 18.1 5.5 35.8 0.2 56.4 18.5 1.2 0.6 15.5
+5-shot GPT-4 NLLB Google – – – – – 48.7 – – – 34.1 – 48.6 7.9 – – – 23.2 – – 7.2 – – – 9.5 – 30.1 – 37.6 21.0 – – – 44.0 – 53.1 51.1 40.2 46.0 – 25.8 – 63.6 55.3 51.2 – – – 40.1 40.4 41.4 33.9 17.0 – – 39.2 – 59.7 – – 14.6 32.2
+2.3 4.3 29.6 31.9 24.7 46.7 32.2 3.1 34.2 3.7 30.9 37.9 8.4 37.2 19.6 26.6 10.6 32.3 16.6 0.1 3.6 17.7 5.7 0.7 9.0 20.5 1.1 22.1 12.5 3.0 12.3 0.4 40.6 2.7 44.4 47.9 29.1 40.8 0.1 6.5 6.8 48.5 52.5 47.9 0.1 0.1 0.7 35.8 38.5 35.8 19.5 0.7 19.2 4.8 36.1 0.2 56.6 19.8 0.4 0.4 16.3
+– – 29.5 – – – 32.2 – – – – – – – – – – – – – – – – – – – – – – – – – – – – – – – – 11.2 – – – – – – – – – – – – – – – – 57.3 – – – –
+5.5 11.6 11.8 26.9 19.9 44.4 36.3 11.7 39.4 31.6 36.7 43.0 – 36.7 23.3 32.1 22.5 34.5 27.6 7.6 5.4 24.6 30.3 9.3 19.4 27.3 13.6 36.0 23.6 5.8 21.9 8.5 40.7 9.1 50.0 48.9 34.5 42.4 4.0 26.8 27.4 58.4 50.0 46.6 6.1 2.7 13.3 38.7 42.8 36.5 29.0 17.2 31.6 23.6 36.6 6.4 56.2 39.6 6.0 12.6 28.7
+0-shot 8.4 19.8 44.7 47.5 41.0 67.0 47.1 13.3 56.0 10.0 45.5 53.8 22.8 52.4 36.3 42.3 23.2 53.8 35.4 4.7 17.9 38.4 20.1 6.1 30.7 38.3 10.3 38.5 29.7 10.4 35.9 12.7 59.9 23.3 61.6 65.4 51.0 57.6 4.4 19.7 27.8 64.7 69.7 65.4 4.6 4.5 7.7 51.6 58.5 56.8 44.2 6.0 40.5 22.9 56.2 3.9 71.1 40.6 8.5 8.0 38.9
+5-shot GPT-4 NLLB Google – – – – – 67.8 – – – 42.0 – 62.6 35.4 – – – 37.4 – – 31.5 – – – 32.6 – 44.4 – 51.4 40.0 – – – 61.8 – 67.9 67.2 62.2 60.3 – 47.7 – 74.5 70.3 66.5 – – – 53.6 60.1 59.9 54.5 39.9 – – 58.0 – 72.7 – – 40.3 52.7
+9.8 18.0 46.1 48.1 41.3 66.7 47.5 13.8 56.3 10.6 45.8 53.8 26.9 53.1 36.7 42.7 26.1 54.5 36.3 3.8 18.5 40.3 20.7 6.9 27.4 39.1 9.1 39.0 30.7 13.2 38.0 14.7 60.1 16.4 61.9 65.3 52.9 57.4 4.5 24.8 29.0 64.9 69.7 65.4 4.4 4.3 15.9 51.6 58.8 56.9 43.9 6.1 41.5 21.3 56.4 4.1 71.3 42.5 5.8 7.3 39.0
+– – 46.5 – – – 48.4 – – – – – – – – – – – – – – – – – – – – – – – – – – – – – – – – 33.1 – – – – – – – – – – – – – – – – 71.7 – – – –
+17.4 37.1 31.9 42.2 38.2 64.3 51.3 34.5 58.3 39.4 50.6 57.1 – 50.5 38.9 46.8 35.9 56.8 47.1 29.7 23.5 42.9 47.3 30.5 44.6 42.0 37.9 50.0 42.8 17.1 48.2 29.7 58.8 33.7 64.8 65.0 57.3 57.4 24.3 47.2 47.0 70.8 66.4 62.8 24.2 17.7 34.7 52.0 61.4 56.1 50.0 39.0 49.8 46.7 55.3 21.5 69.7 56.8 23.9 37.5 50.2
+Continued on next page
+
+
+Language
+gle_Latn glg_Latn grn_Latn guj_Gujr hat_Latn hau_Latn heb_Hebr hin_Deva hne_Deva hrv_Latn hun_Latn hye_Armn ibo_Latn ilo_Latn ind_Latn isl_Latn ita_Latn jav_Latn jpn_Jpan kab_Latn kac_Latn kam_Latn kan_Knda kas_Arab kas_Deva kat_Geor kaz_Cyrl kbp_Latn kea_Latn khk_Cyrl khm_Khmr kik_Latn kin_Latn kir_Cyrl kmb_Latn kmr_Latn knc_Arab knc_Latn kon_Latn kor_Hang lao_Laoo lij_Latn lim_Latn lin_Latn lit_Latn lmo_Latn ltg_Latn ltz_Latn lua_Latn lug_Latn luo_Latn lus_Latn lvs_Latn mag_Deva mai_Deva mal_Mlym mar_Deva min_Arab min_Latn mkd_Cyrl mlt_Latn mni_Beng mos_Latn mri_Latn mya_Mymr nld_Latn
+0-shot 25.8 39.4 0.7 18.9 24.5 6.2 35.3 29.2 14.1 37.8 34.8 14.3 3.2 11.4 48.8 26.0 37.6 16.9 30.5 1.3 0.0 1.3 18.6 4.0 2.3 15.2 12.9 0.4 13.0 8.0 5.7 0.8 3.4 8.4 0.4 8.3 0.5 2.6 0.9 25.6 2.9 7.6 15.1 2.6 30.0 6.7 5.3 25.4 1.0 1.6 0.8 4.6 33.0 18.6 10.2 14.6 14.5 1.6 11.5 36.0 29.9 1.8 0.2 15.1 2.1 36.3
+Table 11 – continued from previous page
+spBLEU200
+5-shot GPT-4 NLLB Google 44.1 41.9 15.3 39.2 31.8 30.6 48.8 43.0 – 42.5 40.9 42.7 22.2 31.0 55.0 40.8 40.0 30.3 35.3 – – – 41.9 – – 37.5 38.7 – – 33.1 27.4 – 34.3 30.5 – 20.0 – – – 30.0 29.6 – – 21.4 41.7 – – 35.3 – 14.4 – – – – 19.6 43.2 33.4 – – 46.5 59.7 0.1 – 18.3 24.5 38.0
+26.3 40.0 0.6 19.4 24.8 6.3 35.4 29.4 15.5 38.2 34.9 14.8 4.0 12.6 48.7 26.0 37.7 18.9 31.3 1.5 0.1 1.1 19.4 3.3 2.7 15.7 13.4 1.4 18.7 8.5 6.0 2.0 3.1 8.9 0.4 9.4 1.1 0.9 1.3 25.9 4.0 10.3 19.8 2.5 30.6 8.3 5.4 27.5 1.1 1.3 0.1 4.7 33.5 19.4 12.1 14.9 14.7 3.5 13.1 36.5 30.3 2.0 0.2 14.5 2.8 36.5
+32.8 – – – – 15.7 – – – – – – 9.8 – – – – – – – – – – – – 23.2 – – – – – – – – – 14.3 – – – – – – 21.0 – – – – – – – – – 36.7 24.8 – – – – – – – – – – – –
+41.4 40.1 16.4 37.2 30.5 31.4 46.8 40.6 33.7 38.9 38.1 40.2 20.6 29.0 49.2 33.9 38.3 30.3 20.1 16.9 14.3 6.1 39.6 18.2 4.7 34.6 34.0 11.3 22.5 27.1 23.0 15.4 27.2 27.4 4.5 19.6 6.5 8.2 18.9 26.7 29.6 37.2 25.8 21.9 35.4 10.5 36.4 36.7 9.8 14.0 15.2 15.1 35.4 39.4 27.1 38.3 30.3 – 28.7 42.6 50.3 27.5 6.8 20.7 17.7 35.6
+0-shot 47.1 61.3 6.3 37.4 47.0 22.2 51.2 48.7 34.0 57.0 54.6 33.2 14.7 33.6 68.5 44.8 59.4 41.2 33.1 11.9 2.9 8.9 37.9 15.5 12.9 32.5 33.9 4.0 37.6 26.1 21.5 8.8 18.7 25.8 4.9 25.3 5.3 13.4 8.5 34.4 18.5 32.8 40.2 14.8 51.5 29.9 29.2 48.7 8.1 11.6 7.0 17.6 55.1 39.1 28.9 32.3 34.3 10.1 37.0 57.0 49.4 11.4 3.9 34.8 19.8 56.5
+Continued on next page
+chrF2++
+5-shot GPT-4 NLLB Google 60.1 61.5 36.4 55.2 53.4 53.2 61.2 59.3 – 60.2 58.1 56.3 43.5 56.0 72.6 55.8 59.1 55.1 37.1 – – – 55.7 – – 51.4 56.0 – – 49.8 40.3 – 56.1 48.2 – 40.0 – – – 38.6 44.0 – – 48.4 59.4 – – 55.6 – 41.3 – – – – 40.6 56.2 51.0 – – 63.7 71.6 0.6 – 42.4 40.4 57.3
+47.5 61.5 5.7 37.1 47.2 22.4 50.7 48.6 36.1 57.2 54.5 33.5 16.3 35.6 68.5 45.0 59.5 42.7 33.7 12.9 4.8 9.0 38.2 14.3 13.9 33.5 33.4 9.4 43.0 26.6 21.1 11.6 18.0 26.6 6.1 27.4 4.7 8.1 10.5 34.9 21.5 35.2 42.7 14.7 51.8 30.6 29.1 48.9 9.3 10.6 5.0 17.8 55.2 39.9 31.2 32.0 34.6 14.9 38.4 57.3 49.8 10.5 4.3 34.0 20.6 56.7
+53.0 – – – – 40.3 – – – – – – 27.7 – – – – – – – – – – – – 41.4 – – – – – – – – – 34.3 – – – – – – 45.1 – – – – – – – – – 57.3 44.6 – – – – – – – – – – – –
+58.0 59.8 36.6 53.3 51.9 53.5 59.8 57.3 54.3 57.2 55.5 53.2 41.4 53.3 68.7 50.0 57.3 54.8 27.9 35.6 37.5 25.9 53.4 34.2 17.1 48.1 51.8 28.3 42.8 43.9 36.4 37.1 49.7 44.5 24.9 39.3 9.8 27.4 45.3 36.0 46.2 53.8 47.9 48.0 54.7 34.9 53.6 56.0 35.2 39.8 38.5 38.0 54.8 58.5 46.7 51.6 48.0 – 52.4 60.6 66.0 38.7 24.3 44.2 32.0 54.9
+
+
+Language
+nno_Latn nob_Latn npi_Deva nso_Latn nus_Latn nya_Latn oci_Latn ory_Orya pag_Latn pan_Guru pap_Latn pbt_Arab pes_Arab plt_Latn pol_Latn por_Latn prs_Arab quy_Latn ron_Latn run_Latn rus_Cyrl sag_Latn san_Deva sat_Olck scn_Latn shn_Mymr sin_Sinh slk_Latn slv_Latn smo_Latn sna_Latn snd_Arab som_Latn sot_Latn spa_Latn srd_Latn srp_Cyrl ssw_Latn sun_Latn swe_Latn swh_Latn szl_Latn tam_Taml taq_Latn taq_Tfng tat_Cyrl tel_Telu tgk_Cyrl tgl_Latn tha_Thai tir_Ethi tpi_Latn tsn_Latn tso_Latn tuk_Latn tum_Latn tur_Latn twi_Latn tzm_Tfng uig_Arab ukr_Cyrl umb_Latn urd_Arab uzn_Latn vec_Latn vie_Latn
+0-shot 37.1 40.2 19.0 3.7 0.1 4.9 30.4 11.6 5.7 21.0 25.4 5.1 29.4 8.2 32.1 56.4 25.7 0.7 46.2 3.1 38.9 0.1 4.7 0.0 11.2 0.5 6.1 38.6 35.7 6.3 3.2 9.1 8.1 5.7 33.8 16.3 37.5 1.9 13.9 52.5 38.0 12.8 13.6 0.8 0.6 6.7 17.4 10.8 35.0 33.5 1.6 14.0 3.8 2.8 6.2 3.6 38.5 3.0 1.1 6.5 37.4 0.4 21.9 17.4 15.7 40.7
+Table 11 – continued from previous page
+spBLEU200
+5-shot GPT-4 NLLB Google 25.6 – – 29.8 – 21.1 – 38.9 – 39.7 – – 39.8 25.9 36.3 58.6 – 8.2 50.0 – 43.9 – 10.0 – – – 40.4 48.4 42.4 – 20.8 32.6 18.9 22.5 35.0 – 48.1 – 24.4 54.2 44.6 – 38.7 – – 30.4 44.7 35.6 39.8 45.2 17.6 – – 26.1 35.8 – 46.4 17.4 – 40.2 42.8 – 32.7 37.8 – –
+38.3 39.8 19.6 4.6 0.5 5.5 33.3 12.6 8.3 21.5 33.2 5.8 30.4 8.3 32.6 56.9 27.5 0.6 46.9 2.3 38.9 0.1 5.4 1.9 13.0 1.3 6.9 38.4 36.0 8.0 3.4 10.5 8.1 5.4 33.9 18.5 37.9 0.5 14.5 52.2 38.6 15.1 13.4 0.3 1.4 7.3 18.0 11.7 35.0 33.6 1.9 15.8 4.2 3.0 7.7 2.9 38.5 3.0 2.2 8.5 37.4 0.1 22.2 18.8 17.5 40.7
+– – – – – – – – – – – 9.2 – – – – – – 49.0 – – – – – – – – – – – 8.4 – – – – – – 5.8 – – – – 20.9 – – – – – – – – 22.7 – – – – – – – – 39.2 – – – – –
+33.4 38.4 28.7 26.5 14.4 17.7 41.0 30.2 20.2 36.4 42.2 22.9 36.1 25.3 32.5 52.9 33.8 5.8 44.7 19.6 41.0 10.5 8.0 18.5 24.4 15.1 36.0 42.9 38.1 26.9 19.7 31.9 18.4 20.7 33.1 35.8 43.4 19.9 21.6 50.1 36.8 38.4 36.6 4.9 5.6 30.4 41.6 35.3 38.3 35.1 17.8 17.8 25.6 26.7 22.6 13.3 41.5 15.2 21.0 30.5 40.1 4.1 30.5 30.0 28.2 43.3
+0-shot 58.7 60.5 39.5 16.7 3.0 20.6 55.1 27.5 22.6 37.4 51.6 19.7 48.6 31.4 49.7 71.4 44.8 9.3 64.0 16.6 56.6 4.6 21.8 0.2 35.9 7.6 19.5 56.8 55.5 22.8 15.3 22.5 29.4 20.7 56.5 42.1 56.5 10.6 39.0 68.5 60.1 35.5 33.8 8.2 5.2 21.5 34.4 29.3 60.8 43.1 5.8 37.1 17.0 15.0 25.2 16.5 57.9 13.4 8.3 20.5 55.0 5.3 41.7 39.9 41.0 58.5
+Continued on next page
+chrF2++
+5-shot GPT-4 NLLB Google 50.7 – – 54.0 – 48.0 – 53.4 – 51.9 – – 54.3 51.2 52.1 72.3 – 34.0 65.0 – 58.7 – 30.3 – – – 51.2 63.1 59.6 – 44.4 48.7 43.7 47.8 55.5 – 63.4 – 48.7 69.4 64.4 – 55.8 – – 48.2 58.2 51.8 61.8 49.7 26.3 – – 50.9 52.7 – 62.4 40.9 – 54.3 58.6 – 50.0 56.4 – –
+59.4 60.2 39.3 19.0 5.5 22.6 57.0 29.8 26.7 37.6 56.5 21.1 48.8 30.9 50.0 71.7 47.4 9.5 64.2 14.7 56.5 5.1 22.6 14.4 37.2 16.6 20.1 57.0 55.7 26.3 16.3 24.9 29.7 20.9 56.7 43.8 57.2 6.7 38.6 68.4 60.3 36.7 34.5 6.2 8.3 23.6 35.6 30.4 60.6 43.2 6.7 39.2 18.6 16.0 25.9 14.8 57.8 14.2 11.7 24.7 55.4 4.9 41.8 40.9 42.8 57.9
+– – – – – – – – – – – 26.7 – – – – – – 65.3 – – – – – – – – – – – 29.2 – – – – – – 24.1 – – – – 42.7 – – – – – – – – 49.5 – – – – – – – – 56.3 – – – – –
+53.6 58.6 45.5 50.8 29.0 44.0 58.8 45.7 46.3 49.0 60.2 39.4 51.3 50.0 48.9 67.9 53.6 26.9 61.3 42.5 56.3 35.7 26.1 26.3 46.8 34.4 43.8 59.0 56.2 50.0 43.4 48.1 43.0 46.1 53.8 55.6 59.7 43.3 44.7 65.9 58.6 53.7 53.7 23.1 16.7 46.8 55.9 51.2 60.5 42.7 25.8 41.6 48.5 50.0 42.1 35.2 58.3 37.9 32.3 45.3 56.3 26.6 48.9 50.6 51.6 59.5
+
+
+Language
+war_Latn wol_Latn xho_Latn ydd_Hebr yor_Latn yue_Hant zho_Hans zho_Hant zsm_Latn zul_Latn
+0-shot 24.3 2.1 5.3 10.6 2.5 26.4 36.3 29.3 41.4 6.7
+Table 11 – continued from previous page
+spBLEU200
+5-shot GPT-4 NLLB Google – – 29.5 16.8 4.9 – 43.6 – 47.5 32.0
+25.0 1.2 6.0 18.7 3.3 33.8 36.5 30.4 41.3 7.3
+28.4 – – – – – – – – –
+35.0 9.6 25.4 18.4 10.5 16.6 26.6 12.4 45.5 31.4
+0-shot 49.3 10.6 21.9 31.0 11.4 22.3 31.0 24.8 64.5 25.2
+chrF2++
+5-shot GPT-4 NLLB Google – – 52.2 37.7 20.0 – 37.8 – 68.0 53.9
+49.5 8.3 23.3 38.1 13.7 27.2 31.9 26.0 64.3 26.3
+54.0 – – – – – – – – –
+57.4 29.7 48.6 38.6 25.5 17.9 22.8 14.0 66.5 53.3
+
+
+Figure 4: chrF scores across all MT systems and languages
+
+
+Figure 5: BLEU scores across all MT systems and languages
+
+
+Figure 6: chrF scores divided by the estimated cost of each MT system, across all MT systems and languages
+
+
+Figure 7: BLEU scores divided by the estimated cost of each MT system, across all MT systems and languages
+
+
+Figure 8: ChatGPT relative improvement over NLLB chrF (color scale), with languages organized by family, script, and number of Wikipedia pages (divided in quartiles). Hexagons (one per language) are displayed in descending order across rows, with the highest ChatGPT relative improvement over NLLB chrF2++ at the top left, and the lowest at the bottom right. Group hexagons at the bottom of each plot display the average color for each group and are organized in like manner.
+
+
+Figure 9: Alternative visualizations to those in Figure 8. Groups and languages are organized the same here: from top left to bottom right in descending order of the ChatGPT relative improvement over NLLB (using averages for the groups).
+
+
+FLORES lang. arb bho dik fuv knc lvs plt khk gaz pes pbt quy als uzn ydd zsm
+substitution for wiki_ct Used macrolanguage ‘Arabic’ (ara) because ‘Standard Arabic’ (arb) not present Used macrolanguage ‘Bihari’ (bih) because ‘Bhojpuri’ (bho) not present Used macrolanguage ‘Dinka’ (din) because ‘Southwestern Dinka’ (dik) not present Used macrolanguage ‘Fula’ (ful) because "Nigerian Fulfulde" (fuv) not present Used macrolanguage ‘Kanuri’ (kau) because ‘Central Kanuri’ (knc) not present Used macrolanguage ‘Latvian’ (lav) because ‘Standard Latvian’ (lvs) not present Used macrolanguage ‘Malagasy’ (mlg) because ‘Plateau Malagasy’ (plt) not present Used macrolanguage ‘Mongolian’ (mon) because ‘Halh Mongolian’ (khk) not present Used macrolanguage ‘Oromo’ (orm) because ‘West Central Oromo’ (gaz) not present Used macrolanguage ‘Persian’ (fas) because ‘Western Persian’ (pes) not present Used macrolanguage ‘Pashto’ (pus) because ‘Southern Pashto’ (pbt) not present Used macrolanguage ‘Quechua’ (que) because ‘Ayuacucho Quechua’ (quy) not present Used macrolanguage ‘Albanian’ (sqi) because ‘Tosk Albanian’ (als) not present Used macrolanguage ‘Uzbek’ (uzb) because ‘Northern Uzbek’ (uzn) not present Used macrolanguage ‘Yiddish’ (yid) because ‘Eastern Yiddish’ (ydd) not present Used macrolangauge ‘Malay’ (msa) because ‘Standard Malay’ (zsm) not present
+Table 12: FLORES-200 languages for which we used the Wikipedia page count associated with a macrolanguage of another ISO 639-3 code
+FLORES lang. acm acq aeb ajp apc ars mag prs
+reason for assigning wiki_ct = 0 Macrolanguage ‘Arabic’ (ara) appears to be in ‘Standard Arabic’ (arb), not ‘Mesopotamian Arabic’ (acm) Macrolanguage ‘Arabic’ (ara) appears to be in ‘Standard Arabic’ (arb), not ‘Tai’izzi Arabic’ (acq) Macrolanguage ‘Arabic’ (ara) appears to be in ‘Standard Arabic’ (arb), not ‘Tunisian Arabic’ (aeb) Macrolanguage ‘Arabic’ (ara) appears to be in ‘Standard Arabic’ (arb), not ‘South Levantine Arabic’ (ajp) Macrolanguage ‘Arabic’ (ara) appears to be in ‘Standard Arabic’ (arb), not ‘North Levantine Arabic’ (apc) Macrolanguage ‘Arabic’ (ara) appears to be in ‘Standard Arabic’ (arb), not ‘Najdi Arabic’ (ars) Macrolanguage ‘Bihari’ (bih) appears to be in ‘Bhojpuri’ (bho), not ‘Magahi’ (mag) Macrolanguage ‘Persian’ (fas) appears to be in ‘Western Persian’ (pes), not ‘Dari’ (prs)
+Table 13: FLORES-200 languages for which we used assigned wiki_ct to be zero, despite the existence of Wikipedia pages in a corresponding macrolanguage
+Table 14: Estimated costs in USD to translate the FLORES-200 devtest set ENG→X for each targe language and MT system, along with BLEU and chrF scores divided by the cost estimates, where applicable. The cost is roughly $0.09 for NLLB and $2.66 for Google Translate for all target languages.
+Lang.
+ace_Arab ace_Latn acm_Arab acq_Arab aeb_Arab afr_Latn ajp_Arab aka_Latn als_Latn amh_Ethi apc_Arab arb_Arab arb_Latn ars_Arab ary_Arab arz_Arab asm_Beng ast_Latn awa_Deva ayr_Latn azb_Arab azj_Latn bak_Cyrl bam_Latn ban_Latn bel_Cyrl bem_Latn ben_Beng bho_Deva bjn_Arab bjn_Latn bod_Tibt bos_Latn bug_Latn
+0-shot 0.9 4.0 22.4 24.6 19.3 39.5 25.0 2.3 27.6 2.3 24.2 29.9 4.2 28.5 15.3 20.9 5.7 26.4 11.5 0.1 2.7 13.4 4.0 0.3 9.0 15.3 1.1 15.4 8.8 1.5 9.2 0.1 33.3 4.3
+spBLEU200/cost GPT-4 – – 1.2 – – – 1.3 – – – – – – – – – – – – – – – – – – – – – – – – – – –
+5-shot 0.9 2.2 13.9 14.9 11.6 25.8 15.3 1.4 17.5 1.1 14.7 17.6 4.2 17.3 9.2 12.5 3.6 18.1 6.4 0.0 1.6 8.7 2.2 0.3 4.8 9.1 0.5 7.7 4.8 1.3 6.8 0.1 21.9 1.4
+NLLB 5.1 10.7 10.8 24.8 18.3 41.0 33.4 10.8 36.3 28.8 33.8 39.6 – 33.8 21.5 29.6 20.6 31.9 25.3 7.0 5.0 22.7 27.9 8.6 17.9 25.1 12.5 33.0 21.7 5.3 20.2 7.7 37.6 8.4
+Google – – – – – 13.3 – – – 9.3 – 13.3 2.1 – – – 6.4 – – 2.0 – – – 2.6 – 8.2 – 10.3 5.7 – – – 12.0 – Continued on next page
+0-shot 6.3 15.8 35.6 37.7 32.7 56.2 37.4 9.5 46.0 6.4 36.2 42.7 18.1 41.7 28.8 33.7 16.1 45.3 26.1 2.8 13.6 31.1 14.8 3.7 25.4 30.0 7.3 27.2 21.9 7.7 30.2 6.4 49.9 19.2
+5-shot 4.0 9.1 21.6 22.4 19.4 36.8 22.5 6.1 28.9 3.2 21.8 25.0 13.4 24.7 17.2 20.0 8.8 30.6 14.0 1.5 8.1 19.7 8.2 2.8 14.6 17.3 4.1 13.6 11.9 5.5 21.0 3.3 32.4 8.4
+chrF2++/cost GPT-4 – – 1.8 – – – 2.0 – – – – – – – – – – – – – – – – – – – – – – – – – – –
+NLLB 16.0 34.2 29.3 38.9 35.2 59.4 47.3 31.8 53.8 35.9 46.6 52.6 – 46.5 35.8 43.1 32.9 52.5 43.2 27.4 21.6 39.6 43.5 28.1 41.2 38.7 35.0 45.8 39.3 15.7 44.5 26.9 54.3 31.1
+Google – – – – – 18.5 – – – 11.5 – 17.1 9.7 – – – 10.2 – – 8.6 – – – 8.9 – 12.1 – 14.0 10.9 – – – 16.9 –
+cost estimate (USD$) 5-shot 1.5 1.0 1.1 1.1 1.1 0.8 1.1 1.2 0.9 2.4 1.1 1.1 1.0 1.2 1.1 1.1 2.0 0.8 1.6 1.5 1.3 1.0 1.5 1.4 0.9 1.3 1.2 1.9 1.6 1.4 0.8 3.4 0.9 1.0
+0-shot 0.3 0.3 0.3 0.3 0.3 0.2 0.3 0.4 0.2 0.6 0.3 0.3 0.3 0.3 0.3 0.3 0.4 0.2 0.4 0.7 0.3 0.2 0.4 0.6 0.2 0.3 0.4 0.4 0.4 0.4 0.2 1.0 0.2 0.2
+GPT-4 29.0 18.9 24.3 24.6 24.1 17.1 23.7 22.9 20.3 50.8 23.6 24.8 21.5 24.8 24.4 24.3 42.6 16.5 34.6 19.9 26.4 22.5 31.8 22.1 17.7 27.4 20.1 40.6 34.2 29.0 17.2 71.3 18.2 18.7
+
+
+Lang.
+bul_Cyrl cat_Latn ceb_Latn ces_Latn cjk_Latn ckb_Arab crh_Latn cym_Latn dan_Latn deu_Latn dik_Latn dyu_Latn dzo_Tibt ell_Grek epo_Latn est_Latn eus_Latn ewe_Latn fao_Latn fij_Latn fin_Latn fon_Latn fra_Latn fur_Latn fuv_Latn gaz_Latn gla_Latn gle_Latn glg_Latn grn_Latn guj_Gujr hat_Latn hau_Latn heb_Hebr hin_Deva hne_Deva hrv_Latn hun_Latn hye_Armn ibo_Latn ilo_Latn ind_Latn isl_Latn ita_Latn jav_Latn jpn_Jpan kab_Latn kac_Latn kam_Latn kan_Knda kas_Arab kas_Deva kat_Geor kaz_Cyrl kbp_Latn kea_Latn khk_Cyrl khm_Khmr kik_Latn kin_Latn kir_Cyrl kmb_Latn kmr_Latn knc_Arab knc_Latn kon_Latn kor_Hang lao_Laoo lij_Latn lim_Latn lin_Latn lit_Latn lmo_Latn ltg_Latn ltz_Latn lua_Latn lug_Latn luo_Latn lus_Latn lvs_Latn mag_Deva mai_Deva mal_Mlym
+0-shot 35.4 40.0 23.1 33.7 0.1 3.5 4.9 39.6 44.0 40.2 0.1 0.3 0.0 26.1 31.5 29.4 15.9 0.4 15.0 4.3 29.6 0.1 47.5 15.4 0.9 0.4 12.5 21.1 33.3 0.5 12.5 20.5 4.9 27.2 21.5 10.4 31.5 28.6 8.6 2.4 9.3 41.1 21.3 31.7 14.1 24.9 1.0 0.0 0.9 11.8 2.9 1.7 9.3 9.8 0.2 11.0 6.1 3.5 0.5 2.6 6.4 0.3 6.6 0.4 2.1 0.7 20.9 1.6 6.3 12.6 2.0 24.6 5.6 4.4 21.1 0.7 1.2 0.5 3.5 27.0 13.7 7.5 9.1
+spBLEU200/cost GPT-4 – – – – – 0.3 – – – – – – – – – – – – – – – – 3.3 – – – – 1.5 – – – – 0.8 – – – – – – 0.4 – – – – – – – – – – – – 0.4 – – – – – – – – – 0.7 – – – – – – 1.1 – – – – – – – – – 1.7 0.7 – –
+5-shot 21.6 26.4 15.5 21.3 0.1 2.5 3.6 25.2 29.3 26.9 0.1 0.1 0.1 13.3 20.8 19.3 10.5 0.3 10.1 2.4 19.1 0.1 31.7 10.7 0.2 0.2 8.1 13.3 22.6 0.2 5.8 13.6 3.2 15.3 11.3 6.0 20.7 18.1 3.7 1.9 6.5 27.5 13.5 21.0 10.3 16.0 0.7 0.0 0.5 5.3 1.2 1.0 4.0 5.7 0.5 10.3 3.6 1.7 0.8 1.5 3.9 0.2 4.8 0.4 0.4 0.6 13.1 1.0 5.5 10.8 1.3 15.8 4.4 2.8 14.6 0.5 0.6 0.1 2.4 16.9 7.5 4.6 4.0
+NLLB 46.1 45.2 31.8 39.1 3.7 24.6 25.3 53.9 46.2 43.0 5.6 2.5 12.0 35.5 39.5 33.7 26.8 15.8 29.2 21.8 33.8 5.9 51.9 36.6 5.5 11.6 26.5 38.2 37.0 15.1 33.9 28.2 29.0 43.0 37.3 30.9 35.9 35.1 36.5 19.0 26.8 45.4 31.3 35.4 28.0 18.5 15.6 13.2 5.6 36.0 16.7 4.3 31.5 31.3 10.4 20.8 24.9 21.0 14.2 25.1 25.2 4.2 18.1 6.0 7.6 17.4 24.6 26.9 34.3 23.8 20.2 32.7 9.7 33.6 33.9 9.0 12.9 14.0 13.9 32.7 36.2 24.9 34.9
+Table 14 – continued from previous page
+Google 14.5 14.0 11.0 12.6 – 7.0 – 17.4 15.1 14.0 – – – 10.9 11.0 11.3 9.3 4.6 – – 10.7 – 16.3 – – 4.0 8.8 12.0 11.5 4.2 10.7 8.7 8.4 13.3 11.8 – 11.6 11.2 11.7 6.1 8.5 15.0 11.2 10.9 8.3 9.7 – – – 11.5 – – 10.2 10.6 – – 9.1 7.5 – 9.4 8.3 – 5.5 – – – 8.2 8.1 – – 5.9 11.4 – – 9.7 – 3.9 – – – – 5.4 11.8
+0-shot 49.5 54.8 42.1 47.5 2.8 14.5 23.0 53.3 58.7 55.1 2.8 2.7 2.8 37.7 48.7 47.3 36.8 3.7 33.4 17.8 46.6 2.3 60.0 33.8 6.2 5.5 31.5 38.5 51.8 4.1 24.7 39.3 17.6 39.4 35.8 25.0 47.5 44.9 19.9 11.0 27.3 57.8 36.8 50.1 34.4 27.1 9.1 1.6 6.4 24.1 11.3 9.3 19.8 25.9 2.3 31.6 19.9 13.3 6.0 14.6 19.6 3.2 20.2 3.9 10.6 5.9 28.1 10.2 27.4 33.6 11.2 42.2 25.0 23.9 40.4 5.7 8.6 5.0 13.5 45.1 28.8 21.3 20.1
+5-shot 30.2 36.0 28.2 30.0 2.0 9.4 15.2 33.8 38.9 36.7 1.8 1.8 3.5 19.2 31.7 30.7 23.6 2.4 21.8 10.5 29.9 1.4 39.9 23.0 2.6 3.3 19.5 24.1 34.7 2.4 11.1 25.8 11.5 21.9 18.7 14.0 30.9 28.3 8.5 7.8 18.5 38.6 23.4 33.2 23.4 17.2 6.2 1.9 4.1 10.5 5.4 5.4 8.6 14.1 3.3 23.6 11.3 5.8 4.6 9.0 11.5 2.7 14.0 1.8 3.6 5.0 17.6 5.5 18.8 23.2 7.4 26.7 16.1 15.0 25.9 4.4 5.1 2.2 9.0 27.9 15.4 11.9 8.7
+chrF2++/cost GPT-4 – – – – – 0.9 – – – – – – – – – – – – – – – – 4.1 – – – – 2.4 – – – – 2.0 – – – – – – 1.2 – – – – – – – – – – – – 0.6 – – – – – – – – – 1.6 – – – – – – 2.4 – – – – – – – – – 2.6 1.3 – –
+Continued on next page
+NLLB 59.7 60.0 52.9 53.0 22.4 43.3 43.4 65.3 61.3 58.0 22.3 16.3 31.4 47.7 56.7 51.8 46.2 35.9 45.9 43.1 51.0 19.8 64.4 52.4 22.0 34.6 46.3 53.5 55.2 33.8 48.6 47.9 49.4 55.0 52.6 49.8 52.8 51.2 48.4 38.2 49.2 63.5 46.1 52.9 50.6 25.7 32.8 34.6 23.9 48.6 31.4 15.7 43.8 47.6 26.0 39.5 40.4 33.2 34.2 45.8 41.0 23.0 36.3 9.0 25.3 41.8 33.2 42.0 49.6 44.2 44.3 50.5 32.2 49.4 51.7 32.5 36.7 35.5 35.1 50.5 53.7 42.9 47.0
+Google 18.5 18.3 17.0 16.5 – 13.0 – 20.4 19.2 18.2 – – – 14.6 16.4 16.4 14.9 10.9 – – 15.8 – 19.9 – – 11.0 14.4 16.4 16.8 9.9 15.1 14.6 14.5 16.7 16.2 – 16.5 15.9 15.4 11.9 15.3 19.8 15.3 16.1 15.0 10.1 – – – 15.2 – – 14.1 15.3 – – 13.6 11.0 – 15.3 13.2 – 10.9 – – – 10.5 12.0 – – 13.2 16.2 – – 15.2 – 11.3 – – – – 11.1 15.4
+cost estimate (USD$) 5-shot 1.1 0.8 0.9 0.9 1.3 1.6 0.9 0.9 0.8 0.8 1.5 1.4 3.6 1.7 0.9 0.9 0.9 1.6 0.9 1.0 0.9 1.9 0.8 0.9 1.2 1.2 1.0 1.0 0.8 1.3 2.4 0.8 0.9 1.3 1.6 1.6 0.8 0.9 2.9 1.1 0.9 0.8 0.9 0.8 0.8 1.0 1.1 1.5 1.2 2.6 1.7 1.6 2.9 1.4 1.9 0.8 1.4 2.6 1.5 1.0 1.3 1.3 1.0 1.6 1.2 1.1 1.0 2.9 0.9 0.8 1.0 0.9 0.9 0.9 0.9 1.1 1.1 1.2 1.0 1.0 1.6 1.6 2.7
+0-shot 0.2 0.2 0.2 0.2 0.6 0.4 0.2 0.2 0.2 0.2 0.6 0.7 1.8 0.4 0.2 0.2 0.2 0.6 0.2 0.3 0.2 0.7 0.2 0.2 0.4 0.5 0.2 0.2 0.2 0.5 0.5 0.2 0.3 0.3 0.4 0.4 0.2 0.2 0.7 0.3 0.2 0.2 0.2 0.2 0.2 0.2 0.3 0.8 0.4 0.6 0.4 0.4 0.6 0.3 0.7 0.2 0.3 0.6 0.5 0.3 0.3 0.5 0.3 0.3 0.3 0.4 0.2 0.8 0.2 0.2 0.3 0.2 0.2 0.2 0.2 0.4 0.4 0.4 0.3 0.2 0.4 0.4 0.6
+GPT-4 22.5 17.2 18.5 19.5 18.7 35.1 19.5 19.7 16.8 16.5 20.3 19.2 76.8 36.8 18.1 18.2 18.2 23.1 19.3 19.8 18.9 28.4 16.6 18.0 18.0 20.7 21.2 20.7 16.4 19.8 51.2 17.4 18.9 28.3 34.6 34.1 18.0 19.7 63.9 21.9 19.2 16.3 19.7 16.8 17.3 20.4 21.5 21.1 19.9 58.0 33.8 34.1 62.7 29.1 34.3 17.3 28.9 57.2 26.1 19.6 27.5 19.7 20.1 28.2 21.1 18.8 21.0 62.0 18.8 17.8 18.2 20.0 19.1 20.0 18.8 18.6 18.7 17.9 18.8 20.7 34.3 35.3 58.5
+
+
+Lang.
+mar_Deva min_Arab min_Latn mkd_Cyrl mlt_Latn mni_Beng mos_Latn mri_Latn mya_Mymr nld_Latn nno_Latn nob_Latn npi_Deva nso_Latn nus_Latn nya_Latn oci_Latn ory_Orya pag_Latn pan_Guru pap_Latn pbt_Arab pes_Arab plt_Latn pol_Latn por_Latn prs_Arab quy_Latn ron_Latn run_Latn rus_Cyrl sag_Latn san_Deva sat_Olck scn_Latn shn_Mymr sin_Sinh slk_Latn slv_Latn smo_Latn sna_Latn snd_Arab som_Latn sot_Latn spa_Latn srd_Latn srp_Cyrl ssw_Latn sun_Latn swe_Latn swh_Latn szl_Latn tam_Taml taq_Latn taq_Tfng tat_Cyrl tel_Telu tgk_Cyrl tgl_Latn tha_Thai tir_Ethi tpi_Latn tsn_Latn tso_Latn tuk_Latn tum_Latn tur_Latn twi_Latn tzm_Tfng uig_Arab ukr_Cyrl umb_Latn urd_Arab uzn_Latn vec_Latn vie_Latn war_Latn wol_Latn xho_Latn ydd_Hebr yor_Latn yue_Hant zho_Hans
+0-shot 10.5 1.2 9.7 28.9 24.2 1.3 0.1 12.0 1.2 30.5 31.3 33.9 13.9 2.8 0.1 3.8 25.4 6.5 4.6 13.9 21.4 3.8 23.1 6.6 26.7 47.8 20.2 0.5 38.6 2.4 31.6 0.1 3.5 0.0 9.3 0.3 3.7 31.8 29.7 4.8 2.4 6.7 6.6 4.5 28.6 13.6 29.9 1.3 11.6 44.2 31.5 10.6 8.8 0.6 0.2 5.0 11.1 8.2 29.1 25.4 1.0 11.5 2.9 2.1 5.0 2.8 32.0 2.1 0.6 4.7 29.6 0.2 16.5 14.3 13.2 33.1 20.0 1.6 4.2 7.3 1.9 21.7 30.4
+spBLEU200/cost GPT-4 – – – – – – – – – – – – – – – – – – – – – 0.3 – – – – – – 2.6 – – – – – – – – – – – 0.4 – – – – – – 0.3 – – – – 0.4 – – – – – – – – 1.1 – – – – – – – – 1.5 – – – – – 1.4 – – – – – –
+5-shot 5.5 1.4 7.1 17.5 15.1 0.6 0.1 7.2 0.6 20.4 21.4 22.4 7.5 2.3 0.2 2.8 18.1 2.8 4.6 6.3 18.2 2.4 13.7 4.2 17.5 32.4 12.6 0.3 25.3 1.2 19.4 0.0 2.0 0.4 6.9 0.3 1.9 20.0 19.3 3.9 1.7 4.3 4.1 2.7 19.2 9.8 17.9 0.2 7.9 29.3 20.5 7.8 4.0 0.1 0.3 3.1 5.1 5.0 18.4 13.5 0.6 8.3 2.0 1.5 3.9 1.3 20.6 1.4 0.5 3.1 17.5 0.1 8.9 9.7 9.6 20.4 13.3 0.6 3.1 6.6 1.5 17.7 19.7
+NLLB 27.8 – 26.5 39.3 46.4 25.1 6.3 19.1 16.1 32.9 30.8 35.5 26.4 24.4 13.2 16.3 37.9 27.3 18.6 33.2 39.0 21.1 33.2 23.3 30.0 48.9 31.1 5.4 41.3 18.1 37.8 9.7 7.3 16.8 22.5 13.6 32.8 39.6 35.2 24.8 18.2 29.3 17.0 19.1 30.6 33.0 40.0 18.4 19.9 46.3 34.0 35.4 33.4 4.5 5.1 28.0 37.9 32.5 35.3 32.3 16.2 16.4 23.6 24.6 20.8 12.3 38.3 14.0 19.0 28.0 36.9 3.8 28.0 27.7 26.0 39.9 32.3 8.9 23.4 16.8 9.7 15.3 24.6
+Table 14 – continued from previous page
+Google 9.1 – – 12.7 16.3 0.0 – 5.0 6.7 10.4 7.0 – – 8.1 – 5.8 – 10.6 – 10.9 – – 10.9 7.1 9.9 16.0 – 2.2 13.7 – 12.0 – 2.7 – – – 11.0 13.2 11.6 – 5.7 8.9 5.2 6.1 9.6 – 13.1 – 6.7 14.8 12.2 – 10.6 – – 8.3 12.2 9.7 10.9 12.4 4.8 – – 7.1 9.8 – 12.7 4.7 – 11.0 11.7 – 8.9 10.3 – – – – 8.1 4.6 1.3 – 11.9
+0-shot 24.8 7.6 31.1 45.6 40.0 8.0 2.3 27.8 10.9 47.6 49.4 51.0 29.0 12.5 1.8 16.1 46.1 15.4 18.2 24.8 43.5 14.8 38.0 25.4 41.3 60.5 35.1 6.5 53.3 12.8 46.0 2.8 16.1 0.1 29.9 4.1 11.9 46.8 46.2 17.5 11.5 16.5 24.0 16.1 47.9 35.0 45.1 7.5 32.5 57.7 49.8 29.4 22.0 5.8 1.8 16.1 21.9 22.3 50.5 32.7 3.6 30.5 12.8 11.3 20.5 12.8 48.1 9.5 4.3 14.8 43.6 3.6 31.3 32.7 34.4 47.6 40.7 7.9 17.4 21.4 8.7 18.4 25.9
+5-shot 12.9 6.2 21.0 27.5 24.9 3.3 1.8 16.9 4.7 31.7 33.1 33.9 15.0 9.3 1.9 11.5 31.0 6.6 14.7 11.1 31.0 8.9 22.0 15.6 26.8 40.8 21.6 4.4 34.6 7.2 28.2 2.1 8.5 3.1 19.7 3.2 5.5 29.7 30.0 13.0 8.0 10.2 15.2 10.4 32.1 23.2 27.0 2.9 20.9 38.5 32.1 19.0 10.3 2.7 2.0 9.9 10.1 13.1 31.9 17.4 2.0 20.6 9.0 7.7 12.9 6.9 31.0 6.5 2.8 9.1 25.9 2.1 16.8 21.1 23.6 28.9 26.3 4.0 12.0 13.5 6.1 14.2 17.2
+chrF2++/cost GPT-4 – – – – – – – – – – – – – – – – – – – – – 0.9 – – – – – – 3.4 – – – – – – – – – – – 1.4 – – – – – – 1.1 – – – – 0.8 – – – – – – – – 2.5 – – – – – – – – 2.2 – – – – – 2.7 – – – – – –
+Continued on next page
+NLLB 44.0 – 48.4 55.8 60.8 35.4 22.4 40.8 29.1 50.7 49.5 54.1 41.8 46.8 26.6 40.6 54.3 41.4 42.7 44.7 55.6 36.2 47.2 46.1 45.1 62.7 49.3 24.8 56.6 39.2 51.9 32.9 24.0 23.8 43.2 31.0 39.9 54.4 51.9 46.1 40.0 44.2 39.7 42.5 49.7 51.3 55.0 40.0 41.3 60.9 54.1 49.5 49.0 21.3 15.1 43.1 50.9 47.1 55.8 39.2 23.5 38.4 44.7 46.1 38.8 32.5 53.8 34.9 29.3 41.5 51.9 24.5 44.9 46.7 47.6 54.9 53.0 27.4 44.8 35.3 23.5 16.5 21.1
+Google 13.9 – – 17.4 19.6 0.2 – 11.6 11.0 15.7 13.8 – – 14.8 – 13.1 – 14.6 – 14.2 – – 14.8 14.0 14.2 19.8 – 9.3 17.8 – 16.1 – 8.3 – – – 14.0 17.2 16.3 – 12.1 13.3 11.9 13.1 15.2 – 17.3 – 13.3 19.0 17.6 – 15.3 – – 13.2 15.9 14.1 16.9 13.6 7.2 – – 13.9 14.4 – 17.1 11.2 – 14.8 16.0 – 13.7 15.4 – – – – 14.3 10.3 5.5 – 10.3
+cost estimate (USD$) 5-shot 1.7 1.4 0.8 1.1 1.0 2.2 1.4 1.0 3.4 0.8 0.8 0.8 1.6 1.0 1.9 1.0 0.8 3.5 0.8 2.4 0.8 1.4 1.2 1.0 0.9 0.8 1.2 1.2 0.9 1.0 1.0 1.4 1.7 3.6 0.9 4.1 2.7 0.9 0.9 1.0 1.0 1.4 1.0 1.0 0.8 0.9 1.1 1.3 0.8 0.8 0.9 0.9 2.4 1.3 3.2 1.4 2.5 1.3 0.9 1.5 2.4 0.9 1.1 1.1 1.0 1.1 0.9 1.2 3.1 1.7 1.1 1.3 1.5 0.9 0.8 1.0 0.9 1.1 0.9 1.8 1.2 0.9 0.9
+0-shot 0.4 0.3 0.2 0.2 0.2 0.4 0.7 0.3 0.8 0.2 0.2 0.2 0.4 0.3 0.7 0.3 0.2 0.8 0.2 0.5 0.2 0.3 0.3 0.2 0.2 0.2 0.3 0.4 0.2 0.3 0.2 0.6 0.4 1.1 0.2 0.8 0.6 0.2 0.2 0.3 0.3 0.4 0.2 0.3 0.2 0.2 0.3 0.4 0.2 0.2 0.2 0.2 0.5 0.4 1.9 0.3 0.6 0.3 0.2 0.3 0.6 0.2 0.3 0.3 0.2 0.3 0.2 0.4 0.9 0.4 0.3 0.5 0.3 0.2 0.2 0.2 0.2 0.3 0.3 0.4 0.3 0.2 0.2
+GPT-4 36.3 30.1 17.6 23.2 21.3 45.8 20.5 21.0 73.8 16.6 16.8 16.4 34.7 19.9 30.3 19.4 17.9 78.3 16.3 52.3 17.4 29.1 26.1 20.3 18.4 15.9 25.4 19.4 18.1 19.7 21.5 19.3 35.7 80.2 18.9 93.0 57.0 19.6 18.2 20.5 20.3 30.2 20.1 20.1 16.3 18.8 24.0 21.1 17.8 16.5 18.6 19.9 51.2 20.1 65.1 28.8 54.8 28.1 19.2 32.3 51.9 18.9 20.4 20.4 21.2 22.2 18.4 21.8 64.7 37.0 24.4 19.1 32.2 19.8 17.2 21.4 18.7 18.5 19.2 39.1 24.3 19.4 18.1
+
+
+Lang.
+zho_Hant zsm_Latn zul_Latn
+0-shot 24.1 34.8 5.4
+spBLEU200/cost GPT-4 – – –
+5-shot 15.8 23.1 3.7
+NLLB 11.5 42.0 29.0
+Table 14 – continued from previous page
+Google – 13.0 8.8
+0-shot 20.5 54.2 20.1
+5-shot 13.5 35.9 13.3
+chrF2++/cost GPT-4 – – –
+NLLB 12.9 61.4 49.2
+Google – 18.6 14.7
+cost estimate (USD$) 5-shot 0.9 0.8 1.0
+0-shot 0.2 0.2 0.3
+GPT-4 19.7 16.7 20.1

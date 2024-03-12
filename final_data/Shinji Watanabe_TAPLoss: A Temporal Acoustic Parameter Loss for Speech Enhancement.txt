@@ -1,0 +1,227 @@
+3 2 0 2
+b e F 6 1
+] L C . s c [
+1 v 8 8 0 8 0 . 2 0 3 2 : v i X r a
+TAPLOSS: A TEMPORAL ACOUSTIC PARAMETER LOSS FOR SPEECH ENHANCEMENT
+Yunyang Zeng1†, Joseph Konan1†, Shuo Han1†, David Bick1†, Muqiao Yang1†, Anurag Kumar2, Shinji Watanabe1, Bhiksha Raj1
+1 Carnegie Mellon University, 2Meta Reality Labs Research
+ABSTRACT
+Speech enhancement models have greatly progressed in recent years, but still show limits in perceptual quality of their speech outputs. We propose an objective for perceptual quality based on temporal acous- tic parameters. These are fundamental speech features that play an essential role in various applications, including speaker recog- nition and paralinguistic analysis. We provide a differentiable es- timator for four categories of low-level acoustic descriptors involv- ing: frequency-related parameters, energy or amplitude-related pa- rameters, spectral balance parameters, and temporal features. Un- like prior work that looks at aggregated acoustic parameters or a few categories of acoustic parameters, our temporal acoustic param- eter (TAP) loss enables auxiliary optimization and improvement of many ﬁne-grain speech characteristics in enhancement workﬂows. We show that adding TAPLoss as an auxiliary objective in speech enhancement produces speech with improved perceptual quality and intelligibility. We use data from the Deep Noise Suppression 2020 Challenge to demonstrate that both time-domain models and time- frequency domain models can beneﬁt from our method.
+Index Terms— Speech, Enhancement, Acoustics, Perceptual
+Quality, Explainable Enhancement Evaluation, Interpretability
+[14], [15]; however, these have limited improvements because per- ceptual quality is only implicitly supervised. In this paper, we seek to address these issues by using fundamental speech features, which we refer to as acoustic parameters.
+The use of acoustic parameters has been shown to facilitate speaker classiﬁcation, emotion recognition, and other supervised tasks involving speech characteristics [16]–[18]. Historically, these acoustic parameters were not incorporated in workﬂows with deep neural networks because they required non-differentiable compu- tations. However, this does not reﬂect their signiﬁcant correlation with voice quality in prior literature [19]–[21]. Recently, some works have made progress in incorporating acoustic parameters for optimization of deep neural networks. Pitch, energy contour, and pitch contour were proposed to optimize perceptual quality in [22]. However, these three parameters are a small subset of the charac- teristics we consider, and evaluation was not performed on standard English datasets. A wide range of acoustic parameters was pro- posed in [23], which introduced a differentiable estimator of these parameters to create an auxiliary loss aimed at forcing models to retain acoustic parameters. This proved to improve the perceptual quality of speech. Unlike prior work, which used summary statistics of acoustic parameters per utterance, our current estimator allows optimization at each time step. The values of each parameter vary over time in the utterance, so statistics lose a signiﬁcant amount of information in the comparison of clean and enhanced speech.
+1. INTRODUCTION
+Speech enhancement is aimed at enhancing the quality and intelli- gibility of degraded speech signals. The need for this arises in a variety of speech applications. While noise suppression or removal is an important part of the speech enhancement, retaining the per- ceptual quality of the speech signal is equally important. In recent years, deep neural networks based approaches have been the core of most state-of-the-art speech enhancement systems, in particular single channel speech enhancement [1]–[4]. These are tradition- ally trained using point-wise differences in time-domain or time- frequency-domain.
+We look at 25 acoustic parameters – frequency related param- eters: pitch, jitter, F1, F2, F3 Frequency and bandwidth; energy or amplitude-related parameters: shimmer, loudness, harmonics-to- noise (HNR) ratio; spectral balance parameters: alpha ratio, Ham- marberg index, spectral slope, F1, F2, F3 relative energy, harmonic difference; and additional temporal parameters: rate of loudness peaks, mean and standard deviation of length of voiced/unvoiced re- gions, and continuous voiced regions per second. We use OpenSmile [24] to perform the ground-truth non-differentiable calculations, cre- ating a dataset to to train a differentiable estimator.
+However, many studies have shown limitations in these losses, including low correlations with speech quality [5] and [6]. Other studies have shown that they have overemphasis on high-energy phonemes [7] and an inability to improve pitch [8], resulting in speech that has artifacts or poor perceptual quality [9]. The insufﬁ- ciency of these losses has led to much work devoted to improving the perceptual quality of enhanced signals, which our work also aims to improve. Perceptual losses have often involved estimating the standard evaluation metrics such as Perceptual Evaluation of Speech Quality (PESQ) [10]. However, PESQ is non-differentiable, which forces difﬁcult optimization [11] and often leads to limited improvements [12], [13]. Other approaches use deep feature losses
+Finally, we present our estimator for these 25 temporal acoustic parameters. Using the estimator, we deﬁne an acoustic parameter loss, coined TAPLoss, LTAP, that minimizes the distance between estimated acoustics for clean and enhanced speech. Unlike previous work, we do not assume the user has access to ground-truth clean acoustics. We empirically demonstrate the success of our method, observing improvement in relative and absolute enhancement met- rics for perceptual quality and intelligibility.
+2. METHODS
+2.1. Background
+†Equal Contribution (Random Order)
+In the time domain, let y denote a signal with discrete duration M such that y ∈ RM . We deﬁne clean speech signal s, noise signal n,
+
+
+Weight PESQ STOI
+0.01 2.788 0.9697
+Demucs LTAP λ1 Ablation (λ2 = 0)
+0.03 2.841 0.9698
+0.1 2.824 0.9689
+0.3 2.834 0.9689
+1 2.859 0.9694
+0.01 2.899 0.9707
+Demucs LTAP λ2 Ablation (λ1 = 1)
+0.03 2.903 0.9712
+0.1 2.926 0.9714
+0.3 2.958 0.9722
+1 2.958 0.9720
+0.01 2.979 0.9654
+FullSubNet LTAP γ Ablation 0.3 2.969 0.9648
+0.03 2.981 0.9654
+0.1 2.979 0.9654
+1 2.965 0.9654
+Table 1: LTAP ablation study of Demucs hyperparameters, λ1 and λ2, and FullSubNet hyperparamter γ.
+Fig. 1: Percent Acoustic Improvement PAI on DNS-2020 Synthetic Test (No Reverb). Compared are baseline improvement over noisy (blue) PAI(s1, x), our improvement over noisy (red) PAI(s2, x), our improvement over baseline (green) PAI(s2, s1). Sorted by PAI(s2, s1).
+and noisy speech signal x with the following additive relation:
+x = s + n (1) Similarly, in the time-frequency domain, let Y ∈ CT ×F denote a complex spectrogram with T discrete time frames and F discrete frequency bins. Re{Y} ∈ RT ×F denotes real components and Im{Y} ∈ RT ×F denotes complex components. Let Y (t, f ) be the complex-valued time-frequency bin of Y at discrete time frame t ∈ [0, T ) and discrete frequency bin f ∈ [0, F ). By the linearity of Fourier transforms, the complex spectrograms for clean speech S, noise N, and noisy speech X relate with the additive relation:
+T AP takes a signal input y, derives complex spectrogram Y with F = 257 frequency bins, and then passes the complex spectrogram to a recurrent neural network to output the temporal acoustic param- eter estimates ˆAy.
+For loss calculation, we deﬁne total mean absolute error as:
+MAE(Ay, ˆAy) =
+1 T P
+T −1 (cid:88)
+P −1 (cid:88)
+|Ay(t, p) − Aˆy(t, p)| ∈ R (5)
+t=0
+p=0
+During training, T AP parameters learn to minimize the divergence of MAE(As, Aˆs) using Adam optimization.
+X = S + N
+(2)
+2.3. Temporal Acoustic Parameter Loss
+A speech enhancement model G outputs enhanced signal ˆs such that:
+(cid:110)
+ˆs = G(x)
+(cid:12) (cid:12)
+(cid:12)ˆs, x ∈ RM (cid:111)
+During optimization, G minimizes the divergence between s and ˆs. We denote ˆS to be enhanced complex spectrogram derived from ˆs.
+(3)
+We developed temporal acoustic parameter loss, LTAP, to enable di- vergence minimization between clean and enhanced acoustic param- eters. This section expounds the mathematical formulation of LTAP. Let magnitude spectrogram || ˆS(t, f )|| represent the magnitude of complex spectrogram ˆS. Using Parseval’s Theorem, the frame energy weights, ω, is derived from the magnitude spectrogram mean across the frequency axis:
+2.2. Temporal Acoustic Parameter Estimator
+Let Ay ∈ RT ×25 represent the 25 temporal acoustic parameters of signal y with T discrete time frames. We represent Ay(t, p) as the acoustic parameter p at discrete time frame t. We standardize the acoustic parameters to have mean 0 and variance 1 across the time dimension. Standardization helps optimization and analysis through consistent units across features. To predict Ay, we deﬁne estimator:
+ˆAy = T AP(y)
+(4)
+ω =
+1 F
+F −1 (cid:88)
+|| ˆS(t, f )||2 ∈ RT
+f =0
+Because high energies are perceived more noticeably, we apply sig- moid, σ, to emulate human hearing with bounded scales, resulting in smoothed energy weights σ(ω).
+Finally, we deﬁne our temporal acoustic parameter loss, LTAP, as the mean absolute error between clean and enhanced acoustic pa- rameter estimates with smoothed frame energy-weighting:
+(6)
+
+
+LTAP(s, ˆs) = MAE (T AP(s) (cid:12) σ(ω), T AP(ˆs) (cid:12) σ(ω))
+Here, ”(cid:12)” denotes elementwise multiplication with broadcasting. Note that this loss is end-to-end differentiable and takes only wave- form as input. Therefore, this loss enables acoustic optimization of any speech model and task with clean references.
+3. EXPERIMENTS
+3.1. Workﬂow with TAPLoss
+This section describes the workﬂow with TAPLoss applied to speech enhancement models. To demonstrate that our method generalizes on both time-domain and time-frequency domain models, we apply the TAPLoss, LTAP to two competitive SE models, Demucs [25] and FullSubNet [26]. Demucs is a mapping-based time domain model with an encoder-decoder structure that takes a noisy waveform as input and outputs an estimated clean waveform. FullSubNet is a masking-based time-frequency domain fusion model that combines a full-band and a sub-band model. FullSubNet estimates a complex Ideal Ratio Mask (cIRM) from the complex spectrogram of the input signal and multiplies the cIRM with the complex spectrogram of the input to get the complex spectrogram of the enhanced signal. The enhanced complex spectrogram translates to the time-domain through inverse short-time Fourier transform (i-STFT).
+Our goal is to ﬁne-tune the two baseline enhancement models with LTAP to improve their perceptual quality and intelligibility. Dur- ing forward propagation, the enhancement model takes a noisy sig- nal as input and outputs an enhanced signal. The TAP estimator predicts temporal acoustic parameters for both clean and enhanced signals. LTAP is then computed through the methods discussed in the previous subsection. Demucs and FullSubNet also have their own loss functions. FullSubNet uses mean squared error (MSE) between the estimated cIRM and the true cIRM as loss (LcIRM). Demucs has two loss functions, L1 waveform loss (Lwave) and multi-resolution STFT loss (LSTFT). The baseline Demucs model pre-trained on the DNS 2020 dataset only uses L1 waveform loss. In order for a fair comparison, we ﬁrst ﬁne-tune Demucs using L1 waveform loss and LTAP. However, previous works have shown that Demucs model is prone to generating tonal artifacts [27] and we have observed this phenomenon during ﬁne-tuning with L1 waveform loss and LTAP. Moreover, we discovered that the multi-resolution STFT loss could alleviate this issue because the error introduced by tonal artifacts is more signiﬁcant and obvious in the time-frequency domain than in the time domain. Therefore, from the best ﬁne-tuning result, we ﬁne- tune again with L1 waveform loss, LTAP, and multi-resolution STFT loss to remove the tonal artifacts. The following equations show ﬁnal loss functions for ﬁne-tuning Demucs and FullSubNet, where λ1, λ2 and γ denote weight hyperparameters:
+LDemucs = Lwave + λ1 · LTAP + λ2 · LSTFT LFullSubNet = LcIRM + γ · LTAP
+During backward propagation, TAP estimator parameters are frozen and only enhancement model parameters are optimized.
+3.2. Data
+This study uses 2020 Deep Noise Suppression Challenge (DNS) data [28], which includes clean speech (from Librivox corpus), noise
+(7)
+(8) (9)
+(from Freesound and AudioSet [29]), and noisy speech synthesis methods. We synthesize thirty-second clean-noisy pairs, including 50,000 samples for training and 10,000 samples for development. In our experiments, we use the ofﬁcial synthetic test set with no rever- beration, which has 150 ten-second samples.
+3.3. Experiment Details And Ablation
+We ﬁne-tune ofﬁcial pre-trained checkpoints of Demucs 1 and Full- SubNet 2. We ﬁne-tune Demucs for 40 epochs with acoustic weight λ1 and another 10 epochs with spectrogram weight λ2. We ﬁne-tune FullSubNet for 100 epochs with acoustic weight γ. TAP and TA- PLoss source code will be available at https://github.com/ YunyangZeng/TAPLoss. In our experiments, the estimator ar- chitecture is a 3-layer bidirectional recurrent neural network with long short-term memory (LSTM), with 256 hidden units. After 200 epochs, the acoustic parameter estimator converges to a training er- ror of 0.15 and a validation error of 0.15.
+As an auxiliary loss, LTAP requires ablation to determine an opti- mal hyperparameter speciﬁcation. We observe that Demucs beneﬁts from high acoustic weights in the time-domain model. However, we also observed tonal artifacts when listening to the audio and vi- sualizing the spectrogram. Upon investigation, these artifacts were caused by the model’s architecture and are a known issue with some transpose convolution speciﬁcations. To address tone issues, we per- formed another ablation to improve spectrograms, given the acoustic weight. We observed that high spectrogram weights help, but it is not as important as optimizing the acoustics. In the time-frequency domain, 0.03 as an acoustic weight gave the best result on FullSub- Net. Notably, a weight of 1 for Demucs and a weight of 0.03 for FullSubNet account for respective scale differences.
+3.4. Acoustic Evaluation
+Consider a clean speech target s, noisy speech input x, baseline en- hanced speech ˆs1, and our enhanced speech ˆs2. Let MAE0 denote the mean absolute error across time (axis 0), and let (cid:11) represent element-wise division. We deﬁne percent acoustic improvement, PAI, as follows:
+(cid:15)m,m(cid:48) (cid:44) MAE0(Am, Am(cid:48) )
+PAI(Aˆs1 , Ax) = 100% · (1 − (cid:15)ˆs1,s (cid:11) (cid:15)x,s) PAI(Aˆs2 , Ax) = 100% · (1 − (cid:15)ˆs2,s (cid:11) (cid:15)x,s) PAI(Aˆs2 , Aˆs1 ) = 100% · (1 − (cid:15)ˆs2,s (cid:11) (cid:15)ˆs1,s)
+Acoustic evaluation involves three components: (1) baseline im- provement over noisy speech input, PAI(Aˆs1 , Ax), (2) our im- provement over noisy speech input, PAI(Aˆs2 , Ax), and (3) our improvement compared to the baseline, PAI(Aˆs2 , Aˆs1 ).
+Acoustic improvement measures how well enhancement pro- cesses noisy inputs into clean-sounding output. 0% improvement means enhancement has not changed noisy acoustics, while 100% is maximum possible improvement with enhanced acoustics identi- cal to clean acoustics. Relative acoustic improvement measures how well enhancement ﬁne-tuning yields a more clean-sounding output. 0% improvement means TAPLoss has not changed enhanced acous- tics after ﬁne-tuning. 100% improvement means TAPLoss enhanced acoustics sound identical to clean acoustics.
+1https://github.com/facebookresearch/denoiser 2https://github.com/haoxiangsnr/FullSubNet
+(10) (11) (12) (13)
+
+
+Metric
+Loss(es) used
+NB PESQ WB PESQ
+STOI
+ESTOI
+CD
+LLR
+WSS
+OVRL
+BAK
+SIG
+NORESQA
+Clean Noisy
+– –
+– 2.454
+– 1.582
+– 0.915
+– 0.810
+– 12.623
+– 0.577
+– 35.546
+3.28 2.48
+4.04 2.62
+3.56 3.39
+4.61 2.99
+Demucs Demucs Demucs
+FullSubNet FullSubNet
+Lwave Lwave + λ1LTAP Lwave + λ1LTAP + λ2LSTFT LcIRM LcIRM + γLTAP
+3.272 3.356 3.409
+3.386 3.417
+2.652 2.859 2.958
+2.889 2.981
+0.965 0.969 0.972
+0.964 0.965
+0.921 0.930 0.934
+0.920 0.922
+17.138 17.803 18.298
+16.962 17.677
+0.443 0.334 0.312
+0.399 0.310
+18.239 23.442 14.392
+20.887 18.946
+3.31 3.15 3.34
+3.21 3.25
+4.15 3.78 4.14
+4.02 4.05
+3.54 3.58 3.57
+3.51 3.53
+3.95 4.12 4.08
+4.09 4.14
+Table 2: Relative and absolute measures of speech enhancement quality, comparing LTAP with the baseline on DNS-2020 Test (No Reverb).
+Fig. 2: Pairwise comparison of selected relative and absolute metrics with ﬁnal LTAP Demucs with baseline on DNS-2020 Test (No Reverb).
+Figure 1 presents percentage acoustic improvement for Demucs and FullSubNet. On average, Demucs with Lwave, LTAP and LSTFT improved noisy acoustics by 53.9% while the baseline Demucs im- proved them by 44.9%. FullSubNet with LcIRM, LTAP improved noisy acoustics by 50.3% while the baseline FullSubNet improved them by 42.6%. On average, TAPLoss improved Demucs baseline acoustics by 19.4% and FullSubNet baseline acoustics by 14.5%.
+As an analytic tool, acoustics decompose enhancement quality changes – identifying potential architectural or optimization criteria in need of development. For example, Demucs and FullSubNet ar- chitectures demonstrate difﬁculty optimizing formant frequency and bandwidth. As such, these empirical results suggest that future work introducing related digital signal processing mechanisms could en- able improved acoustic ﬁdelity optimization capacity. By provid- ing a framework for acoustic analysis and optimization, this paper provides the tools needed to understand and improve acoustics and perceptual quality.
+proved modestly in the time-domain model. Improvement occurs in most DNSMOS metrics (OVRL, SIG, BAK) in time-frequency and time domain models; however, enhancement outperforming clean suggests the metric is unreliable. NORESQA saw signiﬁcant gains in this time-domain application, though explicit spectrogram opti- mization hurts the metric given a source time-domain model. Based on this empirical analysis, we recommend TAPLoss in situations with perceptual quality improvement objectives. Future works may signiﬁcantly beneﬁt perceptual quality by weighing acoustics given a speciﬁc metric optimization objective.
+Figure 2 presents more details that help us analyze the 150 ten- second samples. In order to facilitate pairwise comparison, we rank order by the baseline enhanced speech evaluation. By comparison, our enhanced speech outperforms the baseline enhanced speech on the two relative metrics, NB-PESQ and ESTOI. A similar pattern can be observed while analyzing NORESQA. The NORESQA of our enhanced speech mostly outperforms baseline-enhanced speech.
+4. CONCLUSION
+3.5. Perceptual Evaluation
+Enhancement evaluation includes relative metrics that compare sig- nals, and absolute metrics that valuate individual signals. Relative metrics include Short-Time Objective Intelligibility (STOI), ex- tended Short-Time Objective Intelligibility (ESTOI), Cepstral Dis- tance (CD), Log-Likelihood Ratio (LLR), Weighted Spectral Slope (WSS), Wide-band (WB) and Narrow-band (NB) Perceptual Eval- uation of Speech Quality (PESQ) [30]. Absolute metrics include overall (OVRL), signal (SIG), and background (BAK) from DNS- MOS P.835 [31]. Finally, Non-matching Reference based Speech Quality Assessment (NORESQA) includes its absolute (unpaired) and relative (paired) MOS estimates [32].
+Many enhancement evaluation metrics beneﬁt from the explicit optimization of acoustic parameters using TAPLoss. Perceptual evaluation of speech quality, both narrow band (PESQ-NB) and wideband (PESQ-WB), improved most signiﬁcantly. While STOI did not improve much in the time-frequency domain model, it im-
+TAPLoss can improve acoustic ﬁdelity in both time domain and time-frequency domain speech enhancement models. In contrast to aggregated acoustic parameters, optimization of temporal acous- tic parameters yield better enhancement evaluation and signiﬁcantly better acoustic improvement. Further, acoustic improvement using TAPLoss has strong foundations in digital signal processing, inform- ing tailored future developments of acoustically motivated architec- tural changes or loss optimizations to improve speech enhancement.
+5. ACKNOWLEDGEMENT
+This work used the Extreme Science and Engineering Discovery En- vironment (XSEDE) [33], which is supported by National Science Foundation grant number ACI-1548562. Speciﬁcally, it used the Bridges system [34], which is supported by NSF award number ACI-1445606, at the Pittsburgh Supercomputing Center (PSC).
+
+
+6. REFERENCES
+[1]
+F. Weninger, H. Erdogan, S. Watanabe, E. Vincent, J. Le Roux, J. R. Hershey, and B. Schuller, “Speech enhancement with LSTM recur- rent neural networks and its application to noise-robust ASR,” in La- tent Variable Analysis and Signal Separation, E. Vincent, A. Yeredor, Z. Koldovsk´y, and P. Tichavsk´y, Eds., Cham: Springer International Publishing, 2015, pp. 91–99.
+[2]
+S. Pascual, A. Bonafonte, and J. Serr`a, “SEGAN: Speech enhance- ment generative adversarial network,” arXiv preprint arXiv:1703.09452, 2017.
+[3] D. Rethage, J. Pons, and X. Serra, “A wavenet for speech denoising,”
+in Proc. ICASSP, IEEE, 2018, pp. 5069–5073.
+[4] D. S. Williamson, Y. Wang, and D. Wang, “Complex ratio masking for monaural speech separation,” IEEE/ACM Transactions on Audio, Speech, and Language Processing, vol. 24, no. 3, pp. 483–492, 2016.
+[5]
+P. Manocha, A. Finkelstein, R. Zhang, N. J. Bryan, G. J. Mysore, and Z. Jin, “A differentiable perceptual audio metric learned from just noticeable differences,” Proc. Interspeech, 2020.
+[6]
+S.-W. Fu, C. Yu, T.-A. Hsieh, P. Plantinga, M. Ravanelli, X. Lu, and Y. Tsao, “Metricgan+: An improved version of metricgan for speech enhancement,” Proc. Interspeech, 2021.
+[7]
+P. Plantinga, D. Bagchi, and E. Fosler-Lussier, “Perceptual loss with recognition model for single-channel enhancement and robust ASR,” arXiv preprint arXiv:2112.06068, 2021.
+[8]
+J. Turian and M. Henry, “I’m sorry for your loss: Spectrally-based audio distances are bad at pitch,” arXiv preprint arXiv:2012.04572, 2020.
+[9] C. K. Reddy, E. Beyrami, J. Pool, R. Cutler, S. Srinivasan, and J. Gehrke, “A scalable noisy speech dataset and online subjective test framework,” Proc. Interspeech, pp. 1816–1820, 2019.
+[10] A. Rix, J. Beerends, M. Hollier, and A. Hekstra, “Perceptual evalu- ation of speech quality (PESQ)-a new method for speech quality as- sessment of telephone networks and codecs,” in Proc. ICASSP, vol. 2, 2001, 749–752 vol.2.
+[11]
+S.-W. Fu, C. Yu, T.-A. Hsieh, P. Plantinga, M. Ravanelli, X. Lu, and Y. Tsao, “Metricgan+: An improved version of metricgan for speech enhancement,” Proc. Interspeech, 2021.
+[12]
+J. M. Martin-Do˜nas, A. M. Gomez, J. A. Gonzalez, and A. M. Peinado, “A deep learning loss function based on the perceptual evaluation of the speech quality,” IEEE Signal Processing Letters, vol. 25, no. 11, pp. 1680–1684, 2018.
+[13] Y. Koizumi, K. Niwa, Y. Hioka, K. Kobayashi, and Y. Haneda, “Dnn- based source enhancement self-optimized by reinforcement learning using sound quality measurements,” in Proc. ICASSP, 2017, pp. 81– 85.
+[14]
+S. Kataria, J. Villalba, and N. Dehak, “Perceptual loss based speech denoising with an ensemble of audio pattern recognition and self- supervised models,” in Proc. ICASSP, IEEE, 2021, pp. 7118–7122.
+[15]
+T.-A. Hsieh, C. Yu, S.-W. Fu, X. Lu, and Y. Tsao, “Improving Per- ceptual Quality by Phone-Fortiﬁed Perceptual Loss Using Wasser- stein Distance for Speech Enhancement,” in Proc. Interspeech, 2021, pp. 196–200.
+[16] M. Sambur, “Selection of acoustic features for speaker identiﬁcation,” IEEE Transactions on Acoustics, Speech, and Signal Processing, vol. 23, no. 2, pp. 176–182, 1975.
+[17] R. Brown, “An experimental study of the relative importance of acoustic parameters for auditory speaker recognition,” Language and Speech, vol. 24, no. 4, pp. 295–310, 1981.
+[18]
+P. Tzirakis, G. Trigeorgis, M. A. Nicolaou, B. W. Schuller, and S. Zafeiriou, “End-to-end multimodal emotion recognition using deep neural networks,” IEEE Journal of selected topics in signal process- ing, vol. 11, no. 8, pp. 1301–1309, 2017.
+[19] G. d. Krom, “Some spectral correlates of pathological breathy and rough voice quality for different types of vowel fragments,” Journal of Speech, Language, and Hearing Research, vol. 38, no. 4, pp. 794– 811, 1995.
+[20]
+J. Hillenbrand, R. Cleveland, and R. Erickson, “Acoustic correlates of breathy vocal quality,” Journal of speech and hearing research, vol. 37, pp. 769–78, Sep. 1994.
+[21] H. Kasuya, S. Ogawa, Y. Kikuchi, and S. Ebihara, “An acoustic anal- ysis of pathological voice and its application to the evaluation of la- ryngeal pathology,” Speech Communication, 1986.
+[22] C.-J. Peng, Y.-J. Chan, Y.-L. Shen, C. Yu, Y. Tsao, and T.-S. Chi, “Perceptual Characteristics Based Multi-objective Model for Speech Enhancement,” in Proc. Interspeech, 2022, pp. 211–215.
+[23] M. Yang, J. Konan, D. Bick, A. Kumar, S. Watanabe, and B. Raj, “Im- proving Speech Enhancement through Fine-Grained Speech Charac- teristics,” in Proc. Interspeech, 2022, pp. 2953–2957.
+[24]
+F. Eyben, M. W¨ollmer, and B. Schuller, “Opensmile: The munich ver- satile and fast open-source audio feature extractor,” in Proceedings of the 18th ACM International Conference on Multimedia, ser. MM ’10, Firenze, Italy: Association for Computing Machinery, 2010, pp. 1459–1462.
+[25] A. Defossez, G. Synnaeve, and Y. Adi, “Real time speech enhance-
+ment in the waveform domain,” in Proc. Interspeech, 2020.
+[26] X. Hao, X. Su, R. Horaud, and X. Li, “Fullsubnet: A full-band and sub-band fusion model for real-time single-channel speech enhance- ment,” in Proc. ICASSP, 2021, pp. 6633–6637.
+[27]
+J. Pons, J. Serr`a, S. Pascual, G. Cengarle, D. Arteaga, and D. Scaini, “Upsampling layers for music source separation,” arXiv preprint arXiv:2111.11773, 2021.
+[28] C. K. Reddy, V. Gopal, R. Cutler, E. Beyrami, R. Cheng, H. Dubey, S. Matusevych, R. Aichner, A. Aazami, S. Braun, et al., “The Inter- speech 2020 deep noise suppression challenge: Datasets, subjective testing framework, and challenge results,” Proc. Interspeech, 2020.
+[29]
+J. F. Gemmeke, D. P. Ellis, D. Freedman, A. Jansen, W. Lawrence, R. C. Moore, M. Plakal, and M. Ritter, “Audio set: An ontology and human-labeled dataset for audio events,” in Proc. ICASSP, IEEE, 2017, pp. 776–780.
+[30]
+P. C. Loizou, Speech Enhancement: Theory and Practice, 2nd. USA: CRC Press, Inc., 2013.
+[31] C. K. A. Reddy, V. Gopal, and R. Cutler, “DNSMOS P.835: A non- intrusive perceptual objective speech quality metric to evaluate noise suppressors,” in Proc. ICASSP, 2022, pp. 886–890.
+[32]
+P. Manocha, B. Xu, and A. Kumar, “NORESQA: A framework for speech quality assessment using non-matching references,” in Thirty- Fifth Conference on Neural Information Processing Systems, 2021.
+[33]
+J. Towns, T. Cockerill, M. Dahan, I. Foster, K. Gaither, A. Grimshaw, V. Hazlewood, S. Lathrop, D. Lifka, G. D. Peterson, R. Roskies, J. R. Scott, and N. Wilkins-Diehr, “Xsede: Accelerating scientiﬁc discov- ery,” Computing in Science & Engineering, vol. 16, no. 5, pp. 62–74, Sep. 2014.
+[34] N. A. Nystrom, M. J. Levine, R. Z. Roskies, and J. R. Scott, “Bridges: A uniquely ﬂexible hpc resource for new communities and data ana- lytics,” in Proceedings of the 2015 XSEDE Conference: Scientiﬁc Ad- vancements Enabled by Enhanced Cyberinfrastructure, 2015, pp. 1– 8.

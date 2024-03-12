@@ -1,0 +1,2096 @@
+entropy
+Article Deriving Vocal Fold Oscillation Information from Recorded Voice Signals Using Models of Phonation
+Wayne Zhao 1 and Rita Singh 2,*
+1 Department of Electrical and Computer Engineering, Carnegie Mellon University, Pittsburgh, PA 15213, USA;
+2
+wenbozhao@cmu.edu School of Computer Science, Carnegie Mellon University, Pittsburgh, PA 15213, USA
+Correspondence: rsingh@cs.cmu.edu
+Abstract: During phonation, the vocal folds exhibit a self-sustained oscillatory motion, which is inﬂuenced by the physical properties of the speaker’s vocal folds and driven by the balance of bio-mechanical and aerodynamic forces across the glottis. Subtle changes in the speaker’s physical state can affect voice production and alter these oscillatory patterns. Measuring these can be valuable in developing computational tools that analyze voice to infer the speaker’s state. Traditionally, vocal fold oscillations (VFOs) are measured directly using physical devices in clinical settings. In this paper, we propose a novel analysis-by-synthesis approach that allows us to infer the VFOs directly from recorded speech signals on an individualized, speaker-by-speaker basis. The approach, called the ADLES-VFT algorithm, is proposed in the context of a joint model that combines a phonation model (with a glottal ﬂow waveform as the output) and a vocal tract acoustic wave propagation model such that the output of the joint model is an estimated waveform. The ADLES-VFT algorithm is a forward-backward algorithm which minimizes the error between the recorded waveform and the output of this joint model to estimate its parameters. Once estimated, these parameter values are used in conjunction with a phonation model to obtain its solutions. Since the parameters correlate with the physical properties of the vocal folds of the speaker, model solutions obtained using them represent the individualized VFOs for each speaker. The approach is ﬂexible and can be applied to various phonation models. In addition to presenting the methodology, we show how the VFOs can be quantiﬁed from a dynamical systems perspective for classiﬁcation purposes. Mathematical derivations are provided in an appendix for better readability.
+Citation: Zhao, W.; Singh, R.
+Deriving Vocal Fold Oscillation
+Information from Recorded Voice
+Signals Using Models of Phonation.
+Keywords: vocal fold oscillation; phonation models; dynamical systems; parameter estimation; voice proﬁling
+Entropy 2023, 25, 1039. https://
+doi.org/10.3390/e25071039
+Academic Editors: Kevin H. Knuth
+and Deniz Gença ˘ga
+1. Introduction
+Received: 17 April 2023
+Revised: 3 July 2023
+Accepted: 7 July 2023
+Published: 10 July 2023
+Copyright: © 2023 by the authors.
+Licensee MDPI, Basel, Switzerland.
+This article is an open access article
+distributed under
+the terms and
+conditions of the Creative Commons
+Attribution (CC BY) license (https://
+Phonation is a complex bio-mechanical process wherein the glottal airﬂow, mediated by the muscles in the larynx and driven by an intricate balance of aerodynamic and mechanical forces across the glottis, maintains the vocal folds in a state of self-sustained vibration [1,2]. During this process, depending on the physical state of the vocal folds, their eigenmodes of vibration synchronize, or strive to do so. This self-sustained motion of the vocal folds during phonation is highly sensitive to perturbations caused by many possible inﬂuencing factors, which may affect the speaker during speech production. In recent years, there has been a surge of interest in building voice-based diagnostic aids—computational models based on artiﬁcial intelligence and machine learning that can infer the speaker’s state (and thereby the factors that are affecting the speaker) from voice. Such applications can beneﬁt greatly from being able to deduce the ﬁne-level nuances in the motion of the vocal folds, and being able to measure the response to various perturbing factors to infer their nature. However, doing this using traditional methods on an individual basis for each speaker is very difﬁcult. Traditional methods to observe and record vocal fold oscillations
+creativecommons.org/licenses/by/
+4.0/).
+Entropy 2023, 25, 1039. https://doi.org/10.3390/e25071039
+https://www.mdpi.com/journal/entropy
+
+
+Entropy 2023, 25, 1039
+(VFOs) are based on actual physical measurements taken using various instruments in clinical settings, e.g., [3–5].
+The primary focus of this paper is to derive the VFOs for a speaker directly from recorded voice signals, alleviating the need for taking physical measurements. The solution we propose is an analysis-by-synthesis approach, based on physical models of phonation. We propose a methodology to deduce the parameters of a chosen phonation model from a speaker’s voice recording, which can then be substituted into a VFO model to obtain speaker-speciﬁc solutions, which represent the vocal fold oscillations of the speaker.
+In the paragraphs below, we ﬁrst review some relevant facts about the process of phonation. In the sections that follow, we present our proposed methodology in two stages: in the ﬁrst, we show how we can infer the parameters of a physics-based model of phonation from measurements of glottal excitation. Since the parameters of such models represent the physical properties of the speaker’s vocal folds, using them to obtain solutions to the models gives us an estimate of the speaker’s VFOs. We subsequently show how to extend the model to include the physics of mucosal wave propagation in the vocal tract, and propose a forward-backward algorithm to estimate the parameters of the joint model. These can then be used in the corresponding phonation model to obtain its solutions.
+Later on, we also explain how the solutions of these models (which are the deduced VFOs) can be characterized from a dynamical systems perspective to derive discriminative information in the form of features that are useful for classiﬁcation tasks.
+In this context, it is important to note at the outset that the models we use to demon- strate our methodology are simple and well-established models in the literature. It is not the goal of this paper to propose new models of phonation, but rather to propose a novel methodology to derive their parameters from speech signals, so that they can be solved to yield VFOs on a speaker-by-speaker basis. The main contribution of this paper lies in the derivation of the parameters of these models, and their individualized VFO solutions. The viability of these solutions is demonstrated experimentally using classiﬁcation experiments.
+1.1. The Bio-Mechanical Process of Phonation
+By the myoelastic-aerodynamic theory of phonation, the forces in the laryngeal region that initiate and maintain phonation relate to (a) pressure balances and airﬂow dynamics within the supra-glottal and sub-glottal regions and (b) muscular control within the glottis and the larynx. The balance of forces necessary to cause self-sustained vibrations during phonation is created by physical phenomena such as the Bernoulli effect and the Coandˇa effect [6–8]. Figure 1 illustrates the interaction between these effects that is largely thought to drive the oscillations of the vocal folds.
+The process of phonation begins with the closing of the glottis. This closure is voluntary and facilitated by the laryngeal muscles. Once closed, the muscles do not actively play a role in sustaining the vibrations. Glottal closure is followed by a contraction of the lungs which pushes out air and causes an increase in pressure just below the glottis. When this subglottal pressure crosses a threshold, the vocal folds are pushed apart, and air rushes out of the narrow glottal opening into the much wider supra-glottal region, creating negative intra-glottal pressure (with reference to atmospheric air pressure) [9].
+The exact physics of the airﬂow through the glottis during phonation is well studied, e.g., [2,10–14]. The current understanding from these, from the airﬂow perspective, is that the glottis forms a ﬂow separation plane. The air expansion in this region and the low pressure created in the vicinity of the glottis through the Coandˇa effect-induced entrainment cause a lowering of pressure close to the glottis and a net downward force on the glottis. At the same time, lowered pressure in the glottal region due to the Bernoulli effect that ensues from the high-velocity air volume ﬂow through the glottis exerts a negative force on the glottis. The negative Bernoulli pressure causes elastic recoil, causing it to begin to close again. The closing reduces the volume ﬂow through the glottis, diminishing the downward forces acting on it. Increased pressure build-up in the sub-glottal region causes the glottis
+2 of 39
+
+
+Entropy 2023, 25, 1039
+to open again. This chain of oscillations continues in a self-sustained fashion throughout phonation until voluntary muscle control intervenes to alter or stop it or as the respiratory volume of air in the lungs is exhausted.
+Figure 1. Schematic of the balance of some key forces through one cycle of the self-sustained vibrations of the vocal folds. Sequential “snapshots” of the cycle are numbered 1–5. Arrows depict the direction and type of forces in the glottal area. The color codes for the arrows depict net forces due to the following: Pink–muscular; Green–Bernoulli effect; Yellow–Coandˇa effect; Blue–vocal fold elasticity and other factors; Black and Red–air pressure. Lighter shades of each color depict weaker forces. Figure from [9] with permission.
+1.2. General Approaches to Phonation Modeling
+Physical models of phonation, e.g., [9,11,15–20], attempt to explain this complex physical process using relations derived from actual physics, especially aerodynamics and the physics of mechanical structures.
+For modeling purposes, we note that phonation is not the only source of excitation of the the vocal tract in producing speechsounds, which comprise both voiced and unvoiced sounds. However, phonation is indeed the primary source of excitation of the vocal tract in the production of voiced sounds, wherein the oscillation of the vocal folds modulates the pressure of the airﬂow to produce a (quasi-) periodic glottal ﬂow wave at a fundamental frequency (the pitch), which in turn results in the occurrence of higher order harmonics. The resultant glottal ﬂow further excites the vocal tract, which comprises the laryngeal cavity, the pharynx, and the oral and nasal cavities, to produce individual sounds. The vocal tract serves as a resonance chamber that produces formants. The identities of the different sounds produced within it are derived from these resonances, which in turn are largely dependent on the conﬁgurations of the vocal tract speciﬁed by their time-varying cross- sectional area.
+From this perspective, phonation modeling has typically involved the modeling of two sub-processes: the self-sustained vibration of the vocal folds, and the propagation of the resultant pressure wave through the vocal tract [21]. Each sub-process model has associated parameters that determine the model output, given an input.
+Following the above division of the process, we identify the two following model types, each modeling one of the sub-processes: (i) Vocal fold oscillation (VFO) models (also called vocal folds models, or oscillation models), and (ii) vocal tract (VT) models.
+The VFO models describe the vibration of vocal folds and their aerodynamic interac- tion with airﬂow. Such models are of four broad types: one-mass models, e.g., [2,16,22–24], two-mass models, e.g., [11,15], multi-mass models [18], and ﬁnite element models, e.g., [17].
+3 of 39
+
+
+Entropy 2023, 25, 1039
+Each of these has proven to be useful in different contexts. The VT models describe the in- teraction of the glottal pressure wave with the vocal tract, which is turn has been described in the literature by varied models, such as statistical models, e.g., [25], geometric models, e.g., [26] and biomechanical models, e.g., [27].
+In addition, different models are also applied to describe the aero-acoustic interaction of the glottal airﬂow and the vocal tract. Some examples of these are reﬂection-type line analog models and transmission line circuit analog models, e.g., [28], hybrid time-frequency domain models, e.g., [29] and ﬁnite-element models, e.g., [30].
+2. The Problem of Parameter Estimation
+Each of the models mentioned in Section 1.2 includes a set of parameters that determine its state, and output, given an input. For instance, given the parameters for a VFO model, the glottal ﬂow waveform can be determined; given the glottal ﬂow waveform as an input, and the parameters for a VFO model, the acoustic signal can be determined.
+The problem we tackle in this paper is the inverse problem: given a model output, we
+must estimate the model parameters from it.
+This can be of great practical use. For example, with speaker-speciﬁc parameter setting, the output of these models can be used as a proxy for the actual vocal fold motion of the corresponding speaker. To obtain the parameters of such models, the traditional solution has been to take actual physical measurements of the vocal fold oscillations, or of the glottal ﬂow using techniques such as high-speed videostroboscopy, as mentioned in Section 1. This is not always feasible.
+On the other hand, the inverse problem of parameter estimation of phonation models is quite difﬁcult to solve through purely computational means. For example, in order to estimate the parameters of a vocal tract (VT) model, one must take into account the vocal tract coupling, the effect of the lossy medium that comprises the walls of the vocal tract, lip radiation, etc. Without serious approximations, the inverse problem in this case becomes eventually intractable. Some approaches simplify the solution by discretizing the vocal tract as a sequence of consecutive tubes of varying cross-sectional area, or with a mesh-grid. However, these approximations invariably increase the estimation error.
+This paper proposes a methodology for solving the inverse problem of phonation models through purely computational means. As mentioned earlier, the methodology follows an analysis-by-synthesis approach. We explain this by ﬁrst reviewing our previously proposed Adjoint Least Squares Estimation (ADLES) algorithm [31] that estimates the parameters of a VFO model by minimizing the error between a reference glottal ﬂow waveform and the signal generated by the physical VFO model. We then describe our proposed ADLES-VFT algorithm to estimate the parameters of a joint VFO and VT model (also called a body-cover model). Instead of comparing the model-generated excitation at the glottis to a reference glottal ﬂow, the ﬂow is propagated through the vocal tract to generate a signal at the lips, which is compared to a recorded voice signal which is used as a reference. The algorithm proposed iteratively re-estimates the model parameters by minimizing the error between the reference voice sample and this generated signal.
+Once estimated, these parameters are used with the VFO model to generate the
+speaker’s VFOs.
+3. Vocal Folds, Vocal Tract and Joint Models
+In this section we describe the VFO and VT models that we use as examples in this paper. We also explain the formulation of the joint model that we ultimately use to solve the inverse problem of parameter estimation.
+3.1. The VFO Model
+A schematic illustration of a general mass-spring oscillator model for the vocal folds is
+shown in Figure 2. This is used to model the phonation process as described below.
+4 of 39
+
+
+Entropy 2023, 25, 1039
+Figure 2. Approximating the vocal folds with mass-spring oscillators in the phonation process. Airﬂow from the lungs, driven by the subglottal pressure Ps, passes through the glottis, and vocal folds are set into a state of self-sustained vibration, producing the glottal ﬂow ug which is a quasi- periodic pressure wave. The vibration of vocal folds is analogous to a pair of mass-spring-damper oscillators. Further, the glottal ﬂow resonates in the speaker’s vocal tract and nasal tract and produces voiced sound.
+One-mass models describe the vibration of the vocal folds as that of a single mass-
+damper-spring oscillator.
+M ¨x + B ˙x + Kx = f (x, ˙x, t)
+where x is lateral displacement of a mass M, B and K are damping and stiffness coefﬁcients, respectively, f is the driving force, and t is time [2]. The driving force is velocity-dependent and can be estimated by Bernoulli’s energy law:
+Pg = Ps −
+1 2
+ρv2
+where Pg is the mean glottal pressure, Ps is sub-glottal pressure, ρ is air density, and v is the air particle velocity. The kinetic pressure in the supra-glottal region is neglected [2].
+Other models, namely two-mass, multi-mass and ﬁnite element models can also be used as the basis for the VFO model, and are described brieﬂy in the Appendix A for reference.
+For our paper, we adopt the version of the one-mass model of the vocal folds proposed in [24], illustrated in Figure 3. This is an asymmetric body-cover model which models the left and right vocal folds individually as one-mass components of a coupled dynamical system. It incorporates an asymmetry parameter, which can emulate the asymmetry in the vibratory motions of left and right vocal folds, and hence is also ideally suited to modeling pathological or atypical phonation [32].
+The key assumptions made in formulating this model are:
+(a) (b) (c)
+(d)
+(e)
+The degree of asymmetry is independent of the oscillation frequency; The glottal ﬂow is stationary, frictionless, and incompressible; All subglottal and supraglottal loads are neglected, eliminating the effect of source- vocal tract interaction; There is no glottal closure and hence no vocal fold collision during the oscillation cycle; The small-amplitude body-cover assumption is applicable (see deﬁnition below).
+5 of 39
+(1)
+(2)
+
+
+Entropy 2023, 25, 1039
+Figure 3. Diagram of the one-mass body-cover model for vocal folds. The lateral displacements at the midpoint of the left and right vocal folds are denoted as ξl and ξr, and ξ0 represents the half glottal width at rest.
+Assumption 1 (Body-cover assumption). The body-cover assumption assumes that a glottal ﬂow- induced mucosal wave travels upwards within the transglottal region, causing a small displacement of the mucosal tissue, which attenuates down within a few millimeters into the tissue as an energy exchange happens between the airstream and the tissue [2].
+This assumption allows us to represent the mucosal wave as a one-dimensional surface wave on the mucosal surface (the cover) and treat the remainder of the vocal folds (the body) as a single mass or safely neglect it. As a result, the oscillation model can be linearized, and the oscillatory conditions are much simpliﬁed while maintaining the model’s accuracy. In the one-mass asymmetric model proposed in [24], with reference to Figure 3, the center-line of the glottis is denoted as the z-axis. At the midpoint (z = 0) of the thickness of the vocal folds, the left and right vocal folds oscillate with lateral displacement ξl and ξr, resulting in a pair of coupled Van der Pol oscillators:
+¨ξr + β(1 + ξ2
+¨ξl + β(1 + ξ2
+r ) ˙ξr + ξr −
+l ) ˙ξl + ξl +
+∆
+ξr = α( ˙ξr + ˙ξl)
+2 ∆
+ξl = α( ˙ξr + ˙ξl)
+2
+where β is the coefﬁcient incorporating mass, spring and damping coefﬁcients, α is the glottal pressure coupling coefﬁcient, and ∆ is the asymmetry coefﬁcient. For a male adult with normal voice, the reference values for the model parameters (from clinical measurements) are usually approximately set to α = 0.5, β = 0.32 and ∆ = 0.
+3.2. The VT Model
+The literature describes a number of different approaches to modeling the vocal-tract, including bio-mechanical models, statistical models, and geometric models. For reference, they are described brieﬂy in the Appendix B.
+In our work we use an acoustic wave propagation model described by PDEs for the vocal tract. The vocal tract itself is represented as tube of length L, beginning at the glottis and ending at the lips. Representing the distance along the central axis of the vocal tract as x, x ∈ (0, L) (where x = 0 at the glottis and x = L at the lips) and the time-varying volume velocity of air at any position x along the vocal tract as u(x, t), it can be shown that the PDE that describes u(x, t) is given by
+∂2u ∂t2
+= c2 ∂2u ∂x2
++ f (x, t)
+6 of 39
+(3)
+(4)
+
+
+Entropy 2023, 25, 1039
+where f (x, t) represents the vocal tract proﬁle, which models the characteristics of the vocal tract, including the effect of the nonuniform yielding wall on the acoustic ﬂow dynamics, the effect of vocal tract coupling, lip radiation, etc., and must also be estimated by our algorithm. The derivation of Equation (4) is given in Appendix B. Note that if the vocal tract is assumed to be a rigid tube f (x, t) = 0 and Equation (4) reduces to the well-known Webster-Horn equation [33]. In deriving Equation (4) we have assumed a static vocal tract, i.e., that the cross-sectional area A(x) of the vocal tract at any position x is constant. This assumption is valid during phonation, in particular during the steady state of sustained phonation; however our solution can also be extended to consider time-varying vocal tracts A(x, t), although we have not done so in this paper.
+The oscillation of the vocal folds results in the movement of air with a time-varying volume velocity u0(t) = u(0, t) at the glottis. The vocal tract modulates this to result in the volume velocity uL(t) = u(L, t) at the lips and the corresponding pressure wave pL(t), where [34]
+uL(t) =
+A(L) ρc
+pL(t)
+where A(L) is the opening area at the lip, c is the speed of sound, and ρ is the ambient air density.
+4. Estimation of Model Parameters: Solving the Inverse Problem
+Our objective is to derive vocal fold oscillations during phonation directly from the
+speech signal. In order to do so, we will utilize the VFO and VT models.
+The VFO model represents the actual dynamics of the vocal folds. Given the model parameters, which are α, β and ∆ for the coupled one-mass model of Equation (3), it can be used to compute the vocal fold oscillations and the volume velocity of air at the glottis. The VT model represents the dynamics of the vocal tract. Given an excitation (at the glottis), it can be used to compute the pressure wave at the lips, which manifests as sound.
+Ours is the inverse problem: given the the pressure wave at the output of the vocal tract (i.e., the recorded speech signal) we must estimate the VFO parameters that could generate it. This is an analysis-by-synthesis problem: in order to analyze the given voice signal, we must identify the model parameters that synthesize the closest (in a metric sense) facsimile to it.
+We present the solution in a two-step manner. In the ﬁrst, given the actual excitation of the vocal tract to produce the voice signal, the parameters of the VFO model are estimated to minimize the error between its output and the reference excitation signal. We refer to this as the backward approach (and the corresponding estimation as the “backward” problem), since the reference excitation signal itself must ﬁrst be derived by passing the voice signal through an inverse model of the vocal tract, i.e., “backward” through the vocal tract. We have previously described our solution to the backward problem in [31], and restate it in Section 4.1 for completeness.
+The second, more complete solution considers the joint model, i.e., both the motions of the vocal folds and the propagation of the resulting air ﬂow (the excitation) through the vocal tract. The model parameters are estimated by comparing the signal produced at the lips by the joint model to the recorded voice signal. We refer to this as the “forward- backward” approach since this requires forward propagating the output of the VFO through the VT model, prior to applying the backward approach. The solution to this problem is the primary contribution of this paper.
+The two approaches are illustrated in Figure 4. Once estimated, the VFO model parameters can be used to compute the oscillations of
+the vocal folds and their phase-space trajectories.
+7 of 39
+(5)
+
+
+Entropy 2023, 25, 1039
+Figure 4. The VFO model models the generation of glottal signals by the movements of the vocal folds. The VT model models the transformation of the glottal signal generated by the vocal folds to the ﬁnal voice signal. The joint VFO-VT model combines the two, using the output of the VFO model as the input to the VT model. ADLES compares the glottal signal u0(t) generated by the VFO model to a reference glottal signal ug(t) to estimate VFO parameters. ADLES-VFT compares the output of the joint model, uL(t), to a reference signal um(t) obtained from an actual voice recording, to estimate both VFO and VT parameters. The output of the VFO model is the desired vocal-fold oscillation.
+4.1. Estimating VFO Parameters from the Excitation Signal: The Backward Approach (ADLES)
+As the ﬁrst step, we describe the backward problem: how to derive the VFO model parameters that best explain the glottal excitation for a given phonated signal. We use the approach proposed in [31]—we estimate the VFO model parameters to minimize the error between the volume velocity of air predicted by the model and a reference signal representing the actual glottal excitation to the vocal tract. If the VFO model were to be considered in isolation, this reference could be obtained through actual physical measurements, e.g., through photography [5], physical or numerical simulations [7,17], or by inverse ﬁltering the speech signal using a technique such as [35] (the approach used in [31]).
+For the purpose of our discussion in this section, however, we do not specify where this reference excitation is obtained from, since the estimation of VFO model parameters from a given glottal excitation is only a waypoint towards estimation from the joint model that includes both the VFO and VT components. As we will see in Section 4.2, this does not in fact require explicit knowledge of the reference signal at the glottis.
+Let ug(t) be the reference signal representing the true air-volume velocity at the glottis that excites the vocal tract. The volume velocity of air u0(t) (we remind the reader that u0(t) = u(0, t)) at the glottis can also be computed from the vocal fold opening at the glottis as
+u0(t) = ˜cd(2ξ0 + ξl(t) + ξr(t))
+where ξ0 is the half glottal width at rest, 2ξ0 + ξl(t) + ξr(t) is the complete glottal opening, d is the length of the vocal fold, and ˜c is the air particle velocity at the midpoint of the vocal folds.
+We assume that the movement of the vocal folds follows the VFO model of Section 3.1. Correspondingly, ξl(t) and ξr(t) must obey Equation (3), subject to boundary conditions. The model parameters α, β and ∆ can hence be computed to minimize the difference between the air volume velocity u0(t) predicted by the model and the reference ug We deﬁne the instantaneous residual R as the error between u0(t) and ug(t):
+R(t) = u0(t) − ug(t)
+= ˜cd(2ξ0 + ξl(t) + ξr(t)) − ug(t)
+The overall (cid:96)2 error between u0(t) and ug(t) is given by the integral
+F(ξl, ξr; ϑ) =
+(cid:90) T
+R2(t)dt
+0
+where ϑ = [α, β, ∆] represents the parameters of the VFO model, and T represents the complete length of the reference signal.
+8 of 39
+(6)
+0(t).
+(7)
+(8)
+
+
+Entropy 2023, 25, 1039
+The actual estimation can now be stated as
+α∗, β∗, ∆∗ = arg min α,β,∆
+F(ξl, ξrϑ)
+subject to
+¨ξl + β(1 + ξ2
+¨ξr + β(1 + ξ2
+l ) ˙ξl + ξl +
+r ) ˙ξr + ξr −
+∆
+ξl = α( ˙ξr + ˙ξl) 2 ∆
+ξr = α( ˙ξr + ˙ξl)
+2
+ξr(0) = Cr ξl(0) = Cl ˙ξr(0) = 0 ˙ξl(0) = 0
+where Cr and Cl are constants representing the quiescent positions of the vocal folds, and the folds are assumed to be at rest prior to the onset of phonation. For the computation we set ξ0 to a typical value of 0.1 cm. The length of the vocal folds d may be set to 17.5 mm (which is within the range of normal lengths for both male and female subjects), and the air particle velocity ˜c to 5000 cm/s [2].
+Note that given α, β and ∆ the differential equations of model Equations (11)–(15) (the constraints) can be solved by any ODE solver to obtain ξl(t) and ξr(t). So, in principle, we could solve the constrained optimization problem of Equation (9)–(15) by a grid search over (α, β, ∆) to identify the speciﬁc values that minimize the squared error of Equation (8). This would, however, be highly inefﬁcient.
+Instead we propose the ADLES (“ADjoint LEast Squares”) algorithm, which restates the constraints (11)–(15) as Lagrangians on the objective, and derives a gradient descent solution. The detailed derivation of ADLES is given in Appendix C. We summarize the key steps below.
+Incorporating constraints (11)–(15) into the objective, we deﬁne the Lagrangian:
+L(ϑ) = (cid:20) (cid:90) T
+R2 + λ
+0
++ η
+(cid:18)
+¨ξl + β
+(cid:18)
+¨ξr + β
+(cid:16)
+1 + ξ2 r
+(cid:17)
+(cid:16)
+1 + ξ2 l
+(cid:17)
+˙ξl + ξl +
+∆
+ξr − α(cid:0) ˙ξr + ˙ξl (cid:19)(cid:21)
+˙ξr + ξr −
+2 ξl − α(cid:0) ˙ξr + ˙ξl
+∆
+(cid:1)
+dt
+2
+(cid:1)
+(cid:19)
++ µl(ξl(0) − Cl) + µr(ξr(0) − Cr) + νl ˙ξl(0) + νr ˙ξr(0)
+where λ, η, µl, µr, νl and νr are Lagrangian multipliers. Note that λ and η are also functions of time (we have not explicitly shown the “(t)” above for brevity of notation).
+We obtain the Lagrangian parameters λ and η as the solution to the following equa-
+tions: For 0 < t < T:
+¨λ +
+¨η +
+(cid:18)
+2βξr ˙ξr + 1 − (cid:18)
+2βξl ˙ξl + 1 + (cid:17)
+(cid:16)
+1 + ξ2 r (cid:16)
+β
+(cid:17)
+1 + ξ2 l
+β
+∆
+2 ∆
+(cid:19)
+λ + 2 ˜cdR = 0
+(cid:19)
+2
+η + 2 ˜cdR = 0
+λ − α(λ + η) = 0
+η − α(λ + η) = 0
+9 of 39
+(9)
+(10)
+(11)
+(12)
+(13)
+(14)
+(15)
+(16)
+(17)
+(18)
+(19)
+(20)
+
+
+Entropy 2023, 25, 1039
+with initial conditions at t = T:
+λ(T) = 0 ˙λ(T) = 0 η(T) = 0 ˙η(T) = 0
+Note that given α, β, ∆, ξr and ξl, Equations (17)–(24) represent a differential-algebraic
+system of equations and can be solved by any DAE solver to obtain λ and η.
+Given ξr, ξl, λ and η, the derivatives of F(ξl, ξr, ϑ) w.r.t. α, β and ∆ can now be
+obtained as:
+Fα =
+Fβ =
+F∆ =
+(cid:90) T
+0 (cid:90) T
+0 (cid:90) T
+0
+−(cid:0) ˙ξr + ˙ξl (cid:17) (cid:16)(cid:16)
+1 + ξ2 r
+(cid:1)(λ + η)dt
+˙ξrλ +
+(cid:16)
+1 + ξ2 l
+1 2
+(ξlη − ξrλ)dt
+(cid:17)
+˙ξlη
+(cid:17)
+dt
+The derivatives from Equation (25) are plugged into a gradient descent update rule
+for the model parameters:
+α ←− α − ταFα β ←− β − τβFβ ∆ ←− ∆ − τ F∆
+∆
+where τ· is the step-size.
+The overall ADLES algorithm is summarized in Algorithm 1:
+Algorithm 1 ADLES algorithm 1: Initialize α, β and ∆ 2: while F not converged do 3:
+(cid:46) Iterate until the error converges Solve (11)–(10) with initial conditions (12)–(15), using the current estimates of α, β
+and ∆, obtaining ξr, ξl, ˙ξr and ˙ξl.
+4:
+Solve (17)–(20) with the initial conditions (21)–(24), using the current values of ξl,
+ξr, α, β and ∆, obtaining λ, ˙λ, η and ˙η.
+Compute Fα, Fβ and F∆ from Equation (25). Update α, β and ∆ with (26).
+5:
+6: 7: end while
+4.2. Estimating VFO Parameters from the Speech Signal: The Forward-Backward Approach (ADLES-VFT)
+The backward approach, solved by the ADLES algorithm in Section 4.1, derives the VFO parameters by minimizing the error between the output of the VFO model u0(t) and the glottal excitation ug(t). However, in general, ug(t) is not available, and this error cannot actually be computed.
+Instead, in the forward-backward approach, we further propagate the generated excita- tion u0(t) through the vocal tract, represented by the VT model of Equation (4) to obtain a signal uL(t) = u(L, t) at the lips. This is the output of the joint VFO and VT models. We compute the error between the generated signal uL(t) and the air velocity measurement de- rived from the recorded voice signal, which is available, and propagate this error backward through the vocal tract, to obtain the error at the glottis. The VT and VFO model parameters are estimated to minimize this error. Thus, the algorithm itself proceeds through iterations of two steps: a forward step in which the VFO-generated excitation is propagated through the VT model to generate an output signal, and a backward step in which the error between
+10 of 39
+(21)
+(22)
+(23)
+(24)
+(25)
+(26)
+
+
+Entropy 2023, 25, 1039
+the generated signal and the recorded speech is propagated backward through the VT to adjust the model parameters. We explain the entire procedure below.
+The recorded voice signal is, in fact, a pressure wave and records the pressure wave emitted at the lips. Let pm(t) be the measured acoustic pressure at the lip. The correspond- ing volume velocity is given by [34]
+um(t) =
+A(L) ρc
+pm(t)
+um(t) is now our reference signal at the lips to which uL(t) must be matched, in order to estimate model parameters.
+The propagation of u0(t) = u(0, t) through the vocal tract is assumed to follow the dynamics of Equation (4). Let H f be the nonlinear operator representing acoustic wave propagation through the vocal tract from the glottis to the lip. The subscript f in H f represents the vocal-tract proﬁle f (x, t) in Equation (4) and indicates the dependence of H f on f (x, t). Thus the vocal-tract output uL(t) is given by
+uL(t) = H f (u0(t)) = H f ( ˜cd(2ξ0 + ξl(t) + ξr(t)))
+Our objective is to minimize the difference between the measured volume velocity um(t) and the predicted volume velocity uL(t) near the lip subject to constraint that the dynamics of the vocal folds must follow the VFO model of Equation (3). Note that the parameters of the joint model include the VFO model parameters α, β and ∆, and the vocal tract proﬁle f (x, t) required by the VT model. Although we only require the VFO model parameters to determine vocal fold oscillation, the minimization must be performed against all of these. Thus the estimation problem becomes
+⇔
+min
+min
+(cid:90) T
+0 (cid:90) T
+0
+(uL(t) − um(t))2dt (cid:18)
+A(L) ρc
+uL(t) −
+pm(t)
+(cid:19)2
+dt
+subject to
+(cid:16)
+¨ξr + β (cid:16)
+¨ξl + β
+1 + ξ2 r
+1 + ξ2 l
+(cid:17)
+(cid:17)
+˙ξr + ξr −
+˙ξl + ξl +
+∆
+2 ∆
+2
+ξr = α(cid:0) ˙ξr + ˙ξl
+ξl = α(cid:0) ˙ξr + ˙ξl
+(cid:1)
+(cid:1)
+(I.C.1) ξr(0) = Cr (I.C.2) ξl(0) = Cl (I.C.3) ˙ξr(0) = 0 (I.C.4) ˙ξl(0) = 0
+where, as before, (30) and (31) represent the asymmetric vocal folds displacement model (3), I.C. stands for initial condition, and Cs are constants. The minimization is performed against the complete set of parameters of the joint VFO-VT model, i.e., α, β, ∆ and f (x, t). Unlike in Equations (11)–(15), this cannot be solved, even in principle, by simply scanning for the optimal α, β and ∆, since H f is characterized by f (x, t) which is also unknown and must be determined.
+To solve the optimization problem of (29)–(35), we derive an efﬁcient gradient-descent solution which we term the ADLES-VFT algorithm. The essential steps of the solution are given below. The details of the derivation are in Appendix D.
+11 of 39
+(27)
+(28)
+(29)
+(30)
+(31)
+(32)
+(33)
+(34)
+(35)
+
+
+Entropy 2023, 25, 1039
+4.2.1. Forward Pass
+First, note that, as before, the constraint Equations (30)–(35) are ordinary differential equations with initial conditions that, given α, β and ∆, can be solved by any ODE solver. The solution will give us the VFO model generated glottal excitation u0(t).
+Next, we propagate the generated excitation u0(t) through the VT model. For this, we
+must solve
+∂2u(x, t) ∂t2
+= c2 ∂2u(x, t)
+∂x2
++ f (x, t)
+subject to
+(B.C.1)
+(B.C.2)
+(I.C.1)
+(I.C.2)
+u(0, t) = u0(t) ∂u ∂nΓ u(x, 0) = 0 ∂u(x, 0) ∂t
+= 0
+= 0
+where B.C. stands for boundary condition, and I.C. stands for initial condition. The vocal tract is assumed to be circular at the glottis and the lips. Here, nΓ is the outward unit normal to the vocal tract boundary Γ, at the glottis.
+Equations (36)–(40) represent a set of partial differential equations. The boundary conditions relate to the air volume velocity at the glottal end of the vocal tract. The initial conditions relate to air volume velocity at the initial time, t = 0, when the generated glottal signal u0(t) enters the vocal tract. Given u0(t) and f (x, t) (36)–(40) can be solved using a PDE solver. In our work we use the ﬁnite-element method described in Appendix E.
+Solving (36)–(40) gives us u(x, t) at all positions x ∈ (0, L) and time t ∈ (0, T). In the
+process, it also gives us H f (u0(t)) = uL(t) = u(L, t).
+4.2.2. Backward Pass
+The backward pass updates all model parameters including the VT term f (x, t),
+and VFO parameters based on the error at the output.
+Updating f :
+We denote the estimation residual as:
+r(t) = um(t) − H f (u0(t))
+We must propagate this residual backward through the VT model. To do so, we use a time reversal technique [36] and backpropagate the difference (41) into the vocal tract, which gives:
+∂2z ∂t2
+= c2 ∂2z ∂x2
++ f (x, t)
+subject to
+(B.C.1)
+(I.C.1)
+(I.C.2)
+∂z ∂nΓ z(x, T) = 0 ∂z(x, T) ∂t
+= r
+= 0
+where z is the time reversal of u. Note that the boundary conditions and initial conditions in (42)–(45) are now deﬁned at the lip, and the equation itself propagates backward through the vocal tract.
+12 of 39
+(36)
+(37)
+(38)
+(39)
+(40)
+(41)
+(42)
+(43)
+(44)
+(45)
+
+
+Entropy 2023, 25, 1039
+As before, Equations (42)–(45) can be solved by the ﬁnite-element method of Appendix E to give us z(x, t). The gradient update rule for f (x, t) is then obtained as
+f ←− f + ι
+(cid:16) z c2
++ u
+(cid:17)
+.
+where ι is a learning rate parameter (see Appendix D).
+Updating α, β, ∆:
+As in the case of the backward approach of Section 4.1 we deﬁne a residual
+R(t) = uL(t) − um(t) = H f ( ˜cd(2ξ0 + ξl(t) + ξr(t))) −
+A(L) ρc
+pm(t)
+Note that unlike in Section 4.1 the residual in Equation (47) is deﬁned at the lips, rather than at the glottis. As before, we can deﬁne the total squared residual error as
+F(ξl, ξr; ϑ) =
+(cid:90) T
+0
+R2(t)dt
+where ϑ = [α, β, ∆] are the parameters of the vocal folds model (3). F must be minimized with respect to ϑ, subject to the constraints imposed by the VFO model.
+Once again, as in Section 4.1 we fold in the constraints into the objective through
+Lagrangian multipliers as
+L(ϑ) =
+(cid:90) T
+0
++η
+(cid:20)
+R2 + λ
+(cid:18)
+¨ξl + β
+(cid:18)
+¨ξr + β
+(cid:16)
+1 + ξ2 r
+(cid:17)
+(cid:16)
+1 + ξ2 l
+(cid:17)
+˙ξl + ξl +
+∆
+ξr − α(cid:0) ˙ξr + ˙ξl (cid:19)(cid:21)
+˙ξr + ξr −
+2 ξl − α(cid:0) ˙ξr + ˙ξl
+∆
+(cid:1)
+dt
+2
+(cid:1)
+(cid:19)
++ µl(ξl(0) − Cl) + µr(ξr(0) − Cr) + νl ˙ξl(0) + νr ˙ξr(0)
+where λ, η, µ and ν are multipliers, and λ and η are themselves functions of time. Opti- mization requires minimization of L(ϑ) with respect to α, β and ∆.
+This leads us (Appendix D) to the following set of equations for λ and η:
+¨λ +
+¨η +
+(cid:18)
+2βξr ˙ξr + 1 −
+(cid:18)
+2βξl ˙ξl + 1 +
+∆
+(cid:19)
+2 ∆
+(cid:19)
+λ + 2 ˜cdR
+2
+η + 2 ˜cdR
+uL u0 uL u0
+= 0
+= 0
+β
+(cid:16)
+1 + ξ2 r
+(cid:17)
+λ − α(λ + η) = 0
+β
+(cid:16)
+1 + ξ2 l
+(cid:17)
+η − α(λ + η) = 0
+with initial conditions (at t = T, i.e., at the lips):
+λ(T) = 0 ˙λ(T) = 0 η(T) = 0 ˙η(T) = 0
+Given R(t), u0(t) and uL(t) Equations (50)–(57) represent a set of differential-algebraic
+equations and can be solved with a DAE solver.
+13 of 39
+(46)
+(47)
+(48)
+(49)
+(50)
+(51)
+(52)
+(53)
+(54)
+(55)
+(56)
+(57)
+
+
+Entropy 2023, 25, 1039
+We ﬁnally obtain the derivative of F w.r.t. α, β and ∆ (represented below as Fα, Fβ and
+F∆, respectively) as
+Fα =
+Fβ =
+F∆ =
+(cid:90) T
+0 (cid:90) T
+0 (cid:90) T
+0
+−(cid:0) ˙ξr + ˙ξl (cid:17) (cid:16)(cid:16)
+1 + ξ2 r
+(cid:1)(λ + η)dt
+˙ξrλ +
+(cid:16)
+1 + ξ2 l
+1 2
+(ξlη − ξrλ)dt
+(cid:17)
+˙ξlη
+(cid:17)
+dt
+The gradient descent update rules for the VFO model parameters are ﬁnally ob-
+tained as
+α ←− α − ταFα β ←− β − τβFβ ∆ ←− ∆ − τ F∆
+∆
+4.2.3. The ADLES-VFT Algorithm Summarized
+The overall ADLES-VFT algorithm for solving the parameter estimation problem
+(29)–(35) is summarized in Algorithm 2.
+In this solution, we have adopted the simple gradient descent method. However, other gradient-based optimization approaches, such as the conjugate gradient method, can also be used.
+We note here that Algorithm 2 requires several terms to be speciﬁed. In our imple- mentation, the quiescent positions of the vocal folds, Cr and Cl were set to 0. We initialize [α, β, ∆] = [0.8, 0.32, 1.0]—these values were empirically found to work best. f (x, t) is ini- tialized to 0. This effectively initializes Equation (4) to the Webster Horn equation. The step sizes τα, τβ and τ are all adaptively set to 0.01/max(Fα, Fβ, F∆), and ι is set to 1. The actual objective minimize, Equation (29), requires scaling pm(t) by A(L)/ρc prior to comparison to uL(t). In practice, since pm(t) is derived from a voice signal recorded at a distance from the lips, the unknown transmission loss between the lips and the microphone must also be considered. To deal with this, we simply normalize both sequences to 0 mean and unit variance, and do not apply any additional scaling.
+∆
+Algorithm 2 ADLES-VFT algorithm 1: Initialize α, β, ∆ and f (x, t). 2: while F not converged do 3:
+(cid:46) Iterate until the error converges Solve (30)–(31) with initial conditions (32)–(35) with an ODE solver, using the current
+estimates of α, β and ∆, obtaining ξr, ξl, ˙ξr and ˙ξl and u0(t).
+4:
+Using current estimate of f (x, t) and u0(t), solve the forward propagation model
+(36)–(40) for uL(t) with a PDE solver, e.g., the ﬁnite-element method of Appendix E.
+5: 6:
+Calculate the estimation difference r(t) using (41). Using the current estimate of f (x, t) and r(t), solve the backward propagation
+model (42)–(45) for z(x, t) with a PDE solver (Appendix E).
+7: 8:
+Update f (x, t) using (46). Solve (50)–(53) with initial conditions (54)–(57) using a DAE solver to obtain λ, ˙λ, η
+and ˙η.
+9:
+Compute (58)–(60) through numerical integration to obtain derivatives Fα, Fβ and
+F∆ from
+Update α, β and ∆ with (63).
+10: 11: end while
+In the next section, we demonstrate the usefulness of the ADLES and ADLES-VFT
+algorithms experimentally.
+14 of 39
+(58)
+(59)
+(60)
+(61)
+(62)
+(63)
+
+
+Entropy 2023, 25, 1039
+5. Experimental Results and Interpretation
+Unfortunately, until the time of writing this paper, we could not obtain actual elec- troglottographic measurements or video data of vocal fold motion to compare our derived VFOs to. However, from a computational perspective the algorithms proposed can still be validated in different ways. We explain these below.
+5.1. Validation 1
+Our ﬁrst validation approach is to use the proxy of showing that the solutions ob- tained are indeed discriminative of ﬁne-level changes in glottal ﬂow dynamics of the phonation process.
+Having recovered the model parameters by our backward or forward approach, we can solve the models to obtain the time-series corresponding to the oscillations of each vocal fold, as estimated from recorded speech samples. We note that the models we have discussed in this paper are essentially dynamical systems represented by coupled nonlinear equations that may not have closed-form solutions, but can be numerically solved.
+To interpret these in discriminative settings, we can utilize some well-established methods for characterizing dynamical systems, borrowing them from chaos theory and other areas of applied mathematics (e.g., ﬂow, orbit, attractor, stability, Poincaré map, bifurcation, Lyapunov exponents, etc.). These are described in Appendix F.
+Interpreting a System’s Phase Portraits Using Its Bifurcation Map
+Appendix F describes the concepts and tools used to study the behaviors (e.g., ﬂow, orbit, attractor, stability, Poincaré map, bifurcation) of nonlinear dynamical systems such as Equation (3). The phase space of the system in Equation (3) (representing vocal fold motion) is four-dimensional and includes states (ξr, ˙ξr, ξl, ˙ξl).
+For this nonlinear system, it is expected that attractors such as limit cycles or toruses will appear in the phase space. Such phenomena are consequences of speciﬁc parameter settings. Speciﬁcally, the parameter β determines the periodicity of oscillations; the param- eter α and ∆ quantify the asymmetry of the displacement of left and right vocal folds and the degree to which one of the vocal folds is out of phase with the other [24,37]. We can visualize them by plotting the left and right displacements and the phase space portrait.
+The coupling of right and left oscillators is described by their entrainment; they are in n:m entrainment if their phases θr, θl satisfy |nθr − mθl| < C where n, m are integers, and C is a constant [24]. Such entrainment can be revealed by the Poincaré map, where the number of trajectory crossings of the right or left oscillators within the Poincaré section indicates the periodicity of its limit cycles. Therefore, their ratio represents the entrainment. We can use the bifurcation diagram to visualize how the entrainment changes with parameters. An example of such a bifurcation diagram is shown in Figure 5 [15,37].
+As we will see later (and as indicated in Figure 5), model parameters can characterize voice pathologies, and these can be visually evident in in phase portraits and bifurca- tion plots.
+We use the backward algorithm to estimate the asymmetric model parameters for clinically acquired pathological speech data. The data comprise speech samples collected from subjects suffering from three different vocal pathologies. Our goal is to demonstrate that the individualized phase space trajectories of the asymmetric vocal fold model are discriminative of these disorders.
+The data used in our experiments is the FEMH database [38]. It comprises 200 record- ings of the sustained vowel /a:/. The data were obtained from a voice clinic in a tertiary teaching hospital, and the complete database includes 50 normal voice samples (control set) and 150 samples that represent common voice pathologies. Speciﬁcally, the set contains 40/60/50 samples for glottis neoplasm, phonotrauma (including vocal nodules, polyps, and cysts), and unilateral vocal paralysis, respectively.
+15 of 39
+
+
+Entropy 2023, 25, 1039
+(a)
+(b)
+Figure 5. (a) A 3D Bifurcation diagram of the asymmetric vocal fold model. The third dimension is perpendicular to the parameter plane shown, and depicts the entrainment ratio n : m (encoded in different shades of gray) as a function of model parameters α and ∆, where n and m are the number of intersections of the orbits of right and left oscillators across the Poincaré section ˙ξr,l = 0 at stable status. This is consistent with the theoretical results in [24]); (b) Phase-space trajectories (or phase portraits) corresponding to the points A (left panel), B (center panel) and C (right panel). The horizontal axis is displacement of a vocal fold, and the vertical axis is its velocity.
+Figure 6 shows some phase portraits showing the coupling of the right and left vocal folds obtained using the ADLES solution. We observe that the attractor behaviors are typical and even visually differentiable for different types of pathologies.
+Table 1 shows the results of deducing voice pathologies by simple thresholding of parameter ranges. Speciﬁcally, the ranges of model parameters in each row of Table 1 correspond to regions in the bifurcation diagram in Figure 5. Each region has distinctive attractors and phase entrainment, representing distinct vocal fold behaviors and thereby indicating different voice pathologies. By extracting the phase trajectories for the speech signal and, thereby, the underlying system parameters, the ADLES algorithm can place the vocal-fold oscillations in voice production on the bifurcation diagram and thus deduce the pathology.
+16 of 39
+
+
+Entropy 2023, 25, 1039
+17 of 39
+(a)
+(b)
+(c)
+(d)
+Figure 6. Phase portraits showing the coupling of the left and right oscillators (ADLES-based estimation) for (a) normal speech: 1 limit cycle, (b) neoplasm: 1 limit cycle, (c) phonotrauma: 2 limit cycles, (d) vocal palsy: limit torus. The convergence trajectory is also shown, and the limit cycles can be observed as the emergent geometries in these plots.
+Table 1. Parameters obtained and pathologies identiﬁed through ADLES.
+∆
+α
+Phase Space Behavior
+Pathology
+Accuracy
+<0.5 ∼0.6 ∼0.6 ∼0.85
+>0.25 ∼0.35 ∼0.3 ∼0.4
+1 limit cycle, 1:1 entrain 1 limit cycle, 1:1 entrain 2 limit cycles, 1:1 entrain toroidal, n:m entrain
+Normal Neoplasm Phonotrauma Vocal Palsy
+0.90 0.82 0.95 0.89
+5.2. Validation 2
+Our second validation approach is to compare the excitation signal obtained through inverse ﬁltering with the glottal ﬂow signal (VFO) obtained through the backward or forward-backward algorithm. The rationale behind this is that within reasonable bounds of error, the glottal ﬂow signal obtained through our model is expected to conform to the oscillation patterns seen in the excitation signal for each speaker.
+Figure 7 shows the glottal ﬂow obtained by inverse ﬁltering and those obtained by the asymmetric model with the parameters estimated by our ADLES method. We observe consistent matches, showing that the ADLES algorithm does achieve its objectives in individualizing the asymmetric model to each speaker instance.
+
+
+Entropy 2023, 25, 1039
+(a)
+(b)
+(c)
+(d)
+Figure 7. Glottal ﬂows from inverse ﬁltering and ADLES estimation for (a) normal speech (control), (b) neoplasm, (c) phonotrauma, and (d) vocal palsy.
+5.3. Validation 3
+Our third validation approach is to compare the estimation precision of the back- ward approach and the forward-backward approach. Table 2 shows the mean absolute error (MAE) of calculating glottal ﬂows and parameters for four voice types (normal, neo- plasm, phonotrauma, vocal palsy) obtained by backward (ADLES) and forward-backward (ADLES-VFT) algorithms. The glottal ﬂows obtained by inverse ﬁltering the speech signals are treated as ground truths. Since there is no ground truth for model parameters, we treat the parameters obtained by ADLES as ground truth. These results suggest that our forward-backward algorithm can effectively recover the vocal tract proﬁle, glottal ﬂow, and model parameters.
+Table 2. Estimation error by backward and forward-backward approach.
+Glottal Flow MAE
+Parameter MAE
+ADLES-B
+ADLES-VFT
+α
+∆
+Normal Neoplasm Phonotrauma Vocal palsy All
+0.021 0.028 0.043 0.059 0.040
+0.022 0.036 0.051 0.065 0.045
+0.042 0.055 0.083 0.102 0.074
+0.049 0.058 0.079 0.119 0.078
+5.4. Validation 4
+Our fourth validation comes indirectly from prior studies. Information from a dynam- ical systems perspective can give insights about the underlying mechanisms and principles that govern the vocal fold dynamics. Examples of features in this category are recurrence
+18 of 39
+
+
+Entropy 2023, 25, 1039
+analysis features, Lyapunov exponents, Hurst exponents, etc. These are mentioned in Appendix F.
+Some of these features have been used in real-world applications and proven to be effective. For example, in [39], the authors hypothesize that since COVID-19 impairs the respiratory system, effects on the phonation process could be expected, and signatures of COVID-19 could manifest in the vibration patterns of the vocal folds. In this paper, features have been derived from a signal processing perspective.
+This study used the ADLES method to estimate the asymmetric vocal folds model parameters. It further used the parameters and estimation residuals as features to other binary classiﬁers such as logistic regression, support vector machine, decision tree, and ran- dom forest, achieving around 0.8 ROC-AUC (area under the ROC curve) in discriminating positive COVID-19 cases from negative instances, on clinically collected and curated data. The data used contained recordings of extended vowel sounds from affected speakers and control subjects. The authors also discovered that COVID-19 positive individuals display different phase space behaviors from negative individuals: the phase space trajectories for negative individuals were found to be more regular and symmetric across the two vocal folds, while the trajectories for positive patients were more chaotic, implying a lack of synchronization and a higher degree of asymmetry in the vibrations of the left and right vocal folds.
+In a companion study, the authors in [40] used the ADLES-estimated glottal ﬂows as features to CNN-based two-step attention neural networks. The neural model detects differences in the estimated and actual glottal ﬂows and predicts two classes corresponding to COVID-19 positive and negative cases. This achieved 0.9 ROC-AUC (normalized) on clinically collected vowel sounds. Yet another study used higher order statistics derived from parameters, and Lyapunov and Hurst exponents derived from the phase space trajec- tories of the individualized asymmetric models, to detect Amyotrophic Lateral Sclerosis (ALS) from voice with high accuracy (normalized ROC-AUC of 0.82 to 0.99) [41].
+6. Conclusions and Future Directions
+In this paper we have presented a dynamical system perspective for physical process modeling and phase space characterization of phonation, and proposed a framework wherein these can be derived for individual speakers from recorded speech samples. The oscillatory dynamics of vocal folds provide a tool to analyze different phonation phenomena in many real-world task settings. We have proposed a backward approach for modeling vocal fold dynamics, and an efﬁcient algorithm (the ADLES algorithm) to solve the inverse problem of estimating model parameters from speech observations. Further, we have integrated the vocal tract and vocal folds models, and have presented a forward- backward paradigm (the ADLES-VFT algorithm) for effectively solving the inverse problem for the coupled vocal fold-tract model. Extensions of these approaches can use other physical models of voice production, and other physical processes including phonation.
+We have shown that the parameters estimated by these algorithms allow the models to closely emulate the vocal fold motion of individual speakers. Features and statistics derived from the model dynamics are (at least) discriminative enough for use in regular machine- learning based classiﬁcation algorithms to accurately identify various voice pathologies from recorded speech samples. In future, these approaches are expected to be helpful in deducing many other underlying inﬂuences on the speaker’s vocal production mechanism. The phase space characterization presented in this paper is based on phase space trajectories (a topological perspective)—the left and right vocal fold oscillations, velocities or accelerations. Measurements can also be performed from statistical, signal processing, information-theoretic and other perspectives. Another direction of suggested research is characterizing the phase space from algebraic perspectives. We can recast the study of the topological structures of the phase space to the study of its algebraic constructs, such as homotopy groups and homology/cohomology groups, which are easier to classify. For example, algebraic invariants can characterize the homeomorphisms between phase
+19 of 39
+
+
+Entropy 2023, 25, 1039
+spaces (e.g., evolution maps, Poincaré maps) and reveal large-scale structures and global properties (e.g., existence and structure of orbits). We can also build upon the deep con- nection between dynamical systems and deep neural models. We can study deep learning approaches for solving and analyzing dynamical systems, and explore the integration of dynamical systems with deep neural models to analyze and interpret the behaviors of the vocal folds. We delegate these explorations to future work.
+Author Contributions: Methodology, W.Z. and R.S.; Validation, W.Z.; Formal analysis, W.Z. and R.S.; Investigation, W.Z.; Writing—original draft, W.Z. and R.S.; Supervision, R.S. All authors have read and agreed to the published version of the manuscript.
+Funding: This research received no external funding.
+Institutional Review Board Statement: Not applicable.
+Data Availability Statement: This study used the Far Eastern Memorial Hospital (FEMH) database, which is available to all participants through the annual IEEE FEMH Voice Data Challenges. A similar dataset called “VOICED Database” is openly available through PhysioNet at: https://physionet.org/ content/voiced/1.0.0/ (accessed on 1 June 2023).
+Conﬂicts of Interest: The authors declare no conﬂict of interest.
+Appendix A
+The following is a brief description of various VFO models:
+
+Two-mass models: Two-mass models describe vocal fold motion as two coupled mass-damper-spring os- cillators:
+M1 ¨x1 + B1 ˙x1 + K(x1 − x2) + R1 = F1 M2 ¨x2 + B2 ˙x2 + K(x2 − x1) + R2 = F2
+where xi, Mi, Bi are the i-th oscillator’s displacement, mass, and viscous damping coefﬁcient, K is the coupling stiffness between the two masses, Fi is the driving force, and Ri is the elastic restoring force [15]. This model assumes (1) small air inertia and quasi-steady glottal ﬂow, (2) negligible supra-glottal pressure, and (3) that the nonlinearity induced by vocal fold collision is small. These assumptions lead to small-amplitude oscillations and model simpliﬁcation.
+Multi-mass models:
+Multi-mass models have a greater degrees of freedom and hence can model vocal fold motion with high precision. They are based on mass-spring-damper motion dynamics which are widely used in multiple problem settings (e.g., [42]). For the i-th mass component, the equation of motion is:
+Mi ¨xi = F A
+i + FV
+i + F L
+i + FC
+i + F D i
+
+where xi = (xi, yi, zi) is the three-dimensional displacement, Mi is the mass, F A is i the anchor force associated with the anchor spring and damper, FV i are the vertical and longitudinal coupling forces associated with spring and damping, FC i is the collision restoring force, and F D is the driving force from glottal pressure [18]. i In [18], 50 masses are used. Finite element models: Finite element models discretize the vocal fold motion in space and time—the geome- try of the vocal fold is discretized into small elements (cells). In each cell, the applicable differential equation governed by the law of physics is solved. These models can handle complex geometries, continuous deformation, and complex driving forces [17].
+i and F L
+20 of 39
+(A1)
+(A2)
+(A3)
+
+
+Entropy 2023, 25, 1039
+Consider a cube element with six stress and strain components. By the principles of elasticity in mechanics we have:
+σ = S(cid:101)
+where σ is the stress tensor, (cid:101) is the strain tensor, and S is the stiffness matrix consisting of Young’s modulus, shear modulus, and Poisson’s ratio [17]. The relation between stress and displacement is governed by:
+∂u ∂x ∂u σz = C2µ ∂x τxy = µ(cid:48) ∂u ∂y τyz = µ(cid:48) ∂w ∂y (cid:18) ∂w ∂x
+σx = C1µ
+τzx = µ
++ C2µ
++ C1µ
+∂w ∂z ∂w ∂z
++
+∂u ∂z
+(cid:19)
+where τ is the shear stress, u and w are the lateral and vertical components of the displacement vector, µ and µ(cid:48) are shear moduli, and C1 and C2 are constants [17]. This system of partial differential equations can be efﬁciently solved by ﬁnite element meth- ods.
+The following is a brief description of various VT models:
+
+
+Bio-mechanical models: Bio-mechanical models simulate the geometry and articulatory movements of the vocal tract using displacement-based ﬁnite element methods and take into account the continuous tissue deformation and variation of the physiological, bio-mechanical, and visco-elastic properties of muscles [27]. They are more scalable and accurate, and allow for the modeling of more ﬁne-grained control over muscular forces, articu- lator positions, and movements. Statistical models: These model the vocal tract as statistical factors or components. For instance, factor analysis describes the vocal tract proﬁle as a sum of articulatory components and analyzes the relationship between individual, or a combination of, components and vocal tract parameters [25].
+Geometric models:
+These attempt to depict the shape and geometric conﬁgurations of the vocal tract. They specify articulatory state with vocal tract parameters that deﬁne the position and shape of tongue, lips, jaw, larynx, etc. [26]. However, such models are not scalable because they do not account for the continuous variations of the anatomy and articulatory state, require clinical measurements such as from magnetic resonance imaging, and are not amendable to coupling with vocal fold models.
+Appendix B
+Appendix B.1. Modeling Wave Propagation in the Vocal Tract
+The vocal tract can be viewed as a compact, orientable, differentiable manifold M embedded in R3. Its boundary ∂M includes the wall of the vocal tract. Consider the ∞(M)- tangent bundle TM. Denote the set of all vector ﬁelds on TM as Γ(TM), which is a C module [43]. A vector ﬁeld is a smooth section on TM, Γ(TM) (cid:51) X : M → TM. It
+21 of 39
+(A4)
+(A5)
+(A6)
+(A7)
+(A8)
+(A9)
+
+
+Entropy 2023, 25, 1039
+∞(M) ∼→ R [43]. Let associates each point p ∈ M with a tangent vector ¯v(p) := X|p : C γ(t) : R ⊇ I → M be a maximal integral curve [43] through p at t0, which is a solution to:
+γ(cid:48)(t) = X(γ(t)) γ(t0) = p
+The curve γ(t) is a one-parameter group. When acting on the Lie group M, it gives the ﬂow Φ : R × M → M.Φt(p) = γ(t). The particle velocity at p is given by v(p, t) := γ(cid:48)(t) = ¯v(p) ◦ γ(t)
+The planar motion of the pressure wave in the vocal tract is governed by the equa-
+tions [36]:
+1 ρc2
+∂ ˆp ∂t ∂v ∂t
++ div v = 0
++ grad ˆp = 0
+ρ
+where ˆp(p, t) is the acoustic pressure, div is the divergence operator, grad is the gradient operator, ρ is the ambient air density, and c is the speed of sound. Equation (A11) describes the conservation of mass, and (A12) describes the conservation of momentum [36].
+For notational convenience, we use cylindrical coordinates p = (r, θ, x), where the x direction aligns with the central axis of vocal tract. Denote the inner surface of vocal tract as Σ, and the shape function of inner surface as r = R(θ, x). Then the cross-sectional area of the vocal tract is:
+A(x) =
+(cid:90) 2π
+dθ
+(cid:90) R(θ,x)
+rdr
+0
+0
+The average acoustic pressure is:
+p(x, t) =
+1 A(x)
+(cid:90) 2π
+0
+dθ
+(cid:90) R(θ,x)
+0
+ˆprdr
+and the volume velocity is:
+u(x, t) =
+(cid:90) 2π
+dθ
+(cid:90) R(θ,x)
+vxrdr
+0
+0
+where vx is the x component of v. Integrating (A11) over the volume of vocal tract bounded by cross sections at x0 and x gives:
+0 =
+=
+=
+(cid:90)
+M (cid:90) x
+x0 1 ρc2
+∂ ˆp 1 ρc2 ∂t (cid:20)(cid:90) 2π
++ div v
+(cid:90) R
+∂ ˆp dθ ∂t A(cid:0)x(cid:48)(cid:1) ∂p(x(cid:48), t)
+1 ρc2
+0 (cid:90) x
+0
+x0
+∂t
+rdr
+(cid:21)
+dx(cid:48) +
+dx(cid:48) +
+(cid:90) (cid:90)
+Σ
+(cid:90)
+M
+div v
+nvdσ + u(x, t) − u(x0, t)
+where we substitute Equations (A17) and (A18) into (A14) and (A15), and apply Stokes’ theorem [28,36]; nv is the component of v normal and outward to the inner surface Σ.
+The element of area dσ is given by [28,36]:
+dσ = S(θ, x)dθdx
+where Sdθdx is a top 2-form on Σ [43]. Substituting (A19) into (A18) and differentiating w.r.t. x yields:
+A(x) ρc2
+∂p ∂t
++
+∂u ∂x
++
+(cid:90) 2π
+0
+nv(θ, x, t)S(θ, x)dθ = 0
+22 of 39
+(A10)
+(A11)
+(A12)
+(A13)
+(A14)
+(A15)
+(A16)
+(A17)
+(A18)
+(A19)
+(A20)
+
+
+Entropy 2023, 25, 1039
+Following similar steps, integrating the x component of (A12) over the cross section at
+x yields:
+ρ
+∂u ∂t
++ A(x)
+∂p ∂x
++
+(cid:90) 2π
+0
+(p(x, t) − pw(θ, x, t))
+∂ ∂x
+(cid:18) 1 2
+R2
+(cid:19)
+dθ = 0
+where pw is the pressure acting on the wall of the vocal tract.
+Appendix B.2. The Integrated Vocal Tract Model
+To simplify our problem, we combine the wave Equations (A20) and (A21) into a single vocal tract model. Differentiating (A20) w.r.t x and (A21) w.r.t. t, and canceling out the pressure term gives:
+∂2u ∂t2
+=c2 ∂2u ∂x2
+1 ρ (cid:90) 2π
+∂A ∂x
++
+∂p ∂t
+−
+1 ρ
+∂t
+(cid:90) 2π
+0
+(p(x, t) − pw(θ, x, t))
+∂ ∂x
+(cid:18) 1 2
+R2
+(cid:19)
+dθ
++ c2∂x =c2 ∂2u ∂x2
+nv(θ, x, t)S(θ, x)dθ
+0
++ f (x, t)
+where the vocal tract proﬁle is absorbed into a single term f (x, t). This represents the characteristics of the vocal tract, i.e., the effect of the nonuniform yielding wall on the acoustic ﬂow dynamics, which needs to be estimated by our algorithm.
+Appendix C
+In this appendix, we derive the ADLES algorithm to estimate VFO model parameters
+from a given glottal excitation signal.
+Let ug(t) be the actual air volume velocity at the glottis. We can can also derive u0(t)
+from the displacement of the vocal folds as
+u0(t) = ˜cd(2ξ0 + ξl(t) + ξr(t))
+where ξ0 is the half glottal width at rest, d is the length of vocal fold, and ˜c is the air particle velocity at the midpoint of the vocal fold.
+We assume the movements of the vocal folds to follow the dynamics speciﬁed by Equation (3) in Section 3.1. Our objective is then to estimate the parameters of the model to minimize the difference:
+min
+min
+(cid:90) T
+0 (cid:90) T
+0
+(cid:0)u0(t) − ug(t)(cid:1)2dt ⇔
+(cid:0) ˜cd(2ξ0 + ξl(t) + ξr(t)) − ug(t)(cid:1)2dt
+such that the movements of the vocal folds follow the VFO model:
+¨ξr + β(1 + ξ2
+¨ξl + β(1 + ξ2
+r ) ˙ξr + ξr −
+l ) ˙ξl + ξl +
+∆
+ξr = α( ˙ξr + ˙ξl)
+2 ∆
+ξl = α( ˙ξr + ˙ξl)
+2
+ξr(0) = Cr ξl(0) = Cl ˙ξr(0) = 0 ˙ξl(0) = 0
+where Cr and Cl are constants representing the quiescent positions of the vocal folds.
+23 of 39
+(A21)
+(A22)
+(A23)
+(A24)
+(A25)
+(A26)
+(A27)
+(A28)
+(A29)
+(A30)
+(A31)
+(A32)
+
+
+Entropy 2023, 25, 1039
+The Adjoint Least Squares (ADLES) Solution
+To solve the functional least squares in (A26), we require the gradients of (A26) w.r.t. the model parameters α, β and ∆. Subsequently, we can adopt any gradient-based (local or global) method to obtain the solution.
+Considering the residual
+R = ˜cd(2ξ0 + ξl(t) + ξr(t)) − ug(t)
+We have
+f (ξl, ξr; ϑ) = R2
+and
+F(ξl, ξr; ϑ) =
+(cid:90) T
+0
+f (ξl, ξr; ϑ)dt
+where ϑ = [α, β, ∆].
+Incorporating the constraints into the objective using Lagrangian multipliers, we
+deﬁne the Lagrangian:
+L(ϑ) = (cid:20) (cid:90) T
+f + λ
+(cid:18)
+¨ξr + β
+0
++ η
+(cid:18)
+¨ξl + β
+(cid:16)
+1 + ξ2 l
+∆
+(cid:16)
+(cid:17)
+ξr − α(cid:0) ˙ξr + ˙ξl
+˙ξr + ξr −
+1 + ξ2 r
+2 ξl − α(cid:0) ˙ξr + ˙ξl
+(cid:19)(cid:21)
+∆
+(cid:17)
+(cid:1)
+˙ξl + ξl +
+dt
+2
+(cid:1)
+(cid:19)
++ µl(ξl(0) − Cl) + µr(ξr(0) − Cr) + νl ˙ξl(0) + νr ˙ξr(0)
+where λ, η, µ and ν are Lagrangian multipliers. Taking the derivative of the Lagrangian w.r.t. the model parameter α yields:
+Lα =
+(cid:90) T
+(cid:20)
+2 ˜cdR(∂αξl + ∂αξr)
++ λ
+0 (cid:18)
+∂α ¨ξr + 2β ˙ξrξr∂αξr + β
+(cid:16)
+1 + ξ2 r
+(cid:17)
+∂α ˙ξr
++ ∂αξr −
+∆
+2
+∂αξr − α(cid:0)∂α ˙ξr + ∂α ˙ξl
+(cid:1) − (cid:0) ˙ξr + ˙ξl
+(cid:1)
+(cid:19)
++ η
+(cid:18)
+∂α ¨ξl + 2β ˙ξlξl∂αξl + β
+(cid:16)
+1 + ξ2 l
+(cid:17)
+∂α ˙ξl
++ ∂αξl +
+∆
+2
+∂αξl − α(cid:0)∂α ˙ξr + ∂α ˙ξl
+(cid:1) − (cid:0) ˙ξr + ˙ξl
+(cid:1)
+(cid:19)(cid:21)
+dt
++ µl∂αξl(0) + µr∂αξr(0) + νl∂α ˙ξl(0) + νr∂α ˙ξr(0)
+Integrating the term λ∂α ¨ξr twice by parts yields:
+(cid:90) T
+0
+λ∂α ¨ξrdt =
+(cid:90) T
+0
+∂αξr ¨λdt − ∂αξr ˙λ
+(cid:12) (cid:12)
+T 0
++ ∂α ˙ξrλ
+(cid:12) (cid:12)
+T 0
+24 of 39
+(A33)
+(A34)
+(A35)
+(A36)
+(A37)
+(A38)
+
+
+Entropy 2023, 25, 1039
+Applying the same to η∂α ¨ξl, substituting into (A37) and simplifying the ﬁnal expres-
+sion we obtain:
+Lα =
++
+(cid:20)(cid:18)
+(cid:18)
+(cid:19)
+(cid:90) T
+∆
+2βξr ˙ξr + 1 −
+¨λ +
+λ + 2 ˜cdR
+2
+0 (cid:18)
+(cid:18)
+(cid:19)
+(cid:19)
+∆
+2βξl ˙ξl + 1 +
+¨η +
+λ + 2 ˜cdR
+∂αξl
+2
+(cid:19)
+∂αξr
++
++
+(cid:16)
+β (cid:16)(cid:16)
+(cid:16)
+β
+(cid:17)
+1 + ξ2 r (cid:16)
+1 + ξ2 l
+λ − α(λ + η) (cid:17)
+η − α(λ + η)
+(cid:17)
+∂α ˙ξr (cid:17)
+∂α ˙ξl
+(cid:21)
+− (cid:0) ˙ξr + ˙ξl + (cid:0)µr + ˙λ(cid:1)∂αξr(0) − ˙λ∂αξr(T) + (νr − λ)∂α ˙ξr(0) + λ∂α ˙ξr(T) + (µl + ˙η)∂αξl(0) − ˙η∂αξl(T) + (νl − η)∂α ˙ξl(0) + η∂α ˙ξl(T)
+(cid:1)(λ + η)
+dt
+Since the partial derivative of the model output ξ w.r.t. the model parameter α is
+difﬁcult to compute, we eliminate the related terms by setting
+For 0 < t < T:
+¨λ +
+¨η +
+(cid:18)
+2βξr ˙ξr + 1 −
+(cid:18)
+2βξl ˙ξl + 1 +
+∆
+2 ∆
+2
+(cid:19)
+λ + 2 ˜cdR = 0
+(cid:19)
+η + 2 ˜cdR = 0
+β
+(cid:16)
+1 + ξ2 r
+(cid:17)
+λ − α(λ + η) = 0
+β
+(cid:16)
+1 + ξ2 l
+(cid:17)
+η − α(λ + η) = 0
+with initial conditions at t = T:
+λ(T) = 0 ˙λ(T) = 0 η(T) = 0 ˙η(T) = 0
+As a result, we obtain the derivative of F w.r.t. α as:
+Fα =
+(cid:90) T
+−(cid:0) ˙ξr + ˙ξl
+(cid:1)(λ + η)dt
+0
+The derivatives of F w.r.t. β and ∆ are similarly obtained as:
+Fβ =
+(cid:90) T
+0
+(cid:16)(cid:16)
+1 + ξ2 r
+(cid:17)
+˙ξrλ +
+(cid:16)
+1 + ξ2 l
+(cid:17)
+˙ξlη
+(cid:17)
+dt
+F∆ =
+(cid:90) T
+0
+1 2
+(ξlη − ξrλ)dt
+25 of 39
+(A39)
+(A40)
+(A41)
+(A42)
+(A43)
+(A44)
+(A45)
+(A46)
+(A47)
+(A48)
+(A49)
+(A50)
+
+
+Entropy 2023, 25, 1039
+Having calculated the gradients of F w.r.t. the model parameters, we can now apply
+the gradient-descent rule to optimize our objective (A26):
+αk+1 = αk − ταFα βk+1 = βk − τβFβ ∆k+1 = ∆k − τ F∆
+∆
+where τ· is the step-size.
+The overall algorithm is summarized as follows:
+1.
+2.
+3.
+Integrate (A27) and (A28) with initial conditions (A29)–(A32) from 0 to T, obtaining ξr, ξl, ˙ξr and ˙ξl. Integrate (A40)–(A43) with the initial conditions (A44)–(A47) from T to 0, obtaining λ, ˙λ, η and ˙η. Update α, β and ∆ with (A51).
+Appendix D
+Appendix D.1. The Combined Vocal Folds-Tract Model: Formulation of the Inverse Problem
+In this appendix we formulate the problem of estimating the parameters of the com- bined vocal fold-tract model from speech measurements. Let Ω × T be the domain of volume velocity u, where Ω is the spatial domain, and T is the time domain. In the one- dimensional case, Ω = [0, L] where L is the length of vocal tract, and T = [0, T]. Given measured acoustic pressure pm(t) at the lip, the corresponding volume velocity is given by [34]:
+um(t) =
+A(L) ρc
+pm(t)
+where A(L) is the opening area at the lip, c is the speed of sound, and ρ is the ambient air density. We denote u0(t) := u(0, t), uL(t) := u(L, t). The glottal ﬂow u0(t) can be derived from the vocal folds displacement model (3) by:
+u0(t) = ˜cd(2ξ0 + ξl(t) + ξr(t))
+where ξ0 is the half glottal width at rest, d is the length of the vocal fold, and ˜c is the air particle velocity at the midpoint of the vocal fold (see Figure 3).
+Let H be the nonlinear operator representing acoustic wave propagation from the
+glottis to the lip. We have the forward propagation process:
+H : L2(Ω × T ) × L2(Γ × T ) → L2(Γ × T )
+( f , u0) (cid:55)→ uL
+where f is the vocal tract proﬁle in (A23), and Γ = ∂Ω is the boundary.
+(cid:84) ΓL = ∅ corresponding to x = 0 and (cid:83) Γ x = L. However, we neglect the difference to ease our derivation. Note that in the one- dimensional case u(t) and uL(t) are only functions of t. However, more generally, they are functions of both x on the boundary Γ and t. We now deﬁne two nonlinear operators as:
+We can split Γ into two parts Γ = Γ
+1, Γ
+0
+0
+H f : L2(Γ × T ) → L2(Γ × T )
+u0 (cid:55)→ uL
+and
+F := Hu0 : L2(Ω × T ) → L2(Γ × T )
+f (cid:55)→ uL
+26 of 39
+(A51)
+(A52)
+(A53)
+(A54)
+(A55)
+(A56)
+
+
+Entropy 2023, 25, 1039
+Note that both H f and F are bounded. Our objective is to (estimate model parameters α, β and ∆ such that they) minimize the difference between the measured volume velocity um and the predicted volume velocity uL near the lip subject to constraints:
+⇔
+subject to
+min
+(cid:90) T
+0 (cid:90) T
+(cid:16)
+H f (u0(t)) − um(t)
+(cid:18)
+(cid:17)2
+dt
+min
+H f ( ˜cd(2ξ0 + ξl(t) + ξr(t))) −
+0 (cid:16)
+¨ξr + β (cid:16)
+1 + ξ2 r
+¨ξl + β
+1 + ξ2 l
+(cid:17)
+(cid:17)
+˙ξr + ξr −
+˙ξl + ξl +
+∆
+2 ∆
+2
+ξr = α(cid:0) ˙ξr + ˙ξl
+ξl = α(cid:0) ˙ξr + ˙ξl
+A(L) ρc
+(cid:1)
+(cid:1)
+pm(t)
+(cid:19)2
+dt
+(I.C.1) ξr(0) = Cr (I.C.2) ξl(0) = Cl (I.C.3) ˙ξr(0) = 0 (I.C.4) ˙ξl(0) = 0
+where (30) and (A60) represent the asymmetric vocal folds displacement model (3), I.C. stands for initial condition, and Cs are constants.
+Appendix D.2. Solving the Inverse Problem for the Vocal Folds-Tract Model: The ADLES-VFT Algorithm
+We solve the inverse problem for the combined vocal folds-tract model using the Forward-Backward method proposed below. We call this algorithm the Adjoint Least Squares—Vocal Folds-Tract (ADLES-VFT) parameter estimation algorithm.
+In order to solve the parameter estimation problem represented by (A60)–(A64), ﬁrst we need to estimate the vocal tract proﬁle f in H and (A23). Speciﬁcally, we need to solve:
+∂2u(x, t) ∂t2
+= c2 ∂2u(x, t)
+∂x2
++ f (x, t)
+subject to
+(B.C.1)
+(B.C.2)
+(I.C.1)
+(I.C.2)
+u(0, t) = ug(t) ∂u ∂nΓ u(x, 0) = 0 ∂u(x, 0) ∂t
+= 0
+= 0
+where B.C. stands for boundary condition, ug is the volume velocity at the glottis and nΓ is the outward unit normal to the boundary Γ. We now derive the solution to (A65)–(A69).
+In order to estimate f ∈ L2(Ω × T ), we take an iterative approach, i.e.,
+f k+1 = f k + τδ f k
+where δ f k ∈ L2(Ω × T ) is a small variation, and τ is a step size. A Taylor expansion of F (A56) at f k gives:
+F
+(cid:16)
+f k + δ f k(cid:17)
+= F
+(cid:16)
+f k(cid:17)
++ F (cid:48)(cid:16)
+f k(cid:17)
+δ f k + O
+(cid:18)(cid:16)
+δ f k(cid:17)2(cid:19)
+where F (cid:48) is the Fréchet derivative [44]. Omitting higher order terms, we obtain:
+F (cid:48)(cid:16)
+f k(cid:17)
+δ f k = F
+(cid:16)
+f k + δ f k(cid:17)
+− F
+(cid:16)
+f k(cid:17)
+27 of 39
+(A57)
+(A58)
+(A59)
+(A60)
+(A61)
+(A62)
+(A63)
+(A64)
+(A65)
+(A66)
+(A67)
+(A68)
+(A69)
+(A70)
+(A71)
+(A72)
+
+
+Entropy 2023, 25, 1039
+where F (cid:48)( f ) is a nonlinear operator
+F (cid:48)( f ) :L2(Ω × T ) → L2(Γ × T )
+δ f (cid:55)→ δuL
+Correspondingly, the adjoint operator [44–46] is:
+F (cid:48)( f )∗ :L2(Γ × T ) → L2(Ω × T )
+δuL (cid:55)→ δ f
+We would like F ( f k + δ f k) = uk
+L + δuk L
+k→∞ −−−→ um. This is equivalent to solving:
+min
+(cid:13) (cid:13) (cid:13)δ f k
+(cid:13) (cid:13) (cid:13)
+2
+2
+subject to F (cid:48)(cid:16)
+f k(cid:17)
+δ f k = um − F
+(cid:16)
+f k(cid:17)
+It is simple to obtain the solution to (A75):
+δ f k = −F (cid:48)(cid:16)
+f k(cid:17)∗(cid:104)
+F (cid:48)(cid:16)
+f k(cid:17)
+F (cid:48)(cid:16)
+f k(cid:17)∗(cid:105)−1(cid:16)
+F
+(cid:16)
+f k(cid:17)
+− um
+(cid:17)
+where F (cid:48)( f k)∗ is the adjoint operator. It is difﬁcult to compute F (cid:48)( f k)F (cid:48)( f k)∗. We use its property of positive-deﬁniteness to approximate it by γI where I is the identity matrix.
+We denote the estimation residual as:
+rk := um − F
+(cid:16)
+f k(cid:17)
+We have
+δ f k =
+1 γ
+F (cid:48)(cid:16)
+f k(cid:17)∗
+rk
+Now consider the wave Equation (A65). Let u + δu be a solution with variation f + δ f .
+Substitution into (A65) yields:
+∂2(u + δu) ∂t2
+= c2 ∂2(u + δu)
+∂x2
++ f + δ f
+Subtracting (A65) yields:
+∂2δu ∂t2
+= c2 ∂2δu ∂x2
++ δ f
+subject to
+∂δu ∂nΓ (I.C.1) δu(x, 0) = 0
+= 0
+(B.C.1)
+(I.C.2)
+∂δu(x, 0) ∂t
+= 0
+28 of 39
+(A73)
+(A74)
+(A75)
+(A76)
+(A77)
+(A78)
+(A79)
+(A80)
+(A81)
+(A82)
+
+
+Entropy 2023, 25, 1039
+Next, we use a time reversal technique [36] and backpropagate the difference (A76)
+into the vocal tract, which gives:
+∂2z ∂t2
+= c2 ∂2z ∂x2
++ f (x, t)
+subject to
+(B.C.1)
+(I.C.1)
+(I.C.2)
+∂z ∂nΓ z(x, T) = 0 ∂z(x, T) ∂t
+= r
+= 0
+where z is the time reversal of u. It follows [47] that:
+(cid:90) T
+(cid:90)
+(cid:104)δ f , z(cid:105)Ω×T =
+δ f zdxdt
+Ω
+0 (cid:18) ∂2δu ∂t2 (cid:18) ∂2δu ∂t2 (cid:18) ∂2δu
+(cid:19)
+(cid:90)
+(cid:90) T
+− c2 ∂2δu ∂x2 − c2 ∂2δu ∂x2
+=
+zdxdt
+Ω
+0 (cid:90) T
+(cid:19)
+(cid:18) ∂2z ∂t2 (cid:18) ∂2δu
+(cid:19)
+(cid:90)
+− c2 ∂2z ∂x2
+(cid:90)
+(cid:90) T
+zdxdt −
+− f
+=
+δudxdt
+Ω
+Ω
+0 (cid:90) T
+0 (cid:90) T
+(cid:19)
+(cid:19)
+(cid:90)
+∂2z ∂x2 δu
+∂2z ∂t2 δu
+(cid:90)
+dxdt − c2
+=
+∂x2 z −
+∂t2 z −
+dxdt
+Ω
+Ω
+0 (cid:90) T
+0
+(cid:90)
++
+f δudxdt
+Ω (cid:18) ∂δu ∂t
+0 (cid:90)
+(cid:19)(cid:12) (cid:12) (cid:12) (cid:12)
+(cid:19)
+(cid:18) ∂2δu
+T
+∂2z ∂x2 δu
+(cid:90) T
+(cid:90)
+∂z ∂t
+dxdt − c2
+=
+∂x2 z −
+z −
+dxdt
+δu
+Ω
+Ω
+0
+0
++
+(cid:90) T
+0
+= −c2
+= −c2
+= −c2
+(cid:90)
+f δudxdt
+Ω (cid:90) T
+(cid:18) ∂2δu
+(cid:19)
+(cid:90)
+∂2z ∂x2 δu ∂z ∂x ∂δu ∂x
+(cid:90) T
+(cid:90)
+dxdt +
+∂x2 z − ∂δu ∂x ∂δu ∂nΓ
+f δudxdt
+Ω
+Ω
+0 (cid:90) T
+0 (cid:90)
+(cid:19)
+(cid:18)
+(cid:90) T
+(cid:90)
+dt +
+− δud
+f δudxdt
+zd
+Ω (cid:18)(cid:90)
+Ω
+0 (cid:90) T
+0
+(cid:90)
+(cid:90)
+∂z ∂nΓ
+∂z ∂x
+ds −
+dx −
+ds +
+z
+δu
+Γ
+Γ
+Ω
+0
+(cid:90)
+Ω
+∂δu ∂x
+∂z ∂x
+dx
+(cid:19)
+dt
+(cid:90) T
+(cid:90)
++
+Ω (cid:90) T
+0
+= c2
+= c2
+0 (cid:90) T
+= c2
+0 (cid:90) T
+= c2
+0 (cid:90) T
+= c2
+0 (cid:90) T
+= c2
+0 (cid:90) T
+0
+f δudxdt
+(cid:90)
+(cid:90)
+(cid:90)
+(cid:90)
+(cid:90)
+(cid:90)
+Γ
+Γ
+Γ
+Ω
+Ω
+Ω
+(cid:90)
+(cid:90) T
+∂z ∂nΓ
+dsdt +
+δu
+f δudxdt
+Ω
+0 (cid:90)
+(cid:90) T
+δurdsdt +
+f δudxdt
+Ω (cid:90) T
+0
+(cid:90)
+F (cid:48)( f )δ f rdsdt +
+f δudxdt
+Ω (cid:90)
+0 (cid:90) T δ f F (cid:48)( f )∗rdxdt +
+f δudxdt
+Ω
+0 (cid:90) T
+(cid:90)
+δ f F (cid:48)( f )∗rdxdt −
+f δudxdt
+Ω
+0 δ f (cid:0)F (cid:48)( f )∗r − u(cid:1)dxdt
+where we substitute from (A87)–(A89) into (A79) and (A83); from (A89)–(A92) we apply initial conditions (A81), (A82), (A85) and (A86); from (A92)–(A94) we integrate by parts;
+29 of 39
+(A83)
+(A84)
+(A85)
+(A86)
+(A87)
+(A88)
+(A89)
+(A90)
+(A91)
+(A92)
+(A93)
+(A94)
+(A95)
+(A96)
+(A97)
+(A98)
+(A99)
+(A100)
+
+
+Entropy 2023, 25, 1039
+30 of 39
+from (A94)–(A95) we apply boundary condition (A80); from (A95)–(A96) we use boundary condition (A84); from (A96)–(A97) we use deﬁnition (A73); from (A97)–(A98) we use deﬁnition (A74) and the duality property
+(cid:10)F (cid:48)( f )δ f , r(cid:11)
+Γ×T = (cid:10)δ f , F (cid:48)( f )∗r(cid:11)
+Ω×T
+(A101)
+from (A98)–(A99), we assume that the second-order variation is small, i.e.,
+(cid:104) f + δ f , u + δu(cid:105) = (cid:104) f , u(cid:105) + (cid:104) f , δu(cid:105) + (cid:104)δ f , u(cid:105) + (cid:104)δ f , δu(cid:105) ≈ (cid:104) f , u(cid:105)
+(A102)
+(or δ( f u) = δ( f )u + f δ(u) ≈ 0). By the arbitrariness of δ f , it follows that:
+z = c2(cid:0)F (cid:48)( f )∗r − u(cid:1)
+(A103)
+and hence
+F (cid:48)( f )∗r =
+z c2
++ u
+(A104)
+Substitution into (A77) and (A70) yields:
+f k+1 = f k + ι
+(cid:32)
+zk c2
++ uk
+(cid:33)
+(A105)
+where ι = τ/γ.
+Hence, we obtain an iterative forward-backward approach for solving the vocal tract
+proﬁle f .
+Appendix D.2.1. Estimating model parameters via the adjoint least squares method
+Now, we derive solution to the parameter estimation problem (A60)–(A64) using the
+adjoint least squares method of Appendix C as follows.
+Denote the estimation error as:
+f (ξl, ξr; ϑ) =
+(cid:18)
+H f ( ˜cd(2ξ0 + ξl(t) + ξr(t))) −
+A(L) ρc
+pm(t)
+(cid:19)2
+(A106)
+and
+F(ξl, ξr; ϑ) =
+(cid:90) T
+f (ξl, ξr; ϑ)dt
+(A107)
+0 where ϑ = [α, β, ∆] are the parameters of the vocal folds model (3). We would like to obtain update rules for the model parameters α, β, and ∆, i.e.,
+αk+1 = αk − ταFαk βk+1 = βk − τβFβk ∆k+1 = ∆k − τ F∆k
+∆
+(A108)
+(A109)
+(A110)
+where the the partial derivatives F· := ∂·F ≡ ∂F Lagrangian:
+∂· and τ· is the step size. We now deﬁne the
+L(ϑ) =
+(cid:90) T
+0
++η
+(cid:20)
+(cid:18)
+f + λ
+(cid:18)
+¨ξr + β
+¨ξl + β
+(cid:16)
+1 + ξ2 l
+∆
+(cid:16)
+(cid:17)
+ξr − α(cid:0) ˙ξr + ˙ξl
+˙ξr + ξr −
+1 + ξ2 r
+2 ξl − α(cid:0) ˙ξr + ˙ξl
+(cid:19)(cid:21)
+∆
+(cid:17)
+(cid:1)
+˙ξl + ξl +
+dt
+2
+(cid:1)
+(cid:19)
+(A111)
++ µl(ξl(0) − Cl) + µr(ξr(0) − Cr) + νl ˙ξl(0) + νr ˙ξr(0)
+
+
+Entropy 2023, 25, 1039
+31 of 39
+where λ, η, µ and ν are multipliers. Taking the derivative of the Lagrangian w.r.t. the model parameter α yields
+(cid:20)
+(cid:90) T
+(cid:12) (cid:12) (cid:12)u0 0 ∂α ¨ξr + 2β ˙ξrξr∂αξr + β(1 + ξ2
+2 ˜cdH(cid:48) f
+Lα =
+(∂αξl + ∂αξr)
+(cid:16)
+r )∂α ˙ξr + ∂αξr
++ λ ∆
+(cid:17)
+∂αξr − α(∂α ˙ξr + ∂α ˙ξl) − ( ˙ξr + ˙ξl) 2 (cid:16) + η
+−
+l )∂α ˙ξl + ∂αξl (cid:17)(cid:21)
+∂α ¨ξl + 2β ˙ξlξl∂αξl + β(1 + ξ2
+∆
+∂αξl − α(∂α ˙ξr + ∂α ˙ξl) − ( ˙ξr + ˙ξl)
++
+dt
+2
++ µl∂αξl(0) + µr∂αξr(0) + νl∂α ˙ξl(0) + νr∂α ˙ξr(0)
+(A112)
+Integrating the term λ∂α ¨ξr by parts twice gives:
+(cid:90) T
+0
+λ∂α ¨ξrdt =
+(cid:90) T
+0
+∂αξr ¨λdt − ∂αξr ˙λ
+(cid:12) (cid:12)
+T 0
++ ∂α ˙ξrλ
+(cid:12) (cid:12)
+T 0
+(A113)
+Deﬁning the estimation residual R := H f (u0) − A(L)
+ρc pm(t), applying this to η∂α ¨ξl,
+and substituting into (A112), after simpliﬁcation yields:
+Lα =
+(cid:90) T
+0
+(cid:20)(cid:16)
+¨λ +
+(cid:16)
+2βξr ˙ξr + 1 −
+∆
+2
+(cid:17)
+λ + 2 ˜cdRH(cid:48) f
+(cid:12) (cid:12) (cid:12)u0
+(cid:17)
+∂αξr
++
++
+(cid:16)
+(cid:16)
+∆
+(cid:16)
+(cid:17)
+(cid:12) λ + 2 ˜cdRH(cid:48) (cid:12) (cid:12)u0 f (cid:16) β(cid:0)1 + ξ2 l
+(cid:17)
+2βξl ˙ξl + 1 +
+¨η +
+∂αξl
+2
+(cid:1)λ − α(cid:0)λ + η(cid:1)(cid:17)
+(cid:1)η − α(cid:0)λ + η(cid:1)(cid:17)
+β(cid:0)1 + ξ2 r
+∂α ˙ξr +
+∂α ˙ξl−
+(cid:21)
+(cid:0) ˙ξr + ˙ξl + (cid:0)µr + ˙λ(cid:1)∂αξr(0) − ˙λ∂αξr(T) + (cid:0)νr − λ(cid:1)∂α ˙ξr(0) + λ∂α ˙ξr(T) + (cid:0)µl + ˙η(cid:1)∂αξl(0) − ˙η∂αξl(T) + (cid:0)νl − η(cid:1)∂α ˙ξl(0) + η∂α ˙ξl(T)
+(cid:1)(λ + η)
+dt
+(A114)
+where the term H(cid:48) f |u0 ≈ uL/u0 by linearization. Since the partial derivatives of the displacement ξ w.r.t. the model parameter α are difﬁcult to compute, we cancel out the related terms by setting: For 0 < t < T :
+¨λ +
+¨η +
+(cid:18)
+(cid:18)
+2βξr ˙ξr + 1 −
+2βξl ˙ξl + 1 +
+(cid:19)
+∆
+λ + 2 ˜cdRH(cid:48) f
+2 ∆
+(cid:19)
+η + 2 ˜cdRH(cid:48) f
+2
+(cid:12) (cid:12) (cid:12)u0 (cid:12) (cid:12) (cid:12)u0
+= 0
+= 0
+(A115)
+(A116)
+β
+(cid:16)
+1 + ξ2 r
+(cid:17)
+λ − α(λ + η) = 0
+(A117)
+β
+(cid:16)
+1 + ξ2 l
+(cid:17)
+η − α(λ + η) = 0
+(A118)
+with initial conditions:
+
+
+Entropy 2023, 25, 1039
+At t = T :
+λ(T) = 0 ˙λ(T) = 0 η(T) = 0 ˙η(T) = 0
+Assuming the boundary conditions on ξl and ξr to hold—an assumption we empiri-
+cally ﬁnd to be valid for Cr = Cl = 0, we obtain the derivative of F w.r.t. α:
+Fα =
+(cid:90) T
+0
+−(cid:0) ˙ξr + ˙ξl
+(cid:1)(λ + η)dt
+Similarly, we obtain the derivatives of F w.r.t. β and ∆
+Fβ =
+F∆ =
+(cid:90) T
+0 (cid:90) T
+0
+(cid:16)(cid:16)
+1 + ξ2 r
+(cid:17)
+˙ξrλ +
+1 2
+(ξlη − ξrλ)dt
+(cid:16)
+1 + ξ2 l
+(cid:17)
+˙ξlη
+(cid:17)
+dt
+Appendix D.2.2. The ADLES-VFT Algorithm Summarized
+The algorithm for solving the parameter estimation problem (A60)–(A64) is outlined be-
+low.
+1.
+2.
+Integrate (A59) and (A60) with initial conditions (A61)–(A64) from 0 to T, obtaining ξk r , ξk Solve the forward propagation model (A65)–(A69) for uk
+l , ˙ξk
+r and ˙ξk l .
+(cid:12) (cid:12) (cid:12)uk
+L, H(cid:48)
+.
+f
+0
+3. 4. 5. 6.
+7.
+Calculate the estimation difference rk using (A76). Solve the backward propagation model (A83)–(A86) for zk. Update f k using (A105). Integrate (A115)–(A118) with initial conditions (A119)–(A122) from T to 0, obtaining λk, ˙λk, ηk and ˙ηk. Update α, β and ∆ with (A110).
+Appendix E
+Appendix E.1. Numerical Solution for Wave Propagation
+In this appendix we describe a ﬁnite-element solution for time-dependent systems of
+PDEs exampliﬁed by the wave propagation equation:
+∂2u(x, t) ∂t2
+= c2 ∂2u(x, t)
+∂x2
++ f (x, t)
+subject to
+(B.C.1)
+(B.C.2)
+(I.C.1)
+(I.C.2)
+u(0, t) = ug(t) ∂u ∂nΓ u(x, 0) = 0 ∂u(x, 0) ∂t
+= 0
+= 0
+32 of 39
+(A119)
+(A120)
+(A121)
+(A122)
+(A123)
+(A124)
+(A125)
+(A126)
+(A127)
+(A128)
+(A129)
+(A130)
+
+
+Entropy 2023, 25, 1039
+and the reverse propagation equation:
+∂2z ∂t2
+= c2 ∂2z ∂x2
++ f (x, t)
+subject to
+(B.C.1)
+(I.C.1)
+(I.C.2)
+∂z ∂nΓ z(x, T) = 0 ∂z(x, T) ∂t
+= r
+= 0
+where the solution must be deﬁned for x ∈ (0, L) and t ∈ (0, T).
+Appendix E.1.1. Variational Formulation
+First, for the time-dependent system of PDEs, we discretize it along time t with the backward Euler method [48], yielding a sequence of differential equations. We split the time domain T into N uniform length intervals ∆t. For time step n, 0 ≤ n ≤ N − 1, applying the backward Euler method to the left side of (A65) gives:
+(cid:2)DtD−
+t u(cid:3)n
+:= DtD− t
+(cid:18) ∂2u ∂t2
+(cid:19)(cid:12) (cid:12) (cid:12) (cid:12)t=n∆t
+=
+un − 2un−1 + un−2 ∆t2
+where DtD− t the differencing is performed at time step n [48,49]. Substitution into (36) yields:
+is a ﬁnite difference operator w.r.t. time, and the superscript n indicates that
+(cid:20)
+t u = c2 ∂2u ∂x2 ⇔ un = ∆t2c2 ∂2un ∂x2
+DtD−
+(cid:21)n
++ f
++ ∆t2 f n + 2un−1 − un−2
+Next, we deﬁne the residual at time step n as:
+Rn = un − ∆t2c2 ∂2un ∂x2
++ ∆t2 f n + 2un−1 − un−2
+Applying Galerkin’s method [48,50] gives:
+(cid:104)Rn, v(cid:105)Wk,2 = 0
+where v ∈ W k,2 (W k,2 is the Sobolev space of functions with bounded L2 norm and k-th order weak derivatives) is a qualiﬁed test function. Galerkin’s method orthogonally projects the residual to the function space W k,2. Expanding (A139) yields:
+(cid:90)
+Ω
+unvdx − ∆t2c2
+(cid:90)
+Ω
+∂2un ∂x2 vdx =
+(cid:90)
+Ω
+(cid:16)
+∆t2 f n + 2un−1 − un−2(cid:17)
+vdx
+Integration by parts for the second-order term in (A140) gives:
+(cid:90)
+Ω
+∂2un ∂x2 vdx = −
+(cid:90)
+Ω
+∂un ∂x
+∂v ∂x
+dx +
+(cid:90)
+Γ
+∂un ∂nΓ
+ds
+where nΓ is the outward normal unit vector of the boundary Γ, and ds is the 1-form [43] on Γ. For problem (A126)–(A130), applying the boundary condition (A128) and substituting (A141) back into (A140) yields the variational problem:
+(cid:90)
+Ω
+unvdx + ∆t2c2
+(cid:90)
+Ω
+∂un ∂x
+∂v ∂x
+dx =
+(cid:90)
+Ω
+(cid:16)
+∆t2 f n + 2un−1 − un−2(cid:17)
+vdx
+33 of 39
+(A131)
+(A132)
+(A133)
+(A134)
+(A135)
+(A136)
+(A137)
+(A138)
+(A139)
+(A140)
+(A141)
+(A142)
+
+
+Entropy 2023, 25, 1039
+For the reverse problem represented by (A131)–(A134), applying the boundary condi- tion (A132) and substituting (A141) back into (A140) yields a similar variational problem:
+(cid:90)
+Ω
+znwdx + ∆t2c2
+(cid:90)
+Ω
+∂zn ∂x
+∂w ∂x
+dx =
+(cid:90)
+Ω
+(cid:16)
+∆t2 f n + 2zn−1 − zn−2(cid:17)
+wdx +
+(cid:90)
+Γ
+rnwds
+We can split the variational problem (A142) into two parts:
+a(u, v) =
+L(v) =
+(cid:90)
+(cid:90)
+Ω
+Ω
+(cid:90)
+∂u ∂x
+∂v ∂x
+uvdx + ∆t2c2 dx ∆t2 f n + 2un−1 − un−2(cid:17)
+Ω
+(cid:16)
+vdx
+where we have interchanged the unknown un with u. (A144) is the bilinear form, and (A145) is the linear form [48].
+Our original problem (A126)–(A130) and (A131)–(A134) then reduce to solving:
+a(u, v) = L(v)
+for each time step. By the Lax-Milgram Lemma [49], solving (A146) is equivalent to solving the functional minimization problem:
+F(u) = arg min
+v∈V
+1 2
+a(v, v) − L(v)
+By the calculus of variations, and taking the variation of the functional gives (A146),
+hence the name variational form [48,49].
+Appendix E.1.2. Finite Element Approximation
+For each time step, we solve (A146) with ﬁnite element method. We discretize the domain Ω with a mesh of uniformly spaced triangular cells. We take the P2 elements as the basis function space, which contains piece-wise, second-order Lagrange polynomials deﬁned over a cell. Each basis function has a degree-of-freedom (DoF) of 6 over a two- dimensional cell [48,51].
+Each element is associated with a coordinate map that transforms local coordinates to global coordinates and a DoF map that maps local DoF to global DoF [48,51]. Each cell is essentially a simplex and can be continuously transformed into the physical domain. We use the following two previously established points in this context, and proceed as explained thereafter.
+1.
+Existence of Unique Solution: The solution to the variational problem (A146) exists and is unique [51]. Approximation Error: The Galerkin’s method gives the solution ue with error bounded by O(h3(cid:107)D2ue(cid:107)W 3,2 ), where h is the cell size and D is the bounded derivative opera- tor [49,51]. Assume a solution u = B + cjψj (using Einstein summation convention) with basis ψj ∈ P2 and coefﬁcients cj. Here the ψj are piece-wise second-order Lagrange polyno- mials [48]. Also, the mesh of cells, P2 elements of basis functions, coordinate map, DoF map, and the assembly of the linear systems, are implemented and solved with the FEniCS software [52].
+2.
+The function B(x) incorporates the boundary condition and, as an example, can take
+the form:
+B(x) = ug + (cid:0)um − ug
+(cid:1) xp Lp ,
+p > 0
+34 of 39
+(A143)
+(A144)
+(A145)
+(A146)
+(A147)
+(A148)
+
+
+Entropy 2023, 25, 1039
+35 of 39
+We also project B(x) over the basis functions P2 and express it as B(x) = bjψj. As a result, we obtain an uniﬁed expression u = U jψj with U j incorporating bj and cj. Similarly, we have f n = Fj n−2ψj. Set the test function as v = ˆψi (where ˆψi is the ith Lagrange polynomial basis in a test cell). Substitution into (A144) and (A145) yields:
+nψj, un−1 = U j
+n−1ψj, un−2 = U j
+a(u, v) =
+(cid:90)
+Ω (cid:18)(cid:90)
+=
+L(v) =
+(cid:90)
+Ω
+= ∆t2
+(cid:90)
+U jψ(cid:48)
+jψ(cid:48) i dx (cid:19)
+U jψj ˆψidx + ∆t2c2 (cid:90)
+Ω
+i ψ(cid:48) ψ(cid:48)
+U j
+ˆψiψjdx + ∆t2c2
+jdx
+Ω (cid:16)
+Ω
+(cid:17)
+n−1ψj − U j (cid:18)(cid:90)
+∆t2Fj (cid:18)(cid:90)
+nψj + 2U j (cid:19)
+ˆψidx (cid:19)
+n−2ψj
+U j
+Fj n + 2
+ˆψiψjdx
+ˆψiψjdx
+n−1 −
+Ω
+Ω
+(cid:18)(cid:90)
+Ω
+ˆψiψjdx
+(cid:19)
+U j
+n−2
+(A149)
+(A150)
+where ψ(cid:48)
+i is the derivative of ψi w.r.t. x. Ω ˆψiψjdx, Ki,j = (cid:82)
+Setting Mi,j = (cid:82)
+Ω ψ(cid:48)
+i ψ(cid:48)
+jdx and collecting (A149) and (A150) into
+matrix-vector form, we obtain:
+AU = b (A151) where A = M + ∆t2c2K, and b = ∆t2 MFn + 2MUn−1 − MUn−2. Hence, we have reduced the problem of (A146) into solving the linear system (A151), with the solution described above. Furthermore, the matrices M (known as the mass matrix) and K (known as the stiffness matrix) can be pre-calculated for efﬁciency.
+Appendix F
+This appendix provides some essential deﬁnitions used for the characterization of
+dynamical system models for analysis.
+Deﬁnition A1 (Dynamical system). A real-time dynamical system is a tuple (T, M, Φ), where T is a monoid (an algebraic construct, such as an open interval in R+). M is a manifold locally diffeomorphic to a Banach space, usually called the phase space. As opposed to the conﬁguration space describing the “position” of a dynamical system, the phase space describes the “states” or “motion” of the dynamical system. It is often deﬁned as the tangent bundle TM or the cotangent bundle T∗ M of the underlying manifold. Φ : T × M ⊇ U → M, where proj2(U) = M, is the (continuous) evolution function [53].
+A phonation model outputs a phase space trajectory of state variables that describes the movements of the vocal folds. The trajectories tend to fall into orbits with regular or irregular behaviors that explain observed behavior patterns of the vocal folds. The possible types and distributions of these orbits depend on the system parameters.
+Appendix F.1. The Evolution of a Dynamical System
+A dynamical system can be instantiated with ordinary or partial differential equations
+with initial conditions, and the evolution function Φ is the solution to the ODE or PDE.
+Deﬁnition A2 (Evolution function). Denote the duration of evolution of a dynamical system as I(x) = {t ∈ T | (t, x) ∈ U}. The evolution function Φ is a group action of T on M satisfying 1. 2.
+Φ(0, x) = x, for all x ∈ M; Φ(t2 + t1, x) = Φ(t2, Φ(t1, x)), for t1, t2 + t1 ∈ I(x), t2 ∈ I(Φ(t1, x)).
+Appendix F.2. Trajectory, Flow, Orbit and Invariance
+Write Φx(t) ≡ Φt(x) ≡ Φ(t, x). The map Φt : M → M is a diffeomorphism (i.e.,
+differentiable, invertible, bijection map between manifolds).
+
+
+Entropy 2023, 25, 1039
+Deﬁnition A3 (Flow, orbit, invariance). The map Φx : I(x) → M is the ﬂow or trajectory through x. The set of all ﬂows γx := {Φx | t ∈ I(x)} is the orbit through x. Particularly, a subset S ⊆ M is called Φ-invariant if Φ(t, x) ∈ S for all x ∈ S and t ∈ T.
+Appendix F.3. Phase Space Behavior: Attractor
+The behaviors of ﬂows can be described by their attractor/attraction sets.
+Deﬁnition A4 (Attractor). An attractor set A ⊆ M in the phase space is a closed subset satisfying for some initial point x, there exists a t0 such that Φx(t) ∈ A for any t > t0.
+Namely, the orbit γx is “trapped” in the interior of A. A dynamical system can have more than one attractor set depending on the choice of initial points (or the choice of parameters, as we will see later). Locally we can talk about a basin of attraction B(A), which is a neighborhood of A satisfying for any initial point x ∈ B(A), and its orbit is eventually trapped in A.
+There are different types of attractor sets. Some are shown in Figure A1. The simplest one is a ﬁxed point or an equilibrium point, to which a trajectory in phase space converges regardless of initial settings of the variables (or their starting point). To study vocal fold behaviors, we are particularly interested in those attractors revealing the periodic motion of the ﬂow in phase space. Such attractors include the limit cycle or the limit torus, which are isolated periodic or toroidal orbits, respectively. Some attractor sets have a fractal structure resultant from a chaotic state of the dynamical system [20,54], and are called strange attractors.
+Figure A1. Illustration of different attractors in a dynamical system.
+Appendix F.4. Chaos and Exponential Divergence of Phase Space Trajectories
+Chaos is a characteristic state of a nonlinear dynamical system. There are different
+deﬁnitions of chaos. A simple one is as follows:
+Deﬁnition A5 (Chaos). Equip a distance metric d on the phase space M. Then C ∈ M is referred to as a chaotic set of Φ if, for any x, y ∈ C, x (cid:54)= y, we have
+n→∞ inf d(Φn(x), Φn(y)) = 0 lim n→∞ sup d(Φn(x), Φn(y)) > 0 lim
+Thus, by deﬁnition, chaos is a state characterized by extreme sensitivity to initial conditions (trajectories starting from any two arbitrarily close initial conditions diverge exponentially). The Lypunov exponent is used to quantify this divergence. It also measures the measures the sensitivity of the evolution of the dynamical system to initial conditions.
+36 of 39
+(A152)
+(A153)
+
+
+Entropy 2023, 25, 1039
+Appendix F.5. Stability
+Attractor sets (of all types) also characterize the stability of dynamical systems.
+Deﬁnition A6 (Stability). A compact Φ-invariant subset A = Φ(A) ⊆ M is called a Lyapunov stable attraction set if
+1. 2.
+It has an open basin of attraction B(A); The Lyapunov stability condition is satisﬁed: every neighborhood U of A contains a smaller neighborhood V such that every iterative forward image Φn(V) is contained in U.
+Appendix F.6. Poincaré Map and Poincaré Section
+To study the trajectory (or orbit) structure of dynamical systems, we use the Poincaré
+map or Poincaré section.
+Deﬁnition A7 (Poincaré map [53]). For an n-dimensional phase space with a periodic orbit γx, a Poincaré section S is an (n − 1)-dimensional section (hyper-plane) that is transverse to γx. Given an open, connected neighborhood U ⊆ S of x, the Poincaré map on Poincaré section S is a map P : U → S, x (cid:55)→ Φx(ts) where ts is the time between the two intersections, satisfying 1. 2.
+P(U) is a neighborhood of x and P : U → P(U) is a diffeomorphism; For every point x in U, the positive semi-orbit of x intersects S for the ﬁrst time at P(x).
+Appendix F.7. Bifurcation
+Since the ﬂow of a dynamical system in its phase space is a function of its parameters, the topological structure of the trajectories (including attractor sets) in phase space changes as the parameters change. To see how the topological structure changes with system parameters, we study the bifurcation map of the system.
+Deﬁnition A8 (Bifurcation). A bifurcation occurs when a small smooth change in a system parameter value causes an abrupt change in the topological structure of the trajectory in phase space. A bifurcation diagram is a visualization of the system’s parameter space showing the number and behavior of attractor sets for each parameter conﬁguration.
+At a bifurcation point, the system stability may change as the topological structure splits
+or merges, such as the periodic doubling or halving of a limit cycle.
+References
+1. 2.
+3.
+4.
+Cveticanin, L. Review on Mathematical and Mechanical Models of the Vocal Cord. J. Appl. Math. 2012, 2012, 928591. [CrossRef] Titze, I.R. The physics of small-amplitude oscillation of the vocal folds. J. Acoust. Soc. Am. 1988, 83, 1536–1552. [CrossRef] [PubMed] Döllinger, M.; Gómez, P.; Patel, R.R.; Alexiou, C.; Bohr, C.; Schützenberger, A. Biomechanical simulation of vocal fold dynamics in adults based on laryngeal high-speed videoendoscopy. PLoS ONE 2017, 12, e0187486. [CrossRef] [PubMed] Herbst, C.T.; Fitch, W.; Švec, J.G. Electroglottographic wavegrams: A technique for visualizing vocal fold dynamics noninvasively. J. Acoust. Soc. Am. 2010, 128, 3070–3078. [CrossRef] [PubMed]
+5. Mergell, P.; Herzel, H.; Titze, I.R. Irregular vocal-fold vibration—High-speed observation and modeling. J. Acoust. Soc. Am. 2000,
+6. 7.
+8.
+9. 10.
+11.
+108, 2996–3002. [CrossRef] Zhang, Z. Mechanics of human voice production and control. J. Acoust. Soc. Am. 2016, 140, 2614–2635. [CrossRef] Tao, C.; Zhang, Y.; Hottinger, D.G.; Jiang, J.J. Asymmetric airﬂow and vibration induced by the Coanda effect in a symmetric model of the vocal folds. J. Acoust. Soc. Am. 2007, 122, 2270–2278. [CrossRef] Erath, B.D.; Plesniak, M.W. The occurrence of the Coanda effect in pulsatile ﬂow through static models of the human vocal folds. J. Acoust. Soc. Am. 2006, 120, 1000–1011. [CrossRef] Singh, R. Proﬁling Humans from Their Voice; Springer-Nature: Singapore, 2019. Flanagan, J.; Landgraf, L. Self-oscillating source for vocal-tract synthesizers. IEEE Trans. Audio Electroacoust. 1968, 16, 57–64. [CrossRef] Ishizaka, K.; Flanagan, J.L. Synthesis of voiced sounds from a two-mass model of the vocal cords. Bell Syst. Tech. J. 1972, 51, 1233–1268. [CrossRef]
+37 of 39
+
+
+Entropy 2023, 25, 1039
+12. Zhang, Z.; Neubauer, J.; Berry, D.A. The inﬂuence of subglottal acoustics on laboratory models of phonation. J. Acoust. Soc. Am. 2006, 120, 1558–1569. [CrossRef] [PubMed]
+13. Zhao, W.; Zhang, C.; Frankel, S.H.; Mongeau, L. Computational aeroacoustics of phonation, Part I: Computational methods and sound generation mechanisms. J. Acoust. Soc. Am. 2002, 112, 2134–2146. [CrossRef] [PubMed]
+14. Zhang, C.; Zhao, W.; Frankel, S.H.; Mongeau, L. Computational aeroacoustics of phonation, Part II: Effects of ﬂow parameters and ventricular folds. J. Acoust. Soc. Am. 2002, 112, 2147–2154. [CrossRef] [PubMed]
+15. Lucero, J.C. Dynamics of the two-mass model of the vocal folds: Equilibria, bifurcations, and oscillation region. J. Acoust. Soc. Am. 1993, 94, 3104–3111. [CrossRef]
+16. Lucero, J.C.; Schoentgen, J. Modeling vocal fold asymmetries with coupled van der Pol oscillators. Proc. Mtgs. Acoust 2013, 19, 060165.
+17. Alipour, F.; Berry, D.A.; Titze, I.R. A ﬁnite-element model of vocal-fold vibration. [CrossRef]
+17. Alipour, F.; Berry, D.A.; Titze, I.R. A ﬁnite-element model of vocal-fold vibration. [CrossRef]
+18. Yang, A.; Stingl, M.; Berry, D.A.; Lohscheller, J.; Voigt, D.; Eysholdt, U.; Döllinger, M. Computation of physiological human vocal fold parameters by mathematical optimization of a biomechanical model. J. Acoust. Soc. Am. 2011, 130, 948–964. [CrossRef] 19. Pickup, B.A.; Thomson, S.L. Inﬂuence of asymmetric stiffness on the structural and aerodynamic response of synthetic vocal fold models. J. Biomech. 2009, 42, 2219–2225. [CrossRef] Jiang, J.J.; Zhang, Y.; Stern, J. Modeling of chaotic vibrations in symmetric vocal folds. J. Acoust. Soc. Am. 2001, 110, 2120–2128. [CrossRef]
+18. Yang, A.; Stingl, M.; Berry, D.A.; Lohscheller, J.; Voigt, D.; Eysholdt, U.; Döllinger, M. Computation of physiological human vocal fold parameters by mathematical optimization of a biomechanical model. J. Acoust. Soc. Am. 2011, 130, 948–964. [CrossRef] 19. Pickup, B.A.; Thomson, S.L. Inﬂuence of asymmetric stiffness on the structural and aerodynamic response of synthetic vocal fold models. J. Biomech. 2009, 42, 2219–2225. [CrossRef] Jiang, J.J.; Zhang, Y.; Stern, J. Modeling of chaotic vibrations in symmetric vocal folds. J. Acoust. Soc. Am. 2001, 110, 2120–2128. [CrossRef]
+21. Titze, I.R. Nonlinear source—Filter coupling in phonation: Theory. J. Acoust. Soc. Am. 2008, 123, 1902–1915. [CrossRef] 22. Story, B.H.; Titze, I.R. Voice simulation with a body-cover model of the vocal folds. J. Acoust. Soc. Am. 1995, 97, 1249–1260. [CrossRef] [PubMed]
+23. Chan, R.W.; Titze, I.R. Dependence of phonation threshold pressure on vocal tract acoustics and vocal fold tissue mechanics. J. Acoust. Soc. Am. 2006, 119, 2351–2362. [CrossRef]
+24. Lucero, J.C.; Schoentgen, J.; Haas, J.; Luizard, P.; Pelorson, X. Self-entrainment of the right and left vocal fold oscillators. J. Acoust. Soc. Am. 2015, 137, 2036–2046. [CrossRef] [PubMed]
+25. Maeda, S. Compensatory articulation during speech: Evidence from the analysis and synthesis of vocal-tract shapes using an articulatory model. In Speech Production and Speech Modelling; Springer: Berlin/Heidelberg, Germany, 1990; pp. 131–149. 26. Birkholz, P.; Kröger, B.J. Simulation of vocal tract growth for articulatory speech synthesis. In Proceedings of the 16th International Congress of Phonetic Sciences, Saarbrücken, Germany, 6–10 August 2007; pp. 377–380.
+27. Dang, J.; Honda, K. Construction and control of a physiological articulatory model. J. Acoust. Soc. Am. 2004, 115, 853–870. [CrossRef]
+28. Portnoff, M.R. A Quasi-One-Dimensional Digital Simulation for the Time-Varying Vocal Tract. Ph.D. Thesis, Massachusetts Institute of Technology, Cambridge, MA, USA, 1973.
+29. Allen, D.R.; Strong, W.J. A model for the synthesis of natural sounding vowels. J. Acoust. Soc. Am. 1985, 78, 58–69. [CrossRef] 30. Motoki, K.; Pelorson, X.; Badin, P.; Matsuzaki, H. Computation of 3-D vocal tract acoustics based on mode-matching technique. In Proceedings of the Sixth International Conference on Spoken Language Processing, Beijing, China, 16–20 October 2000. 31. Zhao, W.; Singh, R. Speech-based parameter estimation of an asymmetric vocal fold oscillation model and its application in discriminating vocal fold pathologies. In Proceedings of the ICASSP 2020-2020 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Barcelona, Spain, 4–8 May 2020; pp. 7344–7348.
+32. Erath, B.D.; Plesniak, M.W. An investigation of jet trajectory in ﬂow through scaled vocal fold models with asymmetric glottal passages. Exp. Fluids 2006, 41, 735–748. [CrossRef]
+33. Eisner, E. Complete solutions of the “Webster” horn equation. J. Acoust. Soc. Am. 1967, 41, 1126–1146. [CrossRef] 34. Titze, I.R.; Martin, D.W. Principles of voice production. Acoust. Soc. Am. J. 1998, 104, 1148. [CrossRef] 35. Alku, P. Glottal inverse ﬁltering analysis of human voice production—A review of estimation and parameterization methods of the glottal excitation and their applications. Sadhana 2011, 36, 623–650. [CrossRef]
+36. Morse, P.M.; Ingard, K.U. Theoretical Acoustics; Princeton University Press: Princeton, NJ, USA, 1986. Steinecke, I.; Herzel, H. Bifurcations in an asymmetric vocal-fold model. J. Acoust. Soc. Am. 1995, 97, 1874–1884. [CrossRef] 37. 38. Bhat, C.; Kopparapu, S.K. FEMH Voice Data Challenge: Voice disorder Detection and Classiﬁcation using Acoustic Descriptors. In Proceedings of the 2018 IEEE International Conference on Big Data (Big Data), Seattle, WA, USA, 10–13 December 2018; pp. 5233–5237.
+39. Al Ismail, M.; Deshmukh, S.; Singh, R. Detection of COVID-19 through the analysis of vocal fold oscillations. In Proceedings of the ICASSP 2021-2021 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Toronto, ON, Canada, 6–11 June 2021; pp. 1035–1039.
+40. Deshmukh, S.; Al Ismail, M.; Singh, R. Interpreting glottal ﬂow dynamics for detecting COVID-19 from voice. In Proceedings of the ICASSP 2021-2021 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP), Toronto, ON, Canada, 6–11 June 2021; pp. 1055–1059.
+41. Zhang, J. Vocal Fold Dynamics for Automatic Detection of Amyotrophic Lateral Sclerosis from Voice. Master’s Thesis, Computational Biology Department, Carnegie Mellon University, Pittsburgh, PA, USA, 2022.
+38 of 39
+
+
+Entropy 2023, 25, 1039
+42. Lee, K.B.; Kim, J.H. Mass-spring-damper motion dynamics-based particle swarm optimization. In Proceedings of the 2008 IEEE Congress on Evolutionary Computation (IEEE World Congress on Computational Intelligence), Hong Kong, China, 1–6 June 2008; pp. 2348–2353.
+43. Do Carmo, M.P.; Flaherty Francis, J. Riemannian Geometry; Springer: Berlin/Heidelberg, Germany, 1992; Volume 6. 44. Kantorovich, L.V.; Akilov, G.P. Functional Analysis; Elsevier: Amsterdam, The Netherlands, 2016. 45. Zhu, K. Operator Theory in Function Spaces; American Mathematical Soc.: Providence, RI, USA, 2007; No. 138. 46. Giles, M.B.; Süli, E. Adjoint methods for PDEs: A posteriori error analysis and postprocessing by duality. Acta Numer. 2002, 11, 145–236. [CrossRef]
+47. Dong, C.; Jin, Y. MIMO nonlinear ultrasonic tomography by propagation and backpropagation method. IEEE Trans. Image Process. 2012, 22, 1056–1069. [CrossRef] [PubMed]
+48. Langtangen, H.P.; Mardal, K.A. Introduction to Numerical Methods for Variational Problems; Springer Nature: Berlin/Heidelberg, Germany, 2019; Volume 21.
+49. Ames, W.F. Numerical Methods for Partial Differential Equations; Academic Press: Cambridge, MA, USA, 2014. 50. Thomée, V. Galerkin Finite Element Methods for Parabolic Problems; Springer: Berlin/Heidelberg, Germany, 1984; Volume 1054. 51. Larson, M.G.; Bengzon, F. The ﬁnite element method: Theory, implementation, and practice. Texts Comput. Sci. Eng. 2010, 10, 23–44.
+52. Alnæs, M.; Blechta, J.; Hake, J.; Johansson, A.; Kehlet, B.; Logg, A.; Richardson, C.; Ring, J.; Rognes, M.E.; Wells, G.N. The FEniCS project version 1.5. Arch. Numer. Softw. 2015, 3.
+53. Birkhoff, G.D. Dynamical Systems; American Mathematical Soc.: Providence, RI, USA, 1927; Volume 9. 54.
+Jiang, J.J.; Zhang, Y. Chaotic vibration induced by turbulent noise in a two-mass model of vocal folds. J. Acoust. Soc. Am. 2002, 112, 2127–2133. [CrossRef] [PubMed]
+Disclaimer/Publisher’s Note: The statements, opinions and data contained in all publications are solely those of the individual author(s) and contributor(s) and not of MDPI and/or the editor(s). MDPI and/or the editor(s) disclaim responsibility for any injury to people or property resulting from any ideas, methods, instructions or products referred to in the content.
+39 of 39

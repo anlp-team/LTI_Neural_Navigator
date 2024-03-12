@@ -1,0 +1,258 @@
+General rights Copyright and moral rights for the publications made accessible in the public portal are retained by the authors and/or other copyright owners and it is a condition of accessing publications that users recognise and abide by the legal requirements associated with these rights.  Users may download and print one copy of any publication from the public portal for the purpose of private study or research.  You may not further distribute the material or use it for any profit-making activity or commercial gain  You may freely distribute the URL identifying the publication in the public portal If you believe that this document breaches copyright please contact us providing details, and we will remove access to the work immediately and investigate your claim.
+Downloaded from orbit.dtu.dk on: Feb 27, 2024
+A Reverse-Biased Voltage Controlling Method for Mitigating Arm Overcurrent and Submodule Overvoltage in Hybrid MMCs During DC Faults
+Fang, Xiongfeng; Li, Gen; Wang, Cheng; Li, Lei
+Published in: IEEE Transactions on Power Electronics
+Link to article, DOI: 10.1109/TPEL.2023.3317263
+Publication date: 2023
+Document Version Peer reviewed version
+Link back to DTU Orbit
+Citation (APA): Fang, X., Li, G., Wang, C., & Li, L. (2023). A Reverse-Biased Voltage Controlling Method for Mitigating Arm Overcurrent and Submodule Overvoltage in Hybrid MMCs During DC Faults. IEEE Transactions on Power Electronics, 38(12), 15147-15151. https://doi.org/10.1109/TPEL.2023.3317263
+
+
+This article has been accepted for publication in IEEE Transactions on Power Electronics. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/TPEL.2023.3317263
+A Reverse-Biased Voltage Controlling Method for Mitigating Arm Overcurrent and Submodule Overvoltage in Hybrid MMCs During DC Faults
+Xiongfeng Fang, Member, IEEE, Gen Li, Senior Member, IEEE, Cheng Wang, Member, IEEE, Lei Li, Member, IEEE
+Abstract- Blocking all submodules (SMs) of the hybrid modular multilevel converter is a simple way to clear dc fault currents. However, each arm’s reverse-biased voltage (RBV) is uncontrolled in this method. In this case, the dc fault current will concentrate into two of the six arms. Thus, the maximum arm current will increase to the fault current in the dc line, which will lead to arm overcurrent. Moreover, full-bridge submodules (FB-SMs) will be charged by the large arm currents and may suffer from severe overvoltage. The arm overcurrent and FB-SM overvoltage problems have not been solved properly. This letter proposes a method to control the RBV of each arm during the dc fault- clearing process to relieve the arm overcurrent and FB-SM overvoltage. Thus, the safety of the converter can be improved. In the meantime, the impact on the dc fault clearing time is well limited. Simulations and experiments validated the proposed method.
+I. INTRODUCTION
+The hybrid modular multilevel converter (HMMC) is composed of half-bridge submodules (HB-SMs) and full-bridge submodules (FB-SMs), as shown in Fig. 1(a), is attractive for its dc fault clearing capability and has been applied in the KunLiuLong ±800 kV dc transmission project in China [1], [2]. Generally, there are two ways for the HMMC to clear dc fault currents. One is blocking all HB- and FB-SMs, and the other is using the FB-SMs to regulate the dc voltage to be zero or negative while SMs are not blocked [3], [4]. The SM blocking method requires a lower proportion of FB-SMs than the SM unblocking method in achieving the same dc fault- clearing time. Thus, the SM blocking method can be more economical with a proper design.
+However, FB-SMs will be charged by the fault current and may suffer severe SM overvoltage if the dc transmission line is long and/or if the ratio of FB-SMs is low [5]. Ref. [6] concludes that a long transmission line will lead to severe FB-SM overvoltage and increasing the SM capacitance or the ratio of FB-SMs can reduce the maximum FB-SM voltage. However, both methods will greatly increase the converter’s cost and volume and, therefore, are not cost-effective. In [7], the ratio of FB-SMs is limited to 25% to reduce the cost and power losses of the converter. However, the maximum FB-SM voltage and the dc fault clearing time are increased. In [8], a SM unblocking method is adopted. Therefore, the excess energy of the dc side can be sent to the ac grid during the dc fault-clearing process to
+mitigate FB-SM overvoltage. However, this method requires more FB-SMs, and its application is limited in some cases, for example, the ac grid may not be able to absorb the excess energy when it is connected to a wind farm.
+the current commutation process between arms is proposed to calculate the dc fault clearing time and the maximum FBSM voltage after the dc fault current is entirely blocked. In [10], the FB-SM overvoltage problem during the dc fault-clearing process is analyzed, and an energy-absorption branch (EAB) composed of metal oxide varistors and thyristors is proposed to decrease the FB-SM voltage. Although the EAB can effectively avoid FB- SM overvoltage, extra components are still needed. In [11], an auxiliary circuit is proposed to change the direction of to HMMC’s dc fault current, which enables HB-SMs participate in the dc fault clearance. Thus, the dc fault clearing time is reduced, and the ratio of FB-SMs can be reduced. Moreover, since more SMs can participate in the dc fault clearance, the maximum FB-SM voltage can be decreased. The above effective ways to solve the FB-SM overvoltage during dc fault are based on adding new components in the MMC, which will increase its cost and volume.
+In [9], a dynamic model considering
+i1
+i1
+uaubuc
+iap
+idc
+icniap
+iarm
+uaub
+iap
+LdcLarmLarmLacLacVarm1Varm2Varm1Varm2Varm1ian
+Varm6
+uauc
+idc
+idc
+icpibp
+ibn
+FBSMs
+FBSMs
+FBSMs
+FBSMs
+FBSMs
+(c)(d)(e)
+iac
+ibp
+uaub
+ibp
+iacvdc
+HBSMs
+HBSMs
+HBSMs
+HBSMs
+(b)(a)
+HBSMs
+FBSMs
+HBSMs
+Xiongfeng Fang, Cheng Wang, and Lei Li are with the School of Automation, Nanjing University of Science and Technology, Nanjing 210094, China chw714@njust.edu.cn; lileinjust@njust.edu.cn). (Corresponding author: Cheng Wang.)
+(e-mail:
+fangxiongfeng@foxmail.com;
+Gen Li is with the Electric Energy Group, Department of Engineering Technology, Technical University of Denmark (DTU), 2750 Ballerup, Denmark (email: genli@dtu.dk).
+Fig. 1. The HMMC. (a) Topology of an HMMC; (b) equivalent circuit after SM blocking (when ua > ub > uc); (c) one general ac current path; (d) one ac current path when one arm current decreases to zero; (e) one dc fault current path.
+The FB-SM overvoltage is caused by the large arm current, which will also threaten the converter’s safety while rarely
+Authorized licensed use limited to: Danmarks Tekniske Informationscenter. Downloaded on September 25,2023 at 08:46:47 UTC from IEEE Xplore. Restrictions apply.
+© 2023 IEEE. Personal use is permitted, but republication/redistribution requires IEEE permission.(cid:13)
+(cid:10)See https://www.ieee.org/publications/rights/index.html for more information.
+
+
+This article has been accepted for publication in IEEE Transactions on Power Electronics. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/TPEL.2023.3317263
+noted. After blocking all SMs, an ac short circuit will occur temporarily. The fast rise of ac current will affect arm currents. After a short current commutation process, the dc fault current will concentrate in one upper arm and one lower arm, which will increase the arm currents. Since the large arm currents will charge the blocked FB-SMs during the dc fault-clearing process, the FB-SM voltage of some arms may be extremely high. The arm overcurrent and FB-SM overvoltage during the dc fault- blocking process of the HMMC still need to be solved properly. is A reverse-biased voltage (RBV) control strategy proposed in this letter to limit the changing of ac currents after SM blocking. The RBV can be changed by controlling the number of blocked FB-SMs. By reducing the RBV in the same direction as the ac current, the ac currents can be limited. Thus, the maximum arm current stress and FB-SM voltage can be reduced. Besides, particular consideration is paid to limit increasing the dc fault clearing time. The main contributions of this work are: 1) it is the first time to eliminate arm overcurrent and submodule overvoltage based on RBV control, with proper management of the dc fault clearing time; 2) it provides a solution that is very friendly to real practical due to the simplicity of the method itself and no additional hardware required for its implementation. Simulation and experiment results are presented to validate the proposed method.
+changing of i1 at this stage. i1 will change quickly, which is equivalent to an ac short-circuit.
+ab1armacdd22uuitLL−=+
+.
+According to (1), some arm currents will rise, and others will decrease due to the rise of ac currents. The ac current will flow from the phase with the highest ac voltage to the phase with the lowest ac voltage, as shown in Fig. 1(b). Thus, the current of the upper arm of the phase with high ac voltage (iap in Fig. 1(b)) will rise, and the current of the lower arm with low ac voltage (icn in Fig. 1(b)) will rise. The currents of the other four arms will decrease.
+When the current of one arm decreases to zero, the voltage of this arm (Varm2 in Fig. 1(d)) will reverse, which will stop the changing of the ac current. Thus, the arm current will be kept at zero. Finally, the dc fault current will concentrate in the upper arm with the highest ac voltage and the lower arm with the lowest ac voltage. The current of the other arms will be small. After the dc fault current is concentrated in two arms, the maximum arm current becomes equal to the dc side fault current, as shown in Fig. 1(e). Since the amplitude of the dc fault current idcf is much larger than the rated ac currents iac, the arm currents will be increased by the rise of ac current during dc fault clearance. The increment of arm current is
+(4)
+II. REVERSE-BIASED VOLTAGE CONTROL METHOD
+A. Arm Overcurrent and SM Overvoltage
+dcfacdcfacarmdcf2()3232iiiiii=−=
+.
+(5)
+In phase i (i = a, b, c), the upper arm current is iip and the
+Capacitors of FB-SMs will be charged by the large arm
+lower arm current is iin. They can be described as
+dciipdciin3232iiiiii=+=−
+,
+(1)
+current, leading to FB-SM overvoltage, as shown in (6)
+carm0FBmaxdtitVC=
+,
+where tc is the charging time of FB-SMs, and C is SM capacitance.
+(6)
+where idc is the dc current, ii is the ac current. When a dc short circuit fault occurs, idc will rise quickly, as shown in (2), while the ac current is nearly unaffected.
+dcdcdcddivtL=
+.
+According to (1), if the dc current of each arm is significantly larger than the ac current, the currents of the six arms will be in the same direction as the dc fault current. When the dc short- circuit fault is detected, all FB-SMs of the HMMC will be blocked to provide RBV to clear the dc fault current, as shown in Fig.1 (b). Since arm currents are in the same direction as the dc fault current, the RBV of each arm is in the same direction. Each ac current circuit contains two opposite arm voltages, as shown in Fig. 1(c). The changing rate of the circulating current i1 is
+(2)
+B. Proposed Method to Limit the Arm Current
+According to the analysis of Section A, it can be known that the fast-changing of ac currents will cause large arm currents and FB-SM overvoltage. Thus, the problem can be solved by limiting the changing of ac currents. According to (3), decreasing the RBV in the same direction as the ac current (Varm2 in Fig. 1(c)) can limit the ac current. However, the effect of decreasing the RBV on the dc fault-clearing time should be considered as well. The dc fault current clearing time is affected by the decreasing rate of the dc fault current, which is decided by the voltage VL of the inductors (including arm inductor Larm and dc side inductor Ldc).
+dcLarmdcdd2iVtLL−=+
+.
+(7)
+abarm1arm21armacdd22uuVVitLL−−+=+
+.
+Besides, since the number of blocked FB-SMs in each arm is the same, the value of the RBV in each arm is about the same as well, which means Varm1 = Varm2. Thus, the changing rate of i1 becomes (4), which means arm voltages will not limit the
+(3)
+The dc fault current will mainly pass through two arms, as shown in Fig. 1(e). VL is decided by the ac voltage and RBVs of the two arms. For example, if va > vb > vc, the dc fault current will be transferred to the upper arm of phase a and the lower arm of phase c. The lowest voltage of inductors VL is
+Larm1arm6acVVVuu=+−+
+.
+(8)
+Authorized licensed use limited to: Danmarks Tekniske Informationscenter. Downloaded on September 25,2023 at 08:46:47 UTC from IEEE Xplore. Restrictions apply.
+© 2023 IEEE. Personal use is permitted, but republication/redistribution requires IEEE permission.(cid:13)
+(cid:10)See https://www.ieee.org/publications/rights/index.html for more information.
+
+
+This article has been accepted for publication in IEEE Transactions on Power Electronics. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/TPEL.2023.3317263
+The voltage of inductors in one of the other dc fault current paths (passing through the upper arm of phase b and the lower arm of phase c) is
+Larm2arm6bcV'VVuu=+−+
+.
+To not slow down the dc fault clearing, the lowest voltage of
+inductors should not be decreased, as shown in (10):
+LLV'V
+.
+Thus, the range of Varm2 is
+arm2arm1abdcab0.5VVuuVu−+=−
+,
+where Vdc is the rated dc voltage of the converter. According to (3), a small Varm2 can lead to a slow change of ac currents. Thus, the upper arm voltage vip of phase i will be
+ipdcji0.5vVu=−
+,
+where phase j is the phase with the highest ac voltage. The lower arm voltage vin of phased i can be calculated similarly
+(9)
+(10)
+(11)
+(12)
+the circulating current. When the dc side fault current is smaller than the rated current of IGBTs IIGBT, all SMs of the converter can be blocked. RBVs are provided by FB-SMs. The number of blocked FB-SMs in each arm is
+armblockFBvnV=
+,
+where VFB is the rated voltage of each SMs. The arm voltage will be a step-wave. Other FB-SMs are bypassed. If varm is negative, all FB-SMs of the arm will be bypassed. Since only blocked FB-SMs will be charged, FB-SMs with lower voltage are selected to be blocked in each control cycle to maintain the balance of FB-SM voltages in each arm. All HB-SMs are blocked in the dc fault-clearing process. The dc fault clearing process will last several milliseconds, while the control cycle of the proposed method is less than 50 μs. Thus, there will be enough time to implement the proposed method during the post- fault transient.
+(14)
+indcik0.5vVu=−
+,
+(13)
+where phase k is the phase with the lowest ac voltage.
+D. Analysis of the Proposed Method
+If the dc side fault current has decreased to be little than the rated current of IGBTs, the converter will not be threatened by the dc fault current. Thus, the proposed method can be turned off to reduce the impact on the dc fault clearing time.
+C. Operation Sequence of the Proposed RBV Control
+ui = umin or iin 0or idc IIGBT ？
+Start
+Block nblock FB-SMs with relatively low voltage in the arm; bypass other FB-SMs; block all HB-SMs
+nblock = vip/ VFB
+ui = umax or iip 0 or idc IIGBT ？YesNo
+DC fault cleared ?
+Yes
+End
+vip = 0.5Vdc-uji
+YesNoYesNo
+vin = 0.5Vdc-uik
+DC fault detected ?
+nblock = vin/ VFB
+No
+Sorting the three phase ac voltages
+vip = 0.5Vdc
+Normal control
+Is it an upper arm？
+vin = 0.5VdcYesNo
+Fig. 2. The proposed RBV control method.
+In the conventional SM blocking method, all SMs are controlled to block (turn off all IGBTs) simultaneously once a dc fault is detected [1], [9], [12]. With the proposed method, some SMs are bypassed temporarily (instead of being blocked directly) to limit the ac current. Since the proposed method belongs to the SM blocking method, it should be compared with the conventional SM blocking method its characteristics. The effect of the proposed method is concluded in Table I. The proposed method can not only relieve the arm overcurrent but also reduce the maximum FB-SM voltage of the HMMC after SM blocking. Although the dc fault clearing time is slightly increased, it is well limited.
+to show
+The proposed method tries to balance the dc fault current in each phase and balance the energy absorption in each arm. However, since the range of RBV (Varm2 in (3)) is limited to 0~0.5Vdc, the changing rate of the circulating current (i1) may not be zero. Thus, the proposed method cannot strictly balance the dc fault current. The range of the maximum arm current with the proposed method is
+acdcfarmdcf23iiii+
+.
+By increasing the ratio of FB-SMs, the range of RBV can be extended. When the maximum RBV of each arm is larger than the amplitude of ac line voltages, the proposed method can achieve the maximum effect.
+(15)
+The proposed RBV control method is shown in Fig. 2. The proposed method is not applied during normal operation. Thus, the proposed method will not affect the control system of the converter. If a dc short-circuit fault is detected, the proposed method will start to calculate arm voltages. umax is the largest ac voltage, and umin is the lowest ac voltage. For the upper arm with the highest ac voltage, the arm voltage is 0.5 Vdc, which means all FB-SMs should be blocked. For the other upper arms, the arm voltage is calculated by (12). For the lower arm with the lowest ac voltage, the arm voltage is 0.5 Vdc. For the other lower arms, the arm voltage is calculated by (13). When the arm currents become zero or negative, all SMs of the arm can be blocked since the RBV will reverse and stop the changing of
+Thanks to the reduced arm current, the maximum FB-SM voltage can be decreased according to (6). Moreover, since a part of SMs needs to be bypassed during dc fault blocking, the proposed method should be applied before the dc fault current exceeds twice of the rated current of IGBTs.
+TABLE I EFFECT OF THE PROPOSED METHOD Effect Decreased significantly Reduced significantly Increased slightly
+Items Maximum arm current Maximum FB-SM voltage DC fault clearing time
+Authorized licensed use limited to: Danmarks Tekniske Informationscenter. Downloaded on September 25,2023 at 08:46:47 UTC from IEEE Xplore. Restrictions apply.
+© 2023 IEEE. Personal use is permitted, but republication/redistribution requires IEEE permission.(cid:13)
+(cid:10)See https://www.ieee.org/publications/rights/index.html for more information.
+
+
+This article has been accepted for publication in IEEE Transactions on Power Electronics. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/TPEL.2023.3317263
+III. SIMULATION RESULTS A symmetrical monopole hybrid MMC-HVDC link is built in Matlab/Simulink to verify the proposed method. Parameters are given in Table II. The dc fault detection time is selected as a typical value of 3 ms. A dc side pole-to-pole short circuit fault occurs at t = 0.5 s, and SMs start to block at t = 0.503 s.
+Fig. 3(a) shows that after all SMs are blocked, the dc voltage becomes negative, and the dc current is decreased. The ac currents increase and then start to decrease. The fault currents are concentrated in two arms. The maximum arm current is 3.385 kA. FB-SM voltages increase a lot. The maximum FB- SM voltage is 2.525 kV. HB-SM voltages are not changed after SM blocking.
+IV. EXPERIMENTAL RESULTS Experiments have been conducted using a three-phase hybrid MMC, as shown in Fig. 4. Parameters of the experiment setup are given in Table II. For the safety of the experiment setup, the overcurrent protection is used. In this case, the converter starts to clear the dc fault current once the dc current reaches 17 A.
+Fig. 5(a) shows the experiment results of the conventional SM blocking method (all SMs are blocked) [1], [9], [12]. After SM blocking, the dc voltage becomes negative, and the dc fault current decreases. The maximum arm current is 14 A, and the highest FB-SM voltage is 160 V.
+TABLE II SETUP OF THE HYBRID MMC Simulation 320 kV 1.56 kA 333 kV 178 178 1.8 kV 17 mF 52.94 mH
+Parameters Dc voltage Rated dc current AC line voltage Number of HB-SMs per arm Number of FB-SMs per arm SM voltage SM capacitance Arm inductance
+Experiment 200 V 5 A 120 V 1 1 100 V 560 μF 4.62 mH
+FBSM voltages (kV)
+Times (s)
+Fault occursSMs blockedFault cleared
+3.385 kA2.275 kV
+Times (s)
+(b) (a)
+DC current (kA)
+FBSM voltages (kV)
+DC current (kA)
+DC voltage (kV)
+AC currents (kA)
+HBSM voltages (kV)
+HBSM voltages (kV)
+AC currents (kA)
+2.525 kV
+DC voltage (kV)
+2.615 kA
+Six arm currents (kA)
+Six arm currents (kA)
+Fault occursSMs blockedFault cleared
+Fig. 3. Simulation results. (a) The conventional method (all SMs are blocked), (b) the proposed method.
+Fig. 3(b) shows the simulation results of the proposed method. After SMs start to block, the dc voltage is slightly lower than that of Fig. 3(a) since some RBVs are reduced. The dc fault clearing time is only marginally longer. The increase of ac current is limited after SM blocking. The maximum arm current decreases to 2.615 kA. The maximum FB-SM voltage decreases to 2.275 kV. HB-SM voltages remain constant. It can be seen that the proposed method can reduce the maximum arm current and the maximum FB-SM voltage.
+Fig. 4. Experiment setup.
+Six arm currents (5 A/div)
+Times (5 ms/div)AC currents (5 A/div)Six arm currents (5 A/div)FBSM voltages (20 V/div)HBSM voltages (20 V/div)134 V
+11 A
+160 V
+(a) (b) Times (5 ms/div)DC voltage (50 V/div)DC current (2 A/div)AC currents (5 A/div)FBSM voltages (20 V/div)HBSM voltages (20 V/div)
+Fault cleared
+14 A
+Fault cleared
+Fault occurs
+DC voltage (50 V/div)DC current (2 A/div)Fault occurs
+12.5 A
+10 A
+SMs blocked
+SMs blocked
+Fig. 5. Experiment results. (a) The conventional method, (b) the proposed method.
+Fig. 5(b) shows the experiment results of the proposed method. Compared with Fig. 5(a), it can be seen that the negative dc voltage is slightly reduced after SM blocking. The dc fault clearing time is slightly longer. The increase of ac
+Authorized licensed use limited to: Danmarks Tekniske Informationscenter. Downloaded on September 25,2023 at 08:46:47 UTC from IEEE Xplore. Restrictions apply.
+© 2023 IEEE. Personal use is permitted, but republication/redistribution requires IEEE permission.(cid:13)
+(cid:10)See https://www.ieee.org/publications/rights/index.html for more information.
+
+
+This article has been accepted for publication in IEEE Transactions on Power Electronics. This is the author's version which has not been fully edited and
+content may change prior to final publication. Citation information: DOI 10.1109/TPEL.2023.3317263
+current is limited after SM blocking. The maximum arm current stress is 11 A, and the maximum FB-SM voltage is 134 V, all lower than the conventional method. HB-SM voltages are not changed in both situations. Experiment results are consistent with the simulation results.
+V. CONCLUSION
+A reverse-biased voltage control method is proposed in this letter to limit the ac current during the dc fault-clearing process. Thanks to the limited ac currents, the maximum arm current stress, and the maximum SM voltage are reduced. Thus, the safety of the converter is improved. Besides, the proposed method’s effect on the dc fault clearing time is well limited. The proposed method provides a safer way for the hybrid MMC to clear the dc fault current.
+REFERENCES
+[1] R. Zeng, L. Xu, L. Yao and B. W. Williams, “Design and Operation of a Hybrid Modular Multilevel Converter,” IEEE Trans. Power Electron., vol. 30, no. 3, pp. 1137-1146, Mar. 2015.
+[2] H. Rao et al., “The On-site Verification of Key Technologies for Kunbei- Liuzhou-Longmen Hybrid Multi-terminal Ultra HVDC Project,” CSEE J. Power Energy Syst., vol. 8, no. 5, pp. 1281-1289, Sep. 2022. S. Cui and S. -K. Sul, “A Comprehensive DC Short-Circuit Fault Ride Through Strategy of Hybrid Modular Multilevel Converters (MMCs) for Overhead Line Transmission,” IEEE Trans. Power Electron., vol. 31, no. 11, pp. 7780-7796, Nov. 2016.
+[3]
+[4] T. H. Nguyen, K. A. Hosani, M. S. E. Moursi and F. Blaabjerg, “An Overview of Modular Multilevel Converters in HVDC Transmission Systems with STATCOM Operation During Pole-to-Pole DC Short Circuits,” IEEE Trans. Power Electron., vol. 34, no. 5, pp. 4137-4160, May. 2019.
+[5] A. Nami, A. Hassanpoor and Y. -j. Häfner, “Theory to practical implementation of full-bridge modular multilevel converter for HVDC applications,” in Proc. IEEE Int. Ind. Tech., 2016, pp. 378-383. [6] Y. Gim, Z. Li, J. Meng, Z. Deng and Q. Song, “Analysis of submodule capacitor overvoltage during DC-side fault in hybrid MMC-based HVDC system,” in Proc. 10th Int. Conf. Power Electron. ECCE Asia, 2019, pp. 2794-2799.
+[7] V. Psaras, D. Vozikis, G. P. Adam and G. Burt, “DC Fault Management Strategy for Continuous Operation of HVDC Grids Based on Customized Hybrid MMC,” IEEE J. Emerg. Sel. Topics Power Electron., vol. 9, no. 6, pp. 7099-7111, Dec. 2021.
+[8] Q. Song, S. Xu, Y. Zhou, Y. Gim, Z. Li and Z. Deng, “Active Fault- Clearing on Long-Distance Overhead Lines using a Hybrid Modular Multilevel Converter,” in Proc. IEEE 28th Int. Symp. Ind. Electron., 2019, pp. 2033-2038. S. Xu et al., “Dynamic Model of the DC Fault Clearing Process of a Hybrid Modular Multilevel Converter Considering Commutations of the Fault Current,” IEEE Trans. Power Electron., vol. 35, no. 7, pp. 6668- 6672, Jul. 2020.
+[9]
+[10] X. Fang, G. Li, C. Chen, D. Wang, J. Xiong and K. Zhang, “An Energy Absorbing Method for Hybrid MMCs to Avoid Full-Bridge Submodule Overvoltage During DC Fault Blocking,” IEEE Trans. Power Electron., vol. 37, no. 5, pp. 4947-4951, May. 2022.
+[11] X. Fang, G. Li, C. Chen, J. Xiong and K. Zhang, “An Auxiliary Circuit Enhancing DC Fault Clearing Capability of Hybrid MMCs With Low Proportion of FB-SMs,” IEEE Trans. Power Electron., vol. 37, no. 10, pp. 11491-11496, Oct. 2022.
+[12] J. Qin, M. Saeedifard, A. Rockhill, and R. Zhou, “Hybrid design of modular multilevel converters for HVDC systems based on various submodule circuits,” IEEE Trans. Power Del., vol. 30, pp. 385-394, 2015.
+Authorized licensed use limited to: Danmarks Tekniske Informationscenter. Downloaded on September 25,2023 at 08:46:47 UTC from IEEE Xplore. Restrictions apply.
+© 2023 IEEE. Personal use is permitted, but republication/redistribution requires IEEE permission.(cid:13)
+(cid:10)See https://www.ieee.org/publications/rights/index.html for more information.

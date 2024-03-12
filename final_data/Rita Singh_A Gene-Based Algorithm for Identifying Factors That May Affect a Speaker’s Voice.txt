@@ -1,0 +1,1098 @@
+entropy
+Article A Gene-Based Algorithm for Identifying Factors That May Affect a Speaker’s Voice
+Rita Singh
+Center for Voice Intelligence and Security, Carnegie Mellon University, Pittsburgh, PA 15213, USA; rsingh@cs.cmu.edu
+Abstract: Over the past decades, many machine-learning- and artiﬁcial-intelligence-based technolo- gies have been created to deduce biometric or bio-relevant parameters of speakers from their voice. These voice proﬁling technologies have targeted a wide range of parameters, from diseases to environ- mental factors, based largely on the fact that they are known to inﬂuence voice. Recently, some have also explored the prediction of parameters whose inﬂuence on voice is not easily observable through data-opportunistic biomarker discovery techniques. However, given the enormous range of factors that can possibly inﬂuence voice, more informed methods for selecting those that may be potentially deducible from voice are needed. To this end, this paper proposes a simple path-ﬁnding algorithm that attempts to ﬁnd links between vocal characteristics and perturbing factors using cytogenetic and genomic data. The links represent reasonable selection criteria for use by computational by proﬁling technologies only, and are not intended to establish any unknown biological facts. The proposed algorithm is validated using a simple example from medical literature—that of the clinically observed effects of speciﬁc chromosomal microdeletion syndromes on the vocal characteristics of affected people. In this example, the algorithm attempts to link the genes involved in these syndromes to a single example gene (FOXP2) that is known to play a broad role in voice production. We show that in cases where strong links are exposed, vocal characteristics of the patients are indeed reported to be correspondingly affected. Validation experiments and subsequent analyses conﬁrm that the methodology could be potentially useful in predicting the existence of vocal signatures in naïve cases where their existence has not been otherwise observed.
+Keywords: FOXP2; genetic microdeletion syndromes; voice biomarkers; voice chains; voice proﬁling
+Citation: Singh, R. A Gene-Based
+Algorithm for Identifying Factors
+That May Affect a Speaker’s Voice.
+Entropy 2023, 25, 897. https://
+1. Introduction
+doi.org/10.3390/e25060897
+Academic Editor: Deniz Gença ˘ga
+Received: 17 April 2023
+Revised: 26 May 2023
+Accepted: 28 May 2023
+Published: 2 June 2023
+Copyright: © 2023 by the authors.
+Licensee MDPI, Basel, Switzerland.
+This article is an open access article
+Aside from diseases that affect the biological structures and processes involved in voice production, myriad other factors are known to inﬂuence voice. Some simple examples include age, exhaustion, smoking, which often makes the voice sound hoarse, or alcohol, which makes the voice sound slurred. The ensuing changes in the voice signal can be thought to be the “biomarkers” that give us information about the corresponding causative factors and allow us to infer their nature through voice analysis. Such relationships form the basis for artiﬁcial-intelligence (AI)-based voice proﬁling techniques that attempt to deduce a speaker’s bio-relevant and environmentally related parameters from voice. However, virtually all research on voice proﬁling, diagnostics, and biometrics is currently predicated on clinically observed or statistically inferred relationships between changes in voice and the corresponding factors that are thought to cause them. The relationships that are chanced upon in this manner provide the basis for building predictive AI (machine-learning- or rule-based) mechanisms that can deduce the underlying factors that potentially inﬂuence voice through voice analysis.
+distributed under
+the terms and
+conditions of the Creative Commons
+Attribution (CC BY) license (https://
+creativecommons.org/licenses/by/
+4.0/).
+For example, it is known that smoking affects voice. To establish this, a human- observation-based approach would be: (a) an audiological one based on hearing the voices of smokers to determine if they deviate from those of non-smokers in an acoustic sense,
+Entropy 2023, 25, 897. https://doi.org/10.3390/e25060897
+https://www.mdpi.com/journal/entropy
+
+
+Entropy 2023, 25, 897
+and/or (b) a visual one where an analyst studies the spectrogram (or some other visual representation) of the speech signal to ﬁnd patterns that distinguish one class of recordings from another. The spectrogram in this case is a “feature representation”. A statistical approach, on the other hand, would gather examples of speech recordings from people who smoke and those who do not, extract feature representations from the recordings, and ﬁnd signiﬁcant differences in the statistics of these features obtained from the two sets of recordings. Alternatively, a classiﬁer model may be trained to discriminate between voice samples from smokers and non-smokers. If high test accuracies are achieved in this task, the existence of a biomarker for smoking in voice is indicated. This is a purely data-driven approach for establishing the existence of biomarkers in voice.
+The problem with these approaches is that neither is scalable. The number of factors that can inﬂuence the human persona is virtually inﬁnite. Human observations are limited to the effects that are perceptually discernible in voice, and data-based discovery is con- ﬁned and limited by the availability of representative data. This paper provides a more formal methodology for establishing the existence of biomarkers and for identifying which factors are likely to affect voice and which are not. The methodology is based on genomic considerations, as explained below.
+Before we proceed, however, it must be noted that this is not an algorithm for compu- tational biology research. Its use to aid biological discovery or establish biological facts in its current form has not been tested. It is only meant to establish the tentative links that are needed to justify computational proﬁling efforts.
+1.1. A genomic-Based Approach to Detect the Existence of Biomarkers
+The working hypothesis for this paper, and one that has also recently been proposed in the context of voice proﬁling [1], is that if a given factor exerts an inﬂuence on the speaker, and if pathways of biological effects can be traced from that inﬂuence to the speaker’s voice production system, then voice must be affected (and must carry biomarkers for the factor). The methodology proposed herein is a literal test of this hypothesis in that it traces biological pathways from cause to effect to establish the existence of biomarkers.
+For this, we begin with the genetic underpinnings of human vocal capabilities. In this context, it is important to differentiate between voice production and speech production. The former refers to the production of acoustic energy in any form within the vocal tract, and the latter refers to the modulation of the acoustic signals thus produced to form words and sentences in a language used for interpersonal communication. We will use the term “vocal production” to refer to both.
+Vocal production in humans is a complex and multifaceted process and involves interactions between multiple genes and environmental factors. The genetic basis of vocal production is not fully understood. Nevertheless, a number of genes have been found to be involved in the process. Some that are now known to inﬂuence vocal production include:
+1.
+2.
+FOXP2: This gene codes for a protein called “Forkhead Box P2”, which is involved in the development and function of the brain, including the areas responsible for language and speech. TAFT: This gene codes for a protein called TAFT1, which is involved in the develop- ment and function of the larynx, a structure in the throat that is involved in vocal production.
+3. OTOF: This gene codes for a protein called Otoferlin, which is involved in the devel- opment and function of the auditory system, including the inner ear. Feedback from this system greatly inﬂuences vocal production.
+4. MYO15A: This gene codes for a protein called Myosin XVa, which is involved in the development and function of the auditory system, including the hair cells in the inner ear. SEMA3A: This gene codes for a protein called Semaphorin 3A, which is involved in the development and function of the auditory system, including the auditory nerve. 5.
+2 of 33
+
+
+Entropy 2023, 25, 897
+Recent efforts to identify and delineate the genes responsible for functional speech in humans have especially highlighted the importance of FOXP2, one of the protein-coding genes mentioned above. It is involved in a variety of biological pathways and cascades that are thought to regulate language development. It is autosomal dominant, and mutations in it cause speech and language disorders (OMIM: SPCH1). In this paper, we choose FOXP2 as an example gene to work with. This choice was only made for illustrative purposes. The methodology presented in its context is itself a generic one and can be applied to any of the genes listed above (and possibly others that exist) whose functions are relevant to the analysis at hand.
+For illustrative purposes, we proceeded with the broad and simplifying assumption that any inﬂuence on speech and language is ultimately the phenotypic expression of FOXP2. The objective was thus to:
+• •
+Formalize the methodology to ﬁnd a link between an inﬂuencing factor and this gene; Validate the methodology; Demonstrate its predictive potential.
+To accomplish these goals, for simplicity, we chose the example of a category of medical conditions for which the underlying genetic causes are known; the effects of the conditions are observed and reported in medical literature, and the effects can involve problems with vocal production.
+The medical conditions we choose are chromosomal microdeletion syndromes, which result from the deletion of speciﬁc genes in speciﬁc cytogenetic locations on human chro- mosomes. We propose an algorithm to ﬁnd a link between the genes in the regions of microdeletions, to FOXP2. The connections in these links are derived using a path-search algorithm applied to a graph composed from known biological pathways that involve these (and other) genes. The “strength” of these connections is then deﬁned in terms of the characteristics of the linkage discovered. In the validation stage, our goal is to show that there is a direct correlation between the strength of linkages found and the extent of vocal symptoms experienced by the affected individuals.
+Before we proceed with the algorithm, in the paragraphs below, we ﬁrst provide a working categorization of speech disorders, as reported in various medical literature. This is necessary for the clarity of the results presented later in this paper.
+1.2. Anomalies in Speech Production
+From a bio-mechanical perspective, human speech is the result of two complex pro- cesses that happen simultaneously: one that produces sound—the pressure wave that we sense as the voice signal—and another that modulates this signal (through articulator movements) to produce speech, thus altering the voice signal’s frequency characteristics and shaping it into sounds with unique identities that are uttered sequentially to form words and sentences in a language. The overall process of voice and speech production is driven and controlled by neuromuscular and cognitive factors to different degrees. It is also moderated to different degrees by feedback obtained through auditory pathways. Generally, diseases that affect these functions, naturally also inﬂuence speech and alter the characteristics of the voice signal to proportional degrees. In most cases, when reporting such changes, references to “speech” implicitly include voice, as we see below.
+Changes in speech are categorically described in terms of six major aspects of speech production: respiration, phonation, articulation, resonance, evolution, and prosody. In addition, terminology that relates to voice quality is often used to describe speech. Voice quality is, however, a subjective term and comprises many constituents, or sub-qualities (e.g., nasal, breathy, rough, twangy, etc.), that refer to the perceptual ﬂavor of speech (or how a speaker’s voice sounds to the listener). Physical anomalies that affect the shape and tissue structure of the vocal tract cause changes in all of these aspects. Speech delays and language difﬁculties result from cognitive and learning disabilities. These and other intellectual disabilities affect articulation, evolution, and prosody. Their effect on voice also manifests as changes in voice quality. Craniofacial anomalies affect the physical dimensions
+3 of 33
+
+
+Entropy 2023, 25, 897
+of the vocal tract structures, often restricting the movement of the articulators as a result and causing speaking impairments. Motor problems affect articulation, phonation, and respiration. These cause speech aberrations and also affect voice quality. Hearing problems disturb the feedback mechanisms involved in controlling speech production and often lead to difﬁculties in prosody and articulation of speech.
+In this paper, we do not focus explicitly on voice acoustic or quality characteristics, fo- cusing instead on problems with speech (that subsume voice characteristics to some extent) as described under the OMIM (referring to the catalog Online Mendelian Inheritance in Man: https://www.omim.org/ (accessed on 21 September 2022)) category “Speech and Language disorders (SPCH1)”. Even this category, however, is too broad and encompasses a wide range of speech problems, such as delays in acquisition of speech abilities, retar- dation in speech development with age, speech anomalies resulting from language delay, expression, and articulation.
+For the purpose of this paper, it is necessary to make ﬁner distinctions between these categories. The problem in doing so is that the language used in the literature to describe voice- and speech-related problems in the context of genetic syndromes is not standardized. For example, the terms “speech disorder”, “speech disturbance”, “speech anomalies”, “speech aberrations”, and “speech impairment” may each refer to a range of symptoms that may be overlapping to various degrees. For the purpose of this paper, it is therefore useful to map the broad range of speech problems into the following categories that are sufﬁciently discriminatory in terms of the different aspects of speech production mentioned above while still being limited in number:
+1.
+2.
+Absence of speech: Phrases (in clinical/scientiﬁc literature) referring to (a) no de- velopment of speech capabilities, (b) no expressive speech, which is mostly limited to vocalizations, or (c) almost absent speech with a severely limited vocabulary (0–4 words). Apraxia: Phrases referring to difﬁculty using language correctly while speaking, leading to speaking and communication difﬁculties.
+3. Delayed speech: Phrases referring to developmental delay, the retarded development of the ability to speak, or the retarded acquisition of language skills and communica- tion skills (ability to use a vocabulary correctly to communicate in a cogent manner). 4. Dysarthric speech or dysarthria: Phrases referring to speaking problems resultant from damaged, paralyzed, or weakened muscles of the articulators caused by motor problems. Dysarthria results in slurred words, poor phonation, etc. The speaker uses vocabulary as in normal speech but ﬁnds it difﬁcult to move the articulators (tongue, lips, jaw, etc.) correctly to form the proper sounds to utter the words. Idiosyncratic speech: Phrases referring to poor conformance to cogent language or incoherent language with articulation abnormalities. Impaired speech: Phrases referring to poor articulation and phonation, as well as difﬁculties that result in sparse and disﬂuent speech. 6.
+2. Methodology
+As mentioned earlier, we consider the example of syndromes resulting from chromo-
+somal microdeletions and focus on their symptoms relating to speech abilities.
+Chromosomal microdeletions are structural anomalies of chromosomes in which small sections of a chromosome are deleted or missing. The loss of the speciﬁc set of genes from the deleted section often results in phenotypic changes. An implicated gene is a gene in the deleted region of a chromosome that is known to cause much of the observed effects of the syndrome in affected individuals. These are identiﬁed through microarray and other studies. For most microdeletion syndromes, some such genes have been identiﬁed and reported in the medical literature. We use this information from the medical literature as-is in the sections below.
+Although the human genome is very large in comparison to a typical chromosomal microdeletion region, microdeletions often cause serious problems. In fact, only a small
+4 of 33
+
+
+Entropy 2023, 25, 897
+set of deletions are compatible with life or fetal survival. This set continues to expand with the addition of newly discovered deletions in surviving individuals who have the means to reach genetic testing facilities. However, it is still a very small set and can be exhaustively studied. Most known deletions are well documented in the literature, both from the genetic and medical perspectives. Information about the genes associated with them is readily available through well-curated publicly accessible repositories. Thus, they are good example cases for this paper.
+The methodology proposed herein analyzes ensembles of biological pathway chains, each of which connects a speciﬁc gene in the cytogenetic region of chromosomal microdele- tion to the FOXP2 gene. A “biological pathway” here is deﬁned as in standard terminology, referring to a physiological process at the cellular level that is enabled by the action of multiple genes that perform speciﬁc functions within the process.
+We deﬁne a pathway chain as the sequential linkage of pathways where links between pathways are shared genes (implicitly meaning that the molecules resultant from genes are shared—we will use the term “gene” with this implicit meaning in the context of pathways for generality going forward). For example, consider a pathway that signals for a cell to stop dividing when an injury to the nuclear DNA strand is being repaired. It may involve the coordinated chemical action of molecules that are formed by the transcription of multiple genes that perform different functions. It would also be connected to a repair pathway by necessity. Thus, the two pathways can be considered to be links in a single pathway chain (they must share some genes in a functional sense) that perform the function of relaying messages from one pathway to another. Such genes may also perform other functions that are essential to both pathways.
+The hypothesis we make here is that for a gene, if a chain from its pathway(s) (i.e., from the biological pathways it contributes to directly) extends to pathways that inﬂuence voice production, then the phenotype resultant from the absence or aberrant functioning of the gene can be expected to include anomalies in speech production and voice characteristics.
+2.1. Voice Chains
+Our deﬁnition of a voice chain extends our deﬁnition of a pathway chain in that the head of the chain must now necessarily be a pathway that includes a gene that inﬂuences voice or speech production, while the termination of the chain is not necessarily a biological pathway but could include any given set of genes with a common characterization (such as a common cytogenetic location or function).
+In this paper, the voice-related gene chosen is FOXP2, but in other analyses, voice chains could involve other genes (e.g., as in [2]) without loss of generality. The terminal link in the chain is taken to be a genetic microdeletion syndrome. A voice chain thus establishes a relationship between an inﬂuencing factor—a genetic microdeletion syndrome in this case—and a corresponding effect on voice/speech production. We refer to a voice chain that includes a sequence of α pathways from the microdeletion region to the FOXP2 gene as a level-α voice chain (Figure 1). The speciﬁc genes on the microdeletion that link it to the voice chain are referred to as “chainlink” genes. We represent the set of chainlink genes that connect a microdeletion to level-α voice chains as the chainlink set VNα. Since we aim to analyze the genetic basis of the effect of microdeletions on voice, these chainlink sets are the focus of our analysis. Note that the subscript N in VNα denotes the manner in which overlaps or linkages between biological pathways are deﬁned. This subscript is ﬁxed for the purpose of this paper, for which the exact manner in which pathway overlaps are deﬁned is described in Figures 1 and 2 below. We however leave the N in place to facilitate future differentiations and variations of the proposed algorithm based on how the pathway intersections (or unions) may be deﬁned.
+5 of 33
+
+
+Entropy 2023, 25, 897
+Figure 1. Voice chains of different levels. In this reversed perspective ideogram, a link depicts a pathway, the black dots on it are genes, and the chromosomes that they belong to are shown as rods where relevant. The lines connecting genes are only meant for visual clarity. Chains are formed with respect to genes on a chromosome (a microdeletion region in this case, shown shaded in yellow). In this ideogram, Gene-1 and FOXP2 lie on the same pathway, contributing to a level-1 voice chain. In a level-2 chain, FOXP2 and the microdeletion region are on different pathways, but the pathways share a set of genes. Gene 2 and Gene 3 have level-2 voice chains.
+In order to trace the genetic links between a microdeletion syndrome and voice, we ﬁrst attempt to identify voice chains of different lengths that link to the genes in the microdeletion region. For this, we must ﬁnd voice chains that link the FOXP2 gene to the syndrome, and identify the speciﬁc genes from the syndrome through which they are linked. We do so using the graph-search algorithm described below.
+From our perspective, a biological pathway B is represented by the set of genes it involves: B := {g : g is a gene in the speciﬁed pathway}. Two pathways, B1 and B2, are linked if there are genes that are common to both pathways, i.e., B1 ∩ B2 (cid:54)= ∅. Thus, the set of all pathways can be represented as a graph where the nodes are biological pathways, and two nodes are linked only if the corresponding pathways have common genes, as illustrated in Figure 2a.
+A pathway chain is any non-repeating sequence of pathways B1B2B3 · · · BN such that Bi ∩ Bi+1 (cid:54)= ∅ and Bi i.e., where every pair of adjacent pathways has common genes, and there are no closed loops in the chain. In terms of the graph (see Figure 2a), a pathway chain is any path between any two nodes in the graph. A voice chain V is any chain V = BVB2B3 · · · BNS where the head node BV (and the head node alone) is a pathway that includes the FOXP2 gene, i.e., FOXP2 ∈ BV, and the terminal node S is a set of genes with common characterization, as mentioned earlier. The length of the chain |V | is the number of nodes α in the chain, not counting the terminal node S. For the purpose of this paper, we will assume S to be the set of genes in a microdeletion region associated with a syndrome. Thus, S = {g : g is a gene in the microdeletion region}. All voice chains of length α form the set of level-α voice chains, and the chainlink genes that connect S to the level-α voice chains form the chainlink set VNα.
+(cid:54)= Bj for i (cid:54)= j,
+6 of 33
+
+
+Entropy 2023, 25, 897
+(a)
+(b)
+(c)
+(d)
+Figure 2. Voice chains of different types. (a): Shows the different components of a graph comprising biological pathways. Each node in this graph represents a biological pathway. The genes gi that contribute to each pathway are listed within the node. Nodes are linked to each other through edges that represent the set of shared genes. If two nodes have no gene in common, no edge exists between them. Genes that link pathways (nodes) are explicitly shown on the edges. (b): Explains what a chainlink gene means in the context of a microdeletion region and the target voice gene (FOXP2 in the example used in this paper). To compose voice chains, the set of genes of interest (e.g., from a microdeletion region) is added to the a graph as a node (shaded pink). The “chainlink” genes that link the set to the graph are also shown. The topmost (left) node represents a biological pathway that contains the FOXP2 gene (g1, highlighted in yellow). (c) A Level-1 voice chain is the edge shown in red. The “chainlink” gene g2 that links the set (in pink) to the voice chain is also shown. (d) Exempliﬁes Level-2 chains. The colored edges represent Level-2 chains. The “chainlink” genes are also shown.
+To ﬁnd voice chains of the form BV, B1, · · · S arising from the microdeletion region S (which we will refer to as the “syndrome” for brevity), we introduce the microdeletion region in the pathway graph (Figure 2b). Voice chains are now the paths from BV to S (Figure 2c,d). A breadth-ﬁrst algorithm, described in Algorithm 1, is used to extract the chainlink sets VNα for voice chains of multiple levels. The outcome of the algorithm is the
+7 of 33
+
+
+Entropy 2023, 25, 897
+set of chainlink genes VNα[S] that connect each syndrome S to voice chains of level α, for 1 ≤ α ≤ 2. We restrict ourselves to chains of lengths of up to 2 since, at greater lengths, the chained inﬂuences cannot be disambiguated, as indicated by prior studies in the (highly related) context of protein–protein interactomes, e.g., [3]. Another reason for restricting ourselves to level 2 chains is that for the speciﬁc example chosen in this paper, there are not enough data that allow us to build deeper chains meaningfully (without resorting to self-loops, which may lead to incorrect conclusions).
+Algorithm 1: Pseudocode for a breadth-ﬁrst algorithm for computing the set of chainlink genes that form level 1 and level 2 voice chains for FOXP2.
+1 Input: 2
+Syndromes := set of all syndromes in database; Genes[P] := set of all genes in a pathway P (for all pathways); Pathways[g] := set of all pathways involving gene g (for all genes); GenesInSyndrome[S] := set of all genes in syndrome S (for all syndromes); FoxP2Pathway := voice pathways that include FOXP2;
+3
+4
+5
+6 7 Set: 8
+VN1[S] := {} ∀S, set of all chainlink genes in level-1 voice chains from syndrome S; VN2[S] := {} ∀S, set of all chainlink genes in level-2 voice chains from syndrome S; L1P := {} set of pathways connected at level-1 to a FOXP2 pathway through any gene; Level2Genes := {} set of all chainlink genes in level-2 voice chains;
+9
+10
+11 12 Start/Iterate: 13
+/* Loop over all genes in FoxP2Pathway for g in Genes[FoxP2Pathway] do
+14
+15
+16
+/* All syndromes linked to these genes have a level-1 pathway for S in Syndromes do
+17
+if (g in GenesInSyndrome[S]) VN1[S] ←− VN1[S] ∪ {g}
+18
+19
+20
+end /* L1P includes all pathways (except FoxP2Pathway) that include g L1P ←− L1P ∪ (Pathways[g] \ FoxP2Pathway)
+21
+22
+23
+end /* Construct the set of all level-2 chainlink genes for P in L1P do
+24
+Level2Genes ←− Level2Genes (cid:83) Genes[P]
+25
+26
+27
+end /* Construct the list of level-2 voice chains for all syndromes for S in Syndromes do
+28
+for g in Level2Genes do
+29
+if (g in GenesInSyndrome[S]) VN2[S] ←− VN2[S] ∪ {g}
+30
+end
+end 31 32 Output: 33
+VN1[S]∀S ∈ Syndromes; VN2[S]∀S ∈ Syndromes;
+34
+2.2. Ensemble Analysis
+In the methodology we propose, for any microdeletion region S, we derive the set of chainlink genes within it for which α-level chains exist. The size and composition of this set can then be used in conjunction with the level of the voice chain to indicate the effect on
+8 of 33
+/
+/
+/
+/
+/
+
+
+Entropy 2023, 25, 897
+voice (in a later analysis). In general, we can work with any level-α voice chains in such an analysis; however, we restrict ourselves to α = 1 and α = 2.
+3. Analysis
+VNα, where α = 1, 2, were computed for a total of 82 microdeletion syndromes of chromosomes 1–20/22/X,Y. Genomic information, including gene names, was obtained from the HUGO Gene Nomenclature Committee’s (HGNC) human genome database, comprising 42,764 gene symbols and names and 3245 gene families and sets as of the time of conducting this analysis. Information about the phenotypes and the speciﬁc genes implicated in a syndrome was obtained from a survey of the current literature on medical genetics and genomics and from the Online Mendelian Inheritance in Man (OMIM) repository for authoritative information about human genes and genetic phenotypes.
+The FOXP2 gene chosen for this analysis has been strongly implicated in speech and language disorders [4,5], including monogenic speech disorders. The cytogenetic location (chromosome locus) of this gene is 7q31.1. Mutations in this gene are known to cause speech and language disorder Type 1, also called “Autosomal dominant speech and language disorder with orofacial dyspraxia”. The phenotype description and known molecular basis for this disorder can be found under OMIM entry SPCH1:602081. The FOXP2 gene encodes for the protein “Forkhead Box Protein P2” [6]. This protein is a transcription factor; it controls the activity of other genes. It binds to the DNA of the genes that it controls through a region known as a Forkhead Domain. It thus plays a critical role in several protein-coding and other biological pathways and has been well studied [7]. A more detailed summary of this gene can be obtained from the Human Protein Atlas [8].
+The ensemble of pathways used for this analysis was obtained from the Carcinogenic Potency Database (CPDB), described on its website as “a single standardized resource of the results of 45 years of chronic, long-term carcinogenesis bioassays”. Its current database of human biological pathways contains 4319 pathways and their gene compositions. This database has been used extensively in the medical literature and was chosen in this case for illustrative purposes since there is (importantly) no inherent bias towards the speech phenotype in it. In this database, there is only one pathway that contains the gene FOXP2. This is the Adenoid Cystic Carcinoma (ACC) pathway, which contains 63 genes, listed below for reference:
+Gene membership of the ACC pathway: AKT1 ARID1A ARID4B ARID5B ATM ATRX BCOR BCORL1 BRCA1 BRD1 CEBPA CMTR2 CNTN6 CREBBP CTBP1 DTX4 EP300 ERBB2 ERBIN FBXW7 FGF16 FGFR4 FOXO3 FOXP2 H1-4 H2AC16 HRAS IL17RD INSRR JMJD1C KANSL1 KAT6A KDM6A KDM6B KMT2C MAGI1 MAGI2 MAML3 MAP2K2 MAX MGA MORF4L1 MYB MYBL1 MYC MYCBP MYCN NCOR1 NFIB NOTCH1 NSD1 PIK3CA PRKDC PTEN RAF1 SETD2 SMARCA2 SMARCE1 SMC1A SRCAP TLK1 TP53 UHRF1
+Table A1, given in Appendix A, documents the voice chains found for a set of 75 docu- mented microdeletion syndromes. This range excludes chromosome 21, for which sufﬁcient documentation was not found in the literature. Only voice chains up to level 2 are shown in this table and used in the analysis presented in this paper. This is sufﬁcient to demonstrate the viability of the methodology for the discovery of voice chains proposed in this paper. The entries in the rows and columns of this table are explained in detail in Appendix A.
+Table 1 summarizes some of the information in Table A1 to help understand the analysis given in the next section. The information given in Table 1 includes, for each syndrome listed in it, the corresponding implicated genes that are also discovered to be chainlink genes by the algorithm proposed in this paper; the overall counts of level-1 and level-2 chainlink genes for each syndrome, along with the number of additional pathways they collectively connect to (in parentheses); and the corresponding phenotypic effects on speech that have been reported in the scientiﬁc literature.
+9 of 33
+
+
+Entropy 2023, 25, 897
+Syndrome
+1p36
+1q21.1–q21.2
+1q41–q42
+1q43–q44
+2p16.1–p15
+2p21
+2q23.1
+2q32–q33
+2q37.3
+3p13
+3q13.31
+3q29
+4p16.3
+4q21
+5p (5p15.2 and/or (5p15.3 or 5p15.33))
+5q14.3
+5q33.1
+5q35.3
+6pter–p24
+6q25.3
+7p21
+7q11.23
+8p23.1
+8q22.1
+10 of 33
+Table 1. Information about level-1 and level-2 voice chain ensembles for 76 chromosomal microdele- tion syndromes. For each syndrome, the corresponding implicated gene (culled from medical literature, with details given in the Appendix A) that was also discovered to be a chainlink gene by the proposed algorithm in either level-1 or level-2 chains is listed in the second column. The number of chainlink genes (i.e., genes that have chains that connect to the ACC biological pathway of FOXP2) is shown in the third and fourth columns for level-1 and level-2 chains, respectively. The total number of pathways that they collectively inﬂuence is indicated next to each count, in parentheses. The observed phenotypic effects on speech are given in the last column. Del: delayed speech; Imp: impaired speech; Norm: normal speech; Abs: absent speech; Apr: apraxia; Dys: dysarthria; Idio: idiosyncratic.
+Implicated Genes from Microarray Studies That Also form Voice Chains
+No. of Genes in {VN1} No. of Genes in {VN2}
+Reported Effects on Speech
+SPEN
+1 (10)
+226 (3152)
+Del [9], or Abs
+RBM8A, GJAS
+–
+41 (906)
+Del [10] or Imp [11]
+DISP1, LEFTY1, LEFTY2, BPNT1
+–
+60 (1020)
+Apr [12]
+AKT3
+–
+78 (903)
+Del, Imp, or Abs
+–
+17 (508)
+Dys, Apr, or Imp [13]
+SLC3A1
+–
+24 (557)
+Apr or Idio [14]
+–
+2 (31)
+Del or Imp
+COL3A1, COL5A2, GTF3C3, CASP8, CASP10
+–
+62 (1429)
+Abs
+HDAC4
+–
+38 (330)
+Imp [15]
+FOXP1
+–
+8 (48)
+Del, Idio, Imp and Dys (all severe), Apr [16]
+DRD3, GAP43, LSAMP
+–
+5 (56)
+Imp [17] or Abs
+PAK2, DLG1
+–
+24 (413)
+Del
+FGFR3
+1 (25)
+44 (495)
+Del [18] or Abs
+–
+41 (696)
+Del or Abs; Imp [19,20]
+TERT, CTNND2
+–
+37 (500)
+Del, Abs, and Apr [21]
+MEF2C
+–
+7 (275)
+Abs
+RPS14
+–
+17 (153)
+Dys [22]
+NSD1
+1 (8)
+47 (653)
+Norm [23] or Del
+FOXC1, GMDS
+–
+41 (416)
+Del
+ARID1B
+–
+21 (363)
+Del, Apr, Dys [24]
+TWIST1
+–
+18 (243)
+Del [25]
+ELN, LIMK1, GTF2IRD1, GTF2I
+–
+35 (536)
+Norm or Del
+GATA4
+–
+49 (337)
+No signiﬁcant anomaly reports
+CCNE2
+–
+13 (152)
+Del
+
+
+Entropy 2023, 25, 897
+Syndrome
+8q24.11–q24.13
+9p24.3
+9q34.3
+10pter–p13 or 10p14–p15.1
+10q23
+10q26
+11p11.2–p12
+11p13–p12
+11p15.5
+11q13.3
+11q23
+11q23.3-q25
+12q14.3
+13q12.3
+13q14
+13q22.3
+13q33–q34
+14q11–q22
+14q22.1–q23.1
+14q32.2
+15q11.2
+15q11–q13
+15q11–q13
+15q13.3
+15q24
+16p11.2
+16p12.2–p11.2
+16p12.1
+16p13.11
+16p13.3
+Table 1. Cont.
+Implicated Genes from Microarray Studies That Also form Voice Chains
+EXT1
+EHMT1
+GATA3
+PTEN, BMPR1A
+DOCK1
+EXT2
+PAX6, SLC1A2, PRRG4
+IGF2
+FGF4, FGF3, FADD
+FLI1, JAM3
+HMGA2
+RB1
+EDNRB
+SOX1, ARHGEF7
+PAX9, SUPT16H, CHD8, RALGAPA1
+PTGDR, BMP4
+DLK1, MEG3
+NIPA1, NIPA2, CYFIP1, TUBGCP5
+NDN, SNRPN
+UBE3A
+CHRNA7, OTUD7A
+SIN3A
+SH2B1, TBX6, CORO1A
+SH2B1
+MYH11
+CREBBP, TRAP1
+No. of Genes in {VN1} No. of Genes in {VN2}
+–
+21 (211)
+1 (9)
+3 (13)
+1 (62)
+46 (718)
+–
+49 (796)
+1 (107)
+59 (1003)
+–
+48 (708)
+–
+46 (737)
+–
+23 (342)
+1 (347)
+50 (1243)
+–
+11 (608)
+–
+77 (1421)
+–
+119 (1522)
+–
+9 (108)
+–
+6 (119)
+–
+46 (595)
+–
+3 (37)
+–
+30 (635)
+–
+173 (2021)
+–
+41 (530)
+–
+23 (242)
+–
+11 (72)
+–
+30 (230)
+–Same as above–
+–
+8 (47)
+–
+38 (623)
+1 (1)
+70 (1067)
+1 (1)
+106 (1682)
+–
+17 (157)
+–
+6 (116)
+1 (140)
+122 (1532)
+11 of 33
+Reported Effects on Speech
+Del
+Del, Dys, Apr [26]
+Del [27], Apr [28] and Abs
+Sensorineural hearing loss
+Del or Abs; Imp [29]
+Imp; Del [30]
+Idio, Dys, Del, Apr [31]
+Imp [32]
+Imp [33]
+Del [34] Imp [35]
+Dysarthric, Abs [36]; Imp [37]
+Imp, Del, Apr [38]
+Abs, Imp [38] or Del [39]
+Del [40]
+Norm [41]
+Norm [41]
+Apr
+Del [42] or Abs
+Imp [43]
+Del; Idio [44]
+Del
+Del or Imp
+Abs; Imp [45]
+Imp or Idio
+Del or Imp
+Apr [46]; Dys [47], Del or Imp
+Del or Imp
+Del
+Del [48]
+Apr, Dys, Imp or Del [49]
+
+
+Entropy 2023, 25, 897
+Syndrome
+16q22
+16q24.3–q24.2
+17p11.2
+17p13.1
+17p13.3
+17q11.2
+17q12
+17q21.31
+17q23.1–q23.2
+17q24.3–q24.2
+18q
+19p13.13
+19q13.11
+20p12.3
+22q11.2
+22q12.2
+22q13.3
+Xp11.3
+Xp21
+Xq28 (a)
+Xq28 (b)
+Yq11
+12 of 33
+Table 1. Cont.
+Implicated Genes from Microarray Studies That Also form Voice Chains
+No. of Genes in {VN1} No. of Genes in {VN2}
+Reported Effects on Speech
+CBFB
+1 (2)
+79 (830)
+–Not available–
+CDH15, ZNF778, ZFPM1
+–
+28 (307)
+Del or Imp [50]
+LLGL1, UBB
+–
+36 (845)
+Del; Dys [51]
+KCNAB3, GUCY2D, TP53, TRAPPC1, MPDU1, FXR2, EFNB3
+2 (214)
+74 (1387)
+Abs
+PAFAH1B1, YWHAE
+–
+37 (487)
+Del [52]
+NF1
+–
+40 (620)
+No signiﬁcant issues
+HNF1B, LHX1, CCL3L3
+1 (124)
+59 (890)
+Del or Imp
+KANSL1, MAPT, CRHR1
+2 (68)
+46 (740)
+Del or Abs
+–
+28 (307)
+Del [53]
+ABCA5, MAP2K6, SOX9
+–
+22 (720)
+Del [54]
+MBP
+–
+122 (1666)
+Del [55] or Imp [56]
+2 (263)
+131 (2080)
+Del; Imp [57]
+UBA2, WTIP
+1 (23)
+22 (283)
+Del or Abs; Imp [58]
+BMP2
+–
+13 (415)
+Del or Imp [59]
+TBX1, COMT, TOP3B
+–
+66 (1294)
+Apr, Dys, Del or Imp [60]
+NF2
+–
+27 (253)
+Del or Imp [61]
+ARSA, SHANK3
+1 (9)
+45 (670)
+Del or Abs
+RP2
+1 (6)
+20 (335)
+Imp [62]
+GK, DMD, NR0B1
+–
+7 (121)
+Del [63]
+ABCD1, BCAP31, SLC6A8
+–
+64 (1053)
+Del [64]
+MECP2
+–
+–same as above–
+Norm to Abs
+–
+6 (40)
+Norm
+4. Inferences
+A wealth of conclusions can be drawn from Table 1 (and from its more detailed version, Table A1 in Appendix A). However, we focus only on those that help validate the usefulness of the proposed algorithm.
+4.1. Voice Chains as Predictors of Speech Characteristics
+Of the 76 syndromes in Table A1, voice chains were found to exist for all. By our hypothesis, this would imply that in all cases, there is a potential for voice to be affected. The syndromes 15q11–q13 and Xq28 have two versions each, divided in the medical literature based on symptoms, rather than gene composition of the microdeletion region. We can therefore combine them for analysis, leaving us with 74 syndromes to be analyzed. For the syndrome 16q22, no information about the speech issues was found in the medical literature. Only the remaining 73 syndromes are considered in the analysis below.
+
+
+Entropy 2023, 25, 897
+The incidence of speech pathologies (including all forms of pathologies) among the general population is reported to be about 5% [65], and between 2.3% and 24.6% among children [66]. Of the 73 syndromes, 17 syndromes had both level-1 and level-2 voice chains, while 56 had only level-2 chains. The occurrence of speech aberrations was reported for all 17 syndromes with level-1 chains and for all but 6 of the 56 syndromes with only level-2 voice chains. Thus, voice chains correlate highly with the existence of speech anomalies.
+4.2. Voice Chains as Information-Carrying Entities
+Let us study how voice chains correlate with the presence or absence of speciﬁc voice problems. Such correlations would show that voice chains carry information about how the voice may be affected. This information is expected to be coarse-grained since we only take the presence or absence of any gene into consideration and consider no other cytogenetic information related to it.
+From Table A1, we observe the following.
+Level-1 chains:
+The number of level-1 chainlink genes is limited to 1 or 2 in all cases and is not
+amenable to statistical analysis. However, we make the following observations:
+1. 2.
+3.
+Level-1 voice chains co-occur with speech problems 100% of the time. For all instances where level-1 voice chains are present, severe symptoms occur 100% of the time (impaired, delayed or absent speech). For all instances of syndromes with no effect on speech (i.e., where normal is not just one of a range of other speech symptoms), level-1 chains are absent 100% of the the time.
+Level-2 Chains:
+Level-2 voice chains are present in all cases and co-occur with speech disorders in all but 6 cases; thus, in only 6 cases has speech been reported to be normal. Therefore, level-2 voice chains co-occur with speech problems 91.8% of the time.
+We note that a syndrome may have level-2 voice chains through many chainlink genes, which could number in the tens or even hundreds. Each of the chainlink genes could, in turn, also be associated with multiple other pathways, in addition to the one connecting it to FOXP2. We refer to the total number of pathways that include the chainlink genes of a syndrome as its “chainlink connectivity”.
+Table 2 presents some statistics of syndromes, chainlink genes, and chainlink connec- tivity associated with speech disorders of different severity.The problems considered are: absent speech (the most severe symptom), impaired speech (a symptom that is less severe than absent), delayed speech (a cognitive symptom that is also less severe than absent and comparable in severity to impaired speech—a physical symptom), dysarthric speech (a symptom related to physical issues), and apraxic speech (due to CNS disorders; this is less severe compared to absent speech and often subsumes idiosyncratic speech). Each row of the table represents one type of speech problem and shows the number of syndromes associated with it, the mean and median of the counts of chainlink genes for the syndromes, and the mean and median of the chainlink connectivities of the syndromes. From an inspection of Table 2, a distinct pattern emerges. Rank ordering the symptoms by ascending order of the means of the counts of chainlink genes, we see that their connectivities also fall in almost the same order:
+normal(32, 404) < apraxia(43, 675) < dysarthria(43, 725) < impaired(46, 734) < delayed(47, 682) < absent(60, 902)
+This rank ordering is consistent with the rank ordering of symptom severity based on the descriptions in the medical literature. In general, statistically speaking, the number of chainlink genes and the chainlink connectivity both appear to relate monotonically to the severity of the speech disorder.
+13 of 33
+(1)
+
+
+Entropy 2023, 25, 897
+Table 2. Row-wise: Statistics showing the number of syndromes (count) associated with each voice disorder, the number of chainlink genes associated with the corresponding set of syndromes, and the connectivity of chainlink genes for the set.
+Chainlink Genes
+Chainlink Connectivity
+Speech Type
+Count
+Mean
+Median
+Mean
+Median
+Normal Apraxic Dysarthric Impaired Delayed Absent
+6 19 11 31 51 19
+32 43 43 46 47 60
+40 30 36 38 37 46
+404 675 725 734 682 902
+595 557 737 608 500 718
+Figure 3 shows scatter plots for counts of chainlink genes, chainlink connectivity, and a scatter of chainlink gene counts vs. normalized (per-chainlink-gene) chainlink connectivity for different severities of voice problems. Once again, it is apparent from the ﬁgures that the distributions of chainlink counts and chainlink connectivity is predictive of the type of speech problem. In particular, as is evident from Figure 3c, the distribution for normal speech stands out distinctly, as does that for absent speech, although the latter is not as distinctive as the former. Among the other levels, the distributions for apraxic and dysarthric speech appear similar, and so also do those for impaired and delayed speech appear similar.
+In order to quantify these differences, we modeled the distributions of chainlink counts and chainlink connectivities for the different severity levels. These distributions have the general characteristics of over-dispersed Poisson distributions and can be modelled as Conway–Maxwell–Poisson (CMP) distributions [67]. The CMP distribution is a two- parameter exponential-family PMF over non-negative integers that takes the form
+P(n) =
+λn (n!)ν
+1 Z(λ, ν)
+where λ, ν > 0 are the parameters of the distribution. Given a set of integers, λ and ν can be obtained through a maximum likelihood estimator [68].
+Figure 4 shows the maximum likelihood estimates of the probability distributions of chainlink counts (Figure 4a) and connectivities (Figure 4b) for syndromes associated with speech problems of different severity levels. These, too, follow the visible trends of Figure 3, where the distributions of both chainlink counts and chainlink connectivities for syndromes associated with the two extreme conditions, normal and absent speech, are distinct from those for other types of problems.
+To quantify the differences in the distributions, we deﬁne the code distance between two sets of integers Ci = {n1, · · · , ni} and Cj = {m1, · · · , mj} as the excess number of bits required to encode them if each set is encoded using the optimal code for the other set rather than itself.
+D(Pi, Pj) = ∑ n∈Ci
+log2
+(cid:18) Pj(n) Pi(n)
+(cid:19)
++ ∑ n∈Cj
+log2
+(cid:32)
+Pi(n) Pj(n)
+(cid:33)
+where Pi() and Pj() are the estimates of the PMFs for Ci and Cj, respectively. In our case, we choose the maximum likelihood estimates of the CMP distributions for the sets to compute this metric.
+Table 3a shows the code distances between the chainlink counts for different types of speech problems. Table 3b shows the same for their chainlink connectivities. In both cases, we observe that the distributions for normal speech stand clearly apart from those for the other types of speech problems. The distributions for fully absent speech, too, are distinctive from those for other problem types. Among apraxic, dysarthric, impaired, and
+14 of 33
+(2)
+(3)
+
+
+Entropy 2023, 25, 897
+delayed speech, the differences between the distributions of adjacent degrees of severity is minimal; however, the distances show a distinct increasing trend with increases in the degree of impairment.
+101Dysarthric 050100150200250
+050100150200250
+101Impaired 050100150200250
+101Delayed 050100150200250
+101Absent 05001000150020002500
+101Normal 050100150200250
+101Apraxic 050100150200250
+(a)
+101Delayed 05001000150020002500
+101Absent
+101Apraxic 05001000150020002500
+101Normal 05001000150020002500
+101Dysarthric 05001000150020002500
+101Impaired 05001000150020002500
+(b)
+02040Impaired
+050100150200250
+050100150200250
+050100150200250
+050100150200250
+050100150200250
+050100150200250
+02040Absent
+02040Normal
+02040Dysarthric
+02040Apraxic
+02040Delayed
+(c)
+Figure 3. (a) Chainlink counts: Scatter of chainlink gene counts for syndromes associated with voice problems of different severities. Each cross represents a single syndrome. The horizontal axis value indicates the number of chainlink genes for the syndrome. The y-axis is a dummy axis. (b) Chainlink connectivity: Scatter of chainlink connectivities for syndromes associated with voice problems of different severities. Each panel shows the aggregate no. of pathways that all chainlink genes connect to (x-axis) for each syndrome (denoted by a cross) that exhibits the labeled speech characteristic. The y-axis is a dummy axis. (c) Count vs. normalized connectivity: Chainlink gene count (x-axis) vs. normalized chainlink gene connectivity (y-axis). The normalized connectivity is the average connectivity per chainlink gene.
+15 of 33
+
+
+Entropy 2023, 25, 897
+16 of 33
+Dysarthric
+Delayed
+050100150200250n
+Absent
+Normal
+Impaired
+00.0050.010.0150.02P(n)
+Apraxic
+Delayed
+Normal
+05001000150020002500n
+Absent
+00.20.40.60.811.21.41.61.8P(n)
+10-3
+Dysarthric
+Impaired
+Apraxic
+(a)
+(b)
+Figure 4. Conway–Maxwell–Poisson models for the distributions of chainlink counts and chainlink connectivities for different types of speech problems. (a) Distribution of chainlink counts. (b) Distri- bution of chainlink connectivities.
+Table 3. (a) Code distance between the (sets of) chainlink counts for different types of speech disorders. (b) Code distance between the (sets of) chainlink connectivities for diferrent types of speech disorders.
+(a)
+Normal
+Apraxic
+Dysarthric
+Impaired
+Delayed
+Absent
+Normal Apraxic Dysarthric Impaired Delayed Absent
+0
+2.1 0
+2.3 0.2 0
+7.6 1.1 0.2 0
+14.7 2.9 1.2 0.5 0
+15.3 6.8 3.7 3.7 4.6 0
+(b)
+Normal
+Apraxic
+Dysarthric
+Impaired
+Delayed
+Absent
+Normal Apraxic Dysarthric Impaired Delayed Absent
+0
+6.3 0
+7.0 0.7 0
+17.4 1.5 0.0 0
+22.5 1.9 0.4 0.9 0
+22.2 5.9 1.7 2.4 5.5 0
+Overall, from the above analysis, the properties of the level-2 chains of a syndrome appear predictive of the degree of the speech problems associated with it. Our analysis has considered the chainlink counts and connectivities indpendently, and each of them shows this behavior. A joint analysis of both may show stronger dependencies.
+Most importantly, note that in all of the analysis above, we have ignored the secondary effects of other issues, such as intellectual disability and craniofacial anomalies, a highly simplifying assumption. A more correct information measure that takes these into account is expected to show even stronger relationships between the level and degree of connectivity of a syndrome to the FOXP2 pathway and its effect on speech.
+4.3. Why Are There No Instances of Missing Voice Chains?
+Are voice chains redundant? The fact that there are no missing voice chains is easily explainable. The reason is linked to the size of the syndromic regions. To understand this, consider the following facts.
+Our database comprises 4319 unique pathways. A total of 1205 of these pathways are linked to the pathway that carries the FOXP2 gene, and collectively, these include 11,746 genes. Thus, a randomly chosen gene from the entire human genome of 42.7k genes (as in the HGNC Human Genome database) has a 27.5% chance of being on a pathway that links to the FOXP2 containing pathway, i.e., of being a level-2 chainlink gene.
+
+
+Entropy 2023, 25, 897
+The shortest microdeletion considered (2q23.1) includes 9 genes, each of which has a 27% chance of being a level-2 chainlink gene. The syndrome itself then has a 94.44% probability of having a level-2 voice chain purely by chance. The second shortest pathway includes 26 genes and has a 99.98% probability of having a level-2 voice chain by chance. The remaining pathways are larger (in terms of the number of genes), and it is virtually impossible for them not to have a level-2 chain.
+As a result, it is realistic to expect that, as a consequence of the density with which the FOXP2 containing pathway is linked to other pathways, any syndrome arising from genetic aberrations that includes even a moderately sized set of genes will have an effect on voice. It remains a plausible hypothesis that any factor that inﬂuences gene function has at least some chance to ultimately affect voice—for example, at least a 27% chance within the boundaries of the example presented in this paper.
+The above argument assumes that the genes in a microdeletion region are randomly chosen. The mean of the fraction of genes in a microdeletion that appears in any voice chain is observed to be 28.79% with a variance of 0.014, indicating concordance with the assumption of randomness. A secondary implication is that the likelihood of adjacent genes in the same cytogenetic region to be chainlink genes is independent of one another.
+4.4. Ancillary Observations
+Some important ancillary observations emerge from this study, which may be impor-
+tant to note. These are mentioned brieﬂy below.
+1.
+2.
+For each syndrome, some genes have been identiﬁed as largely important—i.e., these are implicated largely for the syndrome’s effect on the individual. Of the syndromes for which there is information about implicated genes, we see that in only 8 syndromes (2p16.1–p15, 2q23.1, 9p24.3, 11q23, 13q12.3, 17q23.1–q23.2, 19p13.13, and Yq11), none of the implicated genes appear in the two levels of voice chains shown. In all other cases, the implicated genes impact FOXP2 pathways and are likely to have a bearing on speech anomalies. We have noted earlier that FOXP2 is not the only gene known to be related to voice production. If we had chosen some other gene as an example in this paper (instead of FOXP2), it is likely that the implicated genes for the 8 exceptions mentioned above would appear as chainlink genes (while some others may not). This hypothesis can be easily tested in corresponding experiments. Identifying candidate genes for further investigation: Using only chainlink genes that appear on level-1 chains as illustrative examples (see Table A1 in the Appendix A for reference), we see that voice chains can be useful in identifying candidate genes for further investigation in the context of speech issues. Some examples are given below. The likely candidates are written in parentheses, while the already implicated genes are indicated in bold:
+
+
+
+1p36 (ARID1A): Although not implicated for this syndrome in studies so far, ARID1A is located in 1p36.11, a region frequently deleted in human cancers [69]. Disruption in its function may lead to the co-occurrence of oncological and speech issues. This hypothesis is veriﬁable. 5q35.3 (NSD1): The gene NSD1 appears in a level-1 chain and is also an im- plicated gene. Ideally, this should not be a candidate for further investigation. However, paradoxically, while effects on speech are expected, the literature re- ports normal speech for some subjects for this case. This may be a result of biased sampling (the more severe cases may not be conducive to life due to other concurrent severe symptoms, which is a common occurrence in microdeletion syndromes; in some cases, only mosaic individuals survive). This warrants some investigation. 11p15.5 (HRAS): Although not implicated, and although two studies cited under OMIM: 130650 for this syndrome explicitly mention HRAS as not signiﬁcant, HRAS has nevertheless been independently found to be extremely signiﬁcant in RASopathy and cancer studies, e.g., [70]. Its role in this syndrome needs to
+17 of 33
+
+
+Entropy 2023, 25, 897
+3.
+
+
+
+
+
+
+be re-evaluated given its inﬂuence on 347 biological pathways and its strong inﬂuence on speech. 16p11.2 and 16p12.2–16p11.2 (SRCAP): Although not implicated, it connects to only one other pathway in the ensemble, and that is the ACC pathway of FOXP2. The effects on speech are expected to be strong if this gene is aberrant. This gene may be implicated in further investigations. 17p13.1 (KDM6B): Speech is absent in this syndrome. The gene TP53 is impli- cated, which also appears at level-1 and is associated with 206 pathways. KDM6B is the only other gene in the level-1 voice chains and connects to only 8 other pathways. It is likely that this gene also plays a strong role in inﬂuencing speech and merits investigation. 17q12 (ERBB2): The gene ERBB2 is associated with 124 pathways. It is a well- known oncogene [71], in that perturbations in its function have been observed to have deleterious effects. If it is also connected to FOXP2, then its appearance in the voice chain allows a surprising hypothesis—that biomarkers of some oncological conditions may also be present in voice. 19p13.3 (MAP2K2,UHRF1): MAP2K2 and URHF1 are not implicated. However their appearance as level-1 chainlink genes warrants investigation, especially for MAP2K2, which inﬂuences 257 pathways. Prompted by this, a literature search did reveal that MAP2K2 has been implicated in this syndrome recently [72], although this is not on the OMIM records, which were largely consulted for this study. 22q13.3 (BRD1): The gene BRD1 is not implicated and appears in 9 pathways only, but the effect on speech is severe in this syndrome. This warrants the inves- tigation of BRD1 independently in relation to speech characteristics. A literature search reveals that BRD1 is indeed strongly associated with brain development and susceptibility to both schizophrenia and bipolar affective disorder [73], and consequent effects on speech are highly likely. Xp11.22 (SMC1A): Although SMC1A is not implicated, it appears in 33 pathways. The speech issues are severe and the gene warrants investigation for this effect. A recent report in the literature has implicated it in severe intellectual disability and therapy-resistant epilepsy in females [74]. The former is known to be associated with severe speech anomalies. Xp11.3 (KDM6A): Although not implicated, KDM6A warrants investigation. In the literature, it is independently known to be associated with delayed speech and psychomotor development [75].
+
+Expression of speech characteristics: The observation that deletions of genes on all chromosomes ultimately results in the expression of speech anomalies carries signiﬁ- cance. From a much broader perspective, this suggests that the effect on speech may be supported by the action of multiple concurrent biological pathways. There may be no single gene or genes (on select chromosomes) that may code for speech capabilities per se, and FOXP2 may be one of a few genes that may consolidate and regulate the speech- and language-related emergent effects. It may be that genes directly code for structural elements in the range of phenotypes, while other properties, such as speech and language abilities, are emergent from the coordination of these (and epigenetic) factors. A more prosaic argument for this can also be presented. Within the ensemble of syndromes analyzed, there are three kinds of of cause-and-effect relationships: (a) syn- dromes with physical structures of the vocal tract (e.g., craniofacial anomalies that include cleft palate, changes in lip shape, etc.), which adversely affect the biomechan- ical aspects of voice and speech production, (b) syndromes in which auditory and motor functions are compromised, and (c) syndromes that affect the normal functions of the brain, causing cognitive, learning, memory, and other issues that are, in turn, likely to lead to speech problems. In no case do we see only speech aberrations in
+18 of 33
+
+
+Entropy 2023, 25, 897
+isolation of these factors. The associations between speech and other expressed factors have, in fact, been ubiquitously observed, e.g., [48]. This may support the hypothesis that speech abilities are likely to be emergent from an ensemble of factors (including other phenotypes), rather than expressed directly by any “speech” gene.
+5. Conclusions
+The hypothesis that the existence of voice chains is correlated with speech characteris- tics is adequately validated by the statistical analysis presented in this paper. The analysis presented in this paper, in fact, also shows that the level of voice chains is correlated posi- tively with the severity of speech problems. Based on this, a simple information measure has been suggested to rank-order the effects of speciﬁc sets of voice chains on speech. We also see how the methodology presented can potentially provide leads to speciﬁc genes that might be candidates for further investigation in the context of speech issues and microdele- tion syndromes. While the example of chromosomal microdeletion syndromes used for this paper is very speciﬁc, the methodology itself may be easily generalized and extended to reveal the potential effects of other diseases with a genetic basis and of other factors that inﬂuence gene function in some manner on speech, voice and (in further reﬁnements of the analysis) their speciﬁc qualities and characterisitcs. As a speciﬁc suggestion, one exercise that would allow for a more comprehensive analysis would be to explore the entire human genome database to identify which genes are connected via voice chains (and to what level), as well as whether or not there have been corresponding effects on voice reported in the biomedical literature. In cases where large amounts of data are available, one could also explore such connections in an entirely data-driven manner, using AI-based biomarker discovery mechanisms.
+Funding: This research was funded in part by the U.S. Army Research Ofﬁce and the U.S. Army Futures Command Grant No. W911NF-20-D-0002. Its content does not reﬂect the position or the policy of the U.S. Army and no ofﬁcial endorsement should be inferred.
+Institutional Review Board Statement: Ethical review and approval were waived for this study since the data used for this research was obtained from public sources. No human subjects research was explicitly carried out for this work.
+Data Availability Statement: The code required to reproduce the results in this paper is archived for public use at https://datadryad.org/ (accessed on 21 September 2022) under the title “Data for Connecting voice proﬁling to genomics”.
+Conﬂicts of Interest: The author declares no conﬂict of interest.
+Appendix A
+This table lists the voice chains found for a set of 76 documented microdeletion syndromes. This range excludes chromosome 21, for which sufﬁcient documentation was not found in the literature. The analysis was conducted for voice chains up to level 2. The format of each row in this table is as follows:
+First column:
+• •
+
+
+In each row, the top left entry is the microdeletion syndrome. Below this, on the left, is the OMIM record for the cytogenetic region of the syndrome. Below the OMOM record, the common names by which the syndrome is referred to in the medical literature are listed. Below the list of common names, sets of chainlink genes that form level-1 and level- 2 voice chains (denoted as {VN1} and {VN2}) respectively, found by the proposed algorithm are listed. These sets are listed only if they are present. For each voice chain listed, the ﬁrst entry denotes the level of the voice chain. Follow- ing this is the list of chainlink genes that belong to the corresponding microdeletion region, which are linked to FOXP2 through the corresponding voice chain level.
+19 of 33
+
+
+Entropy 2023, 25, 897
+20 of 33
+
+For each gene, the number of pathways that a gene connects to (in general, inclusive of connections to the ACC pathway of FOXP2) is written as its subscript.
+All chainlink genes are not named. For brevity, the ﬁrst 10 genes with the greatest number of links are listed, and the total number of the rest of the genes (total chainlink gene count) is indicated. At the end, the genes with a single pathway link are explicitly listed. They are included in the total chainlink gene count mentioned above. Thus, for example, the level-2 voicechain for the syndrome 2p16.1–p15 has a total chainlink gene count of 17, including all genes that are explicitly listed in the table. In each row, the genes in the voice chains that have been implicated for the syndrome’s phenotypic expression in prior studies are shown in parentheses on the top right. The genes that are also present as chainlink genes in the voicechains found for the syndrome are shown in bold font.
+
+Second column:
+
+The second column in this table lists the corresponding speech characteristics, with references. Where no reference is cited, the information is found in the OMIM record for the syndrome (where possible, OMIM references are used for brevity).
+Table A1. Chainlink genes for level-1 and level-2 voice chain ensembles for 76 chromosomal mi- crodeletion syndromes. Each chain forms a link from the gene shown to the ACC biological pathway of FOXP2 and has been automatically derived. The total number of pathways that each gene inﬂu- ences independently is shown as a subscript to its name. Observed phenotypic effects on speech are given in the last column. When references are not cited, the information reﬂects that in the OMIM records for the syndrome.
+Syndrome Other Information Voice Chains and Their Member Chainlink Genes Chromosome 1 deletions 1p36 OMIM: 607872; Cytogenetic location: 1p36; Genomic coordinates (GRCh38): 1:23,600,000– 27,600,000 Names: Chromosome 1p36 deletion sydrome; monosomy 1p36 syndrome {VN1} ARID1A10 {VN2}: PIK3CD168 MTOR146 GNB1140 CDC42140 CASP9108 RPS6KA193 PRKCZ75 CNKSR157 SFN55 DVL148 (216 more . . .) SSU721 RBP71 PLEKHN11 PLEKHM21 PEX101 NBL11 MTCO3P121 MMP23B1 MMP23A1 HSPB71 HMGN21 GPR31 EXOSC101 DISP31 CROCCP21 CAMTA11 AHDC11 ACAP31 1q21.1–q21.2 OMIM: 612474/274000, Cytogenetic location: 1q21.1 Genomic coordinates (GRCh38): 1:143,200,000–147,500,000 Names: Thrombocytopenia with absent radius (TAR) syndrome (OMIM 274000) {VN2}: H4C1467 H4C1566 H2BC2163 PRKAB257 H3C1556 H3C1456 H3C1356 H2AC2053 H2AC1953 H2AC1853 (31 more . . .) 1q41–q42 OMIM: 612530; Cytogenetic location: 1q41–q42 Genomic coordinates (GRCh38): 1:214,400,000– 236,400,000 Names: Chromosome 1q41–q42 deletion syndrome; holoprosencephaly 10; HPE10 {VN2}: NUP13388 H2BU163 TGFB262 DUSP1054 H3-3A50 WNT3A47 ARF146 PARP141 MIR362038 PSEN236 (50 more . . .) DISP12 MIR2151 MIR194-11 DNAH141 CDC42BPA1 1q43–q44 OMIM: 612337 Names: Mental retardation, autosomal dominant 22; MRD22; chromosome 1q43–q44 deletion syndrome (included); chromosome 1qter deletion syndrome (included) {VN2}: AKT3169 RYR274 ACTN269 CHRM342 MTR38 FH31 ADSS230 EXO126 RGS716 KMO15 (68 more . . .) FMN21
+(Implicated Genes from Microarray Studies)
+(Multiple incl. RERE, SPEN) †‡
+(Multiple incl. RBM8A †‡, GJAS †)
+(Multiple incl. DISP1, HPE10, LEFTY1, LEFTY2, WDR26, TSEN2, BPNT1) †‡
+(AKT3, ZBTB18) ‡
+Reported Effects on Speech
+Delayed [9] or absent speech
+Delayed [10] or Impaired [11] speech
+Apraxia [12]
+Delayed, impaired, or absent speech
+
+
+Entropy 2023, 25, 897
+Table A1. Cont.
+Syndrome Other Information Voice Chains and Their Member Chainlink Genes Chromosome 2 deletions 2p16.1–p15 OMIM: 612513; Cytogenetic location: 2p16.1–p15 Genomic coordinates (GRCh38): 2:54,700,000– 63,900,000 Names: Chromosome 2p16.1–p15 deletion syndrome {VN2}: RPS27A293 XPO156 UGP233 MDH127 REL23 CCT414 RTN413 B3GNT212 VRK210 USP347 (7 more . . .) OTX11 CCDC88A1 2p21 OMIM: 606407; Cytogenetic location: 2p21 Genomic coordinates (GRCh38): 2:41,500,000– 47,500,000 Names: Hypotonia–cystinuria syndrome; cystinuria with mitochondrial disease; homozygous 2p21 deletion syndrome {VN2}: CALM2234 PRKCE73 SLC3A136 HAAO22 ATP6V1E219 ABCG518 MSH217 ABCG817 EPAS116 COX7A2L15 (14 more . . .) SIX31 EML41 2q23.1 OMIM: 156200 Names: Mental retardation, autosomal dominant 1; MRD1; chromosome 2q23.1 deletion syndrome {VN2}: ORC429 KIF5C2 2q32–q33 (SATB2) ‡(HOXD cluster and regulatory elements, COL3A1 COL5A2, GTF3C3, CASP8, CASP10) ‡‡ OMIM: 612313 Names: Glass syndrome; GLASS; chromosome 2q32–q33 deletion syndrome; SATB2-associated syndrome {VN2}: CREB1203 STAT1130 CASP8103 NUP3579 ITGAV64 CD2860 SUMO152 AOX150 FZD543 FZD737 (52 more . . .) TMEFF21 KLF71 HSPE11 DUSP191 DNAH71 (HDAC4) ‡ 2q37.3 OMIM: 600430 (2q37); Cytogenetic location: 2q37 Genomic coordinates (GRCh38): 2:236,400,000– 242,193,529 Names: Chromosome 2q37 deletion syndrome, brachydactyly–intellectual disability syndrome; Albright hereditary osteodystrophy-like syndrome Type 3 {VN2}: HDAC433 GPC127 AGXT25 COL6A319 ACKR314 NEU413 NDUFA1012 PRLH11 PER211 DTYMK11 (28 more . . .) TWIST21 ILKAP1 Chromosome 3 deletions 3p13 OMIM: 613670 Names: Mental retardation with language impairment with or without autistic features {VN2}: MITF19 PROK28 PPP4R25 GPR275 EIF4E35 FOXP13 GXYLT22 RYBP1 3q13.31 OMIM: 615433; Cytogenetic location: 3q13.31 Genomic coordinates (GRCh38): 3:113,700,000– 117,600,000 Names: Chromosome 3q13.31 deletion syndrome {VN2}: DRD322 ATP6V1A22 GAP436 QTRT23 LSAMP3 3q29 OMIM: 609425; Cytogenetic location: 3q29 Genomic coordinates (GRCh38): 3:192,600,000– 198,295,559 Names: Chromosome 3q29 deletion syndrome; microdeletion 3q29 syndrome; 3qter deletion syn- drome {VN2}: PAK274 DLG171 NCBP253 HES139 RPL35A22 TFRC21 RNF16818 BDH117 PCYT1A15 MUC2013 (14 more . . .) FBXO451
+(Implicated Genes from Microarray Studies)
+(Multiple incl. BCL11A) †‡
+(Multiple incl. SLC3A1, PREPL)
+(MBD5) ‡
+(FOXP1) †‡
+(DRD3, ZBTB20 ‡, GAP43, LSAMP) †‡
+(Multiple incl. PAK2, DLG1) †‡
+21 of 33
+Reported Effects on Speech
+Dysarthria, apraxia, or im- paired speech [13]
+Apraxia or idiosyncratic speech [14]
+Delayed or impaired speech
+Absent speech
+Impaired speech [15]
+Delayed, idiosyncratic, and impaired speech and dysarthria (all severe), apraxia [16]
+Impaired [17] or absent speech
+Delayed speech
+
+
+Entropy 2023, 25, 897
+Table A1. Cont.
+Syndrome Other Information Voice Chains and Their Member Chainlink Genes Chromosome 4 deletions 4p16.3 OMIM: 194190; Cytogenetic location: 4p16.3 Genomic coordinates (GRCh38): 4:0–4,500,000 Names: Wolf–Hirschhorn syndrome; Pitt–Rogers–Danks syndrome; Pitt syndrome; Wittwer syn- drome; Dillan 4p syndrome {VN1} CTBP125 {VN2}: FGFR3109 TNIP232 NELFA27 MIR94326 CTBP125 ADRA2C22 NSD219 GRK415 DGKQ14 PDE6B13 HAUS313 SLC26A112 SLBP12 ATP5ME12 RNF411 CPLX111 RGS1210 (27 more . . .) ZFYVE281 PCGF31 NSG11 MXD41 ABCA11P1 4q21 OMIM: 613509; Cytogenetic location: 4q21 Genomic coordinates (GRCh38): 4:86,000,000– 87,100,000 Names: Chromosome 4q21 deletion syndrome {VN2}: MAPK10122 FGF5118 NUP5479 PAQR347 PRKG227 CXCL1022 CXCL918 ABRAXAS118 SEC31A16 CXCL1116 (31 more . . .) SHROOM31 SEPTIN111 HNRNPDL1 G3BP21 BMP2K1 AFF11 Chromosome 5 deletions 5p (5p15.2 and/or (5p15.3 or 5p15.33)) OMIM: 123450 Names: Chromosome 5p deletion syndrome; cri-du-chat syndrome; cat cry syndrome; Lejeune syndrome; 5p monosomy; partial monosomy 5 {VN2}: ADCY2116 SLC6A373 SDHA37 TERT24 TRIO23 MTRR19 LPCAT115 CEP7215 SRD5A114 SLC9A313 (27 more . . .) OTULINL1 CTNND21 CLPTM1L1 (MEF2C) ‡ 5q14.3 OMIM: 612881 (distal version 5q14.3–q15); Cytogenetic location: 5q14.3–q15 Genomic coordinates (GRCh38): 5:83,500,000–98,900,000 Names: Distal chromosome 5q14.3 deletion syndrome; periventricular heterotopia associated with chromosome 5q deletion; periventricular nodular heterotopia 5; PVNH5 {VN2}: RASA189 CCNH74 MEF2C70 POLR3G17 COX7C15 MIR9-27 EDIL33 5q33.1 OMIM: 153550 Names: Chromosome 5q deletion syndrome; 5q syndrome; refractory macrocytic anemia due to 5q deletion; MAR {VN2}: RPS1429 GPX318 DCTN413 SPARC12 SLC36A112 NMUR211 CD7410 NDST19 GM2A8 TNIP16 (7 more . . .) SYNPO1 IRGM1 5q35.3 OMIM: 117550 Names: Sotos syndrome 1; Sotos1; Nevo syndrome; cerebral gigantism, Nevo type; chromosome 5q35 deletion syndrome {VN1} NSD18 {VN2}: MAPK9167 LTC4S53 F1233 SQSTM130 MAML129 RACK125 FLT423 CANX22 GRK620 GRM616 (37 more . . .) CLK41 Chromosome 6 deletions 6pter–p24 OMIM: 612582; Cytogenetic location: 6pter–p24 Genomic coordinates (GRCh38): 6:0–13,400,000 Names: Chromosome 6pter-p24 deletion syndrome {VN2}: RIPK183 EDN143 F13A134 TFAP2A19 DSP18 BMP617 IRF415 TUBB2A14 GMDS13 ELOVL213 (31 more . . .) PAK1IP11 MAK1 FOXQ11 DUSP221 C6orf2011 6q25.3 OMIM: N.A. {VN2}: SLC22A253 GTF2H550 ACAT249 SLC22A124 EZR24 SOD220 IGF2R20 SYNJ218 SLC22A316 TCP113 (11 more . . .)
+(Implicated Genes from Microarray Studies)
+(Multiple incl. FGFR3, MSX1) †‡
+(Multiple)
+(Multiple incl. TERT, CTNND2) †
+(RPS14) †‡
+(NSD1) ‡
+(Multiple incl. FOXC1, GMDS) †‡
+(Multiple incl. ARID1B) ‡
+22 of 33
+Reported Effects on Speech
+Delayed [18] or absent speech
+Delayed or absent speech; impaired speech [19,20]
+Delayed or absent speech and apraxia [21]
+Absent speech
+Dysarthria [22]
+Normal [23] or delayed speech
+Delayed speech
+Delayed speech, apraxia, dysarthria [24]
+
+
+Entropy 2023, 25, 897
+Table A1. Cont.
+Syndrome Other Information Voice Chains and Their Member Chainlink Genes Chromosome 7 deletions 7p21 OMIM: 101400 Names: Saethre–Chotzen syndrome; acrocephalosyndactyly III; ACS3; ACS III; Chotzen syndrome; acrocephaly, skull asymmetry, and mild syndactyly {VN2}: RPA374 PRPS1L130 HDAC926 ITGB818 AHR18 POLR1F16 NDUFA415 DGKB14 TWIST19 THSD7A4 (8 more . . .) MIOS1 MEOX21 ARL4A1 7q11.23 OMIM: 194050; Cytogenetic location: 7q11.23 Genomic coordinates (GRCh38): 7:72,700,000– 77,900,000 Names: Williams syndrome; WS; WMS; chromosome 7q11.23 deletion syndrome, 1.5- to 1.8-MB; Williams–Beuren syndrome; WBS {VN2}: YWHAG64 POM12159 RFC257 MDH242 LIMK134 HSPB131 STX1A30 FZD930 NCF129 POR15 (25 more . . .) ABHD111 Chromosome 8 deletions 8p23.1 OMIM: 179613 (not exclusive to syndrome) Names: Recombinant chromosome 8 syndrome; REC8 syndrome; chromosome 8q22.1-qter duplica- tion and 8pter-p23.1 deletion; San Luis Valley syndrome {VN2}: FDFT144 CTSB17 BLK17 TNKS16 GATA415 AGPAT514 ANGPT212 MIR124-110 NEIL29 CLDN238 (39 more . . .) PINX11 MIR5981 8q22.1 OMIM: 608156; Cytogenetic location: 8q22.1 Genomic coordinates (GRCh38): 8:92,300,000– 97,900,000 Names: Nablus mask-like facial syndrome; NMLFS; chromosome 8q22.1 deletion syndrome {VN2}: CCNE245 SDC234 TP53INP113 GDF612 UQCRB11 PTDSS19 ESRP18 PDP15 NDUFAF65 CDH174 (3 more . . .) 8q24.11-q24.13 OMIM: 150230; Cytogenetic location: 8q24.11–q24.13 Genomic coordinates (GRCh38): 8:116,700,000–126,300,000 Names: Langer–Giedion syndrome; LGS; chromosome 8q24.1 deletion syndrome; trichorhinopha- langeal syndrome type II; TRPS2 {VN2}: SQLE43 TAF220 RAD2120 MIR361019 TNFRSF11B15 DERL113 NDUFB912 EXT112 SLC30A810 FBXO328 (11 more . . .) WASHC51 FAM91A11 DSCC11 Chromosome 9 deletions 9p24.3 OMIM: 154230; Cytogenetic location: 9p24.3 Genomic coordinates (GRCh38): 9:0–2,200,000 Names: 46,XY sex reversal 4; SRXY4; 46,XY gonadal dysgenesis, partial or complete, with 9p24.3 deletion; chromosome 9p24.3 deletion syndrome {VN1} SMARCA29 {VN2}: SMARCA29 DOCK83 WASHC11 9q34.3 OMIM: 610253 Names: Kleefstra syndrome; 9q syndrome; 9q subtelometric deletion syndrome; chromosome 9q34.3 deletion syndrome {VN1} NOTCH162 {VN2}: GRIN1139 TRAF278 NOTCH162 PTGDS51 ANAPC237 TUBB4B28 NELFB27 ENTPD825 CACNA1B20 AGPAT220 (36 more . . .) UAP1L11 MIR6021 FUT71 CYSRT11
+(Implicated Genes from Microarray Studies)
+(TWIST1 (7p21.1)) ‡
+(Multiple incl. ELN, LIMK1, GTF2IRD1, GTF2I) †‡
+(GATA4)
+(CCNE2, TMEM67, FAM92A1)
+(TRPS1, EXT1) ‡
+(DMRT1, DMRT2) †‡
+(EHMT1) ‡
+23 of 33
+Reported Effects on Speech
+Delayed speech [25]
+Normal or delayed speech
+No signiﬁcant speech anomaly reports
+Delayed speech
+Delayed speech
+Delayed speech, dysarthria, apraxia [26]
+Delayed speech [27], Apraxia [28] and Absent speech
+
+
+Entropy 2023, 25, 897
+Table A1. Cont.
+Syndrome Other Information Voice Chains and Their Member Chainlink Genes Chromosome 10 deletions 10pter–p13 or 10p14–p15.1 OMIM: 146255 Names: Barakat syndrome; hypoparathyroidism, sensorineural deafness, and renal dis- ease/dysplasia syndrome; HDRS; nephrosis, nerve deafness, and hypoparathyroidism {VN2}: IL2RA83 PRKCQ71 AKR1C370 IDI140 CALML536 AKR1C435 CALML333 GATA327 NUDT522 TAF321 (39 more . . .) ZMYND111 CELF21 10q23 OMIM: 612242 (10q22.3–q23.2) Names: Chromosome 10q22.3–q23.2 deletion syndrome {VN1} PTEN107 {VN2}: PTEN107 CYP2C8100 NRG385 CYP2C978 FAS70 CYP2C1966 GLUD146 LIPA39 BMPR1A28 PLCE125 (49 more . . .) PDLIM11 PCGF51 MMRN21 IFIT21 10q26 OMIM: 609625; Cytogenetic location: 10q26 Genomic coordinates (GRCh38): 10:128,800,000– 133,797,422 Names: Chromosome 10q26 deletion syndrome; terminal chromosome 10q26 deletion syndrome {VN2}: FGFR2113 CYP2E191 ECHS188 ACADSB41 DOCK133 BUB328 OAT21 RPL21P1620 EIF3A19 GRK517 (38 more . . .) RAB11FIP21 MKI671 EBF31 CUZD11 CALY1 Chromosome 11 deletions 11p11.2–p12 OMIM: 601224 (11p11.2); Cytogenetic location: 11p11.2 Genomic coordinates (GRCh38): 11:43,400,000–48,800,000 Names: Potocki–Shaffer syndrome; PSS; chromosome 11p11.2 deletion syndrome: proximal 11p deletion syndrome; DEFECT11 syndrome {VN2}: TRAF6134 NUP16088 F285 PSMC330 NR1H326 CREB3L126 CKAP525 DDB222 SPI119 HSD17B1219 (36 more . . .) (Multiple incl. WT1, PAX6, BDNF) †‡ (SLC1A2, PRRG4)(cid:63), 11p13-p12 OMIM: 612469; Cytogenetic location: 11p13–p12 Genomic coordinates (GRCh38): 11:31,000,000– 43,400,000 Names: Wilms tumor, aniridia, genitourinary anomalies, mental retardation and obesity syndrome; WAGRO; WAGRO syndrome; WAGR syndrome with obesity; chromosome 11p13-p12 deletion syndrome {VN2}: TRAF6134 CAT37 CD4427 CD5919 CSTF316 SLC1A214 EIF3M14 PDHX12 WT110 APIP10 (13 more . . .) PRR5L1 ELF51 11p15.5 OMIM: 130650; Names: 130650: Beckwith–Wiedemann syndrome; BWS; exomphalos–macroglossia–gigantism syndrome; EMG syndrome; Wiedemann–Beckwith syndrome; WBS {VN1}: HRAS347 {VN2}: HRAS347 INS103 POLR2L85 KCNQ169 DUSP853 TNNT352 TNNI252 AP2A247 IRF739 TH30 (40 more . . .) RIC8A1 RASSF71 NLRP61 MIR4831 KRTAP5-41 KRTAP5-11 DEAF11 CRACR2B1 BRSK21 11q13.3 OMIM: 166750 Names: Chromosome 11q13 deletion syndrome; ododental syndrome; otodental dysplasia and coloboma due to 11q13.3 microdeletion {VN2}: FGF4135 CCND1122 FGF3103 FGF1995 FADD73 CPT1A38 CTTN22 PPFIA18 TPCN25 SHANK24 ANO13
+(Implicated Genes from Microarray Studies)
+(Multiple incl. GATA3)
+(PTEN, BMPR1A)
+(HMX3, DOCK1, C10ORF90) †‡
+(EXT2, ALX4) ‡
+(Multiple incl. CDKN1C, H19, IGF2) †‡
+(FGF4, FGF3, FADD) †‡
+24 of 33
+Reported Effects on Speech
+Sensorineural hearing loss
+Delayed or absent speech; impaired speech [29]
+Impaired speech; delayed speech [30]
+Idiosyncratic speech, dysarthria, delayed speech, apraxia [31]
+Impaired speech [32]
+Impaired speech [33]
+Delayed speech [34]; Im- paired speech [35]
+
+
+Entropy 2023, 25, 897
+Table A1. Cont.
+Syndrome Other Information Voice Chains and Their Member Chainlink Genes 11q23 OMIM: 188025; Cytogenetic location: 11q23 Genomic coordinates (GRCh38): 11:114,600,000– 121,300,000 Names: Chromosome 11q23 deletion syndrome; thrombocytopenia, Paris–Trousseau type; TCPT; Paris–Trousseau syndrome; 11q terminal deletion syndrome {VN2}: FXYD2158 PPP2R1B145 CBL104 H2AX62 NCAM156 CD3G43 CD3D40 SC5D39 DLAT39 APOA139 (67 more . . .) ZPR11 TMPRSS41 TMPRSS131 TAGLN1 SIK31 POU2F31 MPZL21 C11orf521 (FLI1, BSX, NRGN, FRA11B, JAM3) †‡ 11q23.3-q25 OMIM: 147791; Cytogenetic location: 11q23.3–q25 Genomic coordinates (GRCh38): 11:114,600,000– 135,086,622 Names: Jacobsen syndrome; JBS; Del(11)(qter); distal deletion of 11q; distal monosomy 11q; mono- somy 11qter {VN2}: FXYD2158 CBL104 KCNJ570 H2AX62 HSPA851 CHEK148 CD3G43 CD3D40 SC5D39 APOA139 (109 more . . .) ZPR11 VPS26B1 TMPRSS41 TMPRSS131 TAGLN1 SLC37A21 SIK31 POU2F31 MPZL21 IGSF9B1 GRAMD1B1 EI241 Chromosome 12 deletions 12q14.3 OMIM: 618908 Names: Silver–Russell syndrome 5; SRS5 {VN2}: IRAK318 WIF115 MIR650215 GNS15 MSRB312 LEMD310 GRIP19 HMGA27 CAND17 Chromosome 13 deletions 13q12.3 OMIM: 601952 Names: Keratosis linearis with ichthyosis congenita and sclerosing keratoderma syndrome; KLICK syndrome {VN2}: HMGB143 FLT136 ALOX5AP13 SLC7A111 HSPH111 B3GLCT5 13q14 OMIM: 613884; Cytogenetic location: 13q14 Genomic coordinates (GRCh38): 13:50,300,000– 54,700,000 Names: Chromosome 13q14 deletion syndrome {VN2}: RB194 FOXO191 GTF2F251 KBTBD750 SLC25A1524 HTR2A23 TNFSF1118 LPAR616 CYSLTR215 DGKH14 (36 more . . .) WDFY21 ITM2B1 DLEU21 DLEU11 AKAP111 13q22.3 OMIM: 277580; Names: Waardenburg syndrome, Type 4A; WS4A; Waardenburg syndrome with Hirschsprung disease, Type 4A; Waardenburg–Shah syndrome; Shah–Waardenburg syndrome; WS4 {VN2}: EDNRB26 FBXL310 MYCBP21 (SOX1, ARHGEF7) †‡ 13q33–q34 OMIM: 619148; Cytogenetic location: 13q33–q34 Genomic coordinates (GRCh38): 13:106,400,000– 114,364,328 Names: Chromosome 13q33–q34 deletion syndrome {VN2}: IRS2108 RASA352 TFDP148 F746 F1045 CDC1637 COL4A136 COL4A233 ARHGEF731 ATP4B27 (20 more . . .) ING11 Chromosome 14 deletions 14q11–q22 OMIM: 613457; Cytogenetic location: 14q11–q22 Genomic coordinates (GRCh38): 14:18,200,000– 57,600,000 Names: Chromosome 14q11-q22 deletion syndrome {VN2}: NFKBIA168 ADCY499 GNG289 SOS275 POLE247 PNP45 SLC7A740 SLC7A839 BMP433 GZMB28 (163 more . . .) ZNF2191 WDHD11 TRD1 TEP11 RALGAPA11 PAX91 NDRG21 MIR208A1 DLGAP51 CEBPE1 BAZ1A1 AKAP61
+(Implicated Genes from Microarray Studies)
+(Multiple incl. FLI1) †‡
+(HMGA2) †‡
+(POMP) †‡
+(RB1) ‡
+(EDNRB) †‡
+(Multiple incl. PAX9, SUPT16H, CHD8, RALGAPA1] †‡
+25 of 33
+Reported Effects on Speech
+Dysarthric speech, absent speech [36]; impaired speech [37]
+Impaired speech, delayed speech, apraxia [38]
+Absent, impaired [38] or delayed speech [39]
+Delayed speech [40]
+Normal speech [41]
+Normal speech [41]
+Apraxia
+Delayed [42] or Absent speech
+
+
+Entropy 2023, 25, 897
+Table A1. Cont.
+Syndrome Other Information Voice Chains and Their Member Chainlink Genes (Multiple incl. PTGDR, BMP4) ‡ 14q22.1–q23.1 OMIM: 609640; Cytogenetic location: 14q22.1–q22.3 Genomic coordinates (GRCh38): 14:50,400,000– 57,600,000 Names: Frias syndrome; Chromosome 14q22 deletion syndrome; growth deﬁciency, facial anoma- lies, and brachydactyly {VN2}: GNG289 MNAT170 PRKCH35 BMP433 PSMA326 GNPNAT125 PELI224 PPM1A23 PYGL21 PTGER220 (31 more . . .) WDHD11 SIX61 SIX11 DLGAP51 14q32.2 OMIM: 608149 (paternal)/ 616222 (maternal); Cytogenetic location: 14q32 Genomic coordinates (GRCh38): 14:103,500,000–107,043,718 Names: 14q32.2 Kagami–Ogata syndrome; uniparental disomy, paternal, chromosome 14/14q32.2; Temple syndrome; uniparental disomy, maternal, chromosome 14 {VN2}: BDKRB232 CCNK25 BDKRB124 YY121 MIR676420 CYP46A119 PAPOLA18 DEGS213 EVL12 WARS110 (12 more . . .) MIR3451 MIR3421 MEG31 Chromosome 15 deletions 15q11.2 OMIM: 615656; Cytogenetic location: 15q11.2 Genomic coordinates (GRCh38): 15:20,500,000– 25,500,000 Names: Burnside–Butler syndrome; 15q11.2 BP1–BP2 microdeletion {VN2}: CYFIP116 UBE3A15 TUBGCP57 SNURF7 OR4N46 SNRPN5 OR4N4C5 OR4M25 NIPA22 NIPA12 NDN2 15q11–q13 OMIM: 176270 (for 5q11.2) Names: Prader-Willi syndrome; Prader-Lambhart-Willi syndrome; Labhart-Willi syndrome; Prader’s syndrome; Prader-Labhart-Willi-Fanconi syndrome {VN2}: HERC222 TJP120 RYR316 GABRA516 CYFIP116 UBE3A15 GABRB315 CHRNA714 GABRG313 TUBGCP57 (20 more . . .) MTMR101 HMGN2P51 FMN11 15q11–q13 OMIM: 105830 (for 15q11.2) Names: Angelman syndrome; happy puppet syndrome –Same as above– 15q13.3 OMIM: 612001; Cytogenetic location: 15q13.3 Genomic coordinates (GRCh38): 15:30,900,000– 33,400,000 Names: Chromosome 15q13.3 microdeletion syndrome {VN2}: RYR316 CHRNA714 TRPM14 OTUD7A4 FAN14 ARHGAP11A3 MTMR101 FMN11 15q24 OMIM: 613406 Names: Witteveen–Kolk syndrome; WITKOS; chromosome 15q24 deletion syndrome (included) {VN2}: CSK89 NRG482 CYP1A279 HCN456 CYP1A148 PML32 CYP11A132 SIN3A25 COX5A16 MPI15 (28 more . . .) SNX331 PTPN91 CLK31 Chromosome 16 deletions 16p11.2 OMIM: 611913; Cytogenetic location: 16p11.2 Genomic coordinates (GRCh38): 16:28,500,000– 35,300,000 Names: Chromosome 16p11.2 deletion syndrome (593 kb) or 16p11.2 deletion syndrome (220 kb) {VN1} SRCAP1 {VN2}: MAPK3447 ALDOA46 CD1938 ITGAM32 VKORC131 SULT1A129 ITGAL25 STX422 PYCARD19 CDIPT19 (60 more . . .) SRCAP1 RNF401 PYDC11 ORAI31 MAZ1 HIRIP31 AHSP1
+(Implicated Genes from Microarray Studies)
+(DLK1, MEG3, RTL1) ‡
+(NIPA1, NIPA2, CYFIP1, TUBGCP5) †‡
+(NDN, SNRPN) †‡
+(UBE3A) †‡
+(CHRNA7, CHRFAM7A, OTUD7A) †‡
+(Multiple incl. SIN3A) †‡
+(SH2B1 ‡, TBX6, CORO1A) †‡
+26 of 33
+Reported Effects on Speech
+Impaired speech [43]
+Delayed speech; idiosyncratic speech [44]
+Delayed speech
+Delayed or Impaired speech
+Absent speech; impaired speech [45]
+Impaired or idiosyncratic speech
+Delayed or impaired speech
+Apraxia [46]; dysarthria [47]; delayed or impaired speech
+
+
+Entropy 2023, 25, 897
+Table A1. Cont.
+Syndrome Other Information Voice Chains and Their Member Chainlink Genes 16p12.2–p11.2 OMIM: 613604; Cytogenetic location: 16p12.2–p11.2 Genomic coordinates (GRCh38): 16:21,200,000–35,300,000 Names: Chromosome 16p12.2–p11.2 deletion syndrome, 7.1 to 8.7 MB {VN1} SRCAP1 {VN2}: MAPK3447 PRKCB184 PLK165 ALDOA46 CD1938 SCNN1G35 SCNN1B35 TNRC6A33 ITGAM32 VKORC131 (96 more . . .) XPO61 USP311 SRCAP1 RNF401 PYDC11 ORAI31 MAZ1 IGSF61 HIRIP31 CLN31 CHP21 AHSP1 16p12.1 OMIM: 136570; Cytogenetic location: 16p12 Genomic coordinates (GRCh38): 16:24,200,000– 28,500,000 Names: Chromosome 16p12.1 deletion syndrome, 520 KB {VN2}: TNRC6A33 IL4R24 CACNG320 EIF3CL14 HS3ST48 GTF3C18 SLC5A117 IL277 AQP87 NSMCE15 (7 more . . .) XPO61 CLN31 16p13.11 OMIM: 619351 Names: 16p13.1 microdeletion predisposing to autism and/or ID; megacystis–microcolon– intestinal hypoperistalsis syndrome 2; MMIHS2 {VN2}: ABCC141 NDE123 MIR48423 MYH1118 RRN37 ABCC64 16p13.3 OMIM: 610543; Cytogenetic location: 16p13.3 Genomic coordinates (GRCh38): 16:0–7,800,000 Names: Chromosome 16p13.3 deletion syndrome, proximal; severe Rubinstein–Taybi syndrome (RTS); broad thumb–hallux syndrome; Rubinstein syndrome; Rubinstein–Taybi deletion syndrome; RSTS deletion syndrome {VN1} CREBBP140 {VN2}: PDPK1173 CREBBP140 ADCY9102 TSC278 MLST869 GNG1368 CACNA1H60 AXIN149 UBE2I44 ELOB40 RPS235 (111 more . . .) WDR241 TFAP41 SOX81 SEPTIN121 RHBDL11 RBFOX11 PGP1 NPRL31 NAGPA1 MIR31761 HAGHL1 GNPTG1 GLIS21 FAHD11 E4F11 CHTF181 BAIAP31 16q22 OMIM: 614541; Cytogenetic location: 16q22 Genomic coordinates (GRCh38): 16:72,800,000– 74,100,000 Names: Chromosome 16q22 deletion syndrome {VN1}: CMTR22 {VN2}: CDH160 TRADD50 SNTB250 SLC7A642 NFATC330 TAT29 PARD6A27 E2F426 NQO125 ST3GAL224 (83 more . . .) WWP21 PSKH11 PKD1L31 NUTF21 NOB11 CHTF81 CDH161 16q24.3–q24.2 {VN2}: SLC7A548 MVD42 CYBA28 APRT28 RPL1322 CDT120 TUBB313 MC1R11 DPEP110 TRAPPC2L9 (18 more . . .) SPIRE21 CHMP1A1 Chromosome 17 deletions 17p11.2 OMIM: 182290 Names: Smith–Magenis syndrome; chromosome 17p11.2 deletion syndrome {VN2}: UBB280 MAP2K3108 MAPK772 ALDH3A150 SHMT149 ALDH3A246 SREBF127 TOP3A25 MIR677820 KCNJ1217 (26 more . . .) 17p13.1 EFNB3) †‡ OMIM: 613776; Cytogenetic location: 17p13.1 Genomic coordinates (GRCh38): 17:6,500,000– 10,800,000 Names: Chromosome 17p13.1 deletion syndrome {VN1} TP53206 KDM6B8 {VN2}: TP53206 ATP1B2161 PIK3R5104 DLG476 POLR2A71 ALOX1255 ALOX15B51 ALOX12B48 DVL245 SLC2A438 VAMP237 (63 more . . .) TNK11 SHBG1 MYH41 MYH131 MYH11 MIR4971 MIR3241 DNAH21
+(Implicated Genes from Microarray Studies)
+(Multiple incl. SH2B1) * [76]
+(Multiple) ‡
+(Multiple incl. MYH11) †
+(CREBBP, DNASE1, TRAP1) †‡
+(CBFB) †‡
+(CDH15, ZNF778, ANKRD11, ZFPM1) ∗∗
+(LLGL1, RAI1, UBB) †‡
+(Multiple incl. KCNAB3, GUCY2D, TP53, TRAPPC1, MPDU1, CDG1F, FXR2, FMRP,
+27 of 33
+Reported Effects on Speech
+Delayed or impaired speech
+Delayed speech
+Delayed speech [48]
+Apraxia, dysarthria, impaired or delayed speech [49]
+–Not available–
+Delayed or impaired speech [50]
+Delayed speech; dysarthria [51]
+Absent speech
+
+
+Entropy 2023, 25, 897
+Table A1. Cont.
+Syndrome Other Information Voice Chains and Their Member Chainlink Genes 17p13.3 OMIM: 247200; Cytogenetic location: 17p13.3 Genomic coordinates (GRCh38): 17:0–3,400,000 Names: Miller–Dieker lissencephaly syndrome; MDLS; chromosome 17p13.3 deletion syndrome (included) {VN2}: CRK98 RPA186 YWHAE83 PAFAH1B134 INPP5K16 ABR12 SERPINF210 SLC43A29 OR3A18 OR1G18 (27 more . . .) SMYD41 SERPINF11 17q11.2 OMIM: 162200 Names: Neuroﬁbromatosis type I; NF1; Von Recklinghausen disease; neuroﬁbromatosis, periph- eral type; Morbus–Recklinghausen {VN2}: SLC6A473 KSR166 NF162 NOS241 PSMD1130 VTN28 NLK27 CDK5R126 RPL23A22 ALDOC19 (30 more . . .) RAB11FIP41 MIR451A1 MIR4231 17q12 OMIM: 614527; Cytogenetic location: 17q12 Genomic coordinates (GRCh38): 17:33,500,000– 39,800,000 Names: Chromosome 17q12 deletion syndrome {VN1} ERBB2124 {VN2}: CACNB1129 ERBB2124 AP2B149 PIP4K2B43 ACACA41 CCL530 CCL230 PSMB325 CCL424 RPL2323 (49 more . . .) PEX121 MMP281 DUSP141 17q21.31 OMIM: 610443 Names: Koolen–De Vries syndrome; KDVS; chromosome 17q21.31 deletion syndrome; Microdele- tion 17q21.31 syndrome {VN1}: KANSL14 BRCA164 {VN2}: ITGA2B95 BRCA164 MAP3K1459 G6PC143 FZD238 WNT336 DUSP331 HDAC528 NSF27 AOC324 (36 more . . .) TMEM106A1 RND21 HEXIM11 17q23.1-q23.2 OMIM: 613355; Cytogenetic location: 17q23.1–q23.2 Genomic coordinates (GRCh38): 17:59,500,000–63,100,000 Names: Chromosome 17q23.1–q23.2 deletion syndrome {VN2}: RPS6KB191 CLTC54 BRIP124 MIR2119 SKA212 MRC212 PTRH27 CA47 MED135 DHX404 (5 more . . .) BCAS31 APPBP21 (Multiple incl. ABCA5, MAP2K6, SOX9) †‡ 17q24.3–q24.2 OMIM: 135400; Cytogenetic location: 17q24.2–q24.3 Genomic coordinates (GRCh38): 17:66,200,000– 72,900,000 Names: Hypertrichosis, congenital generalized, with or without gingival hyperplasia; HTC3; ﬁbromatosis, gingival, with hypertrichosis; chromosome 17q24.2–q24.3 deletion syndrome {VN2}: PRKCA237 MAP2K6131 PRKAR1A122 KCNJ271 PSMD1231 CACNG421 KPNA216 KCNJ1613 (14 more . . .) BPTF1 Chromosome 18 deletions 18q OMIM: 601808; Cytogenetic location: 18q Genomic coordinates (GRCh38): 18:18,500,000– 80,373,285 Names: Chromosome 18q deletion syndrome; 18q syndrome {VN2}: BCL2100 SMAD479 ROCK178 SMAD266 ACAA260 NFATC152 PIK3C343 SMAD736 LAMA335 SLC14A234 (112 more . . .) SS181 SETBP11 SERPINB41 SERPINB131 RIOK31 NETO11 MIR1221 MBD11 LINC-ROR1 GAREM11 CELF41
+(Implicated Genes from Microarray Studies)
+(LIS1, PAFAH1B1, YWHAE) †‡
+(NF1)‡
+(Multiple incl. HNF1B, LHX1, CCL3L3, SNIP) †‡
+(KANSL1, MAPT, CRHR1) ‡
+(TBX4) †‡
+(Multiple incl. MBP, TSHZ1) †‡
+28 of 33
+Reported Effects on Speech
+Delayed speech [52]
+No signiﬁcant speech issues
+Delayed or impaired speech
+Delayed or absent speech
+Delayed speech [53]
+Delayed speech [54]
+Delayed [55] or impaired [56] speech
+
+
+Entropy 2023, 25, 897
+Table A1. Cont.
+Syndrome Other Information Voice Chains and Their Member Chainlink Genes Chromosome 19 deletions 19p13.13 OMIM: 613638; Cytogenetic location: 19p13.13 Genomic coordinates (GRCh38): 19:12,600,000– 13,800,000 Names: Chromosome 19p13.13 deletion syndrome {VN1} MAP2K2257 UHRF16 {VN2}: MAP2K2257 FGF22102 VAV1100 POLR2E85 SHC281 GNG775 PIP5K1C58 GTF2F153 GNA1148 PSPN47 (121 more . . .) ZBTB7A1 TJP31 SEMA6B1 REXO11 PLIN41 MYDGF1 MIR7-31 DPP91 DAZAP11 19q13.11 OMIM: 613026 (distal)/ 617219 (proximal); Cytogenetic location: 19q13.11 Genomic coordinates (GRCh38): 19:31,900,000–35,100,000 Names: Chromosome 19q13.11 deletion syndrome, distal; chromosome 19q13.11 deletion syndrome, proximal {VN1} CEBPA23 {VN2}: SCN1B62 GPI51 SLC7A939 PSMC428 CEBPA23 SLC7A1013 UBA28 CHST87 WTIP6 RGS9BP6 (12 more . . .) Chromosome 20 deletions 20p12.3 {VN2}: PLCB1159 PCNA79 PLCB468 BMP233 MCM825 PROKR29 CRLS19 CDS29 GPCPD18 RPS18P16 HAO16 TRMT63 LRRN41 Chromosome 22 deletions 22q11.2 OMIM: 611867; Cytogenetic location: 22q11.2 Genomic coordinates (GRCh38): 22:23,100,000– 25,500,000 Names: Chromosome 22q11.2 deletion syndrome; distal chromosome 22q11.2 deletion syndrome {VN2}: MAPK1469 CRKL68 GGT162 BID56 ADORA2A35 COMT33 GNAZ32 UPB124 ATP6V1E123 IGL22 (56 more . . .) PIWIL31 MIR1851 22q12.2 OMIM: 101000 Names: Neuroﬁbromatosis type II; neuroﬁbromatosis, central type; acoustic schwannomas, bilat- eral; bilateral acoustic neuroﬁbromatosis; BANF; acoustic neurinoma, bilateral; ACN {VN2}: LIF26 PLA2G320 AP1B120 LIMK219 INPP5J18 OSM15 PISD14 SFI113 RNF18513 MTMR312 (17 more . . .) SEC14L21 PIK3IP11 MIR32001 DEPDC51 22q13.3 OMIM: 606232 Names: Phelan–McDermid syndrome; PHMDS; chromosome 22q13.3 deletion syndrome; telom- eric 22q13 monosomy syndrome {VN1} BRD19 {VN2}: MAPK11140 MAPK1284 NUP5079 PRR538 PPARA35 WNT7B31 TYMP23 HDAC1019 CHKB19 ARSA19 (35 more . . .) UPK3A1 PLXNB21 GRAMD41 CELSR11 Chromosome X deletions Xp11.3 OMIM: 300578; Cytogenetic location: Xp11.3 Genomic coordinates (GRCh38): X:42,500,000– 47,600,000 Names: Chromosome Xp11.3 deletion syndrome; mental retardation, X-linked, with retinitis pig- mentosa {VN1} KDM6A6 {VN2}: ARAF106 MAOA72 MAOB37 UBA118 TIMP116 NDUFB1110 MIR22110 CHST710 MIR2229 USP118 (10 more . . .)
+(Implicated Genes from Microarray Studies)
+(Multiple incl. NFIX, MAST1, CALR) †‡
+(Multiple incl. LSM14A, UBA2, WTIP, TSHZ3) †‡
+(Multiple incl. BMP2)
+(Multiple incl. TBX1 †, COMT †, INI1 †‡, TOP3B †‡ )
+(NF2) ‡
+(ARSA, SHANK3) ‡
+(Multiple incl. RP2, ZNF674) †‡
+29 of 33
+Reported Effects on Speech
+Delayed speech; impaired speech [57]
+Delayed or absent speech; impaired speech [58]
+Delayed or Impaired speech [59]
+Apraxia, dysarthria, delayed, or impaired speech [60]
+Delayed or impaired speech [61]
+Delayed or absent speech
+Impaired speech [62]
+
+
+Entropy 2023, 25, 897
+30 of 33
+Table A1. Cont.
+Syndrome Other Information Voice Chains and Their Member Chainlink Genes Xp21 OMIM: 300679; Cytogenetic location: Xp21 Genomic coordinates (GRCh38): X:31,500,000– 37,800,000 Names: Chromosome Xp21 deletion syndrome; Complex glycerol kinase deﬁciency {VN2}: TAB352 CYBB26 GK16 DMD12 NR0B18 XK5 ARX2 Xq28 (a) OMIM: 300475 Names: Deafness, dystonia, and cerebral hypomyelination; DDCH; contiguous ABCD1/DXS1375E deletion syndrome, included; CADDS, included {VN2}: IKBKG161 IRAK185 MIR71854 DUSP952 F846 H2AB143 NSDHL35 G6PD33 FLNA28 IDH3G26 (54 more . . .) MPP11 MIR2241 MIR105-11 MAGEA111 Xq28 (b) OMIM: 312750 Names: Rett syndrome; RTT; RTS autism, dementia, ataxia, and loss of purposeful hand use –same as above– Chromosome Y deletions Yq11 OMIM: 415000 Names: Spermatogenic failure, Y-linked, 2; SPGFY2; Sertoli-cell-only syndrome; Del Castillo syn- drome; germ cell aplasia, spermatogenic failure {VN2}: RPS4Y225 UTY4 NLGN4Y4 KDM5D3 CD24P43 TMSB4Y1
+(Implicated Genes from Microarray Studies)
+(GK, DMD, NR0B1) †‡
+(ABCD1, BCAP31, SLC6A8) †‡
+(MECP2) †‡
+(USP9Y, BPY2, CDY1) †‡
+Reported Effects on Speech
+Delayed speech [63]
+Delayed speech [64]
+Normal to absent speech
+Normal speech
+Sources: †: [77], ‡: [78], †‡: From OMIM records, (cid:63): [32], ∗∗: [50].
+References
+1. 2. 3.
+Singh, R. Proﬁling Humans from Their Voice; Springer-Nature: Singapore, 2019. Sataloff, R.T. Genetics of the voice. J. Voice 1995, 9, 16–19. [CrossRef] [PubMed] Ganapathiraju, M.K.; Thahir, M.; Handen, A.; Sarkar, S.N.; Sweet, R.A.; Nimgaonkar, V.L.; Loscher, C.E.; Bauer, E.M.; Chaparala, S. Schizophrenia interactome with 504 novel protein–protein interactions. NPJ Schizophr. 2016, 2, 16012. [CrossRef] [PubMed]
+4. Morgan, A.; Fisher, S.E.; Scheffer, I.; Hildebrand, M. FOXP2-Related Speech and Language Disorders. In GeneReviews®; University of Washington: Seattle, WA, USA, 2017. Fisher, S.E.; Scharff, C. FOXP2 as a molecular window into speech and language. Trends Genet. 2009, 25, 166–177. [CrossRef] [PubMed] FOXP2. Online Mendelian Inheritance in Man (OMIM) Entry 605317. Available online: https://omim.org/entry/605317 (accessed on 21 September 2022). Den Hoed, J.; Fisher, S.E. Genetic pathways involved in human speech disorders. Curr. Opin. Genet. Dev. 2020, 65, 103–111. [CrossRef] FOXP2. The Human Protein Atlas. Available online: https://www.proteinatlas.org/ENSG00000128573-FOXP2 (accessed on 21 September 2022). Bac, C. Investigation of Speech Delay in Individuals with 1p36 Deletion Syndrome. Ph.D. Thesis, University of Cincinnati, Cincinnati, OH, USA, 2015.
+4. Morgan, A.; Fisher, S.E.; Scheffer, I.; Hildebrand, M. FOXP2-Related Speech and Language Disorders. In GeneReviews®; University of Washington: Seattle, WA, USA, 2017. Fisher, S.E.; Scharff, C. FOXP2 as a molecular window into speech and language. Trends Genet. 2009, 25, 166–177. [CrossRef] [PubMed] FOXP2. Online Mendelian Inheritance in Man (OMIM) Entry 605317. Available online: https://omim.org/entry/605317 (accessed on 21 September 2022). Den Hoed, J.; Fisher, S.E. Genetic pathways involved in human speech disorders. Curr. Opin. Genet. Dev. 2020, 65, 103–111. [CrossRef] FOXP2. The Human Protein Atlas. Available online: https://www.proteinatlas.org/ENSG00000128573-FOXP2 (accessed on 21 September 2022). Bac, C. Investigation of Speech Delay in Individuals with 1p36 Deletion Syndrome. Ph.D. Thesis, University of Cincinnati, Cincinnati, OH, USA, 2015.
+5.
+6.
+7.
+8.
+10. Pang, H.; Yu, X.; Kim, Y.M.; Wang, X.; Jinkins, J.K.; Yin, J.; Li, S.; Gu, H. Disorders Associated With Diverse, Recurrent Deletions and Duplications at 1q21.1. Front. Genet. 2020, 11, 577. [CrossRef]
+11. Brazil, A.; Stanford, K.; Smolarek, T.; Hopkin, R. Delineating the phenotype of 1p36 deletion in adolescents and adults. Am. J. Med. Genet. Part A 2014, 164, 2496–2503. [CrossRef]
+12. He, J.; Xie, Y.; Kong, S.; Qiu, W.; Wang, X.; Wang, D.; Sun, X.; Sun, D. Psychomotor retardation with a 1q42.11–q42.12 deletion. Hereditas 2017, 154, 6. [CrossRef]
+13. Peter, B.; Matsushita, M.; Oda, K.; Raskind, W. De novo microdeletion of BCL11A is associated with severe speech sound disorder. Am. J. Med. Genet. Part A 2014, 164, 2091–2096. [CrossRef]
+14. Eggermann, T.; Spengler, S.; Venghaus, A.; Denecke, B.; Zerres, K.; Baudis, M.; Ensenauer, R. 2p21 Deletions in hypotonia– cystinuria syndrome. Eur. J. Med. Genet. 2012, 55, 561–563. [CrossRef]
+15. Chen, C.P.; Lin, S.P.; Chern, S.R.; Tsai, F.J.; Wu, P.C.; Lee, C.C.; Chen, L.F.; Lee, M.S.; Wang, W. Deletion 2q37.3 −→ qter and duplication 15q24.3 −→ qter characterized by array CGH in a girl with epilepsy and dysmorphic features. Genet. Couns. 2010, 21, 263.
+
+
+Entropy 2023, 25, 897
+16. Palumbo, O.; D’Agruma, L.; Minenna, A.F.; Palumbo, P.; Stallone, R.; Palladino, T.; Zelante, L.; Carella, M. 3p14.1 de novo microdeletion involving the FOXP1 gene in an adult patient with autism, severe speech delay and deﬁcit of motor coordination. Gene 2013, 516, 107–113. [CrossRef]
+17. Lowther, C.; Costain, G.; Melvin, R.; Stavropoulos, D.J.; Lionel, A.C.; Marshall, C.R.; Scherer, S.W.; Bassett, A.S. Adult expression of a 3q13.31 microdeletion. Mol. Cytogenet. 2014, 7, 23. [CrossRef]
+18. Van Borsel, J.; De Grande, S.; Van Buggenhout, G.; Fryns, J.P. Speech and language in Wolf-Hirschhorn syndrome: A case-study. J. Commun. Disord. 2004, 37, 21–33. [CrossRef]
+19. Bonnet, C.; Andrieux, J.; Beri-Dexheimer, M.; Leheup, B.; Boute, O.; Manouvrier, S.; Delobel, B.; Copin, H.; Receveur, A.; Mathieu, M.; et al. Microdeletion at chromosome 4q21 deﬁnes a new emerging syndrome with marked growth restriction, mental retardation and absent or severely delayed speech. J. Med. Genet. 2010, 47, 377–384. [CrossRef]
+20. Tran, T.M.; Sherwood, J.K.; Doolittle, M.J.; Sathler, M.F.; Hofmann, F.; Stone-Roy, L.M.; Kim, S. Loss of cGMP-dependent protein kinase II alters ultrasonic vocalizations in mice, a model for speech impairment in human microdeletion 4q21 syndrome. Neurosci. Lett. 2021, 759, 136048. [CrossRef]
+21. Kristoffersen, K.E. Speech and language development in cri du chat syndrome: A critical review. Clin. Linguist. Phon. 2008, 22, 443–457. [CrossRef] [PubMed] Flax, J.F.; Hare, A.; Azaro, M.A.; Vieland, V.J.; Brzustowicz, L.M. Combined linkage and linkage disequilibrium analysis of a motor speech phenotype within families ascertained for autism risk loci. J. Neurodev. Disord. 2010, 2, 210–223. [CrossRef] 23. Rauch, A.; Beese, M.; Mayatepek, E.; Dörr, H.G.; Wenzel, D.; Reis, A.; Trautmann, U. A novel 5q35.3 subtelomeric deletion
+21. Kristoffersen, K.E. Speech and language development in cri du chat syndrome: A critical review. Clin. Linguist. Phon. 2008, 22, 443–457. [CrossRef] [PubMed] Flax, J.F.; Hare, A.; Azaro, M.A.; Vieland, V.J.; Brzustowicz, L.M. Combined linkage and linkage disequilibrium analysis of a motor speech phenotype within families ascertained for autism risk loci. J. Neurodev. Disord. 2010, 2, 210–223. [CrossRef] 23. Rauch, A.; Beese, M.; Mayatepek, E.; Dörr, H.G.; Wenzel, D.; Reis, A.; Trautmann, U. A novel 5q35.3 subtelomeric deletion
+syndrome. Am. J. Med. Genet. Part A 2003, 121, 1–8. [CrossRef]
+24. Peter, B.; Lancaster, H.; Vose, C.; Fares, A.; Schrauwen, I.; Huentelman, M. Two unrelated children with overlapping 6q25.3 deletions, motor speech disorders, and language delays. Am. J. Med. Genet. Part A 2017, 173, 2659–2669. [CrossRef]
+25. Bianchi, E.; Aric ˘o, M.; Podest˘a, A.F.; Grana, M.; Fiori, P.; Belufﬁ, G.; Opitz, J.M.; Reynolds, J.F. A family with the Saethre-Chotzen syndrome. Am. J. Med. Genet. 1985, 22, 649–658. [CrossRef]
+26. Vanzo, R.J.; Martin, M.M.; Sdano, M.R.; South, S.T. Familial KANK1 deletion that does not follow expected imprinting pattern. Eur. J. Med. Genet. 2013, 56, 256–259. [CrossRef] [PubMed]
+27. Yatsenko, S.; Cheung, S.; Scott, D.; Nowaczyk, M.; Tarnopolsky, M.; Naidu, S.; Bibat, G.; Patel, A.; Leroy, J.; Scaglia, F.; et al. Deletion 9q34.3 syndrome: Genotype-phenotype correlations and an extended deletion in a patient with features of Opitz C trigonocephaly. J. Med. Genet. 2005, 42, 328–335. [CrossRef] [PubMed] Samango-Sprouse, C.; Lawson, P.; Sprouse, C.; Stapleton, E.; Sadeghin, T.; Gropman, A. Expanding the phenotypic proﬁle of Kleefstra syndrome: A female with low-average intelligence and childhood apraxia of speech. Am. J. Med. Genet. Part A 2016, 170, 1312–1316. [CrossRef] [PubMed] Septer, S.; Zhang, L.; Lawson, C.E.; Cocjin, J.; Attard, T.; Ardinger, H.H. Aggressive juvenile polyposis in children with chromosome 10q23 deletion. World J. Gastroenterol. WJG 2013, 19, 2286. [CrossRef] 29.
+28.
+30. Nishi, E.; Uehara, T.; Yanagi, K.; Hasegawa, Y.; Ueda, K.; Kaname, T.; Yamamoto, T.; Kosaki, K.; Okamoto, N. Clinical spectrum of individuals with de novo EBF3 variants or deletions. Am. J. Med. Genet. Part A 2021, 185, 2913–2921. [CrossRef]
+31. Kim, H.G.; Rosenfeld, J.A.; Scott, D.A.; Bénédicte, G.; Labonne, J.D.; Brown, J.; McGuire, M.; Mahida, S.; Naidu, S.; Gutierrez, J.; et al. Disruption of PHF21A causes syndromic intellectual disability with craniofacial anomalies, epilepsy, hypotonia, and neurobehavioral problems including autism. Mol. Autism 2019, 10, 35. [CrossRef]
+32. Xu, S.; Han, J.; Morales, A.; Menzie, C.; Williams, K.; Fan, Y.S. Characterization of 11p14-p12 deletion in WAGR syndrome by array CGH for identifying genes contributing to mental retardation and autism. Cytogenet. Genome Res. 2008, 122, 181–187. [CrossRef]
+33. Borsel, J.V.; Morlion, B.; Snick, K.V.; Leroy, J.S. Articulation in Beckwith-Wiedemann syndrome: Two case studies. Am. J. Speech-Lang. Pathol. 2000, 9, 202–213. [CrossRef]
+34. Kim, Y.S.; Kim, G.H.; Byeon, J.H.; Eun, S.H.; Eun, B.L. Chromosome 11q13 deletion syndrome. Korean J. Pediatr. 2016, 59, S10. [CrossRef]
+35. Chilian, B.; Abdollahpour, H.; Bierhals, T.; Haltrich, I.; Fekete, G.; Nagel, I.; Rosenberger, G.; Kutsche, K. Dysfunction of SHANK2 and CHRNA7 in a patient with intellectual disability and language impairment supports genetic epistasis of the two loci. Clin. Genet. 2013, 84, 560–565. [CrossRef]
+36. Takahashi, I.; Takahashi, T.; Sawada, K.; Shimojima, K.; Yamamoto, T. Jacobsen syndrome due to an unbalanced translocation between 11q23 and 22q11.2 identiﬁed at age 40 years. Am. J. Med. Genet. Part A 2012, 158, 220–223. [CrossRef]
+37. Penny, L.A.; Dell’Aquila, M.; Jones, M.C.; Bergoffen, J.; Cunniff, C.; Fryns, J.P.; Grace, E.; Graham, J.M.; Kousseff, B.; Mattina, T.; et al. Clinical and molecular characterization of patients with distal 11q deletions. Am. J. Hum. Genet. 1995, 56, 676.
+38. Manolakos, E.; Orru, S.; Neroutsou, R.; Kefalas, K.; Louizou, E.; Papoulidis, I.; Thomaidis, L.; Peitsidis, P.; Sotiriou, S.; Kitsos, G.; et al. Detailed molecular and clinical investigation of a child with a partial deletion of chromosome 11 (Jacobsen syndrome). Mol. Cytogenet. 2009, 2, 26. [CrossRef]
+39. Lynch, S.A.; Foulds, N.; Thuresson, A.C.; Collins, A.L.; Annerén, G.; Hedberg, B.O.; Delaney, C.A.; Iremonger, J.; Murray, C.M.; Crolla, J.A.; et al. The 12q14 microdeletion syndrome: Six new cases conﬁrming the role of HMGA2 in growth. Eur. J. Hum. Genet. 2011, 19, 534–539. [CrossRef]
+31 of 33
+
+
+Entropy 2023, 25, 897
+40. Bartholdi, D.; Stray-Pedersen, A.; Azzarello-Burri, S.; Kibaek, M.; Kirchhoff, M.; Oneda, B.; Rødningen, O.; Schmitt-Mechelke, T.; Rauch, A.; Kjaergaard, S. A newly recognized 13q12.3 microdeletion syndrome characterized by intellectual disability, microcephaly, and eczema/atopic dermatitis encompassing the HMGB1 and KATNAL1 genes. Am. J. Med. Genet. Part A 2014, 164, 1277–1283. [CrossRef]
+41. Tüysüz, B.; Collin, A.; Arapo ˘glu, M.; Suyugül, N. Clinical variability of Waardenburg–Shah syndrome in patients with proximal 13q deletion syndrome including the endothelin-B receptor locus. Am. J. Med. Genet. Part A 2009, 149, 2290–2295. [CrossRef] Fonseca, D.J.; Prada, C.F.; Siza, L.M.; Angel, D.; Gomez, Y.M.; Restrepo, C.M.; Douben, H.; Rivadeneira, F.; de Klein, A.; Laissue, P. A de novo 14q12q13.3 interstitial deletion in a patient affected by a severe neurodevelopmental disorder of unknown origin. Am. J. Med. Genet. Part A 2012, 158, 689–693. [CrossRef] 42.
+43. Martínez-Fernández, M.L.; Bermejo-Sánchez, E.; Fernández, B.; MacDonald, A.; Fernández-Toral, J.; Martínez-Frías, M.L. Haploinsufﬁciency of BMP4 gene may be the underlying cause of Frias syndrome. Am. J. Med. Genet. Part A 2014, 164, 338–345. [CrossRef]
+44. Huang, H.; Mikami, Y.; Shigematsu, K.; Uemura, N.; Shinsaka, M.; Iwatani, A.; Miyake, F.; Kabe, K.; Takai, Y.; Saitoh, M.; et al. Kagami–Ogata syndrome in a fetus presenting with polyhydramnios, malformations, and preterm delivery: A case report. J. Med. Case Rep. 2019, 13, 340. [CrossRef]
+45. Murthy, S.; Nygren, A.; El Shakankiry, H.; Schouten, J.; Al Khayat, A.; Ridha, A.; Al Ali, M. Detection of a novel familial deletion of four genes between BP1 and BP2 of the Prader-Willi/Angelman syndrome critical region by oligo-array CGH in a child with neurological disorder and speech impairment. Cytogenet. Genome Res. 2007, 116, 135–140. [CrossRef]
+46. Mei, C.; Fedorenko, E.; Amor, D.J.; Boys, A.; Hoeﬂin, C.; Carew, P.; Burgess, T.; Fisher, S.E.; Morgan, A.T. Deep phenotyping of speech and language skills in individuals with 16p11.2 deletion. Eur. J. Hum. Genet. 2018, 26, 676–686 [CrossRef] [PubMed] 47. Demopoulos, C.; Kothare, H.; Mizuiri, D.; Henderson-Sabes, J.; Fregeau, B.; Tjernagel, J.; Houde, J.F.; Sherr, E.H.; Nagarajan, S.S. Abnormal speech motor control in individuals with 16p11.2 deletions. Sci. Rep. 2018, 8, 1274. [CrossRef] [PubMed] Sahoo, T.; Theisen, A.; Rosenfeld, J.A.; Lamb, A.N.; Ravnan, J.B.; Schultz, R.A.; Torchia, B.S.; Neill, N.; Casci, I.; Bejjani, B.A.; et al. Copy number variants of schizophrenia susceptibility loci are associated with a spectrum of speech and developmental delays and behavior problems. Genet. Med. 2011, 13, 868–880. [CrossRef] [PubMed]
+46. Mei, C.; Fedorenko, E.; Amor, D.J.; Boys, A.; Hoeﬂin, C.; Carew, P.; Burgess, T.; Fisher, S.E.; Morgan, A.T. Deep phenotyping of speech and language skills in individuals with 16p11.2 deletion. Eur. J. Hum. Genet. 2018, 26, 676–686 [CrossRef] [PubMed] 47. Demopoulos, C.; Kothare, H.; Mizuiri, D.; Henderson-Sabes, J.; Fregeau, B.; Tjernagel, J.; Houde, J.F.; Sherr, E.H.; Nagarajan, S.S. Abnormal speech motor control in individuals with 16p11.2 deletions. Sci. Rep. 2018, 8, 1274. [CrossRef] [PubMed] Sahoo, T.; Theisen, A.; Rosenfeld, J.A.; Lamb, A.N.; Ravnan, J.B.; Schultz, R.A.; Torchia, B.S.; Neill, N.; Casci, I.; Bejjani, B.A.; et al. Copy number variants of schizophrenia susceptibility loci are associated with a spectrum of speech and developmental delays and behavior problems. Genet. Med. 2011, 13, 868–880. [CrossRef] [PubMed]
+49. Hennekam, R.C.; Baselier, A.C.; Beyaert, E.; Bos, A.; Blok, J.; Jansma, H.; Thorbecke-Nilsen, V.; Veerman, H. Psychological and speech studies in Rubinstein-Taybi syndrome. Am. J. Ment. Retard. 1992, 96, 645–660. [PubMed]
+50. Novara, F.; Rinaldi, B.; Sisodiya, S.M.; Coppola, A.; Giglio, S.; Stanzial, F.; Benedicenti, F.; Donaldson, A.; Andrieux, J.; Stapleton, R.; et al. Haploinsufﬁciency for ANKRD11-ﬂanking genes makes the difference between KBG and 16q24.3 microdeletion syndromes: 12 new cases. Eur. J. Hum. Genet. 2017, 25, 694–701. [CrossRef]
+51. Gropman, A.L.; Duncan, W.C.; Smith, A.C. Neurologic and developmental features of the Smith-Magenis syndrome (del 17p11.2). Pediatr. Neurol. 2006, 34, 337–350. [CrossRef] Schiff, M.; Delahaye, A.; Andrieux, J.; Sanlaville, D.; Vincent-Delorme, C.; Aboura, A.; Benzacken, B.; Bouquillon, S.; Elmaleh- Berges, M.; Labalme, A.; et al. Further delineation of the 17p13.3 microdeletion involving YWHAE but distal to PAFAH1B1: Four additional patients. Eur. J. Med. Genet. 2010, 53, 303–308. [CrossRef] Schönewolf-Greulich, B.; Ronan, A.; Ravn, K.; Baekgaard, P.; Lodahl, M.; Nielsen, K.; Rendtorff, N.D.; Tranebjaerg, L.; Brøndum- Nielsen, K.; Tümer, Z. Two new cases with microdeletion of 17q23.2 suggest presence of a candidate gene for sensorineural hearing loss within this region. Am. J. Med. Genet. Part A 2011, 155, 2964–2969. [CrossRef]
+51. Gropman, A.L.; Duncan, W.C.; Smith, A.C. Neurologic and developmental features of the Smith-Magenis syndrome (del 17p11.2). Pediatr. Neurol. 2006, 34, 337–350. [CrossRef] Schiff, M.; Delahaye, A.; Andrieux, J.; Sanlaville, D.; Vincent-Delorme, C.; Aboura, A.; Benzacken, B.; Bouquillon, S.; Elmaleh- Berges, M.; Labalme, A.; et al. Further delineation of the 17p13.3 microdeletion involving YWHAE but distal to PAFAH1B1: Four additional patients. Eur. J. Med. Genet. 2010, 53, 303–308. [CrossRef] Schönewolf-Greulich, B.; Ronan, A.; Ravn, K.; Baekgaard, P.; Lodahl, M.; Nielsen, K.; Rendtorff, N.D.; Tranebjaerg, L.; Brøndum- Nielsen, K.; Tümer, Z. Two new cases with microdeletion of 17q23.2 suggest presence of a candidate gene for sensorineural hearing loss within this region. Am. J. Med. Genet. Part A 2011, 155, 2964–2969. [CrossRef]
+52.
+54. Vergult, S.; Dauber, A.; Delle Chiaie, B.; Van Oudenhove, E.; Simon, M.; Rihani, A.; Loeys, B.; Hirschhorn, J.; Pfotenhauer, J.; Phillips, J.A.; et al. 17q24.2 microdeletions: A new syndromal entity with intellectual disability, truncal obesity, mood swings and hallucinations. Eur. J. Hum. Genet. 2012, 20, 534–539. [CrossRef]
+55. Cody, J.D.; Sebold, C.; Malik, A.; Heard, P.; Carter, E.; Crandall, A.; Soileau, B.; Semrud-Clikeman, M.; Cody, C.M.; Hardies, L.J.; et al. Recurrent interstitial deletions of proximal 18q: A new syndrome involving expressive speech delay. Am. J. Med. Genet. Part A 2007, 143, 1181–1190. [CrossRef]
+56. Marseglia, G.; Scordo, M.R.; Pescucci, C.; Nannetti, G.; Biagini, E.; Scandurra, V.; Gerundino, F.; Magi, A.; Benelli, M.; Torricelli, F. 372 kb Microdeletion in 18q12.3 causing SETBP1 haploinsufﬁciency associated with mild mental retardation and expressive speech impairment. Eur. J. Med. Genet. 2012, 55, 216–221. [CrossRef]
+57. Bonaglia, M.C.; Marelli, S.; Novara, F.; Commodaro, S.; Borgatti, R.; Minardo, G.; Memo, L.; Mangold, E.; Beri, S.; Zucca, C.; et al. Genotype–phenotype relationship in three cases with overlapping 19p13.12 microdeletions. Eur. J. Hum. Genet. 2010, 18, 1302–1309. [CrossRef]
+58. Melo, J.B.; Estevinho, A.; Saraiva, J.; Ramos, L.; Carreira, I.M. Cutis Aplasia as a clinical hallmark for the syndrome associated with 19q13.11 deletion: The possible role for UBA2 gene. Mol. Cytogenet. 2015, 8, 21. [CrossRef]
+59. Amasdl, S.; Natiq, A.; Sbiti, A.; Zerkaoui, M.; Lyahyai, J.; Amzazi, S.; Liehr, T.; Seﬁani, A. 20p12.3 deletion is rare cause of syndromic cleft palate: Case report and review of literature. BMC Res. Notes 2016, 9, 5. [CrossRef] Solot, C.B.; Sell, D.; Mayne, A.; Baylis, A.L.; Persson, C.; Jackson, O.; McDonald-McGinn, D.M. Speech-language disorders in 22q11.2 deletion syndrome: Best practices for diagnosis and management. Am. J. Speech-Lang. Pathol. 2019, 28, 984–999. [CrossRef]
+59. Amasdl, S.; Natiq, A.; Sbiti, A.; Zerkaoui, M.; Lyahyai, J.; Amzazi, S.; Liehr, T.; Seﬁani, A. 20p12.3 deletion is rare cause of syndromic cleft palate: Case report and review of literature. BMC Res. Notes 2016, 9, 5. [CrossRef] Solot, C.B.; Sell, D.; Mayne, A.; Baylis, A.L.; Persson, C.; Jackson, O.; McDonald-McGinn, D.M. Speech-language disorders in 22q11.2 deletion syndrome: Best practices for diagnosis and management. Am. J. Speech-Lang. Pathol. 2019, 28, 984–999. [CrossRef]
+32 of 33
+
+
+Entropy 2023, 25, 897
+61. Davidson, T.B.; Sanchez-Lara, P.A.; Randolph, L.M.; Krieger, M.D.; Wu, S.Q.; Panigrahy, A.; Shimada, H.; Erdreich-Epstein, A. Microdeletion del (22)(q12.2) encompassing the facial development-associated gene, MN1 (meningioma 1) in a child with Pierre-Robin sequence (including cleft palate) and neuroﬁbromatosis 2 (NF2): A case report and review of the literature. BMC Med. Genet. 2012, 13, 19. [CrossRef]
+62. Hayashi, S.; Mizuno, S.; Migita, O.; Okuyama, T.; Makita, Y.; Hata, A.; Imoto, I.; Inazawa, J. The CASK gene harbored in a deletion detected by array-CGH as a potential candidate for a gene causative of X-linked dominant mental retardation. Am. J. Med. Genet. Part A 2008, 146, 2145–2151. [CrossRef] Fries, M.H.; Lebo, R.V.; Schonberg, S.A.; Golabi, M.; Seltzer, W.K.; Gitelman, S.E.; Golbus, M.S. Mental retardation locus in Xp21 chromosome microdeletion. Am. J. Med. Genet. 1993, 46, 363–368. [CrossRef] 63.
+64. Gedeon, A.; Meinänen, M.; Ades, L.; Kääriäinen, H.; Gecz, J.; Baker, E.; Sutherland, G.; Mulley, J. Overlapping submicroscopic deletions in Xq28 in two unrelated boys with developmental disorders: Identiﬁcation of a gene near FRAXE. Am. J. Hum. Genet. 1995, 56, 907.
+65. National Institute on Deafness and Other Communication Disorders. Statistics on voice, speech, and language. IEEE/ACM Trans. Audio, Speech Lang. Process. 2008, 25, 2098–2111.
+66. American Speech-Language-Hearing Association. Speech Sound Disorders: Articulation and Phonology. Practice Portal. 2017. Available online: www.asha.org/Practice-Portal/Clinical-Topics/Articulation-and-Phonology (accessed on 21 September 2022). Shmueli, G.; Minka, T.P.; Kadane, J.B.; Borle, S.; Boatwright, P. A useful distribution for ﬁtting discrete data: Revival of the Conway–Maxwell–Poisson distribution. J. R. Stat. Soc. Ser. C (Appl. Stat.) 2005, 54, 127–142. [CrossRef] Sellers, K.F.; Borle, S.; Shmueli, G. The COM-Poisson model for count data: A survey of methods and applications. Appl. Stoch. Model. Bus. Ind. 2012, 28, 104–116. [CrossRef] 68.
+67.
+69. Huang, J.; Zhao, Y.L.; Li, Y.; Fletcher, J.A.; Xiao, S. Genomic and functional evidence for an ARID1A tumor suppressor role. Genes Chromosom. Cancer 2007, 46, 745–750. [CrossRef] [PubMed] Sheffels, E.; Sealover, N.E.; Theard, P.L.; Kortum, R.L. Anchorage-independent growth conditions reveal a differential SOS2 dependence for transformation and survival in RAS-mutant cancer cells. Small GTPases 2021, 12, 67–78. [CrossRef]
+69. Huang, J.; Zhao, Y.L.; Li, Y.; Fletcher, J.A.; Xiao, S. Genomic and functional evidence for an ARID1A tumor suppressor role. Genes Chromosom. Cancer 2007, 46, 745–750. [CrossRef] [PubMed] Sheffels, E.; Sealover, N.E.; Theard, P.L.; Kortum, R.L. Anchorage-independent growth conditions reveal a differential SOS2 dependence for transformation and survival in RAS-mutant cancer cells. Small GTPases 2021, 12, 67–78. [CrossRef]
+71. Bertucci, F.; Borie, N.; Ginestier, C.; Groulet, A.; Charafe-Jauffret, E.; Adélaïde, J.; Geneix, J.; Bachelart, L.; Finetti, P.; Koki, A.; et al. Identiﬁcation and validation of an ERBB2 gene expression signature in breast cancers. Oncogene 2004, 23, 2564–2575. [CrossRef] Siggberg, L.; Olsén, P.; Näntö-Salonen, K.; Knuutila, S. 19p13.3 aberrations are associated with dysmorphic features and deviant psychomotor development. Cytogenet. Genome Res. 2011, 132, 8–15. [CrossRef] Severinsen, J.; Bjarkam, C.R.; Kiar-Larsen, S.; Olsen, I.M.; Nielsen, M.M.; Blechingberg, J.; Nielsen, A.L.; Holm, I.E.; Foldager, L.; Young, B.D.; et al. Evidence implicating BRD1 with brain development and susceptibility to both schizophrenia and bipolar affective disorder. Mol. Psychiatry 2006, 11, 1126–1138. [CrossRef] Jansen, S.; Kleefstra, T.; Willemsen, M.; De Vries, P.; Pfundt, R.; Hehir-Kwa, J.; Gilissen, C.; Veltman, J.; de Vries, B.; Vissers, L. De novo loss-of-function mutations in X-linked SMC1A cause severe ID and therapy-resistant epilepsy in females: Expanding the phenotypic spectrum. Clin. Genet. 2016, 90, 413–419. [CrossRef] 74.
+72.
+73.
+75. Porntaveetus, T.; Abid, M.F.; Theerapanon, T.; Srichomthong, C.; Ohazama, A.; Kawasaki, K.; Kawasaki, M.; Suphapeetiporn, K.; Sharpe, P.T.; Shotelersuk, V. Expanding the oro-dental and mutational spectra of Kabuki syndrome and expression of KMT2D and KDM6A in human tooth germs. Int. J. Biol. Sci. 2018, 14, 381. [CrossRef] Sagi-Dain, L.; Maya, I.; Peleg, A.; Reches, A.; Banne, E.; Baris, H.N.; Tenne, T.; Singer, A.; Ben-Shachar, S. Microarray analysis in pregnancies with isolated unilateral kidney agenesis. Pediatr. Res. 2018, 83, 825–828. [CrossRef]
+76.
+77. Žilina, O.; Teek, R.; Tammur, P.; Kuuse, K.; Yakoreva, M.; Vaidla, E.; Mölter-Väär, T.; Reimand, T.; Kurg, A.; Õunap, K. Chromosomal microarray analysis as a ﬁrst-tier clinical diagnostic test: Estonian experience. Mol. Genet. Genom. Med. 2014, 2, 166–175. [CrossRef]
+78. Hsu, F.; Kent, W.J.; Clawson, H.; Kuhn, R.M.; Diekhans, M.; Haussler, D. The UCSC known genes. Bioinformatics 2006, 22, 1036–1046. [CrossRef]
+Disclaimer/Publisher’s Note: The statements, opinions and data contained in all publications are solely those of the individual author(s) and contributor(s) and not of MDPI and/or the editor(s). MDPI and/or the editor(s) disclaim responsibility for any injury to people or property resulting from any ideas, methods, instructions or products referred to in the content.
+33 of 33

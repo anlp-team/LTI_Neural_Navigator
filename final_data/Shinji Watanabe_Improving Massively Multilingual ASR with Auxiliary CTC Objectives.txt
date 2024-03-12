@@ -1,0 +1,274 @@
+3 2 0 2
+b e F 7 2
+] L C . s c [
+2 v 9 2 8 2 1 . 2 0 3 2 : v i X r a
+IMPROVING MASSIVELY MULTILINGUAL ASR WITH AUXILIARY CTC OBJECTIVES
+William Chen, Brian Yan, Jiatong Shi, Yifan Peng, Soumi Maiti, Shinji Watanabe
+Language Technologies Institute, Carnegie Mellon University, USA
+ABSTRACT
+Multilingual Automatic Speech Recognition (ASR) models have extended the usability of speech technologies to a wide variety of languages. With how many languages these models have to handle, however, a key to understanding their imbalanced performance across different languages is to examine if the model actually knows which language it should transcribe. In this paper, we introduce our work on improving performance on FLEURS, a 102-language open ASR benchmark, by conditioning the entire model on language identity (LID). We investigate techniques inspired from recent Connectionist Temporal Classiﬁcation (CTC) studies to help the model handle the large number of languages, conditioning on the LID predictions of auxiliary tasks. Our experimental results demonstrate the effective- ness of our technique over standard CTC/Attention-based hybrid mod- els. Furthermore, our state-of-the-art systems using self-supervised models with the Conformer architecture improve over the results of prior work on FLEURS by a relative 28.4% CER. Trained models and reproducible recipes are available at https://github.com/ espnet/espnet/tree/master/egs2/fleurs/asr1.
+globe, the typological diversity of which makes language identiﬁca- tion a relevant component of transcription. Languages in FLEURS are also individually low-resourced: each language has only 7-10 hours of training data. This makes FLEURS a unique challenge that can help ASR progress to the long-tail of the world’s ∼7000 languages. We apply self-conditioned CTC [24–32], which uses Connectionist Temporal Classiﬁcation (CTC) models in intermediate encoder layers to condition subsequent layers on intermediate pre- dictions, to Hybrid CTC/Attention architectures [23] as a basis for our LID conditioning approach. We then design intermediate LID targets of varying granularity and use these to examine the effect of conditioning our encoder-decoder models on LID predictions starting from early layers of the encoder. Our proposed method, which allows early encoder layers to focus on LID while subsequent encoder and decoder layers focus on ASR, is beneﬁcial compared to standard self-conditioning. Together with self-supervised models and Conformer architectures, our state-of-the-art (SOTA) systems obtained 10.1 CER on FLEURS, a relative 28.4% reduction over prior work.
+Index Terms— multilingual ASR, low-resource ASR, CTC
+2. BACKGROUND
+1. INTRODUCTION
+Recent advancements in multilingual speech processing have shown great promise towards building speech systems for all, expanding language coverage beyond the high-resources [1–16]. In particular, practitioners have demonstrated that neural techniques are capable of large-scale cross-lingual representation learning by training multilin- gual automatic speech recognition (ASR) systems on massive private [8, 10, 14, 16] or public speech corpora [2, 17–21]; however, these works demonstrate that performance still varies across languages.
+One of the inherent challenges in building a single system which can recognize many languages is the vast variability of phonology, grammar, and written scripts [22]. Therefore, a key to understanding why multilingual ASR systems exhibit certain errors is to examine whether the underlying model actually knows which language it should be transcribing – in other words, if there was a correct language identiﬁcation (LID). To this end, systems that jointly model LID and ASR via multi-tasking [6, 16, 23] offer one view to the inner-workings of the multilingual decision process. However, we are interested in frameworks which more explicitly model LID as a dependency for ASR under the presumption that knowing the correct language of an utterance makes it easier to be transcribed.
+Therefore, in this work, we seek to build massively multilingual models which 1) condition transcription predictions on language identity likelihoods and 2) contribute our reproducible models and recipes which use publicly available data, with the broader objective of improving explain-ability and use-ability.
+To achieve this, our work focuses on the FLEURS ASR dataset [21]. FLEURS contains 102 languages from across the
+In this section, we discuss the CTC studies that we build upon to cre- ate our fully LID-conditioned model. These studies propose different multi-task training methods [23, 24] and condition the encoder on intermediate predictions [27, 29].
+2.1. Hybrid CTC/Attention
+We use a Hybrid CTC/Attention architecture [23] as our model foundation. Let X = (xt ∈ RD|t = 1, ..., T ) be a T -length input sequence based on D-dimensional acoustic feature xt and Y = (ys ∈ V|s = 1, ..., S) be an S-length output sequence with vocabulary V. CTC [33] optimizes a model to predict the monotonic alignment between X and Y . It models the conditional probability of Pctc(Y |X) as a series of latent sequences at each input frame. This latent sequence is obtained by introducing a blank token ∅ into Y , t ∈ V ∪ {∅}|t = 1, ..., T ). such that Z ctc = (zctc
+PCTC(Y |X) ≈
+(cid:88)
+T (cid:89)
+PCTC(z CTC
+t
+|X,(cid:24)(cid:24)(cid:24)z1:t−1)
+Z CTC ∈F −1(Y )
+t=1
+Where F −1 is the function of all latent sequences Z ctc given Y . CTC operates with the assumption that only the observation X is required to determine the latent state zctc at any given frame. The Hybrid CTC/Attention encoder ﬁrst converts input X into the hidden vector h in Equation (2). The hidden vector is then used to obtain the frame- wise CTC posterior (Equation 3) and token-wise attention posterior distributions of X (Equation 4).
+t
+h = ENC(X) PCTC(Z|X) = CTC(h) PAttn(yl|X, y1:l−1) = DEC(h, y1:l−1)
+(1)
+(2) (3) (4)
+
+
+Combining Equations (1, 3, 4) obtains the logarithmic linear combi- nation of these posterior distributions over all frames and decoded tokens used to optimize the encoder-decoder network:
+L = −(1 − λ) log PAttn(Y |X) − λ log PCTC(Y |X)
+Where λ is the CTC weighting term. Hybrid CTC/Attention thus jointly optimizes a shared encoder with both CTC and attention losses, while the decoder is trained purely on the attention loss.
+2.2. Intermediate CTC
+InterCTC [24–26] was proposed to regularize the training of deep encoder networks by using the CTC loss of intermediate layers as part of a multi-task objective. The intermediate posterior distribution can be obtained in a manner similar to Equation (3), with the hidden vector hint of an intermediate encoder layer.
+CTC(Z int|X) = CTCint(hint) P int
+The log-likelihood of Equation (6) can then be used as the objective function of the intermediate layer. Self-conditioned CTC (SC-CTC) [27] also uses this intermediate output to condition the encoder by passing intermediate outputs to the next layer. The normalized hidden representation of the intermediate layer hint is summed with a linear projection of the intermediate posterior distribution Z int to the hidden dimension, and input into the next encoder layer (Equation 7).
+h = ENC
+ﬁn(NRM(hint) + LIN(Z int)))
+PCTC(Z|X, Z int) = CTC(h)
+Equation (7) is recursively applied for each intermediate layer, until the output of the ﬁnal layer is passed into Equation (8). This allows the CTC posterior distribution of the entire encoder network to be conditioned on the intermediate predictions Z int.
+3. PROPOSED METHOD
+In this section, we propose an auxiliary CTC objective such that early encoder layers can focus on language identiﬁcation, and the transcription predictions of later layers can be conditioned on the predicted language. We also deﬁne a hierarchy of CTC objectives to take advantage of both LID and self-conditioning, and frame it within a Hybrid CTC/Attention setup.
+3.1. Explicit multilingual conditioning
+While SC-CTC’s conditioning on early predictions beneﬁts non- autoregressive models [27, 30], it could be a drawback in the auto- regressive setting by conditioning later encoder layers on the noisy transcription predictions of earlier layers. We want to condition en- coder layers on the LID without these noisy early predictions. To accomplish this, we propose the following method: train intermediate layers to only classify the spoken language and propagate their pre- dictions to future layers via self-conditioning. We ﬁrst introduce the latent variable I to Equation (1), where I represents the intermediate LID predictions, such that Equation (1) is modiﬁed as follows:
+PCTC(Y |X) =
+(cid:88)
+PCTC(Y |I, X)PCTC(I|X)
+I∈I
+The formulation of Equation (9) can be realized by modifying the intermediate CTC network (Equations 7 and 8) to predict the LID instead of transcriptions as follows:
+h = ENC
+ﬁn(NRM(hlid) + LIN(Z lid)))
+(5)
+(6)
+(7)
+(8)
+(9)
+(10)
+Table 1. Comparison of different labels in the multi-task framework (Sec. 3.1). In LIDtok, all tokens are replaced with LIDs, while LIDutt only retains a single LID label.
+Task ASR LIDtok LIDutt
+Label [EN US] ALL [EN US] [EN US] [EN US] [EN US] [EN US]
+YOU
+NEED
+Fig. 1. Proposed hierarchical architecture. The LID predictions of the intermediate layer are used to train the next layer.
+PCTC(Z|X, Z lid) = CTC(h)
+This allows the encoder to condition its predictions on the LID. We then deﬁne an auxiliary CTC task with Equations (1) and (9), where the model’s intermediate layers attempt to predict the language, I.
+Llid = − log PCTC(I|X)
+We then create two different sets of labels that can represent I: utterance-level LIDs (LIDutt) and token-level LIDs (LIDtok). An utterance-level LID is a single label from the set of all possible lan- guages iutt ∈ B. In other words, only a single LID token is used as the ground truth. Alternatively, we can deﬁne a S-length token-level LID sequence corresponding to each S-length label sequence as fol- lows: I tok = {itok s ∈ B|s = 1, ..., S}. LIDtok thus explicitly aligns the language with each spoken word. This approach, inspired by code-switching [34], forces the model to predict both the frame-level alignment and segmentation between tokens. The task effectively becomes one of identifying the language of each token rather than each utterance. We hypothesize this will aid the model in mapping the audio to the large multilingual text space, even without any code- switched utterances. Example labels can be found in Table (1).
+3.2. Hierarchical conditioning
+Explicitly training all intermediate layers on LID allows the model to condition on language information, but perhaps early layers may be sufﬁcient to predict LID, allowing later layers to predict inter- mediate transcripts instead. This progression can be realized using
+(11)
+(12)
+
+
+hierarchical conditioning [26, 29, 35], where layers perform incre- mentally more complex predictions. We construct a hierarchical setup of K intermediate layers, such that the k = 1 intermediate layer is trained using Equation (12) to predict the spoken language (Figure 1). The auxiliary LID task is given to an earlier intermediate layer, such that following encoder layers can be conditioned on its predic- tion. Later intermediate layers are trained with SC-CTC to keep the regularization beneﬁts.
+hint = ENC
+h = ENC
+int(NRM(hlid) + LIN(Z lid))) ﬁn(NRM(hint) + LIN(Z int)))
+PCTC(Z|X, Z lid) = CTC(h)
+The encoder output h is therefore both self-conditioned and LID- conditioned. Equation 12 can be summed with the loss of all SC-CTC layers, which is then averaged to produce the objective function used to train the intermediate layers:
+Lhier =
+1 K
+(Llid +
+K (cid:88)
+Linter k
+)
+k=2
+Where Linter is the negative log-likelihood of Equation (6), the poste- rior CTC distribution of an intermediate layer. The overall CTC loss can then be obtained in Equation (17) with a weighted sum of the hierarchical loss (Equation 16) with the CTC loss of the full encoder network, where w is the weight of the intermediate losses.
+LCTC = (1 − w)LCTC
+enc + wLhier
+Substituting Equation (17) into Equation (5) yields the complete loss function used to train our encoder-decoder network with both LID conditioning and SC-CTC:
+L = (1 − λ)Latt + λ((1 − w)LCTC
+enc + wLhier)
+Speciﬁcally, our model jointly optimizes the encoder with the LID- conditioned intermediate loss, the CTC loss, and the encoder-decoder attention loss. The decoder is conditioned on the prepended LID token and optimized with the attention loss (Figure 1).
+4. EXPERIMENTS
+4.1. Datasets
+As discussed in Sec. 1, the experiments were conducted on FLEURS [21], a 102-language ASR dataset. Each utterance is a news snippet read by a speaker and contains only one language. Each language in FLEURS has around 7-10 hours of training data, for a total of 987 training hours. Due to the limited amount of supervised data for each language, we experimented with two pre-trained Self-Supervised Learning (SSL) features that performed well on SUPERB [36]: XLS- R [19] and WavLM [37]. The acoustic inputs are augmented by SpecAugment [38] and speech perturbation [39]. Input text was prepended by language identiﬁcation tokens, before tokenization by SentencePiece [40] with a vocabulary size of 6500.
+4.2. Model Conﬁguration
+All experiments were conducted through ESPnet2 [41]. We use an encoder-decoder setup trained on the hybrid CTC/Attention [23] multi-task objective, with a CTC weight of λ = 0.3. We experiment with both Transformer [42] and Conformer [43] architectures as the encoder. The encoder has either 18 Transformer layers or 12
+(13)
+(14)
+(15)
+(16)
+(17)
+(18)
+Table 2. Comparing the effectiveness of SSL features, reporting CER, MER, LID % accuracy on FLEURS. XLS-R signiﬁcantly outperforms WavLM in multilingual ASR.
+ID Model
+SSL Features
+Test
+CER(↓) MER(↓)
+LID(↑)
+Transformer A1 CTC/Attention A2 +SC-CTC B1 CTC/Attention B2 +SC-CTC
+WavLM WavLM XLS-R XLS-R
+14.6 14.4 13.9 13.7
+41.8 40.8 39.7 38.8
+95.09 94.47 95.73 95.39
+Conformer layers. Each encoder layer has 8 attention heads and 2048 hidden units. The 6-layer Transformer decoder also has 8 attention heads and 2048 hidden units each. We average 3 checkpoints with the highest validation accuracy. We perform joint CTC/Attention decoding with a language model, using a beam size of 10 and CTC weight of 0.3. Model parameters totaled to around 102 million.
+4.2.1. Baseline Models
+CTC/Attention: A hybrid CTC/Attention model trained multilin- gually without any intermediate CTC objectives. SC-CTC: A model trained with intermediate self-conditioned CTC [27], as discussed in Sec. 2.2. The intermediate label is identical to the ASR ground truth. We use the same Transformer SC-CTC parameters as [27]: 5 intermediate layers (3, 6, 9, 12, 15) with an intermediate CTC weight of w = 0.5. For the 12-layer Conformer encoder, we use intermediate layers 3,6, and 9.
+4.2.2. Proposed Models
+LIDutt & LIDtok: Models trained with the proposed intermediate tasks that explicitly leverage the LID described in Sec. 3.1. The intermediate layer conﬁguration is the same as SC-CTC. In the LIDutt model, all intermediate layers use a single LID token as the output label. For LIDtok, the ground truth is comprised of an LID token for each token in the original utterance. HierLIDutt & HierLIDtok: Our proposed model that incorporates the LID prediction task into a hierarchical setup (Sec. 3.2). The ﬁrst intermediate layer (layer 3) uses the LID as the CTC objective, while deeper intermediate layers (6,9,12,15) use the ASR text. We report results for both LIDutt and LIDtok as the ﬁrst objective.
+5. RESULTS
+We report both Character Error Rate (CER) and Mixed Error Rate (MER), along with the language identiﬁcation accuracy (LID). MER is calculated using the CER for languages not delimited by white space, and Word Error Rate (WER) for all other languages. Table 2 shows our early experiments with different pre-trained SSL models. While self-conditioning improved the results of both models (A1 vs. A2, B1 vs. B2), XLS-R consistently outperformed WavLM and achieved SOTA performance. This result was apparent in early development, so we did not continue experimentation with WavLM. Table 3 presents our main results in four partitions: 1) prior work, 2) Transformer baselines, 3) Transformers with the proposed methods, and 4) extended studies with Conformers. Our baseline (B1) improves upon previous works (Z1 and Z2) by using XLS-R SSL features [19] with a CTC/Attention architecture. Conditioning on both LID and transcriptions further improves ASR performance (B1 vs B2). Moreover, explicitly conditioning on the LID is more beneﬁcial than self-conditioning (B2 vs. C1, C2). Speciﬁcally, LIDtok is more effective than LIDutt (C1 v.s. C2); the former even outperforms SC- CTC by 3.0 MER absolute (B2 vs. C2). The addition of hierarchical
+
+
+Table 3. Character error rate (CER), mixed error rate (MER), and language identiﬁcation % accuracy (LID) on FLEURS.
+ID Model
+Test
+CER(↓) MER(↓)
+LID (↑)
+Prior Work Z1 w2v-bert-51 [21] Z2 mSLAM-101 [21] Transformer B1 CTC/Attention B2 +SC-CTC C1 +LIDutt C2 +LIDtok C3 +HierLIDutt C4 +HierLIDtok
+14.1 14.6
+13.9 13.7 13.6 13.4 13.3 13.3
+-
+39.7 38.8 37.2 35.8 36.1 36.0
+-
+95.73 95.39 95.62 95.86 95.43 95.31
+Conformer D1 D2
++SC-CTC +HierLIDutt
+10.4 10.1
+32.9 31.5
+95.41 94.92
+Table 4. Languages with largest differences in Character Error Rate (CER) (↓) between HierLIDutt Conformer and w2v-bert: Georgian (Ka), Cantonese (Yue), Hebrew (He), Swedish (Sv), and Umbundu (Umb).
+ID Model Z1 w2v-bert-51 [21] Z2 mSLAM-101 [21] D1 D2 HierLIDutt
+SC-CTC
+Ka 30.7 31.0 8.0 8.1
+Yue 37.0 39.8 15.4 15.3
+He 37.2 42.5 18.1 17.0
+Oc 11.7 12.7 14.4 17.6
+Sv 7.6 7.8 11.7 15.7
+Umb 13.1 14.0 23.7 22.4
+conditioning, however, shrinks this gap (C3 vs C4). The combination of both LIDutt and SC-CTC improves over solely LIDutt-conditioning by a large degree (C1 vs. C3), suggesting that some amount of token- level conditioning is necessary to take advantage of the technique.
+We further push ASR performance by applying these methods to the Conformer. All Conformer models outperform their Transformer variants, and HierLIDutt maintains its advantage over SC-CTC (D1 vs. D2). However, due to the increased training instability of the Conformer [44], the other methods do not converge with the same optimization settings. Therefore, due to this difference in training stability and the similar performance of the proposed methods in our Transformer trials, we prefer evaluating HierLIDutt (D2) when training Conformer models. The combination of HierLIDutt and the Conformer yields our best result (D2), which outperforms the CER of previous work in equivalent settings by a wide margin: 4.0 absolute1.
+5.1. Analysis
+To better understand effectiveness of our technique, we conducted an analysis of our results by language. Table 4 compares the best/worst performing languages by HierLIDutt Conformer (D2) relative to w2v- bert (Z1), which can vary as much as 22.7 CER. These large dis- crepancies are likely derived from differences in SSL pre-training. Compared to w2v-bert (600M parameters), XLS-R (300M parame- ters) was pretrained on an additional 6.6K hours of data (436K total) that extended its language coverage by 77. We suspect that the larger parameter size and smaller pool of languages allowed w2v-bert to learn better representations in the languages that it covered, which carried over to ASR. Similarly, Table 5 compares the languages with the largest change in LID accuracy between our two Conformer mod-
+1One concurrent work [45] further improves CER by 1.4, albeit with additional training data [17, 18, 46, 47], while another [48] was evaluated zero-shot on a subset of languages.
+Table 5. Languages with largest differences in LID accuracy (↑) between HierLIDutt and SC-CTC Conformer: Zulu (Zu), Hindi (Hi), Bosnian (Bs), Occitan (Oc), Swedish (Sw), and Umbundu (Umb). Umb Hi 91.7 80.4 91.4 60.0
+ID Model D1 D2 HierLIDutt
+Zu 66.8 83.6
+Bs 32.1 42.9
+Sv 95.3 75.9
+Oc 48.1 35.4
+SC-CTC
+Table 6. Average Conformer CER (↓) compared to prior work for each language group.
+ID Model Z1 w2v-bert-51 [21] Z2 mSLAM-101 [21] D1 D2 HierLIDutt
+SC-CTC
+WE 10.7 10.6 9.0 9.3
+EE 9.9 10.0 7.5 7.5
+CMN SSA 15.6 14.5 16.4 14.8 9.1 12.6 12.0 9.2
+SA 17.4 19.2 16.3 15.5
+SEA CJK 25.0 14.7 24.6 14.9 17.9 14.6 13.5 18.3
+Table 7. Average Conformer LID % accuracy (↑) compared to prior work for each language group.
+ID Model Z1 w2v-bert-51 [21] Z2 mSLAM-101 [21] D1 D2 HierLIDutt
+SC-CTC
+WE 85.3 84.6 94.1 92.5
+EE 78.4 81.3 95.1 94.2
+CMN SSA 59.1 72.9 62.2 75.9 96.6 98.9 96.4 97.7
+SA 52.0 51.7 89.6 90.5
+SEA CJK 89.7 65.7 87.8 73.4 99.3 94.1 95.4 98.9
+els. We found that degradations in LID accuracy were often caused by confusion with a related language. However, this was generally accompanied by improvements in the other language, such as with the case of Serbian and Bosnian. In extreme cases, misclassiﬁcations considerably affected CER, such as for Swedish and Occitan (Tables 4 and 5), which were frequently misidentiﬁed as Norwegian and French respectively.
+We also performed a region-level analysis. Table 6 shows the CERs for each group in FLEURS: Western Europe (WE), Eastern Europe (EE), Central-Asian, Middle-East and North-Africa (CMN), Sub-Saharan Africa (SSA), South Asia (SA), South-East Asia (SEA), and East Asia (CJK). Both Conformer models improve across-the- board compared to prior work [21], with notable CER reductions in the CJK and CMN language groups. The HierLIDutt technique is particularly effective on the SSA, SA, and SEA language groups compared to SC-CTC, with a small performance cost in WE, CMN, and CJK (D1 vs. D2). Table 7 makes a similar comparison using LID accuracy across language groups. Both Conformer models again out-perform previous work across all language groups, but the LID accuracy of HierLIDutt degrades in all but two language groups when compared to SC-CTC (D1 vs. D2).
+6. CONCLUSION
+Improving multilingual ASR can help extend speech technologies to new languages. However, these models face the challenge of handling the typological diversity of so many languages. To help handle this, we introduce a framework using hierarchical CTC that can leverage language identity throughout the entire encoder-decoder network, hy- pothesizing that correctly identifying the language eases transcription modelling. We evaluate our technique on the 102-language FLEURS dataset to show its effectiveness and improve over the results of prior work. In the future, we hope to extend our approach to an even larger set of languages [4] and data [11], so that these trained models can also in downstream tools, such as with speech alignment and data cleaning, that can further help extend speech technologies to more languages.
+7. ACKNOWLEDGEMENTS
+This work used the Bridges2 system [49], supported by NSF award number ACI-1445606, at the Pittsburgh Supercomputing Center.
+
+
+8. REFERENCES
+[1]
+S. Watanabe, T. Hori, and J. R. Hershey, “Language independent end-to-end architecture for joint language identiﬁcation and speech recognition,” in Proc. ASRU, 2017, pp. 265–271.
+[2] A. Bapna, C. Cherry, Y. Zhang, et al., “mSLAM: Massively multilingual joint pre-training for speech and text,” arXiv preprint arXiv:2202.01374, 2022.
+[3] Y. Lu, M. Huang, X. Qu, et al., “Language adaptive cross-lingual speech rep- resentation learning with sparse sharing sub-networks,” in Proc. ICASSP, 2022, pp. 6882–6886.
+[4] X. Li, F. Metze, D. R. Mortensen, et al., “ASR2K: Speech Recognition for Around 2000 Languages without Audio,” in Proc. Interspeech, 2022, pp. 4885– 4889.
+[5]
+P. Ogayo, G. Neubig, and A. W Black, “Building African Voices,” in Proc. In- terspeech, 2022, pp. 1263–1267.
+[6]
+C. Zhang, B. Li, T. Sainath, et al., “Streaming end-to-end multilingual speech recognition with joint language identiﬁcation,” Proc. Interspeech, 2022.
+[7]
+J. Bai, B. Li, Y. Zhang, et al., “Joint unsupervised and supervised training for multilingual asr,” in Proc. ICASSP, 2022.
+[8]
+B. Li, R. Pang, Y. Zhang, et al., “Massively multilingual asr: A lifelong learning solution,” in Proc. ICASSP, 2022, pp. 6397–6401.
+[9] O. Adams, M. Wiesner, S. Watanabe, et al., “Massively multilingual adversarial
+speech recognition,” in Proc. NAACL-HLT, 2019, pp. 96–108.
+[10] V. Pratap, A. Sriram, P. Tomasello, et al., “Massively Multilingual ASR: 50 Lan- guages, 1 Model, 1 Billion Parameters,” in Proc. Interspeech, 2020, pp. 4751– 4755.
+[11] W. Hou, Y. Dong, B. Zhuang, et al., “Large-Scale End-to-End Multilingual Speech Recognition and Language Identiﬁcation with Multi-Task Learning,” in Proc. Interspeech, 2020, pp. 1037–1041.
+[12] X. Li, S. Dalmia, J. Li, et al., “Universal phone recognition with a multilingual
+allophone system,” in Proc. ICASSP, 2020, pp. 8249–8253.
+[13] A. Conneau, A. Baevski, R. Collobert, et al., “Unsupervised Cross-Lingual Representation Learning for Speech Recognition,” in Proc. Interspeech, 2021, pp. 2426–2430.
+[14]
+B. Li, R. Pang, T. N. Sainath, et al., “Scaling end-to-end models for large-scale multilingual asr,” in Proc. ASRU, 2021, pp. 1011–1018.
+[15]
+B. Yan, S. Dalmia, D. R. Mortensen, et al., “Differentiable allophone graphs for language-universal speech recognition,” in Proc. Interspeech, 2021.
+[16]
+L. Zhou, J. Li, E. Sun, et al., “A conﬁgurable multilingual model is all you need to recognize all languages,” in Proc. ICASSP, 2022, pp. 6422–6426.
+[17] M. J. F. Gales, K. M. Knill, A. Ragni, et al., “Speech recognition and key- word spotting for low-resource languages: Babel project research at CUED,” in Proc. 4th Workshop on Spoken Language Technologies for Under-Resourced Languages (SLTU 2014), 2014, pp. 16–23.
+[18]
+R. Ardila, M. Branson, K. Davis, et al., “Common voice: A massively- multilingual speech corpus,” English, in Proceedings of the Twelfth Language Resources and Evaluation Conference, Marseille, France: European Language Resources Association, May 2020.
+[19] A. Babu, C. Wang, A. Tjandra, et al., “XLS-R: Self-supervised cross-lingual speech representation learning at scale,” arXiv preprint arXiv:2111.09296, 2021.
+[20] Y.-A. Chung, Y. Zhang, W. Han, et al., “W2v-bert: Combining contrastive learn- ing and masked language modeling for self-supervised speech pre-training,” in Proc. ASRU, 2021, pp. 244–250.
+[21] A. Conneau, M. Ma, S. Khanuja, et al., “Fleurs: Few-shot learning evaluation of
+universal representations of speech,” arXiv preprint arXiv:2205.12446, 2022.
+[22] M. P. Lewis, Ethnologue: Languages of the world. SIL international, 2009.
+[23]
+S. Watanabe, T. Hori, S. Kim, et al., “Hybrid ctc/attention architecture for end-to- end speech recognition,” IEEE Journal of Selected Topics in Signal Processing, vol. 11, no. 8, pp. 1240–1253, 2017.
+[24]
+J. Lee and S. Watanabe, “Intermediate loss regularization for ctc-based speech recognition,” in Proc. ICASSP 2021, 2021, pp. 6224–6228.
+[25] A. Tjandra, C. Liu, F. Zhang, et al., “Deja-vu: Double feature presentation and iterated loss in deep transformer networks,” in Proc. ICASSP, 2020, pp. 6899– 6903.
+[26]
+R. Sanabria and F. Metze, “Hierarchical multitask learning with ctc,” in Proc. SLT, 2018, pp. 485–490.
+[27]
+J. Nozaki and T. Komatsu, “Relaxing the conditional independence assumption of CTC-based ASR by conditioning on intermediate predictions,” in Proc. Inter- speech, 2021, pp. 3735–3739.
+[28]
+J. Zhang, Y. Peng, H. Xu, et al., “Intermediate-layer output regularization for attention-based speech recognition with shared decoder,” arXiv preprint arXiv:2207.04177, 2022.
+[29] Y. Higuchi, K. Karube, T. Ogawa, et al., “Hierarchical conditional end-to-end asr with ctc and multi-granular subword units,” in Proc. ICASSP 2022, 2022, pp. 7797–7801.
+[30] Y. Higuchi, N. Chen, Y. Fujita, et al., “A comparative study on non-autoregressive modelings for speech-to-text generation,” in Proc. ASRU, 2021, pp. 47–54.
+[31] Y. Yang, Y. Li, and B. Du, “Improving ctc-based asr models with gated interlayer
+collaboration,” arXiv preprint arXiv:2205.12462, 2022.
+[32] Y. Fujita, T. Komatsu, and Y. Kida, “Multi-sequence intermediate conditioning
+for ctc-based asr,” arXiv preprint arXiv:2204.00175, 2022.
+[33] A. Graves, S. Fern´andez, F. Gomez, et al., “Connectionist temporal classiﬁca- tion: Labelling unsegmented sequence data with recurrent neural networks,” in Proc. International Conference on Machine Learning, 2006, pp. 369–376.
+[34]
+B. Yan, C. Zhang, M. Yu, et al., “Joint modeling of code-switched and monolin- gual asr via conditional factorization,” in Proc. ICASSP, 2022, pp. 6412–6416.
+[35]
+B. Yan, S. Dalmia, Y. Higuchi, et al., “CTC alignments improve autoregressive translation,” arXiv preprint arXiv:2210.05200, 2022.
+[36]
+S.-w. Yang, P.-H. Chi, Y.-S. Chuang, et al., “SUPERB: Speech Processing Uni- versal PERformance Benchmark,” in Proc. Interspeech, 2021, pp. 1194–1198.
+[37]
+S. Chen, C. Wang, Z. Chen, et al., “WavLM: Large-scale self-supervised pre- training for full stack speech processing,” IEEE Journal of Selected Topics in Signal Processing, pp. 1–14, 2022.
+[38] D. S. Park, W. Chan, Y. Zhang, et al., “Specaugment: A simple data augmen- tation method for automatic speech recognition,” Proc. Interspeech, pp. 2613– 2617, 2019.
+[39]
+T. Ko, V. Peddinti, D. Povey, et al., “Audio augmentation for speech recognition,” Proc. Interspeech, 2015.
+[40]
+T. Kudo and J. Richardson, “Sentencepiece: A simple and language independent subword tokenizer and detokenizer for neural text processing,” in Proc. EMNLP 2018, 2018, pp. 66–71.
+[41]
+S. Watanabe, T. Hori, S. Karita, et al., “ESPnet: End-to-end speech processing toolkit,” in Proc. Interspeech, 2018, pp. 2207–2211.
+[42] A. Vaswani, N. Shazeer, N. Parmar, et al., “Attention is all you need,” in Ad- vances in Neural Information Processing Systems (NeurIPS), 2017, pp. 5998– 6008.
+[43] A. Gulati, J. Qin, C.-C. Chiu, et al., “Conformer: Convolution-augmented Trans-
+former for Speech Recognition,” in Proc. Interspeech, 2020, pp. 5036–5040.
+[44]
+P. Guo, F. Boyer, X. Chang, et al., “Recent developments on espnet toolkit boosted by conformer,” in Proc. ICASSP, 2021, pp. 5874–5878.
+[45]
+Z. Chen, A. Bapna, A. Rosenberg, et al., “Maestro-U: Leveraging joint speech- text representation learning for zero supervised speech asr,” arXiv preprint arXiv:2210.10027, 2022.
+[46]
+C. Wang, M. Riviere, A. Lee, et al., “VoxPopuli: A large-scale multilingual speech corpus for representation learning, semi-supervised learning and inter- pretation,” in Proc. ACL, Online, Aug. 2021, pp. 993–1003.
+[47] V. Pratap, Q. Xu, A. Sriram, et al., “MLS: A Large-Scale Multilingual Dataset
+for Speech Research,” in Proc. Interspeech, 2020, pp. 2757–2761.
+[48] A. Radford, J. W. Kim, T. Xu, et al., “Robust speech recognition via large-scale
+weak supervision,”
+[49] N. A. Nystrom, M. J. Levine, R. Z. Roskies, et al., “Bridges: A uniquely ﬂexi- ble hpc resource for new communities and data analytics,” in Proc. of the 2015 XSEDE Conference: Scientiﬁc Advancements Enabled by Enhanced Cyberin- frastructure, 2015, pp. 1–8.

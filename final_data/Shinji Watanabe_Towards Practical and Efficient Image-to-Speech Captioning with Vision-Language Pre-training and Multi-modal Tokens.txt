@@ -1,0 +1,329 @@
+3 2 0 2
+p e S 5 1
+]
+V C . s c [
+1 v 1 3 5 8 0 . 9 0 3 2 : v i X r a
+TOWARDS PRACTICAL AND EFFICIENT IMAGE-TO-SPEECH CAPTIONING WITH VISION-LANGUAGE PRE-TRAINING AND MULTI-MODAL TOKENS
+Minsu Kim1, Jeongsoo Choi1, Soumi Maiti2, Jeong Hun Yeo1, Shinji Watanabe2, Yong Man Ro1∗
+1Integrated Vision and Language Lab, KAIST, South Korea 2Language Technologies Institute, Carnegie Mellon University, USA {ms.k,jeongsoo.choi,sedne246,ymro}@kaist.ac.kr, {smaiti,swatanab}@andrew.cmu.edu
+ABSTRACT
+tures (e.g., Mel-spectrogram) similar to that of ground-truth speech, may prevent the model from focusing on the image content [4, 5].
+In this paper, we propose methods to build a powerful and effi- cient Image-to-Speech captioning (Im2Sp) model. To this end, we start with importing the rich knowledge related to image comprehen- sion and language modeling from a large-scale pre-trained vision- language model into Im2Sp. We set the output of the proposed Im2Sp as discretized speech units, i.e., the quantized speech fea- tures of a self-supervised speech model. The speech units mainly contain linguistic information while suppressing other characteris- tics of speech. This allows us to incorporate the language modeling capability of the pre-trained vision-language model into the spoken language modeling of Im2Sp. With the vision-language pre-training strategy, we set new state-of-the-art Im2Sp performances on two widely used benchmark databases, COCO and Flickr8k. Then, we further improve the efficiency of the Im2Sp model. Similar to the speech unit case, we convert the original image into image units, which are derived through vector quantization of the raw image. With these image units, we can drastically reduce the required data storage for saving image data to just 0.8% when compared to the original image data in terms of bits. Demo page: bit.ly/3Z9T6LJ.
+These days, discretized speech unit [6] has drawn big atten- tion with its significant potential in diverse tasks such as speech-to- speech translation [7–9], spoken language understanding [10, 11], speech synthesis [12, 13], and speech recognition [14–16]. The speech units can be obtained by quantizing speech features derived from self-supervised speech models. Since they are discrete and can be generated to exclusively encapsulate linguistic factors (i.e., phoneme) [6, 9, 10], speech units can serve as pseudo-text. By utilizing the pseudo-text characteristics of the speech unit, one can build an end-to-end Im2Sp model by guiding the model with strong discrete supervision (e.g., classification) instead of using a regres- sion criterion. Nevertheless, the performance of the Im2Sp model remains notably lower than that of image captioning, making it in- adequate for practical real-world utilization. Since acquiring paired data of images and human spoken speech is challenging, the limited training data makes it difficult for models to learn how to compre- hend images and convert them into speech descriptions. As jointly understanding the image and speech is one of the key elements in developing multi-modal language technologies [17–19], it is impor- tant to devise an approach for associating the image and speech even when faced with limited image-speech paired data.
+Index Terms— Image-to-speech captioning, Image-to-speech
+synthesis, Multi-modal speech processing, Multi-modal tokens
+1. INTRODUCTION
+Directly synthesizing a speech description for an image holds sub- stantial promise in enhancing people’s daily experiences. By nar- rating traffic signs on roads through generated speech descriptions, individuals with visual impairments can gain a comprehensive un- derstanding of their immediate surroundings and route. Thereby, they can make informed decisions for their safe journey. Moreover, the capability to audibly check the image messages, even while en- gaged in activities like driving, can positively impact our daily rou- tines. This Image-to-Speech captioning (Im2Sp) technology [1] can be viewed as an audio counterpart of image captioning [2] that pre- dicts textual sentences describing input images. Despite the potential benefits of Im2Sp, the technology has not been well-addressed com- pared to image captioning. Different from text-based image caption- ing, developing an end-to-end Im2Sp model is regarded as a chal- lenging problem, due to the weak supervision of speech regression in comprehending the visual input [3, 4]. As speech contains not only linguistic information but also various irrelevant factors (e.g., speaker characteristics, duration, noises) to the input image, guiding the model with regression criteria that force to produce speech fea-
+In this paper, we focus on improving the performance of an end- to-end Im2Sp model. To this end, we investigate whether the rich knowledge of image understanding and language generation of a large-scale pre-trained vision-language model [20, 21] can be trans- ferred to Im2Sp. Then, we show that even if the vision-language model is pre-trained with image-text modalities instead of speech, we can significantly improve the performance of Im2Sp by incorpo- rating its pre-trained knowledge. Furthermore, we explore how we can enhance the efficiency of the Im2Sp model. Similar to the speech unit case, we quantize the input image into image units. Concretely, we tokenize the input image into image units by applying Vector Quantization (VQ) technique of ViT-VQGAN [22, 23]. With the to- kenized inputs, our Im2Sp problem becomes a translation between multi-modal tokens like language translation [9]. In this setup, both the input and output are discrete, enabling efficient model training and economic data storage management. The image units reduce the required bits more than 100 times compared to the original raw im- age. We show that with the vision-language pre-training strategy, we can still achieve reasonable Im2Sp performances while effectively reducing the required data storage and computational memory costs. The major contributions of this paper can be summarized as fol- lows: 1) This is the first work exploring vision-language pre-training in Im2Sp. By employing the vision-language pre-trained image en- coder and text decoder in our Im2Sp framework, we achieve state-
+Corresponding Author.
+
+
+of-the-art performances, demonstrating a significant performance margin compared to previous methods on two popular benchmark databases, COCO [24] and Flickr8k [25]. 2) This is the first work in- vestigating the image token-to-speech token translation framework with NLP-like processing of multi-modality, which can greatly reduce the required data storage. 3) Through comprehensive ex- periments including caption quality evaluations, human subjective evaluation, and state-of-the-art neural MOS evaluation [26, 27], we show the proposed Im2Sp model can generate natural speech with having the correct description for input images.
+2. METHOD
+Fig. 1 shows the proposed Im2Sp framework. Let x ∈ RH×W ×C be an input image and y ∈ RT be the ground-truth speech caption with a sample rate of 16kHz. Here, H, W , and C represent the image size of height, width, and channel, respectively, and T repre- sents the length of the waveform. The main objective of our learning problem is to translate the input image x into speech y that correctly describes the image content. To improve the performance of Im2Sp, we propose leveraging the knowledge of a pre-trained model trained on large-scale image-text data. Moreover, we improve the efficiency of the Im2Sp model by introducing multi-modal tokens. The details of the proposed method are described in the following subsections.
+2.1. Speech Unit Extraction
+Previous Im2Sp methods [5, 28, 29] showed that by utilizing discov- ered discrete acoustic units instead of directly predicting continuous speech features (e.g., Mel-spectrogram), we can improve the perfor- mance of Im2Sp. This is because by extracting the discrete acoustic units from the speech, we can focus more on the linguistic modeling of speech while suppressing the other factors in the speech [6, 10].
+Different from the previous works [28, 29] that utilize discrete acoustic units derived from Mel-spectrogram such as the code- book of VQ-VAE, we utilize speech units, discovered from the recent self-supervised speech model, HuBERT [14]. Hence, we eliminate the need for complex processes involving predicting the Mel-spectrogram from discrete acoustic units and converting the raw waveform from the predicted Mel-spectrogram, as required by previous methods. Instead, we can directly convert the waveform from the speech units by utilizing a speech unit-based vocoder [30, 31], with even more natural speech sound. Specifically, we extract speech features using a pre-trained HuBERT [14] and perform K- means clustering to obtain the discretized units, following [6]. Then, we remove sequential repetitions of the units and finally obtain our speech units u ∈ {1, . . . , Nu}S which will be used for the proposed Im2Sp. Here, Nu and S represent the token size and length of speech units, respectively. As HuBERT downsamples the raw audio y by a factor of 320, our speech units u have a much lower frame rate than the raw audio (i.e., S < T /320).
+2.2. Image-to-Speech with Vision-Language Pre-training
+Fig. 1b shows the overall architecture of the proposed Im2Sp model. It is mainly composed of an image encoder Φ and a speech de- coder Ψ. The image encoder is designed with Vision Transformer (ViT) [32] which is showing promising results in diverse vision tasks [33]. When an input image x is given, the image encoder Φ extracts the visual features fv by downsampling the spatial size as follows, fv = Φ(x) ∈ R(H/P ∗W/P +1)×D, where P represents the patch size of ViT, D represents the embedding dimension, and the additional 1 dimension (i.e., +1) comes from the attached CLS token. By treating
+TextEmbedding
+Quantizer
+ImageEncoder ΦInput Image
+ImageEncoder ΦInput Image
+Speech
+Classifier
+: BOS: EOS
+: BOS: EOS
+Decoder Ψ(Transformer)
+Decoder Ψ(Transformer)
+a zebra grazing in some green grassOutput Text(a) Vision-Language Pre-training(b) Training Image-to-Speech Captioning
+a zebra grazing in some green grassText
+AudioEmbedding
+Tokenizer
+Output Speech Unit
+25314832371645836
+Classifier
+Fig. 1. Illustration of the proposed image-to-speech captioning framework. (a) By employing the vision-language pre-training strat- egy, (b) we can bring the learned knowledge of image comprehen- sion and language generation into our image-to-speech captioning.
+the flattened spatial region of fv as a sequence, it is employed as a visual condition for the speech decoder Ψ. Therefore, the speech de- coder Ψ can generate the speech units u describing the conditioned visual features fv. After the visual features fv, an embedding of BOS (Beginning of Sequence) token is attached and the speech de- coder predicts the speech units u in an autoregressive manner until EOS (End of Sequence) is predicted. The objective function of the proposed Im2Sp can be represented as follows,
+argmax θ
+S (cid:88)
+k=1
+log p(uk|u<k, x; θ),
+where uk represents the current prediction, u<k represents the pre- vious prediction, and θ is the model parameters including image en- coder, text decoder, and embedding layers for speech units.
+Motivated by the recent progress in vision-language pre-training (Fig. 1a) [20, 21], we try to bring the image understanding knowl- edge and language generation knowledge of the large-scale pre- trained vision-language model into our Im2Sp model. Hence, we can alleviate the limitation in the Im2Sp task, where there is rela- tively limited availability of paired image and human spoken speech compared to the abundance of image-text paired data. Specifically, both the image encoder and the speech decoder are initialized from a pre-trained vision-language model, GiT [21]. GiT is pre-trained with text generation from images, thus the model knows how the image can be comprehended and can be described in language. Please note that the weight of the speech decoder is initialized with the text decoder of GiT. As the speech units mainly hold linguistic information [9, 15], we can transfer the language modeling ability of the pre-trained text decoder of the vision-language model into our spoken language generation [9]. The knowledge transferring from the vision-language model into the Im2Sp model is shown in Fig. 1.
+2.3. Efficient Image-to-Speech Captioning with Image Units
+Multi-modal processing systems, especially utilizing visual and au- dio modalities, require much more data storage and computational
+(1)
+
+
+Image Units
+Tokenizer(ViT-VQGAN)
+1524563239395353306879303693365486496301
+…
+ImageEncoder ΦImage
+Fig. 2. The extraction of image units by using vector quantization. Extracted image units are utilized for inputs instead of raw images.
+memory costs than text-only systems. This is why training large- scale multi-modal speech processing systems is significantly more challenging than NLP systems, with most of the development tak- ing place in the industry. These days, [3, 34] showed that we can represent the image with compressed discrete representations while maintaining its content by applying Vector Quantization (VQ) to the continuous image features. To assess the feasibility of creating effi- cient multi-modal processing systems, we investigate the Im2Sp sys- tem working with quantized image representations, the image units. Therefore, our system now takes discrete image tokens as input and generates discrete speech tokens as output, resembling the operation of an NLP system that works with discrete text input and output [9]. To this end, we employ a pre-trained image vector quantizer of ViT-VQGAN [22, 23], as shown in Fig. 2. The quantizer tokenizes the input image x into image units i ∈ {1, . . . , Ni}H/8×W/8 by downsampling its spatial size with a factor of 8. The token size of image units Ni is 8,192 (13 bits). Then, with the image units, we train the Im2Sp model with the aforementioned vision-language pre- training strategy. Therefore, we first train an image-to-text system and then transfer the knowledge into the Im2Sp model. To employ image units as inputs for the image encoder, we follow SEiT [35] and utilize Stem-Adpator to handle the different input sizes. As the system purely works with discrete inputs and outputs, the required data size can be greatly reduced. We compare the bit size of different input [35] and output [15] representations in Table 1. By utilizing image units, we can reduce the required bits to 0.8% compared to the raw image. Moreover, by utilizing speech units at the output side, we only require 0.2% bits compared to raw waveform (based on 16bit, 16kHz audio) or Mel-spectrogram (based on 100 FPS and 80 mel-spectral dimensions). As we remove the repetition of speech units, we can further reduce the data size, similar to that reported in [15]. As a result, we can significantly shrink the amount of data storage and GPU memory needed for training the model for both input and output parts. This makes it much easier to scale multi- modal processing systems to large-scale training.
+3. EXPERIMENTS
+3.1. Dataset
+We utilize two Im2Sp databases, Flickr8kAudio [36] and Spo- kenCOCO [28]. For both datasets, Karpathy split [37] is used. Flickr8kAudio is a spoken version of Flickr8k [25] recorded from 183 speakers. It consists of 6,000 images for training, and 1,000 images for validation and testing, respectively. Each image has 5 speech captions. SpokenCOCO is a spoken version of COCO-2014 captioning dataset [24] and is collected by recording the utterances from 2,532 speakers. It has 82,783 training images with 5,000 im- ages for validation and testing, respectively. Five speech captions are provided for each image. For training, the two datasets are utilized together following [28]. Then, the model is evaluated on each validation and test splits of COCO [24] and Flickr8k [25]. For measuring the performance, we employ an off-the-shelf ASR model [38] to transcribe the generated speech. Then, we measure BLEU-4
+Table 1. Data size (bits) comparisons according to different data types for image and audio modalities. Based on the image size of 224×224, audio of 16kHz and 16bits, and Mel-spectrogram of 100 FPS and 80 filter banks. L represents the time length of the audio.
+Modality
+Image
+Audio
+Data Type Raw Image Image Unit Raw Audio
+Data Size (bits) 224 × 224 × 3 × 8 28 × 28 × 13 16000 × L × 16
+Mel-spectrogram 100 × 80 × L × 32
+Speech Unit
+(<50) × L × 8
+Reduction Rate 100% 0.8% 100% 100% <0.2%
+[39], METEOR [40], ROUGE [41], CIDEr [42], and SPICE [43], which are the standard metrics in image captioning [24], where all metrics indicate better performance with higher values.
+3.2. Implementation Details
+Basically, our Im2Sp model has the similar architecture of GiT-large [21] whose image encoder is ViT-large [32] with a patch size of 14 (i.e., P =14) and decoder is composed of 6-layered transformers [45]. For the input image, we resize images to a size of 224×224. For the speech unit extraction (Quantizer in Fig. 1b), we use a pre-trained HuBERT-base model [14] and perform K-means clustering on fea- tures extracted at the 6th layer into 200 units (i.e., Nu=200), follow- ing [11]. To generate a waveform, we train a unit-based HiFi-GAN [30, 31] on LJSpeech [46]. For training the Im2Sp model, the im- age encoder and speech decoder are initialized from pre-trained GiT- large of [21]. We freeze the image encoder, and only train the speech decoder and unit embedding layers, for 100k steps with a batch size of 64, a learning rate of 5e−5 with a warmup for 10k steps. Mod- els are selected based on the BLEU score on the validation set. For training the image unit-based Im2Sp model, we first pre-train the image unit-based vision-language model on CC3M [47], SBU [48], COCO, and Flickr8k by initializing the image encoder with a pre- trained SEiT [35]. The same text tokenizer with GiT is utilized. Then, the pre-trained image-text model is transferred into Im2Sp.
+3.3. Experimental Results
+Effectiveness of vision-language pre-training. To confirm the effectiveness of vision-language pre-training strategies, we train three variants of the Im2Sp model. 1) The baseline that does not utilize the strategy and just initializes the image encoder with a pre- trained image classifier [32], similar to [28]. 2) The model whose image encoder is initialized with the vision-language pre-trained model, CLIP [20]. 3) The proposed model that both image encoder and text decoder are initialized from the vision-language pre-trained model, GiT [21]. The speech decoders for the first two models are randomly initialized and trained on Im2Sp datasets. Table 2 shows the ablation results on Flickr8k and COCO. Without utilizing the vision-language pre-training, we achieve 12.9 and 17.4 BLEU scores on each database. By initializing the image encoder with pre- trained CLIP using image-text association, we can greatly improve the performances on all metrics from the baseline. Therefore, we can confirm that by utilizing a vision-language pre-trained image encoder instead of a simple image classifier, the model can better capture the language-associated semantics from input images. Next, when we additionally initialize the speech decoder with a pre-trained text decoder, we can further improve the performance. This is due to the fact that speech units mainly hold linguistic information and can be regarded as unified representations of speech and text [9], en- abling the speech decoder to inherit the language model knowledge of the large-scale pre-trained text decoder.
+
+
+Table 2. Ablation study to confirm the effectiveness of vision-language pre-training in image-to-speech captioning.
+Vision-Language Pre-training
+Flickr8k
+COCO
+Image Encoder Speech Decoder BLEU-4 METEOR ROUGE CIDEr SPICE BLEU-4 METEOR ROUGE CIDEr SPICE
+✗ ✓ ✓
+✗ ✗ ✓
+12.9 17.7 20.6
+17.1 20.6 22.0
+40.7 45.9 48.4
+31.4 45.8 53.6
+10.3 14.0 15.8
+17.4 20.9 25.9
+19.1 21.3 23.8
+44.0 46.3 50.4
+50.5 64.7 81.1
+12.2 15.1 17.5
+Table 3. Image-to-speech captioning performance comparisons on Flickr 8k and COCO. We also report the performance of image captioning and cascaded models for analysis purposes. We utilize an off-the-shelf TTS model [44] for measuring the performance of cascaded models.
+Modality
+Methods
+Flickr8k
+COCO
+BLEU-4 METEOR ROUGE CIDEr SPICE BLEU-4 METEOR ROUGE CIDEr SPICE
+SAT [2]
+21.3
+20.3
+
+
+
+24.3
+23.9
+
+
+
+Image captioning (Image→Text)
+Ours
+30.8
+26.9
+55.8
+93.8
+20.0
+38.7
+29.5
+59.1
+131.2
+23.3
+Ours (Image Unit)
+23.4
+22.0
+48.9
+63.3
+15.4
+29.9
+25.2
+52.8
+97.4
+18.6
+Cascaded (Image→Text & Text→Speech)
+Ours
+Ours (Image Unit)
+29.1
+22.3
+26.0
+21.3
+54.6
+48.0
+84.9
+57.7
+18.9
+14.6
+36.1
+28.2
+28.4
+24.3
+57.5
+51.6
+117.2
+87.4
+21.9
+17.5
+Wang et al. [5]
+3.5
+11.3
+23.2
+8.0
+
+
+
+
+
+
+Image-to-Speech Captioning (Image→Speech)
+SAT-FT-VQ3 [28]
+Effendi et al. [29]
+Ours
+12.5
+14.8
+20.6
+14.5
+17.4
+22.0
+39.1
+32.9
+48.4
+24.5
+45.8
+53.6
+9.5
+
+15.8
+23.3
+
+25.9
+21.2
+
+23.8
+47.8
+
+50.4
+73.2
+
+81.1
+14.9
+
+17.5
+Ours (Image Unit)
+16.7
+19.6
+44.2
+41.2
+13.1
+20.1
+21.4
+46.4
+64.0
+15.0
+Comparisons with the state-of-the-art methods. Table 3 shows the evaluation results on Flickr8k and COCO databases. For analysis purposes, we also report the performance of image captioning and cascaded (i.e., image captioning & text-to-speech) systems. Note that our text-based systems (i.e., image captioning and cascaded) are the models before transferred to Im2Sp, which are trained on over 3M image-text pairs [21]. As the Im2Sp model is trained on 89K image-audio pairs, a direct comparison cannot be made between different modal systems. We highlight that even though the performance of the Im2Sp model is lower than the cas- caded system, we still need to develop an end-to-end Im2Sp model for the following reasons. 1) More than 40% of languages have no writing systems [49], so the text-based model is not feasible for them. 2) We can reduce the inference time and maintenance costs compared to using two systems of image captioning and text- to-speech. Through continuous research efforts, we may achieve performance comparable to cascaded systems, much like what has been accomplished with end-to-end speech translation [50].
+By comparing the performance of the proposed Im2Sp method with the previous state-of-the-art methods [28, 29], we can con- firm that the proposed method outperforms the previous methods with large gaps in all metrics. For example, the proposed Im2Sp achieves a 20.6 BLEU score on Flickr8k which outperforms the pre- vious method [29] by 5.8 BLEU score. Furthermore, in contrast to previous methods that exhibited significantly lower performance than the popular image captioning system, SAT [2], the proposed Im2Sp model can now catch up with the performance of the text- based system (i.e., SAT). Please note that the works [28, 29] uti- lized ASR models trained on audio reconstructed from their audio features, hence some incorrect pronunciations are calibrated by the ASR model. In contrast, we achieve better performance by using an off-the-shelf ASR model [38]. We strongly recommend listening to the generated speech that is available on bit.ly/3Z9T6LJ.
+We also conduct Mean Opinion Score (MOS) tests, involving 15 participants who assessed 20 samples for each method. The subjects
+Table 4. Mean Opinion Score (MOS) comparisons with 95% confi- dence interval, and Neural MOS scores on COCO.
+Methods
+Human Evaluation (MOS)
+Neural MOS [26, 27]
+Naturalness Descriptiveness MOSNet ↑ SpeechLMScore ↓
+SAT-FT-VQ3 [28]
+Ours
+2.870±0.095 4.275±0.086
+2.978±0.131 3.968±0.108
+4.12
+4.26
+4.25
+4.17
+Ours (Image Unit) 4.228±0.089
+3.725±0.122
+4.33
+4.16
+are asked to rate the naturalness of the generated speech and how cor- rectly the generated speech describes the input image on a scale of 1 to 5. Moreover, we also report DNN-based MOS using MOSNet [26] and SpeechLMScore [27]. The MOS comparison results are shown in Table 4. The results on both human and DNN-based met- rics clearly show that the proposed Im2Sp method generates more natural sound with better descriptiveness than the previous method. Performance of image unit-based system. The last row of Ta- ble 3 shows the Im2Sp performance of the image unit-based system. We can find that there is a trade-off between efficiency and perfor- mance, similar to [35]. However, we can achieve reasonable perfor- mances by achieving better performances than the previous state-of- the-art [29] on Flickr8k data. From the MOS test in Table 4, we find that we lose some descriptiveness when we use image units, but we can maintain the speech quality. Please note that with the unit-based Im2Sp, we can reduce a great amount of data storage and computa- tion costs. The required bit size is reduced to 0.8% and lower than 0.2% for input and output, compared to original signals (Sec. 2.3).
+4. CONCLUSION
+In this paper, we proposed a practical and efficient Image-to-Speech captioning (Im2Sp) method. We showed that even if speech is not utilized in vision-language pre-training, the knowledge of image comprehension and language modeling can be transferred into the Im2Sp model. Finally, by employing image units instead of raw im- ages as inputs for our system, we showed that we can greatly reduce the data size (bits) while still achieving reasonable performances.
+
+
+5. REFERENCES
+[1] M. Hasegawa-Johnson et al., “Image2speech: Automatically generat- ing audio descriptions of images,” Casablanca 2017, p. 65, 2017.
+[2] K. Xu et al., “Show, attend and tell: Neural image caption generation with visual attention,” in ICML, PMLR, 2015, pp. 2048–2057.
+[3] A. Van Den Oord, O. Vinyals, et al., “Neural discrete representation
+learning,” NIPS, vol. 30, 2017.
+[4] M. Kim, J. Hong, and Y. M. Ro, “Lip-to-speech synthesis in the wild with multi-task learning,” in Proc. ICASSP, IEEE, 2023, pp. 1–5.
+[5] X. Wang et al., “Synthesizing spoken descriptions of images,” IEEE/ACM Transactions on Audio, Speech, and Language Pro- cessing, vol. 29, pp. 3242–3254, 2021.
+[6] K. Lakhotia et al., “On generative spoken language modeling from raw audio,” Transactions of the Association for Computational Lin- guistics, vol. 9, pp. 1336–1354, 2021.
+[7] H. Inaguma et al., “Unity: Two-pass direct speech-to-speech transla-
+tion with discrete units,” in Proc. ACL, 2023.
+[8]
+S. Popuri et al., “Enhanced direct speech-to-speech translation using self-supervised pre-training and data augmentation,” in Proc. Inter- speech, 2022.
+[9] M. Kim et al., “Many-to-many spoken language translation via uni- fied speech and text representation learning with unit-to-unit transla- tion,” arXiv preprint arXiv:2308.01831, 2023.
+[10] A. Sicherman and Y. Adi, “Analysing discrete self supervised speech representation for spoken language modeling,” in Proc. ICASSP, IEEE, 2023, pp. 1–5.
+[11]
+T. A. Nguyen et al., “Generative spoken dialogue language model- ing,” Transactions of the Association for Computational Linguistics, vol. 11, pp. 250–266, 2023.
+[12]
+T. Hayashi and S. Watanabe, “Discretalk: Text-to-speech as a machine translation problem,” arXiv preprint arXiv:2005.05525, 2020.
+[13]
+J. Choi, M. Kim, and Y. M. Ro, “Intelligible lip-to-speech synthesis with speech units,” in Proc. Interspeech, 2023.
+[14] W.-N. Hsu et al., “Hubert: Self-supervised speech representation learning by masked prediction of hidden units,” IEEE/ACM Transac- tions on Audio, Speech, and Language Processing, vol. 29, pp. 3451– 3460, 2021.
+[15] X. Chang et al., “Exploration of efficient end-to-end asr using dis- cretized input from self-supervised learning,” in Proc. Interspeech, 2023.
+[16] M. Kim et al., “Lip reading for low-resource languages by learn- ing and combining general speech knowledge and language-specific knowledge,” in Proc. ICCV, 2023.
+[17] G. Chrupała, L. Gelderloos, and A. Alishahi, “Representations of lan- guage in a model of visually grounded speech signal,” in Proc. ACL, 2017, pp. 613–622.
+[18] Y.-J. Shih et al., “Speechclip: Integrating speech with pre-trained vi-
+sion and language model,” in SLT Workshop, IEEE, 2023.
+[19]
+J. Hong et al., “Watch or listen: Robust audio-visual speech recogni- tion with visual corruption modeling and reliability scoring,” in Proc. CVPR, 2023, pp. 18 783–18 794.
+[20] A. Radford et al., “Learning transferable visual models from natural language supervision,” in ICML, PMLR, 2021, pp. 8748–8763.
+[21]
+J. Wang et al., “Git: A generative image-to-text transformer for vision and language,” Transactions on Machine Learning Research, 2022.
+[22]
+P. Esser, R. Rombach, and B. Ommer, “Taming transformers for high- resolution image synthesis,” in Proc. CVPR, 2021, pp. 12 873–12 883.
+[23]
+J. Yu et al., “Vector-quantized image modeling with improved vqgan,” in ICLR, 2021.
+[24]
+T.-Y. Lin et al., “Microsoft coco: Common objects in context,” in Proc. ECCV, Springer, 2014, pp. 740–755.
+[25] M. Hodosh, P. Young, and J. Hockenmaier, “Framing image descrip- tion as a ranking task: Data, models and evaluation metrics,” Journal of Artificial Intelligence Research, vol. 47, pp. 853–899, 2013.
+[26] C.-C. Lo et al., “Mosnet: Deep learning-based objective assessment
+for voice conversion,” Proc. Interspeech, 2019.
+[27]
+S. Maiti et al., “Speechlmscore: Evaluating speech generation using speech language model,” in ICASSP, IEEE, 2023, pp. 1–5.
+[28] W.-N. Hsu et al., “Text-free image-to-speech synthesis using learned
+segmental units,” in Proc. ACL, 2021, pp. 5284–5300.
+[29]
+J. Effendi, S. Sakti, and S. Nakamura, “End-to-end image-to-speech generation for untranscribed unknown languages,” IEEE Access, vol. 9, pp. 55 144–55 154, 2021.
+[30] A. Polyak et al., “Speech resynthesis from discrete disentangled self-
+supervised representations,” in Proc. Interspeech, 2021.
+[31]
+J. Kong, J. Kim, and J. Bae, “Hifi-gan: Generative adversarial net- works for efficient and high fidelity speech synthesis,” NIPS, 2020.
+[32] A. Dosovitskiy et al., “An image is worth 16x16 words: Transformers
+for image recognition at scale,” in ICLR, 2020.
+[33] K. Han et al., “A survey on vision transformer,” IEEE TPAMI, vol. 45,
+no. 1, pp. 87–110, 2022.
+[34] A. Mnih and K. Gregor, “Neural variational inference and learning in
+belief networks,” in ICML, PMLR, 2014, pp. 1791–1799.
+[35]
+S. Park et al., “Seit: Storage-efficient vision training with tokens using 1% of pixel storage,” in Proc. ICCV, 2023.
+[36] D. Harwath and J. Glass, “Deep multimodal semantic embeddings for
+speech and images,” in ASRU, IEEE, 2015, pp. 237–244.
+[37] A. Karpathy and L. Fei-Fei, “Deep visual-semantic alignments for generating image descriptions,” in Proc. CVPR, 2015, pp. 3128–3137.
+[38] A. Baevski et al., “Wav2vec 2.0: A framework for self-supervised learning of speech representations,” Advances in neural information processing systems, vol. 33, pp. 12 449–12 460, 2020.
+[39] K. Papineni et al., “Bleu: A method for automatic evaluation of ma-
+chine translation,” in Proc. ACL, 2002, pp. 311–318.
+[40] M. Denkowski and A. Lavie, “Meteor universal: Language specific translation evaluation for any target language,” in Proc. workshop on statistical machine translation, 2014, pp. 376–380.
+[41] C.-Y. Lin, “Rouge: A package for automatic evaluation of sum- maries,” in Text summarization branches out, 2004, pp. 74–81.
+[42] R. Vedantam, C. Lawrence Zitnick, and D. Parikh, “Cider: Consensus-
+based image description evaluation,” in Proc. CVPR, 2015.
+[43]
+P. Anderson et al., “Spice: Semantic propositional image caption eval- uation,” in Proc. ECCV, Springer, 2016, pp. 382–398.
+[44]
+J. Kim, J. Kong, and J. Son, “Conditional variational autoencoder with adversarial learning for end-to-end text-to-speech,” in ICML, PMLR, 2021, pp. 5530–5540.
+[45] A. Vaswani et al., “Attention is all you need,” Advances in neural
+information processing systems, vol. 30, 2017.
+[46] K. Ito and L. Johnson, The lj speech dataset, https://keithito.
+com/LJ-Speech-Dataset/, 2017.
+[47]
+P. Sharma et al., “Conceptual captions: A cleaned, hypernymed, im- age alt-text dataset for automatic image captioning,” in Proc. ACL, 2018, pp. 2556–2565.
+[48] V. Ordonez, G. Kulkarni, and T. Berg, “Im2text: Describing images using 1 million captioned photographs,” Advances in neural informa- tion processing systems, vol. 24, 2011.
+[49] A. Lee et al., “Textless speech-to-speech translation on real data,” in
+Proc. NAACL, 2022, pp. 860–872.
+[50] A. Antonios et al., “Findings of the iwslt 2022 evaluation campaign.,”
+in Proc. IWSLT, ACL, 2022, pp. 98–157.

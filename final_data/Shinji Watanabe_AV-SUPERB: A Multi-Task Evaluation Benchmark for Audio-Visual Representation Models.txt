@@ -1,0 +1,228 @@
+3 2 0 2
+p e S 9 1
+] S A . s s e e [
+1 v 7 8 7 0 1 . 9 0 3 2 : v i X r a
+AV-SUPERB: A MULTI-TASK EVALUATION BENCHMARK FOR AUDIO-VISUAL REPRESENTATION MODELS
+Yuan Tseng1, Layne Berry2∗, Yi-Ting Chen3∗, I-Hsiang Chiu1∗, Hsuan-Hao Lin1∗, Max Liu1∗, Puyuan Peng2∗, Yi-Jen Shih1∗, Hung-Yu Wang1∗, Haibin Wu1∗, Po-Yao Huang4, Chun-Mao Lai1, Shang-Wen Li4, David Harwath2, Yu Tsao3, Shinji Watanabe5, Abdelrahman Mohamed6, Chi-Luen Feng1, Hung-yi Lee1
+1 National Taiwan University, Taiwan 2 University of Texas at Austin, USA 3 Academia Sinica, Taiwan 4 Meta AI 5 Carnegie Mellon University, USA 6 Rembrand r11942082@ntu.edu.tw
+ABSTRACT
+Audio-visual representation learning aims to develop systems with human-like perception by utilizing correlation between auditory and visual information. However, current models often focus on a limited set of tasks, and generalization abilities of learned repre- sentations are unclear. To this end, we propose the AV-SUPERB benchmark that enables general-purpose evaluation of unimodal au- dio/visual and bimodal fusion representations on 7 datasets covering 5 audio-visual tasks in speech and audio processing. We evaluate 5 recent self-supervised models and show that none of these models generalize to all tasks, emphasizing the need for future study on improving universal model performance. In addition, we show that representations may be improved with intermediate-task fine-tuning and audio event classification with AudioSet serves as a strong in- termediate task. We release our benchmark with evaluation code1 and a model submission platform2 to encourage further research in audio-visual learning.
+human perception, which synergistically integrates auditory and vi- sual cues [12, 13]. While audio-visual representation learning has made significant progress [14, 15, 16, 17, 18], the assessment of these models tends to be task-specific, leaving the broader gener- alization capabilities across various audio-visual challenges less un- derstood. This complicates comparitive analysis of different models and training strategies, impeding the development of more robust and versatile audio-visual representation learning approaches.
+To address this issue, we propose AV-SUPERB, a standardized benchmark for comprehensively evaluating representations across seven distinct datasets involving five speech and audio processing tasks. AV-SUPERB comprises of three tracks to assess audio, video, and audio-visual fusion representations. We envision that these dis- tinct tracks will allow researchers in speech, audio, and video repre- sentation learning alike to compare learning strategies across models and modalities, enabling broader analysis of their effectiveness.
+Index Terms— Audio-Visual Learning, Representation Learn-
+ing, Evaluation, Self-Supervised Learning
+1. INTRODUCTION
+Emulating the seamless integration of multiple tasks in human cognition, such as spoken language comprehension, sound event detection, and visual object recognition has been a long-standing goal of computational research. Prior research demonstrates that the pretrain-then-finetune paradigm is an effective and scalable method of building multitasking algorithmic systems for speech [1, 2], au- dio [3, 4], and vision [5, 6]. In the pretraining stage, models can often learn meaningful representations from unlabelled data alone through optimization of contrastive, masked prediction, or other self-supervised loss functions. These pretrained representations can then be applied to diverse tasks just by fine-tuning minimal additional parameters.
+In order to better measure progress in representation learning, previous works have established multitask benchmarks in speech [7, 8], audio [9], and vision [10, 11]. However, these benchmark pre- dominantly evaluate performance in isolation within single modal- ities. This approach overlooks the inherent multimodal nature of
+∗ Equal contribution; sorted alphabetically 1https://github.com/roger-tseng/av-superb 2https://av.superbbenchmark.org
+Our contributions are four-fold: (1) Diverse-domain evalua- tion: We propose the first audio-visual learning benchmark that en- compasses multiple datasets and tasks, covering both speech and au- dio domains. (2) Easy and reproducible benchmarking: We re- lease evaluation code and a dedicated model submission platform that ensures reproducible evaluation on dynamic Youtube datasets (3) Intermediate-task and reduces computational entry barriers. fine-tuning: Our work emphasizes the potential benefits of full fine- tuning on intermediate tasks for improving performance on out-of- domain downstream tasks. (4) Layer-wise analysis: We show that different layers contribute variably to task performance, suggesting that simply using representations of the final layer is suboptimal, motivating the weighted-sum evaluation approach.
+2. RELATED WORK
+Recognizing how the close relation between audition and vision fa- cilitates multimodal human perception, many audio-visual datasets have been gathered for action recognition [19, 15, 20, 21], speech recognition [22, 23, 24], speaker recognition [25, 26], and a vari- ety of other tasks to study audio-visual learning. However, most models are trained and evaluated on different datasets with different experiment settings, which increases comparison difficulty and ob- fuscates the broad applicability of proposed methods. Hence in the AV-SUPERB benchmark, we select a diverse set of datasets from multiple tasks to comprehensively compare works in audio-visual representation learning.
+Previous multitask benchmarks in speech [7, 8], audio [9], and
+
+
+Fig. 1. We consider three evaluation scenarios: extracting fea- tures using inputs from one or both modalities. Following [7], the weighted-sum of features from Transformer layers (if applicable) are used as input for fine-tuning a small downstream model for each in- dividual task. Details of selected tasks are given in Section 3.1.
+video representation learning [27, 10, 11] allow for fairer com- parison of different models and promote research towards general approaches that are applicable to a variety of real-world tasks. SUPERB [7] and SUPERB-SG [8] evaluate speech representation models on a wide range of downstream tasks covering content, speaker, and other different aspects of speech. Additionally, the HEAR benchmark [9] evaluates audio representations on diverse domains beyond speech, such as music and environmental sounds. For video representations, the SEVERE-benchmark [10] evaluates video self-supervised learning models on a diverse set of datasets to measure model sensitivity to different properties of downstream tasks. Feichtenhofer et al. [27] extend 4 image self-supervised learning methods to video representations and compare their effi- cacy on several downstream datasets, while Kumar et al. [11] focus on the effects of different factors in self-supervised video pretrain- ing. However, these works focus on individual domains, and cannot make use of the relationship between paired audio/visual inputs.
+Previous multi-task multimodal benchmarks either focus on ego- centric videos [28], visual-and-language domains [29, 30] or gen- eral multimodal learning[31]. In contrast, AV-SUPERB specializes in audio-visual tasks from speech and audio processing, allowing for more holistic assessment of representation models of audio and video alike.
+3. BENCHMARK DETAILS
+As shown in Figure 1, audio-visual models typically consist of two separate unimodal encoders followed by multimodal fusion layers. Based on this design, we setup three evaluation tracks in AV- SUPERB to benchmark representations from the two encoder and fusion layers, referred as audio-only, video-only, and audio-visual fusion features. This also allows for easy comparison with previous unimodal representation models.
+Instead of striving for best possible performance for each task, the goal of our benchmark is to provide insight on the generaliza- tion capabilities of pretrained representations; therefore, we freeze the parameters of the task-invariant pretrained representation model (hereby referred as upstream model), and only finetune the param- eters of the task-specific model (hereby referred as downstream model), following previous work [7]. Downstream models are designed to be simple and lightweight in order to purely evalu-
+ate representation abilities. Following the spirit of representation evaluation, we also limit hyperparameter tuning for downstream tasks. Although, we recognize that different representations may have vastly different loss landscapes, hence we search for the best performing learning rate from 10−1 to 10−5 in log-scale.
+3.1. Downstream Task Selection
+To keep computational costs reasonable, we mainly focus on utterance-level classification tasks in speech and audio processing, with the addition of ASR.
+For audio processing, we select two audio classification tasks that highlight the relevance of different modalities, audio event clas- sification (AEC) and action recognition (AR). Since audio events are often directly caused by actions, these tasks are complementary, and utilizing both audio and visual information can lead to better repre- sentations. This enables the possibility of learning better representa- tions from multimodal input compared to unimodal baselines.
+For speech processing, we select three audio-visual speech pro- cessing tasks where visual information is known to be beneficial [32, 33, 34], automatic speech recognition (ASR), automatic speaker verification (ASV), and emotion recognition (ER), in order to assess model capabilities on three fundamental aspects of speech: content, speaker, and paralinguistic information.
+In designing the architecture for the downstream models, we generally follow the setup used for utterance-level tasks in the SU- PERB benchmark. Specifically, the downstream model consists of a two-layer fully-connected network. This network takes the mean of features extracted from the frozen upstream model as input, and outputs class probabilities. However, as we also include the frame- level ASR task, we employ a two-layer BiLSTM model that takes the whole representation sequence as input and outputs characters.
+3.2. Pretrained Upstream Models
+To showcase the utility of our benchmark, we opt for the base version of four audio-visual upstream models, AV-HuBERT [35], RepLAI [36], Lee et al.’s model [37] (hereby referred as AVBERT through- out this paper), and MAViL [38]. These models were specifically chosen because they each excel at different tasks, underscoring the current gap in multi-tasking capabilities within existing audio-visual models. They vary substantially in terms of architecture, training objectives, and preprocessing techniques. We also conduct exper- iments on the base HuBERT [2] model, an unimodal speech repre- sentation model with similar design as AV-HuBERT, to make a fairer comparison between audio & audio-visual features.
+Additionally, we incorporate two baselines that use handcrafted features as input for downstream models. Specifically, we employ log mel filterbank (FBANK) for audio and histogram of oriented gra- dients (HoG) for video, respectively.
+4. EXPERIMENTAL RESULTS AND DISCUSSION
+Previous work has shown that simply using representations extracted at the last layer of a frozen self-supervised model often results in sub- optimal performance [39, 7]. Hence, we take a learnable weighted- sum of representations extracted over different Transformer layers as the final representation for each downstream task. For the audio-only and video-only tracks, only unimodal input and the relevant layers are used for extracting representations. For the audio-visual fusion track, both of the unimodal encoders plus fusion layers are used. As the size of representations extracted from fusion Transformer layers differ from those of unimodal layers, we take the weighted-sum for fusion Transformer layers only.
+
+
+Audio-Visual
+Speech-Visual
+Representation Type Params.
+Overall Score
+AEC
+AS-20K VGGSound
+(mAP ↑)
+(Acc. ↑)
+Kinetics- Sounds (Acc. ↑)
+AR
+ASR
+ASV
+ER
+UCF101 LRS3-TED VoxCeleb2 IEMOCAP
+(Acc. ↑)
+(CER ↓)
+(EER ↓)
+(Acc. ↑)
+Audio-only
+FBANK HuBERT AV-HuBERT* RepLAI AVBERT MAViL
+0 95M 90M 5M 10M 86M
+36.69 53.66 53.20 39.70 44.81 54.11
+2.8 14.3 12.6 12.3 20.5 21.6
+5.12 30.21 31.14 27.01 37.67 39.91
+24.73 51.46 49.02 45.90 55.28 57.28
+19.91 36.06 38.58 33.85 43.26 45.68
+20.07 2.96 3.01 66.09 80.23 24.43
+27.16 15.58 14.45 32.58 23.74 20.71
+51.52 62.14 58.54 57.53 60.94 59.46
+Video-only
+HoG AV-HuBERT* RepLAI AVBERT MAViL
+0 103M 15M 37M 87M
+25.39 33.48 36.40 47.69 49.70
+1.5 2.4 5.5 11.5 18.0
+3.81 5.90 13.5 28.73 32.08
+18.70 24.73 46.68 62.67 74.01
+25.67 37.55 56.69 77.42 79.37
+71.46 50.91 71.33 72.29 74.03
+36.32 11.90 36.95 20.00 24.58
+35.83 26.59 40.72 45.8 43.03
+Audio-visual fusion
+AV-HuBERT AVBERT MAViL
+103M 43M 187M
+53.42 54.85 62.36
+13.3 22.9 26.7
+32.69 44.54 47.22
+52.23 71.31 79.51
+41.46 71.76 77.98
+2.75 70.12 30.18
+9.46 18.31 19.67
+46.45 61.87 54.94
+In order to fairly compare HuBERT & AV-HuBERT, we set features of the opposing modality to 0 and extract features from the 12-layer fusion Transformer for audio-only and video-only tracks.
+Table 1. Main results. Best results for each track are highlighted in bold. Second-best results are underlined. We observe that MAViL excels at audio processing tasks, while HuBERT and AV-HuBERT are better for speech processing tasks.
+4.1. Downstream Datasets and Training Details
+Evaluation results for the three tracks are given in Table 1. For AEC, we evaluate on AudioSet [40] and VGGSound [41], and for AR, we select Kinetics-Sounds [15] and UCF101 [20]. Notably, in VGGSound and Kinetics-Sounds, audio and visual information are more correlated. This is reflected in our results, as audio-visual fu- sion improves representations more for the two datasets compared to AudioSet and UCF101. We report testing set mean average preci- sion for multi-label classification on AudioSet, and accuracy for the remaining three datasets.
+For speech processing, we choose LRS3-TED for ASR, Vox- Celeb2 for ASV, and IEMOCAP for ER. For ASR, we optimize CTC loss for character-level ASR, and report character error rate. For ASV, we first train for speaker identification on a subset of the dev split, then calculate cosine similarity to do verification on the test split and report equal error rate. For ER, we follow conventional evaluation, remove unbalanced classes to perform four-way classifi- cation (neutral, happy, sad, angry) and report accuracy. Additional dataset and training details are given on our submission platform2.
+4.2. Overall Results
+We find that existing models generally obtain large gains over hand- crafted features, yet none of the five models tested were able to out- perform all others in every task. To gauge universal performance across tasks, we provide an overall score calculated as the mean of either task-specific accuracies or the complement of error rates.
+For the three speech processing tasks (ASR, ASV, ER), AV- HuBERT performs the best on ASR and ASV, and HuBERT achieves superior performance on ER. Notably, the unimodal HuBERT scores
+competitively on ASR and ASV as well, despite not being trained to utilize any visual grounding information.
+For the four audio processing datasets, MAViL and AVBERT consistently outperforms all other models in all three tracks. We hypothesize that this is largely due to the diversity and large size of AudioSet data used for pretraining. Despite the domain mismatch, AVBERT also performs competitively for the ASV and ER speech tasks, especially in the audio-visual fusion track.
+However, MAViL and AVBERT cannot perform ASR well, as simply using handcrafted FBANK features achieves lower error rates. Comparing their scores in the audio-only and fusion tracks, we see that fusion layers are unable to effectively utilize the ad- ditional lip reading information, as performance is reduced when video is provided.
+4.3. When does Visual Grounding Improve Audio Representa- tion Learning?
+Compared to unimodal audio representation models, audio-visual models may take advantage of information learned from visual grounding to improve audio representations even when only audio input is available at inference. Of the five evaluated models, Hu- BERT and AV-HuBERT use similar architectures, and optimize the same masked cluster prediction objective using k-means clusters of MFCC features as the initial targets. While HuBERT is only trained on unimodal speech data, AV-HuBERT is further trained to predict multimodal cluster targets obtained from both audio and visual modalities. Hence we compare audio-only track results for HuBERT and AV-HuBERT, and find that visual grounding from multimodal cluster prediction can obtain small gains for VoxCeleb2,
+
+
+Audio-Visual
+Speech-Visual
+Intermediate Task Fine-tuning Data
+AS-20K (mAP ↑)
+AEC
+VGGSound Kinetics-Sounds
+(Acc. ↑)
+(Acc. ↑)
+AR
+UCF101 (Acc. ↑)
+ASR
+LRS3-TED (CER ↓)
+ASV
+VoxCeleb2 (EER ↓)
+ER
+IEMOCAP (Acc. ↑)
+AV-HuBERT Audio Video Fusion
+LRS3-TED (video-text pairs)
+12.6(-0.6) 2.5(+0.1) 5.1(-8.2)
+22.83(-8.31) 6.12(+0.22) 17.11(-15.58)
+38.19(-10.83) 25.35(+0.62) 38.52(-13.71)
+28.70(-9.88) 13.89(-10.88) 22.38(-7.93) 53.92(-4.62) 42.03(+4.48) 35.48(+15.43) 11.40(+0.50) 32.69(+6.10) 22.66(-19.91) 11.35(-1.89) 43.58(-2.87) 40.74(-0.72)
+MAViL
+Audio Video Fusion
+AudioSet-2M
+44.79(+4.89) 28.3(+6.7) 20.9(+2.9) 36.68(+4.58) 39.1(+12.4) 55.94(+8.72)
+62.93(+5.65) 77.39(+3.38) 84.93(+5.42)
+50.10(+4.42) 86.93(+7.56) 88.07(+10.09)
+23.99(+0.44) 78.59(-4.56) 30.65(-0.47)
+21.77(-1.06) 58.17(-1.29) 23.93(+0.65) 39.15(-3.88) 18.61(+1.06) 46.35(-8.59)
+Table 2. Intermediate-task fine-tuning does not generally improve performance across all tasks. Results after intermediate-task fine-tuning (left) and absolute improvements compared to the original self-supervised model (right) are shown. Fine-tuning data for each model is color-coded to the corresponding downstream dataset.
+VGGSound and UCF101.
+may provide improved representations for speech/audio tasks after intermediate-task training.
+4.4. Layer-wise Contribution Analysis
+After fine-tuning the learnable weighted-sum over all upstream model layers on a downstream task, we may compare layer utiliza- tion by examining the weights of each layer in the weighted-sum. [42] Since the magnitude of representations from each layer may differ, we normalize layer weights for each layer by multiplying the weight with the L2-norm of representation values on the training set. For MAViL, we find the layers that are commonly more dom- inant are the last three layers in the audio encoder, and the last two layers in the video encoder and fusion layers. Despite this, we observe an exception for emotion recognition on IEMOCAP. For IEMOCAP, the most dominant layer is the 0th layer instead.
+In order to support our hypothesis, we additionally evaluate fully fine-tuned variants of AV-HuBERT and MAViL on our benchmark, to determine when intermediate-task fine-tuning is beneficial. The variant of AV-HuBERT uses the same architecture, and is fine-tuned on 433 hours of (video, text) pairs from LRS3-TED to perform visual speech recognition, whereas the MAViL variant is fine-tuned on the entirety of AudioSet-2M. Experiment results are shown in Table 2. For AV-HuBERT, we see that visual speech recognition on LRS3-TED is not a suitable intermediate task in general. Video- only representations obtain small gains in generalizability, at the cost of greatly reducing audio-only and fusion performance. We posit that intermediate-task fine-tuning with (video,text) pairs shifts AV-HuBERT Transformer layers to favor video input alone, reduc- ing usability for audio-only and audio-visual inputs.
+For AV-HuBERT, the final layer often contributes little. In the audio-only setup, we see that the layer with the most contribution is the penultimate layer for most speech and audio tasks besides ASR. For ASR, the last two layers are highly dominant on all three tracks. For non-ASR tasks, we note that when additional visual inputs are given, prior layers increase in contribution only when audio-visual fusion outperforms audio-only performance for AV-HuBERT (VG- GSound, Kinetics-Sound, UCF101, VoxCeleb2), suggesting that prior layers in AV-HuBERT are more related to visual information, while the last few layers contain more audio information.
+Contrarily, for audio-visual fusion with MAViL, we see that intermediate-task training on AudioSet-2M not only brings substan- tial improvements to all AEC and AR datasets, but also improves ASV while maintaining ASR performance. This suggests that fine- tuning on AudioSet-2M may be sufficiently diverse to improve speaker separability of representations without much loss of content information.
+6. CONCLUSIONS
+Overall, the variation in layer usage for different tasks, models, and modalities strongly motivates the use of the learnable weighted- sum technique for evaluation, instead of suboptimally evaluating the final layer alone.
+5. HOW DOES INTERMEDIATE-TASK FINE-TUNING AFFECT PERFORMANCE?
+Studies in natural language processing show that pretrained language models can be improved by initial fine-tuning on an intermediate task, followed by further fine-tuning on the target task [43, 44].
+We introduce AV-SUPERB, the first benchmark for assessing general-purpose capabilities of audio-visual representations. AV- SUPERB includes a suite of 7 speech and audio processing datasets covering 5 audio-visual tasks. The benchmark is split into three tracks: two unimodal audio-only or video-only representations tracks, as well as a bimodal audio-visual fusion track, which enables easy comparison between unimodal and bimodal learning. Despite advances made in recent years, our experiments show that none of the models tested generalize to all tasks, leading us to conclude that further study is required to develop universal audio-visual models.
+In previous sections, we focus on assessing models pretrained in a self-supervised manner. However, model creators often release models variants that are fine-tuned further for performing specific downstream tasks. For example, MAViL adds 3 Transformer fusion layers after the audio and video encoders, and the whole model is finetuned on (audio&video, class) pairs for audio event clas- sification. We hypothesize that these supervised models variants
+As discussed in Section 3.1, although our benchmark aims to comprehensively evaluate audio-visual models, only a limited set of tasks and datasets are included in its current form. For fu- ture work, we wish to incorporate more tasks relevant to additional facets of audio-visual processing, such as cross-modal retrieval and sound/video generation, as well as improving the diversity and comprehensiveness of data sources.
+
+
+7. REFERENCES
+[1] Alexei Baevski et al., “wav2vec 2.0: A framework for self- supervised learning of speech representations,” in NeurIPS, 2020.
+[2] Wei-Ning Hsu et al., “Hubert: Self-supervised speech rep- resentation learning by masked prediction of hidden units,” TASLP, 2021.
+[3] Daisuke Niizumi et al., “Byol for audio: Self-supervised learn- ing for general-purpose audio representation,” in IJCNN, 2021.
+[4] Po-Yao Huang et al., “Masked autoencoders that listen,” in
+NeurIPS, 2022.
+[5] Alexey Dosovitskiy et al., “An image is worth 16x16 words:
+Transformers for image recognition at scale,” in ICLR, 2020.
+[6] Kaiming He et al., “Masked autoencoders are scalable vision
+learners,” in CVPR, 2022.
+[7] Shu wen Yang et al., “SUPERB: Speech Processing Universal
+PERformance Benchmark,” in Interspeech, 2021.
+[8] Hsiang-Sheng Tsai et al., “Superb-sg: Enhanced speech pro- cessing universal performance benchmark for semantic and generative capabilities,” in ACL, 2022.
+[9] Joseph Turian et al., “Hear: Holistic evaluation of audio rep- resentations,” in NeurIPS 2021 Competitions and Demonstra- tions Track.
+[10] Fida Mohammad Thoker et al., “How severe is benchmark- sensitivity in video self-supervised learning?,” in ECCV, 2022.
+[11] Akash Kumar et al., “Benchmarking self-supervised video rep- resentation learning,” arXiv preprint arXiv:2306.06010, 2023.
+[12] Harry McGurk and John MacDonald, “Hearing lips and seeing
+voices,” Nature, 1976.
+[13] Asif A. Ghazanfar and Charles E. Schroeder, “Is neocortex essentially multisensory?,” Trends in Cognitive Sciences, 2006.
+[14] Yusuf Aytar et al., “Soundnet: Learning sound representations
+from unlabeled video,” in NeurIPS, 2016.
+[15] Relja Arandjelovic and Andrew Zisserman, “Look, listen and
+learn,” in ICCV, 2017.
+[16] Bruno Korbar et al., “Cooperative learning of audio and video in NeurIPS,
+models from self-supervised synchronization,” 2018.
+[17] Humam Alwassel et al., “Self-supervised learning by cross-
+modal audio-video clustering,” NeurIPS, 2020.
+[18] Mandela Patrick et al., “Space-time crop & attend: Improving
+cross-modal video representation learning,” in ICCV, 2021.
+[19] Will Kay et al., “The kinetics human action video dataset,”
+arXiv preprint arXiv:1705.06950, 2017.
+[20] Khurram Soomro et al.,
+“Ucf101: A dataset of 101 hu- man actions classes from videos in the wild,” arXiv preprint arXiv:1212.0402, 2012.
+[21] Dima Damen et al., “Rescaling egocentric vision: Collection,
+pipeline and challenges for epic-kitchens-100,” IJCV, 2022.
+[22] Martin Cooke et al., “An audio-visual corpus for speech per- ception and automatic speech recognition,” The Journal of the Acoustical Society of America, 2006.
+[23] Joon Son Chung et al., “Lip reading sentences in the wild,” in
+CVPR, 2017.
+[24] Triantafyllos Afouras et al., “Lrs3-ted: a large-scale dataset for visual speech recognition,” arXiv preprint arXiv:1809.00496, 2018.
+[25] A. Nagrani et al., “Voxceleb: a large-scale speaker identifica-
+tion dataset,” in Interspeech, 2017.
+[26] Joon Son Chung et al., “Voxceleb2: Deep speaker recogni-
+tion,” in Interspeech, 2018.
+[27] Christoph Feichtenhofer et al., “A large-scale study on un- supervised spatiotemporal representation learning,” in CVPR, 2021.
+[28] Kristen Grauman et al., “Ego4d: Around the world in 3,000
+hours of egocentric video,” in CVPR, 2022.
+[29] Wangchunshu Zhou et al.,
+“VLUE: A multi-task multi- dimension benchmark for evaluating vision-language pre- training,” in ICML, 2022.
+[30] Linjie Li et al., “Value: A multi-task benchmark for video- and-language understanding evaluation,” in NeurIPS Track on Datasets and Benchmarks, 2021.
+[31] Paul Pu Liang et al., “Multibench: Multiscale benchmarks for multimodal representation learning,” in NeurIPS Track on Datasets and Benchmarks, 2021.
+[32] G. Potamianos et al., “Recent advances in the automatic recog-
+nition of audiovisual speech,” Proc. IEEE, 2003.
+[33] Arsha Nagrani et al., “Disentangled speech embeddings using
+cross-modal self-supervision,” in ICASSP, 2020.
+[34] Egils Avots et al., “Audiovisual emotion recognition in wild,”
+Machine Vision and Applications, 2019.
+[35] Bowen Shi et al., “Learning audio-visual speech representation by masked multimodal cluster prediction,” in ICLR, 2022.
+[36] Himangi Mittal et al., “Learning state-aware visual represen-
+tations from audible interactions,” in NeurIPS, 2022.
+[37] Sangho Lee et al., “Parameter efficient multimodal transform-
+ers for video representation learning,” in ICLR, 2021.
+[38] Po-Yao Huang et al., “Mavil: Masked audio-video learners,”
+arXiv preprint arXiv:2212.08071, 2022.
+[39] Ankita Pasad et al., “Layer-wise analysis of a self-supervised
+speech representation model,” in ASRU, 2021.
+[40] Jort F. Gemmeke et al., “Audio set: An ontology and human-
+labeled dataset for audio events,” in ICASSP, 2017.
+[41] Honglie Chen et al., “Vggsound: A large-scale audio-visual
+dataset,” in ICASSP, 2020.
+[42] Sanyuan Chen et al., “Wavlm: Large-scale self-supervised pre- training for full stack speech processing,” IEEE Journal of Selected Topics in Signal Processing, 2022.
+[43] Jason Phang et al.,
+“Sentence encoders on stilts: Supple- mentary training on intermediate labeled-data tasks,” arXiv preprint arXiv:1811.01088, 2018.
+[44] Alex Wang et al., “Can you tell me how to get past sesame street? sentence-level pretraining beyond language modeling,” in ACL, 2019.

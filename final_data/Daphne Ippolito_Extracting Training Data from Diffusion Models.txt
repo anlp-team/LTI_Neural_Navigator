@@ -1,0 +1,793 @@
+3 2 0 2
+n a J
+0 3
+]
+R C . s c [
+1 v 8 8 1 3 1 . 1 0 3 2 : v i X r a
+Extracting Training Data from Diffusion Models
+Nicholas Carlini∗1
+Jamie Hayes∗2 Milad Nasr∗1
+Matthew Jagielski+1
+Vikash Sehwag+4
+Florian Tram`er+3
+Borja Balle†2 Daphne Ippolito†1
+Eric Wallace†5
+1Google 5UC Berkeley ∗Equal contribution +Equal contribution †Equal contribution
+2DeepMind
+3ETHZ
+4Princeton
+Abstract
+Image diffusion models such as DALL-E 2, Imagen, and Stable Diffusion have attracted signiﬁcant attention due to their ability to generate high-quality synthetic images. In this work, we show that diffusion models memorize individual images from their training data and emit them at generation time. With a generate-and-ﬁlter pipeline, we extract over a thousand training examples from state- of-the-art models, ranging from photographs of individ- ual people to trademarked company logos. We also train hundreds of diffusion models in various settings to an- alyze how different modeling and data decisions affect privacy. Overall, our results show that diffusion models are much less private than prior generative models such as GANs, and that mitigating these vulnerabilities may require new advances in privacy-preserving training.
+Generated Image
+Caption: Living in the light with Ann Graham Lotz
+Prompt: Ann Graham Lotz
+Training Set
+Figure 1: Diffusion models memorize individual train- ing examples and generate them at test time. Left: an image from Stable Diffusion’s training set (licensed CC BY-SA 3.0, see [49]). Right: a Stable Diffusion gen- eration when prompted with “Ann Graham Lotz”. The reconstruction is nearly identical ((cid:96)2 distance = 0.031).
+1
+Introduction
+Denoising diffusion models are an emerging class of generative neural networks that produce images from a training distribution via an iterative denoising pro- cess [64, 66, 33]. Compared to prior approaches such as GANs [30] or VAEs [46], diffusion models produce higher-quality samples [18] and are easier to scale [56] and control [51]. Consequently, they have rapidly be- come the de-facto method for generating high-resolution images, and large-scale models such as DALL-E 2 [56] have attracted signiﬁcant public interest.
+The appeal of generative diffusion models is rooted in their ability to synthesize novel images that are os- tensibly unlike anything in the training set. Indeed, past large-scale training efforts “do not ﬁnd overﬁtting to be an issue”, [60] and researchers in privacy-sensitive do- mains have even suggested that diffusion models could “protect[] the privacy [...] of real images” [37] by gen- erating synthetic examples [13, 14, 59, 2, 53]. This line of work relies on the assumption that diffusion models do not memorize and regenerate their training data. If they did, it would violate all privacy guarantees and raise numerous questions regarding model generalization and “digital forgery” [65].
+In this work, we demonstrate that state-of-the-art dif- fusion models do memorize and regenerate individual training examples. To begin, we propose and implement new deﬁnitions for “memorization” in image models. We then devise a two-stage data extraction attack that gener- ates images using standard approaches, and ﬂags those that exceed certain membership inference scoring crite- ria. Applying this method to Stable Diffusion [58] and Imagen [60], we extract over a hundred near-identical replicas of training images that range from personally identiﬁable photos to trademarked logos (e.g., Figure 1). To better understand how and why memorization oc- curs, we train hundreds of diffusion models on CIFAR- 10 to analyze the impact of model accuracy, hyperparam- eters, augmentation, and deduplication on privacy. Dif- fusion models are the least private form of image mod- els that we evaluate—for example, they leak more than twice as much training data as GANs. Unfortunately, we also ﬁnd that existing privacy-enhancing techniques do not provide an acceptable privacy-utility tradeoff. Over- all, our paper highlights the tension between increasingly powerful generative models and data privacy, and raises questions on how diffusion models work and how they should be responsibly deployed.
+1
+
+
+2 Background
+Diffusion models. Generative image models have a long history (see [29, Chapter 20]). Generative Adversarial Networks (GANs) [30] were the breakthrough that ﬁrst enabled the generation of high-ﬁdelity images at scale [6, 44]. But over the last two years, diffusion models [64] have largely displaced GANs: they achieve state-of-the- art results on academic benchmarks [18] and form the basis of all recently popularized image generators such as Stable Diffusion [58], DALL-E 2 [57, 56], Runway [58], Midjourney [67] and Imagen [60].
+Denoising Diffusion Probabilistic Models [33]1 are they are nothing more than im- conceptually simple: age denoisers. During training, given a clean image x, we sample a time-step t ∈ [0, T ] and a Gaussian noise vector ε ∼ N (0, I), to produce a noised image x(cid:48) ← √ 1 − at ε, for some decaying parameter at ∈ [0, 1] where a0 = 1 and aT = 0. A diffusion model fθ removes the noise ε to recover the original image x by predicting the noise that was added by stochastically minimizing the objective 1
+√
+at x+
+N ∑i Et,ε L (xi,t, ε; fθ ), where
+L (xi,t, ε; fθ ) = (cid:107)ε − fθ (
+√
+at xi +
+(cid:112)
+1 − at ε,t)(cid:107)2
+2 . (1)
+Despite being trained with this simple denoising ob- jective, diffusion models can generate high-quality im- ages by ﬁrst sampling a random vector zT ∼ N (0, I) and then applying the diffusion model fθ to remove the noise from this random “image”. To make the denoising pro- cess easier, we do not remove all of the noise at once— we instead iteratively apply the model to slowly remove noise. Formally, the ﬁnal image z0 is obtained from zT by iterating the rule zt−1 = fθ (zt ,t) + σt N (0, I) for a noise schedule σt (dependent on at ) with σ1 = 0. This process relies on the fact that the model fθ was trained to denoise images with varying degrees of noise. Overall, running this iterative generation process (which we will denote by Gen) with large-scale diffusion models produces re- sults that resemble natural images.
+Some diffusion models are further conditioned to gen- erate a particular type of image. Class-conditional dif- fusion models take as input a class-label (e.g., “dog” or “cat”) alongside the noised image to produce a particu- lar class of image. Text-conditioned models take this one step further and take as input the text embedding of some prompt (e.g., “a photograph of a horse on the moon”) us- ing a pre-trained language encoder (e.g., CLIP [54]).
+1Our description of diffusion models below omits a number of sig- niﬁcant details. However, these details are orthogonal to the results of our attacks and we omit them for simplicity.
+2
+Training data privacy attacks. Neural networks of- ten leak details of their training datasets. Membership inference attacks [62, 80, 8] answer the question “was this example in the training set?” and present a mild privacy breach. Neural networks are also vulnerable to more powerful attacks such as inversion attacks [27, 81] that extract representative examples from a target class, attribute inference attacks [28] that reconstruct subsets of attributes of training examples, and extraction attacks [10, 11, 5] that completely recover training examples. In this paper, we focus on each of these three attacks when applied to diffusion models.
+Concurrent work explores the privacy of diffusion models. Wu et al. [34] perform membership inference attacks on diffusion models; our results use more sophisticated attack methods and study stronger privacy risks such as data extraction. Somepalli et al. [65] show several cases where (non-adversarially) sampling from a diffusion model can produce memorized training examples. However, they focus mainly on com- paring the semantic similarity of generated images to the training set, i.e., “style copying”. In contrast, we focus on worst-case privacy under a much more restrictive no- tion of memorization, and perform our attacks on a wider range of models.
+[78] and Hu et al.
+3 Motivation and Threat Model
+There are two distinct motivations for understanding how diffusion models memorize and regenerate training data.
+Understanding privacy risks. Diffusion models that regenerate data scraped from the Internet can pose sim- ilar privacy and copyright risks as language models [11, 7, 31]. For example, memorizing and regenerating copy- righted text [11] and source code [35] has been pointed to as indicators of potential copyright infringement [76]. Similarly, copying images from professional artists has been called “digital forgery” [65] and has spurred debate in the art community.
+Future diffusion models might also be trained on more sensitive private data. Indeed, GANs have already been applied to medical imagery [73, 20, 45], which under- lines the importance of understanding the risks of gener- ative models before we apply them to private domains.
+Worse, a growing literature suggests that diffusion models could create synthetic training data to “protect the privacy and usage rights of real images” [37], and production tools already claim to use diffusion models to protect data privacy [71, 17, 12]. Our work shows diffu- sion models may be unﬁt for this purpose.
+
+
+Understanding generalization. Beyond data privacy, understanding how and why diffusion models memorize training data may help us understand their generalization capabilities. For instance, a common question for large- scale generative models is whether their impressive re- sults arise from truly novel generations, or are instead the result of direct copying and remixing of their train- ing data. By studying memorization, we can provide a concrete empirical characterization of the rates at which generative models perform such data copying.
+In their diffusion model, Saharia et al. “do not ﬁnd over-ﬁtting to be an issue, and believe further training might improve overall performance“ [60], and yet we will show that this model memorizes individual exam- ples. It may thus be necessary to broaden our deﬁnitions of overﬁtting to include memorization and related pri- vacy metrics. Our results also suggest that Feldman’s theory that memorization is necessary for generalization in classiﬁers [24] may extend to generative models, rais- ing the question of whether the improved performance of diffusion models compared to prior approaches is pre- cisely because diffusion models memorize more.
+3.1 Threat Model
+Our threat model considers an adversary A that interacts with a diffusion model Gen (backed by a neural network fθ ) to extract images from the model’s training set D.
+Image-generation systems. Unconditional diffusion models are trained on a dataset D = {x1, x2, . . . , xn}. When queried, the system outputs a generated image xgen ← Gen(r) using a fresh random noise r as input. Conditional models are trained on annotated images (e.g., labeled or captioned) D = {(x1, c1), . . . , (xn, cn)} and when queried with a prompt p, the system outputs xgen ← Gen(p; r) using the prompt p and noise r.
+Adversary capabilities. We consider two adversaries:
+A black-box adversary can query Gen to generate images. If Gen is a conditional generator, the adver- sary can provide arbitrary prompts p. The adversary cannot control the system’s internal randomness r.
+A white-box adversary gets full access to the system Gen and its internal diffusion model fθ . They can control the model’s randomness and can thus use the model to denoise arbitrary input images.
+In both cases, we assume that an adversary who attacks a conditional image generator knows the captions for some images in the training set—thus allowing us to study the worst-case privacy risk in diffusion models.
+3
+Adversary goals. We consider three broad types of ad- versarial goals, from strongest to weakest attacks:
+1. Data extraction: The adversary aims to recover an image from the training set x ∈ D. The attack is successful if the adversary extracts an image ˆx that is almost identical (see Section 4.1) to some x ∈ D.
+2. Data reconstruction: The adversary has partial knowledge of a training image x ∈ D (e.g., a sub- set of the image) and aims to recover the full image. This is an image-analog of an attribute inference at- tack [80], which aims to recover unknown features from partial knowledge of an input.
+3. Membership inference: Given an image x, the ad- versary aims to infer whether x is in the training set.
+3.2 Ethics and Broader Impact
+Training data extraction attacks can present a threat to user privacy. We take numerous steps to mitigate any possible harms from our paper. First, we study mod- els that are trained on publicly-available images (e.g., LAION and CIFAR-10) and therefore do not expose any data that was not already available online.
+Nevertheless, data that is available online may not have been intended to be available online. LAION, for example, contains unintentionally released medical im- ages of several patients [23]. We also therefore en- sure that all images shown in our paper are of pub- lic ﬁgures (e.g., politicians, musicians, actors, or au- thors) who knowingly chose to place their images on- line. As a result, inserting these images in our paper is unlikely to cause any unintended privacy violation. For example, Figure 1 comes from Ann Graham Lotz’s Wikipedia proﬁle picture and is licensed under Creative Commons, which allows us to “redistribute the material in any medium” and “remix, transform, and build upon the material for any purpose, even commercially”.
+Third, we shared an advance copy of this paper with the authors of each of the large-scale diffusion models that we study. This gave the authors and their corre- sponding organizations the ability to consider possible safeguards and software changes ahead of time.
+In total, we believe that publishing our paper and pub- licly disclosing these privacy vulnerabilities is both eth- ical and responsible. Indeed, at the moment, no one ap- pears to be immediately harmed by the (lack of) privacy of diffusion models; our goal with this work is thus to make sure to preempt these harms and encourage respon- sible training of diffusion models in the future.
+
+
+4 Extracting Training Data from State-of-
+the-art Diffusion Models
+We begin our paper by extracting training images from large, pre-trained, high-resolution diffusion models.
+4.1 Deﬁning Image Memorization
+Most existing literature on training data extraction fo- cuses on text language models, where a sequence is said to be “extracted” and “memorized” if an adversary can prompt the model to recover a verbatim sequence from the training set [11, 41]. Because we work with high- resolution images, verbatim deﬁnitions of memorization are not suitable. Instead, we deﬁne a notion of approxi- mate memorization based on image similarity metrics.
+Deﬁnition 1 (((cid:96), δ )-Diffusion Extraction) [adapted from [11]]. We say that an example x is extractable from a diffusion model fθ if there exists an efﬁcient algorithm A (that does not receive x as input) such that ˆx = A ( fθ ) has the property that (cid:96)(x, ˆx) ≤ δ .
+Here, (cid:96) is a distance function and δ is a threshold that determines whether we count two images as being iden- In this paper, unless otherwise noted we follow tical. Balle et al. [5] and use the Euclidean 2-norm distance ∑i(ai − bi)2/d where d is the dimension of (cid:96)2(a, b) = the inputs to normalize (cid:96) ∈ [0, 1]. Given this deﬁnition of extractability, we can now deﬁne memorization.
+(cid:112)
+Deﬁnition 2 ((k, (cid:96), δ )-Eidetic Memorization) [adapted from [11]]. We say that an example x is (k, (cid:96), δ )-Eidetic memorized 2 by a diffusion model if x is extractable from the diffusion model, and there are at most k training examples ˆx ∈ X where (cid:96)(x, ˆx) ≤ δ .
+Again, (cid:96) is a distance function and δ is its correspond- ing threshold. The constant k quantiﬁes the number of near-duplicates of x in the dataset. If k is a small frac- tion of the data, then memorization is likely problematic. When k is a larger fraction of data, memorization might be expected—but it could still be problematic, e.g., if the duplicated data is copyrighted.
+2This paper covers a very restricted deﬁnition of “memorization”: whether diffusion models can be induced to generate near-copies of some training examples when prompted with appropriate instructions. We will describe an approach that can generate images that are close approximations of some training images (especially images that are fre- quently represented in the training dataset through duplication or other means). There is active discussion within the technical and legal com- munities about whether the presence of this type of “memorization” suggests that generative neural networks “contain” their training data.
+4
+Figure 2: We do not count the generated image of Obama (at left) as memorized because it has a high (cid:96)2 distance to every training image. The four nearest training images are shown at right, each has a distance above 0.3.
+Restrictions of our deﬁnition. Our deﬁnition of extrac- tion is intentionally conservative as compared to what privacy concerns one might ultimately have. For ex- ample, if we prompt Stable Diffusion to generate “A Photograph of Barack Obama,” it produces an entirely recognizable photograph of Barack Obama but not an near-identical reconstruction of any particular training image. Figure 2 compares the generated image (left) to the 4 nearest training images under the Euclidean 2- norm (right). Under our memorization deﬁnition, this image would not count as memorized. Nevertheless, the model’s ability to generate (new) recognizable pictures of certain individuals could still cause privacy harms.
+4.2 Extracting Data from Stable Diffusion
+We now extract training data from Stable Diffusion: the largest and most popular open-source diffusion model [58]. This model is an 890 million parameter text- conditioned diffusion model trained on 160 million im- ages. We generate from the model using the default PLMS sampling scheme at a resolution of 512 × 512 pix- els. As the model is trained on publicly-available images, we can easily verify our attack’s success and also mit- igate potential harms from exposing the extracted data. We begin with a black-box attack.
+Identifying duplicates in the training data. To reduce the computational load of our attack, as is done in [65], we bias our search towards duplicated training examples because these are orders of magnitude more likely to be memorized than non-duplicated examples [47, 41].
+If we search for images that are bit-for-bit identically duplicated in the training dataset, we would signiﬁcantly undercount the true rate of duplication. Instead, we ac- count for near-duplication. Ideally, we would search for any training examples that are nearly duplicated with a
+
+
+Original:
+Generated:
+Figure 3: Examples of the images that we extract from Stable Diffusion v1.4 using random sampling and our mem- bership inference procedure. The top row shows the original images and the bottom row shows our extracted images.
+pixel-level (cid:96)2 distance below some threshold. But this is computationally intractable, as it would require an all- pairs comparison of 160 million images in Stable Dif- fusion’s training set, each of which is a 512 × 512 × 3 dimensional vector. Instead, we ﬁrst embed each image to a 512 dimensional vector using CLIP [54], and then perform the all-pairs comparison between images in this lower-dimensional space (increasing efﬁciency by over 1500×). We count two examples as near-duplicates if their CLIP embeddings have a high cosine similarity. For each of these near-duplicated images, we use the corre- sponding captions as the input to our extraction attack.
+4.2.1 Extraction Methodology
+Our extraction approach adapts the methodology from prior work [11] to images and consists of two steps:
+threat model in this section, we do not have access to the loss and cannot exploit techniques from state-of-the- art membership inference attacks [11]. We instead de- sign a new membership inference attack strategy based on the intuition that for diffusion models, with high prob- ability Gen(p; r1) (cid:54)= Gen(p; r2) for two different random initial seeds r1, r2. On the other hand, if Gen(p; r1) ≈d Gen(p; r2) under some distance measure d, it is likely that these generated samples are memorized examples.
+The 500 images that we generate for each prompt have different (but unknown) random seeds. We can therefore construct a graph over the 500 generations by connect- ing an edge between generation i and j if xi ≈d x j. If the largest clique in this graph is at least size 10 (i.e., ≥ 10 of the 500 generations are near-identical), we pre- dict that this clique is a memorized image. Empirically, clique-ﬁnding is more effective than searching for pairs of images x1 ≈d x2 as it has fewer false positives.
+1. Generate many examples using the diffusion model in the standard sampling manner and with the known prompts from the prior section.
+2. Perform membership inference to separate the model’s novel generations from those generations which are memorized training examples.
+To compute the distance measure d among the images in the clique, we use a modiﬁed Euclidean (cid:96)2 distance. In particular, we found that many generations were often spuriously similar according to (cid:96)2 distance (e.g., they all had gray background). We therefore instead divide each image into 16 non-overlapping 128 × 128 tiles and mea- sure the maximum of the (cid:96)2 distance between any pair of image tiles between the two images.
+Generating many images. The ﬁrst step is trivial but computationally expensive: we query the Gen function in a black-box manner using the selected prompts as in- put. To reduce the computational overhead of our experi- ments, we use the timestep-resampled generation imple- mentation that is available in the Stable Diffusion code- base [58]. This process generates images in a more ag- gressive fashion by removing larger amounts of noise at each time step and results in slightly lower visual ﬁdelity at a signiﬁcant (∼ 10×) performance increase. We gener- ate 500 candidate images for each text prompt to increase the likelihood that we ﬁnd memorization.
+Performing membership inference. The second step requires ﬂagging generations that appear to be memo- rized training images. Since we assume a black-box
+4.2.2 Extraction Results
+In order to evaluate the effectiveness of our attack, we select the 350,000 most-duplicated examples from the training dataset and generate 500 candidate images for each of these prompts (totaling 175 million generated im- ages). We ﬁrst sort all of these generated images by or- dering them by the mean distance between images in the clique to identify generations that we predict are likely to be memorized training data. We then take each of these generated images and annotate each as either “extracted” or “not extracted” by comparing it to the training images under Deﬁnition 1. We ﬁnd 94 images are ((cid:96)2, 0.15)- extracted. To ensure that these images not only match
+5
+
+
+0
+100MemorizedExamplesExtracted
+60
+ManualInspection
+0.6
+1.0AttackPrecision
+0.7
+0.9
+40
+0.8
+80
+(‘2,0.15)-Extraction
+20
+Figure 4: Our attack reliably separates novel genera- tions from memorized training examples, under two def- initions of memorization—either ((cid:96)2, 0.15)-extraction or manual human inspection of generated images.
+some arbitrary deﬁnition, we also manually annotate the top-1000 generated images as either memorized or not memorized by visual analysis, and ﬁnd that a further 13 (for a total of 109 images) are near-copies of training examples even if they do not ﬁt our 2-norm deﬁnition. Figure 3 shows a subset of the extracted images that are reproduced with near pixel-perfect accuracy; all images have an (cid:96)2 difference under 0.05. (As a point of refer- ence, re-encoding a PNG as a JPEG with quality level 50 results in an (cid:96)2 difference of 0.02 on average.)
+Given our ordered set of annotated images, we can also compute a curve evaluating the number of extracted images to the attack’s false positive rate. Our attack is exceptionally precise: out of 175 million generated images, we can identify 50 memorized images with 0 false positives, and all our memorized images can be ex- tracted with a precision above 50%. Figure 4 contains the precision-recall curve for both memorization deﬁnitions.
+Measuring (k, (cid:96), δ )-eidetic memorization. In Deﬁni- tion 2 we introduced an adaptation of Eidetic memo- rization [11] tailored to the domain of generative im- age models. As mentioned earlier, we compute similar- ity between pairs of images with a direct (cid:96)2 pixel-space similarity. This analysis is computationally expensive3 as it requires comparing each of our memorized images against each of the 160 million training examples. We set δ = 0.1 as this threshold is sufﬁcient to identify al-
+3In practice it is even more challenging: for non-square images, Stable Diffusion takes a random square crop, and so to check if the generated image x matches a non-square training image y we must try all possible alignments between x on top of the image y.
+6
+1000
+10
+10
+100
+20
+0
+3000Numberofduplicates
+30Frequency
+30
+300
+Figure 5: Our attack extracts images from Stable Diffu- sion most often when they have been duplicated at least k = 100 times; although this should be taken as an upper bound because our methodology explicitly searches for memorization of duplicated images.
+most all small image corruptions (e.g., JPEG compres- sion, small brightness/contrast adjustments) but has very few false positives.
+Figure 5 shows the results of this analysis. While we identify little Eidetic memorization for k < 100, this is expected due to the fact we choose prompts of highly- duplicated images. Note that at this level of duplication, the duplicated examples still make up just one in a mil- lion training examples. These results show that duplica- tion is a major factor behind training data extraction.
+Qualitative analysis. The majority of the images that we extract (58%) are photographs with a recognizable person as the primary subject; the remainder are mostly either products for sale (17%), logos/posters (14%), or other art or graphics. We caution that if a future diffusion model were trained on sensitive (e.g., medical) data, then the kinds of data that we extract would likely be drawn from this sensitive data distribution.
+Despite the fact that these images are publicly acces- sible on the Internet, not all of them are permissively li- censed. We ﬁnd that a signiﬁcant number of these im- ages fall under an explicit non-permissive copyright no- tice (35%). Many other images (61%) have no explicit copyright notice but may fall under a general copyright protection for the website that hosts them (e.g., images of products on a sales website). Several of the images that we extracted are licensed CC BY-SA, which requires “[to] give appropriate credit, provide a link to the li- cense, and indicate if changes were made.” Stable Dif- fusion thus memorizes numerous copyrighted and non-
+
+
+permissive-licensed images, which the model may repro- duce without the accompanying license.
+4.3 Extracting Data from Imagen
+While Stable Diffusion is the best publicly-available diffusion model, there are non-public models that achieve stronger performance using larger models and datasets [56, 60]. Prior work has found that larger mod- els are more likely to memorize training data [11, 9] and we thus study Imagen [60], a 2 billion parameter text- to-image diffusion model. While individual details dif- fer between Imagen’s and Stable Diffusion’s implemen- tation and training scheme, these details are independent of our extraction results.
+We follow the same procedure as earlier but focus on the top-1000 most duplicated prompts for computa- tional reasons. We then generate 500 images for each of these prompts, and compute the (cid:96)2 similarity between each generated image and the corresponding training image. By repeating the same membership inference steps as above—searching for cliques under patched (cid:96)2 distance–we identify 23 of these 1,000 images as mem- orized training examples.4 This is signiﬁcantly higher than the rate of memorization in Stable Diffusion, and clearly demonstrates that memorization across diffusion models is highly dependent on training settings such as the model size, training time, and dataset size.
+4.4 Extracting Outlier Examples
+The attacks presented above succeed, but only at extract- ing images that are highly duplicated. This “high k” memorization may be problematic, but as we mentioned previously, the most compelling practical attack would be to demonstrate memorization in the “low k” regime.
+We now set out to achieve this goal. In order to ﬁnd non-duplicated examples likely to be memorized, we take advantage of the fact that while on average models often respect the privacy of the majority of the dataset, there often exists a small set of “outlier” examples whose privacy is more signiﬁcantly exposed [24]. And so in- stead of searching for memorization across all images, we are more likely to succeed if we focus our effort on these outlier examples.
+But how should we ﬁnd which images are poten- tially outliers? Prior work was able to train hundreds of models on subsets of the training dataset and then
+4Unfortunately, because the Imagen training dataset is not public, we are unable to provide visual examples of successful reconstructions.
+7
+use an inﬂuence-function-style approach to identify ex- amples that have a signiﬁcant impact on the ﬁnal model weights [25]. Unfortunately, given the cost of training even a single large diffusion model is in the millions-of- dollars, this approach will not be feasible here.
+Therefore we take a simpler approach. We ﬁrst com- pute the CLIP embedding of each training example, and then compute the “outlierness” of each example as the average distance (in CLIP embedding space) to its 1,000 nearest neighbors in the training dataset.
+Results. Surprisingly, we ﬁnd that attacking out-of- distribution images is much more effective for Imagen than it is for Stable Diffusion. On Imagen, we attempted extraction of the 500 images with the highest out-of- distribution score. Imagen memorized and regurgitated 3 of these images (which were unique in the training In contrast, we failed to identify any memo- dataset). rization when applying the same methodology to Stable Diffusion—even after attempting to extract the 10,000 most-outlier samples. Thus, Imagen appears less pri- vate than Stable Diffusion both on duplicated and non- duplicated images. We believe this is due to the fact that Imagen uses a model with a much higher capacity com- pared to Stable diffusion, which allows for more memo- rization [9]. Moreover, Imagen is trained for more iter- ations and on a smaller dataset, which can also result in higher memorization.
+5
+Investigating Memorization
+The above experiments are visually striking and clearly indicate that memorization is pervasive in large diffusion models—and that data extraction is feasible. But these experiments do not explain why and how these models memorize training data. In this section we train smaller diffusion models and perform controlled experiments in order to more clearly understand memorization.
+Experimental setup. For the remainder of this sec- tion, we focus on diffusion models trained on CIFAR-10. We use state-of-the-art training code 5 to train 16 diffu- sion models, each on a randomly-partitioned half of the CIFAR-10 training dataset. We run three types of pri- vacy attacks: membership inference attacks, attribute in-
+5We either directly use OpenAI’s Improved Diffusion repos- itory (https://github.com/openai/improved-diffusion) in Section 5.1, or our own re-implementation in all following sections. Models trained with our re-implementation achieve almost identical FID to the open-sourced models. We use half the dataset as is stan- dard in privacy analyses [8].
+
+
+Figure 6: Direct 2-norm measurement fails to identify memorized CIFAR-10 examples. Each of the above im- ages have a (cid:96)2 distance of less than 0.05, yet only one (the car) is actually a memorized training example.
+ference attacks, and data reconstruction attacks. For the membership inference attacks, we train class-conditional models that reach an FID below 3.5 (see Figure 11), plac- ing them in the top-30 generative models on CIFAR-10 [16]. For reconstruction attacks (Section 5.1) and at- tribute inference attacks with inpainting (Section 5.3), we train unconditional models with an FID below 4.
+5.1 Untargeted Extraction
+Before devling deeper into understanding memorization, we begin by validating that memorization does still occur in our smaller models. Because these models are not text conditioned, we focus on untargeted extraction. Specif- ically, given our 16 diffusion models trained on CIFAR- 10, we unconditionally generate 216 images from each model for a total of 220 candidate images. Because we will later develop high-precision membership inference attacks, in this section we directly search for memorized training examples among all our million generated exam- ples. Thus this is not an attack per se, but rather verifying the capability of these models to memorize.
+Identifying matches. In the prior section, we performed targeted attacks and could therefore check for successful memorization by simply computing the (cid:96)2 distance be- tween the target image and the generated image. Here, as we perform an all-pairs comparison, we ﬁnd that us- ing an uncalibrated (cid:96)2 threshold fails to accurately iden- tify memorized training examples. For example, if we set a highly-restrictive threshold of 0.05, then nearly all “ex- tracted” images are of entirely blue skies or green land- scapes (see Figure 6). We explored several other met- rics (including perceptual distances like SSIM or CLIP embedding distance) but found that none could reliably identify memorized training images for CIFAR-10.
+We instead deﬁne an image as extracted if the (cid:96)2 dis- tance to its nearest neighbor in the training set is abnor- mally low compared to all other training images. Fig- ure 7 illustrates this by computing the (cid:96)2 distance be- tween two different generated images and every image in the CIFAR-10 training dataset. The left ﬁgure shows a failed extraction attempt; despite the fact that the nearest
+8
+Frequency
+102
+0.00
+0.75
+1.00
+0.50
+0.50
+101
+0.75
+100
+0.25
+0.25
+0.00
+1.00 L2 distance between generated and training images
+103
+Figure 7: Per-image (cid:96)2 thresholds are necessary to sep- arate memorized images from novel generations on a CIFAR-10 model. Each plot shows the distribution of (cid:96)2 distances from a generated image to all training images (along with the image and the nearest training image). Left shows a typical distribution for a non-memorized image. Right shows a memorized image distribution; while the most similar training image has high absolute (cid:96)2 distance, it is abnormally low for this distribution. The dashed black line shows our adaptive (cid:96)2 threshold.
+training image has an (cid:96)2 distance of just 0.06, this dis- tance is on par with the distance to many other training images (i.e., all images that contain a blue sky). In con- trast, the right plot shows a successful extraction attack. Here, even though the (cid:96)2 distance to the nearest train- ing image is higher than for the prior failed attack (0.07), this value is unusually small compared to other training images which almost all are at a distance above 0.2.
+We thus slightly modify our attack to use the distance
+(cid:96)( ˆx, x; S ˆx) =
+(cid:96)2( ˆx, x) α · Ey∈S ˆx [(cid:96)2( ˆx, y)]
+.
+where S ˆx is the set containing the n closest elements from the training dataset to the example ˆx. This distance is small if the extracted image x is much closer to the train- ing image ˆx compared to the n closest neighbors of ˆx in the training set. We run our attack with α = 0.5 and n = 50. Our attack was not sensitive to these choices.
+Results. Using the above methodology we iden- tify 1,280 unique extracted images from the CIFAR-10 dataset (2.5% of the entire dataset).6 In Figure 8 we show a selection of training examples that we extract and full results are shown in Figure 17 in the Appendix.
+6Some CIFAR-10 training images are generated multiple times. In these cases, we only count the ﬁrst generation as a successful attack. Further, because the CIFAR-10 training dataset contains many dupli- cate images, we do not count two generations of two different (but du- plicated) images in the training dataset.
+
+
+Figure 8: Selected training examples that we extract from a diffusion model trained on CIFAR-10 by sampling from the model 1 million times. Top row: generated output from a diffusion model. Bottom row: nearest ((cid:96)2) example from the training dataset. Figure 17 in the Appendix contains all 1,280 unique extracted images.
+5.2 Membership Inference Attacks
+We now evaluate membership inference with more tra- ditional attack techniques that use white-box access, as opposed to Section 4.2.1 that assumed black-box access. We will show that all examples have signiﬁcant privacy leakage under membership inference attacks, compared to the small fraction that are sensitive to data extraction. We consider two membership inference attacks on our class-conditional CIFAR-10-trained diffusion models.7
+function is one of the most important components of the attack. We ﬁnd that this effect is even more pronounced for diffusion models. In particular, unlike classiﬁers that have a single loss function (e.g., cross entropy) used to train the model, diffusion models are trained to minimize the reconstruction loss when a random quantity of Gaus- sian noise ε has been added to an image. This means that “the loss” of an image is not well deﬁned—instead, we can only ask for the loss L (x,t, ε) of an image x for a certain timestep t with a corresponding amount of noise ε (cf. Equation (1)).
+The loss threshold attack. Yeom et al. [80] introduce the simplest membership inference attack: because mod- els are trained to minimize their loss on the training set, we should expect that training examples have lower loss than non-training examples. The loss threshold attack thus computes the loss l = L (x; f ) and reports “mem- ber” if l < τ for some chosen threshold τ and otherwise “non-member’. The value of τ can be selected to max- imize a desired metric (e.g., true positive rate at some ﬁxed false positive rate or the overall attack accuracy).
+The Likelihood Ratio Attack (LiRA). Carlini et al. [8] introduce the state-of-the-art approach to performing membership inference attacks. LiRA ﬁrst trains a col- lection of shadow models, each model on random sub- sets of the training dataset. LiRA then computes the loss L (x; fi) for the example x under each of these shadow models fi. These losses are split into two sets: the losses IN = {lini} for the example x under the shadow models { fi} that did see the example x during training, and the losses OUT = {louti} for the example x under the shadow models { f j} that did not see the example x during train- ing. LiRA ﬁnishes the initialization process by ﬁtting Gaussians NIN to the IN set and NOUT to OUT set of losses. Finally, to predict membership inference for a new model f ∗, we compute l∗ = L (x, f ∗) and then mea- sure whether Pr[l∗|NIN] > Pr[l∗|NOUT ].
+Choosing a loss function. Both membership inference attacks use a loss function L . In the case of classiﬁca- tion models, Carlini et al. [8] ﬁnd that choosing a loss
+7Appendix C.4 replicates these results for unconditional models.
+We must thus compute the optimal timestep t at which we should measure the loss. To do so, we train 16 shadow models each on a random 50% of the CIFAR- 10 training dataset. We then compute the loss for every model, for every example in the training dataset, and ev- ery timestep t ∈ [1, T ] (T = 1,000 in the models we use). Figure 9 plots the timestep used to compute the loss against the attack success rate, measured as the true pos- itive rate (TPR), i.e., the number of examples which truly are members over the total number of members, at a ﬁxed false positive rate (FPR) of 1%, i.e., the fraction of exam- ples which are incorrectly identiﬁed as members. Eval- uating L at t ∈ [50, 300] leads to the most successful attacks. We conjecture that this a “Goldilock’s zone” for membership inference: if t is too small, and so the noisy image is similar to the original, then predicting the added noise is easy regardless if the input was in the training set; if t is too large, and so the noisy image is similar to Gaussian noise, then the task is too difﬁcult. Our remain- ing experiments will evaluate L (·,t, ·) at t = 100, where we observed a TPR of 71% at an FPR of 1%.
+5.2.1 Baseline Attack Results
+We now evaluate membership inference using our speci- ﬁed loss function. We follow recent advice [8] and evalu- ate the efﬁcacy of membership inference attacks by com- paring their true positive rate to the false positive rate on a log-log scale. In Figure 10, we plot the member- ship inference ROC curve for the loss threshold attack and LiRA. An out-of-the-box implementation of LiRA
+9
+
+
+1000Diffusion timestep
+0.3
+0.1
+400
+1
+200
+600
+0.2
+800
+0.0
+0.5
+0.4
+0.6
+0.7TPR@FPR=1%
+Figure 9: We run membership inference using LiRA and compute the diffusion model loss at different noise timesteps on CIFAR-10. Evaluating L (·,t, ·) at t ∈ [50, 300] produces the best results.
+achieves a true positive rate of over 70% at a false posi- tive rate of just 1%. As a point of reference, state-of-the- art classiﬁers are much more private, e.g., with a < 20% TPR at 1% FPR [8]. This shows that diffusion models are signiﬁcantly less private than classiﬁers trained on the same data. (In part this may be because diffusion models are often trained far longer than classiﬁers.)
+Qualitative analysis. In Figure 20, we visualize the least- and most-private images as determined by their easiness to detect via LiRA. We ﬁnd that the easiest- to-attack examples are all extremely out-of-distribution visually from the CIFAR-10 dataset. These images are even more visually out-of-distribution compared to the outliers identiﬁed by Feldman et al. [24] who produce a similar set of images but for image classiﬁers. In con- trast, the images that are hardest to attack are all dupli- cated images. It is challenging to detect the presence or absence of each of these images in the training dataset because there is another identical image in the training dataset that may have been present or absent—therefore making the membership inference question ill-deﬁned.
+5.2.2 Augmentations Improve Attacks
+Membership inference attacks can also be improved by reducing the variance in the loss signal [8, 79]. We study two ways to achieve this for diffusion models. First, because our loss function has randomness (re- call that to compute the reconstruction loss we mea- sure the quantity L (x,t, ε) for a random noise sam- ple ε ∼ N (0, I)), we can compute a better estimate of the true loss by averaging over different noise samples: L (x,t) = E
+ε∼N (0,I)[L (x,t, ε)].
+10
+Strong LiRA. AUC: 0.997
+True positive rate
+102
+103
+103
+100
+100
+LiRA. AUC: 0.982
+101
+102
+Threshold. AUC: 0.613
+101
+False positive rate
+Figure 10: Membership inference ROC curve for a diffu- sion model trained on CIFAR-10 using the loss threshold attack, baseline LiRA, and “Strong LiRA” with repeated queries and augmentation (§5.2.2).
+By varying the number of point samples taken to es- timate this expectation we can potentially increase the attack success rate. And second, because our diffusion models train on augmented versions of training images (e.g., by ﬂipping images horizontally), it makes sense to compute the loss averaged over all possible augmen- tations. Prior work has found that both of these attack strategies are effective at increasing the efﬁcacy of mem- bership inference attacks for classiﬁers [8, 39], and we ﬁnd they are effective here as well.
+Improved attack results. Figure 10 shows the effect of combining both these strategies. Together they are re- markably successful, and at a false positive rate of 0.1% they increase the true positive rate by over a factor of six from 7% to 44%. Figure 19 in the Appendix breaks down the impact of each component: in Figure 19a we increase the number of Monte Carlo samples from 1 (the base LiRA attack) to 20, and in Figure 19b we augment samples with a horizontal ﬂip.
+5.2.3 Memorization Versus Utility
+We train our diffusion models to reach state-of-the-art levels of performance. Prior work on language mod- els has found that better models are often easier to at- tack than less accurate models—intuitively, because they extract more information from the same training dataset [9]. Here we perform a similar experiment.
+Attack results vs. FID. To evaluate our generative models, we use the standard Fr´echet Inception Distance (FID) [32], where lower scores indicate higher qual- ity. Our previous CIFAR-10 results used models that
+
+
+0.8
+0.4
+3.0Update step1e6
+6
+2.0
+0.5
+2.5
+1.0
+1.0TPR@FPR=1%
+4
+0.6
+1.5
+0.2
+8FID
+Figure 11: Better diffusion models are more vulnerable to membership inference attacks; evaluating with TPR at an FPR of 1%. As the FID decreases (corresponding to a quality increase) the membership inference attack success rate grows from 7% to nearly 100%.
+achieved the best FID (on average 3.5) based on early stopping. Here we evaluate models over the course of training in Figure 11. We compute the attack success rate as a function of FID, and we ﬁnd that as the quality of the diffusion model increases so too does the privacy leakage. These results are concerning because they sug- gest that stronger diffusion models of the future may be even less private.
+5.3
+Inpainting Attacks
+Having performed untargeted extraction on CIFAR-10 models, we now construct a targeted version of our at- tack. As mentioned earlier, performing a targeted at- tack is complicated by the fact that these models do not support textual prompting. We instead provide guid- ance by performing a form of attribute inference attack [38, 80, 81] that we call an “inpainting attack”. Given an image, we ﬁrst mask out a portion of this image; our attack objective is to recover the masked region. We then run this attack on both training and testing images, and compare the attack efﬁcacy on each. Speciﬁcally, for an image x, we mask some fraction of pixels to create a masked image xm, and then use the trained model to re- construct the image as xrec. The exact algorithm we use for inpainting is given in Lugmayr et al. [48].
+Because diffusion model inpainting is stochastic (it de- pends on the random sample ε ∼ N (0, I)), we create a set of inpainted images Xrec = {x1 rec}, where we set n = 5,000. For each xrec ∈ Xrec, we compute the
+rec, x2
+rec, . . . , xn
+11
+100 other samples
+0.20
+0.10
+0.10
+0.25
+0.302 distance when x is in training
+0.25
+Bird example
+0.302 distance when x isn't in training
+0.05
+0.20
+0.05
+0.15
+Cat example
+0.15
+Figure 12: Evaluating inpainting attacks on 100 CIFAR- 10 examples, measuring the (cid:96)2 distance between images and their inpainted reconstructions when we mask out the left half of the image for 100 randomly selected im- ages. We also plot the (cid:96)2 distances for the bird and cat examples shown in Figure 13. When an adversary has partial knowledge of an image, inpainting attacks work far better than typical data extraction.
+diffusion model’s loss on this sample (at timestep 100) divided by a shadow model’s loss that was not trained on the sample. We then use this score to identify the highest-scoring reconstructions xrec ∈ Xrec.
+Results. Our speciﬁc attack masks out the left half of an image and applies the diffusion model on the right half of the image to inpaint the rest. We repeat this pro- cess 5000 times and take the top-10 scoring reconstruc- tions using a membership inference attack. We repeat this attack for 100 images using diffusion models that are trained with and without the images. Figure 12 com- pares the average distance between the sample and the ten highest scoring inpainted samples. This allows us to show our inpainting attacks have succeed: the recon- struction loss is substantially better in terms of (cid:96)2 dis- tance when the image is in the training set than when not. Figure 13 also shows qualitative examples of this attack. The highest-scoring reconstruction looks visually similar to the target image when the target is in training and does not resemble the target when it is not in training. Over- all, these results show that an adversary who has partial knowledge of an image can substantially improve their extraction results. We conduct a more thorough analysis of inpainting attacks in Appendix D.
+
+
+Masked: xm
+Target: x
+Reconstruction when xis not in training.
+Reconstruction when xis in training.
+Target: x
+Reconstruction when xis not in training.
+Masked: xm
+Reconstruction when xis in training.
+Inpainting-based reconstruction attack on Figure 13: CIFAR-10. Given an image from CIFAR-10 (ﬁrst col- umn), we randomly mask half of the image (second col- umn), and then inpaint the image for a model which con- tained this image in the training set (third column) versus inpainting the image for a model which did not contain this image in the training set (fourth column).
+6 Comparing Diffusion Models to GANs
+Are diffusion models more or less private than compet- ing generative modeling approaches? In this section we take a ﬁrst look at this question by comparing diffu- sion models to Generative Adversarial Networks (GANs) [30, 61, 55], an approach that has held the state-of-the-art results for image generation for nearly a decade.
+Unlike diffusion models that are explicitly trained to memorize and reconstruct their training datasets, GANs are not. Instead, GANs consist of two competing neu- ral networks: a generator and a discriminator. Similar to diffusion models, the generator receives random noise as input, but unlike a diffusion model, it must convert this noise to a valid image in a single forward pass. To train a GAN, the discriminator is trained to predict if an im- age comes from the generator or not, and the generator is trained to fool the discriminator. As a result, GANs differ from diffusion models in that their generators are only trained using indirect information about the train- ing data (i.e., using gradients from the discriminator) be- cause they never receive training data as input, whereas diffusion models are explicitly trained to reconstruct the training set.
+Membership inference attacks. We ﬁrst propose a privacy attack methodology for GANs.8 We initially fo- cus on membership inference attacks, where following Balle et al. [5], we assume access to both the discrimi- nator and generator. We perform membership inference using the loss threshold [80] and LiRA [8] attacks, where
+8While existing privacy attacks exist for GANs, they were proposed before the latest advancements in privacy attack techniques, requiring us to develop our own methods which out-perform prior work.
+12
+Architecture
+Images Extracted
+FID
+GANs
+StyleGAN-ADA [43] DiffBigGAN [82] E2GAN [69] NDA [63] WGAN-ALP [68]
+150 57 95 70 49
+2.9 4.6 11.3 12.6 13.0
+DDPMs
+OpenAI-DDPM [52] DDPM [33]
+301 232
+2.9 3.2
+Table 1: The number of training images that we extract from different off-the-shelf pretrained generative mod- els out of 1 million unconditional generations. We show GAN models sorted by FID (lower is better) on the top and diffusion models on the bottom. Overall, we ﬁnd that diffusion models memorize more than GAN models. Moreover, better generative models (lower FID) tend to memorize more data.
+we use the discriminator’s loss as the metric. To per- form LiRA, we follow a similar methodology as Sec- tion 5 and train 256 individual GAN models each on a random 50% split of the CIFAR-10 training dataset but otherwise leave training hyperparameters unchanged.
+We study three GAN architectures, all implemented using the StudioGAN framework [42]: BigGAN [6], MHGAN [74], and StyleGAN [44]. Figure 14 shows the membership inference results. Overall, diffusion models have higher membership inference leakage, e.g., diffu- sion models had 50% TPR at a FPR of 0.1% as compared to < 30% TPR for GANs. This suggests that diffusion models are less private than GANs for membership in- ference attacks under default training settings, even when the GAN attack is strengthened due to having access to the discriminator (which would be unlikely in practice, as only the generator is necessary to create new images).
+Data extraction results. We next turn our attention away from measuring worst-case privacy risk and focus our attention on more practical black-box extraction at- tacks. We follow the same procedure as Section 5.1, where we generate 220 images from each model architec- ture and identify those that are near-copies of the training data using the same similarity function as before. Again we only consider non-duplicated CIFAR-10 training im- ages in our counting. For this experiment, instead of us- ing models we train ourselves (something that was neces- sary to run LiRA), we study ﬁve off-the-shelf pre-trained GANs: WGAN-ALP [68], E2GAN [69], NDA [63], DiffBigGAN [82], and StyleGAN-ADA [43]. We also evaluate two off-the-shelf DDPM diffusion model re- leased by Ho et al. [33] and Nichol et al. [52]. Note that all of these pre-trained models are trained by the origi-
+
+
+10−3
+False Positive Rate
+LiRAauc=0.891, TPR@FPR=0.001: 0.109
+10−1
+10−3
+10−2
+100
+100
+10−4
+10−1
+10−4
+10−5
+10−2
+10−5
+True Positive Rate
+Global thresholdauc=0.878, TPR@FPR=0.001: 0.021
+10−1
+100
+10−3
+10−3
+10−4
+False Positive Rate
+Global thresholdauc=0.511, TPR@FPR=0.001: 0.001
+100
+10−4
+10−1
+10−2
+10−2
+LiRAauc=0.971, TPR@FPR=0.001: 0.258
+True Positive Rate
+10−5
+10−5
+10−4
+10−4
+10−1
+10−1
+10−3
+100
+False Positive Rate
+10−3
+Global thresholdauc=0.967, TPR@FPR=0.001: 0.003
+100
+10−2
+10−2
+LiRAauc=0.989, TPR@FPR=0.001: 0.418
+True Positive Rate
+10−5
+10−5
+(a) StyleGAN FID avg = 3.7
+(b) MHGAN FID avg = 7.9
+(c) BigGAN FID avg = 7.7
+Figure 14: Membership inference results on GAN models using the loss threshold and LiRA attacks on the discrimi- nator. Overall, GANs are signiﬁcantly more private than diffusion models under default training conﬁgurations.
+(a) StyleGAN
+(b) MHGAN
+(c) BigGAN
+Figure 15: Selected training examples we extract from three GANs trained on CIFAR-10 for different architectures. Top row: generated output from a diffusion model. Bottom row: nearest ((cid:96)2) example from the training dataset. Figure 25 in the Appendix contains all unique extracted images.
+nal authors to maximize utility on the entire CIFAR-10 dataset rather than a random 50% split as in our prior models trained for MIA.
+Table 1 shows the number of extracted images for each model and their corresponding FID. Overall, we ﬁnd that diffusion models memorize more data than GANs, even when the GANs reach similar performance, e.g., the best DDPM model memorizes 2× more than StyleGAN- ADA but reaches the same FID. Moreover, generative models (both GANs and diffusion models) tend to mem- orize more data as their quality (FID) improves, e.g., StyleGAN-ADA memorizes 3× more images than the weakest GANs.
+Using the GANs we trained ourselves, we show ex- amples of the near-copy generations in Figure 15 for the three GANs that we trained ourselves, and Figure 24 in the Appendix shows every sample that we extract for
+those models. The Appendix also contains near-copy generations from the ﬁve off-the-shelf GANs. Overall, these results further reinforce the conclusion that diffu- sion models are less private than GAN models.
+We also surprisingly ﬁnd that diffusion models and GANs memorize many of the same images. In particular, despite the fact that our diffusion model memorizes 1280 images and a StyleGAN model we train on half of the dataset memorizes 361 images, we ﬁnd that 244 unique images are memorized in common. If images were mem- orized uniformly at random, we should expect on average 10 images would be memorized by both, giving excep- tionally strong evidence that some images (p < 10−261) are inherently less private than others. Understanding why this phenomenon occurs is a fruitful direction for future work.
+13
+
+
+7 Defenses and Recommendations
+Given the degree to which diffusion models memorize and regenerate training examples, in this section we ex- plore various defenses and practical strategies that may help to reduce and audit model memorization.
+7.1 Deduplicating Training Data
+In Section 4.2, we showed that many examples that are easy to extract are duplicated many times (e.g., > 100) in the training data. Similar results have been shown for language models for text [11, 40] and data deduplica- tion has been shown to be an effective mitigation against memorization for those models [47, 41]. In the image domain, simple deduplication is common, where images with identical URLs and captions are removed, but most datasets do not compute other inter-image similarity met- rics such as (cid:96)2 distance or CLIP similarity. We thus en- courage practitioners to deduplicate future datasets using these more advanced notions of duplication.
+Unfortunately, deduplication is not a perfect solution. To better understand the effectiveness of data deduplica- tion, we deduplicate CIFAR-10 and re-train a diffusion model on this modiﬁed dataset. We compute image sim- ilarity using the imagededup tool and deduplicate any images that have a similarity above > 0.85. This re- moves 5,275 examples from the 50,000 total examples in CIFAR-10. We repeat the same generation procedure as Section 5.1, where we generate 220 images from the model and count how many examples are regenerated from the training set. The model trained on the dedu- plicated data regenerates 986 examples, as compared to 1280 for the original model. While not a substantial drop, these results show that deduplication can mitigate memorization. Moreover, we also expect that deduplica- tion will be much more effective for models trained on larger-scale datasets (e.g., Stable Diffusion), as we ob- served a much stronger correlation between data extrac- tion and duplication rates for those models.
+7.2 Differentially-Private Training
+The gold standard technique to defend against privacy attacks is by training with differential privacy (DP) guar- antees [21, 22]. Diffusion models can be trained with differentially-private stochastic gradient descent (DP- SGD) [1], where the model’s gradients are clipped and noised to prevent the model from leaking substantial in- formation about the presence of any individual image in the dataset. Applying DP-SGD induces a trade-off be- tween privacy and utility, and recent work shows that
+14
+8
+64
+16
+10Maximum Exposure
+2
+2
+32
+6
+1
+Duplicate Count
+4
+8
+3
+4
+Random
+Figure 16: Canary exposure (a measure of non-privacy) as a function of duplicate count. Inserting a canary twice is sufﬁcient to reach maximum exposure.
+DP-SGD can be applied to small-scale diffusion models without substantial performance degradation [19].
+Unfortunately, we applied DP-SGD to our diffusion model codebase and found that it caused the training on CIFAR-10 to consistently diverge, even at high values for ε (the privacy budget, around 50). In fact, even applying a non-trivial gradient clipping or noising on their own (both are required in DP-SGD) caused the training to fail. We leave a further investigation of these failures to future work, and we believe that new advances in DP-SGD and privacy-preserving training techniques may be required to train diffusion models in privacy-sensitive settings.
+7.3 Auditing with Canaries
+In addition to implementing defenses, it is important for practitioners to empirically audit their models to de- termine how vulnerable they are in practice [36]. Our attacks above represent one method to evaluate model privacy. Nevertheless, our attacks are expensive, e.g., our membership inference results require training many shadow models, and thus lighter weight alternatives may be desired.
+One such alternative is to insert canary examples into the training set, a common approach to evaluate mem- orization in language models [10]. Here, one creates a large “pool” of canaries, e.g., by randomly generating noise images, and inserts a subset of the canaries into the training set. After training, one computes the expo- sure of the canaries, which roughly measures how many bits were learned about the inserted canaries as compared to the larger pool of not inserted canaries. This loss- based metric only requires training one model and can also be designed in a worst-case way (e.g., adversarial worst-case images could be used).
+To evaluate exposure for diffusion models, we gen-
+
+
+erate canaries consisting of uniformly generated noise. We then duplicate the canaries in the training set at dif- ferent rates and measure the maximum exposure. Fig- ure 16 shows the results. Here, the maximum exposure is 10, and some canaries reach this exposure after being inserted only twice. The exposure is not strictly increas- ing with duplicate count, which may be a result of some canaries being “harder” than others, and, ultimately, ran- dom canaries we generate may not be the most effective canaries to use to test memorization for diffusion models.
+8 Related Work
+Memorization in language models. Numerous past works study memorization in generative models across different domains, architectures, and threat models. One area of recent interest is memorization in language mod- els for text, where past work shows that adversaries can extract training samples using two-step attack techniques that resemble our approach [11, 47, 41, 40]. Our work differs from these past results because we focus on the image domain and also use more semantic notions of data regeneration (e.g., using CLIP scores) as opposed to focusing on exact verbatim repetition (although recent language modeling work has begun to explore approxi- mate memorization as well [35]).
+Memorization in image generation. Aside from lan- guage modeling, past work also analyzes memorization in image generation, mainly from the perspective of gen- eralization in GANs (i.e., the novelty of model gener- ations). For instance, numerous metrics exist to mea- sure similarity with the training data [32, 3], the extent of mode collapse [61, 15], and the impact of individual training samples [4, 75]. Moreover, other work provides insights into when and why GANs may replicate train- ing examples [50, 26], as well as how to mitigate such effects [50]. Our work extends these lines of inquiry to conditional diffusion models, where we measure novelty by computing how frequently models regenerate training instances when provided with textual prompts.
+Recent and concurrent work also studies privacy in im- age generation for both GANs [70] and diffusion mod- els [65, 78, 34]. Tinsley et al. [70] show that StyleGAN can generate individuals’ faces, and Somepalli et al. [65] show that Stable Diffusion can output semantically sim- ilar images to its training set. Compared to these works, we identify privacy vulnerabilities in a wider range of systems (e.g., Imagen and CIFAR models) and threat models (e.g., membership inference attacks).
+15
+9 Discussion and Conclusion
+State-of-the-art diffusion models memorize and regen- erate individual training images, allowing adversaries to launch training data extraction attacks. By training our own models we ﬁnd that increasing utility can de- grade privacy, and simple defenses such as deduplication are insufﬁcient to completely address the memorization challenge. We see that state-of-the-art diffusion models memorize 2× more than comparable GANs, and more useful diffusion models memorize more than weaker dif- fusion models. This suggests that the vulnerability of generative image models may grow over time. Going forward, our work raises questions around the memoriza- tion and generalization capabilities of diffusion models.
+Questions of generalization. Do large-scale models work by generating novel output, or do they just copy and interpolate between individual training examples? If our extraction attacks had failed, it may have refuted the hypothesis that models copy and interpolate training data; but because our attacks succeed, this question re- mains open. Given that different models memorize vary- ing amounts of data, we hope future work will explore how diffusion models copy from their training datasets. Our work also highlights the difﬁculty in deﬁning memorization. While we have found extensive mem- orization with a simple (cid:96)2-based measurement, a more comprehensive analysis will be necessary to accurately capture more nuanced deﬁnitions of memorization that allow for more human-aligned notions of data copying.
+Practical consequences. We raise four practical con- sequences for those who train and deploy diffusion mod- els. First, while not a perfect defense, we recom- mend deduplicating training datasets and minimizing over-training. Second, we suggest using our attack—or other auditing techniques—to estimate the privacy risk of trained models. Third, once practical privacy-preserving techniques become possible, we recommend their use whenever possible. Finally, we hope our work will tem- per the heuristic privacy expectations that have come to be associated with diffusion model outputs: synthetic data does not give privacy for free [13, 14, 59, 2, 53].
+On the whole, our work contributes to a growing body of literature that raises questions regarding the legal, eth- ical, and privacy issues that arise from training on web- scraped public data [7, 65, 72, 77]. Researchers and prac- titioners should be wary of training on uncurated public data without ﬁrst taking steps to understand the underly- ing ethics and privacy implications.
+
+
+NC MN JH MJ
+FT VS BB DI EW
+Conceived Project Formalized Memorization Deﬁnition Experimented with Stable Diffusion Experimented with Imagen Experimented with CIFAR-10 Diffusion Experimented with GANs Experimented with Defenses Prepared Figures Analyzed Data Wrote Paper Managed the Project
+X X X
+X
+X X X X X
+X X X
+X X X X X
+X X
+X
+X X X
+X
+X X X X
+X
+X
+X X
+X
+X
+X X X
+X
+X
+X
+X
+X
+X
+X
+Table 2: Contributions of each author in the paper.
+Contributions
+Acknowledgements and Conﬂicts of Interest
+Nicholas, Jamie, Vikash, and Eric each indepen- dently proposed the problem statement of extracting training data from diffusion models.
+Nicholas, Eric, and Florian performed preliminary experiments to identify cases of data extraction in diffusion models.
+Milad performed most of the experiments on Stable Diffusion and Imagen, and Nicholas counted dupli- cates in the LAION training dataset; each wrote the corresponding sections of the paper.
+The authors are grateful to Tom Goldstein, Olivia Wiles, Katherine Lee, Austin Tarango, Ian Wilbur, Jeff Dean, Andreas Terzis, Robin Rombach, and Andreas Blattmann for comments on early drafts of this paper.
+Nicholas, Milad, Matthew, and Daphne are employed at Google, and Jamie and Borja are employed at Deep- Mind, companies that both train large machine learning models (including diffusion models) on both public and private datasets.
+Eric Wallace is supported by the Apple Scholars in
+AI/ML Fellowship.
+Jamie performed the membership inference attacks and inpainting attacks on CIFAR-10 diffusion mod- els, and Nicholas performed the diffusion extraction experiments; each wrote the corresponding sections of the paper.
+Matthew ran experiments for canary memorization and wrote the corresponding section of the paper.
+References
+[1] Mart´ın Abadi, Andy Chu, Ian Goodfellow, H Bren- dan McMahan, Ilya Mironov, Kunal Talwar, and Li Zhang. Deep learning with differential privacy. In ACM CCS, 2016.
+Florian and Vikash performed preliminary experi- ments on memorization in GANs, and Milad and Vikash ran the experiments included in the paper.
+Milad ran the membership inference experiments on GANs.
+[2] Hazrat Ali, Shafaq Murad, and Zubair Shah. Spot the fake lungs: Generating synthetic medical im- ages using neural diffusion models. arXiv preprint arXiv:2211.00902, 2022.
+Vikash ran extraction experiments on pretrained GANs.
+Daphne and Florian improved ﬁgure clarity and pre- sentation.
+[3] Sanjeev Arora, Andrej Risteski, and Yi Zhang. Do GANs learn the distribution? Some theory and em- In International Conference on Learning pirics. Representations, 2018.
+Daphne, Borja, and Eric edited the paper and con- tributed to paper framing.
+Nicholas organized the project and wrote the initial paper draft.
+[4] Yogesh Balaji, Hamed Hassani, Rama Chellappa, and Soheil Feizi. Entropic GANs meet VAEs: A statistical approach to compute sample likelihoods in GANs. In International Conference on Machine Learning, 2019.
+16
+
+
+[5] Borja Balle, Giovanni Cherubin, and Jamie Hayes. Reconstructing training data with informed adver- In IEEE Symposium on Security and Pri- saries. vacy, 2022.
+[6] Andrew Brock, Jeff Donahue, and Karen Si- monyan. Large scale GAN training for high ﬁdelity In International Confer- natural image synthesis. ence on Learning Representations, 2019.
+[7] Hannah Brown, Katherine Lee, Fatemehsadat Mireshghallah, Reza Shokri, and Florian Tram`er. What does it mean for a language model to pre- In ACM Conference on Fairness, serve privacy? Accountability, and Transparency, 2022.
+[8] Nicholas Carlini, Steve Chien, Milad Nasr, Shuang Song, Andreas Terzis, and Florian Tramer. Mem- In bership inference attacks from ﬁrst principles. IEEE Symposium on Security and Privacy. IEEE, 2022.
+[9] Nicholas Carlini, Daphne Ippolito, Matthew Jagielski, Katherine Lee, Florian Tramer, and Quantifying memorization Chiyuan Zhang. arXiv preprint across neural language models. arXiv:2202.07646, 2022.
+´Ulfar Erlingsson, Jernej Kos, and Dawn Song. The secret sharer: Evaluating and testing unintended memorization in neural networks. In USENIX Security Symposium, 2019.
+[10] Nicholas Carlini, Chang Liu,
+[11] Nicholas Carlini, Florian Tramer, Eric Wallace, Matthew Jagielski, Ariel Herbert-Voss, Katherine Lee, Adam Roberts, Tom Brown, Dawn Song, Ul- far Erlingsson, et al. Extracting training data from large language models. In USENIX Security Sym- posium, 2021.
+[12] Andrew Carr. Gretel.ai: Diffusion models for document synthesis. https://gretel.ai/blog/ diffusion-models-for-document-synthesis, 2022.
+[13] Pierre Chambon, Christian Bluethgen, Jean-Benoit Delbrouck, Rogier Van der Sluijs, Małgorzata Połacin, Juan Manuel Zambrano Chaves, Tan- ishq Mathew Abraham, Shivanshu Purohit, Cur- tis P. Langlotz, and Akshay Chaudhari. RoentGen: Vision-language foundation model for chest X- ray generation. arXiv preprint arXiv:2211.12737, 2022.
+17
+[14] Pierre Chambon, Christian Bluethgen, Curtis P. Langlotz, and Akshay Chaudhari. Adapting pretrained vision-language foundational models arXiv preprint to medical arXiv:2210.04133, 2022.
+imaging domains.
+[15] Tong Che, Yanran Li, Athul Paul Jacob, Yoshua Bengio, and Wenjie Li. Mode regularized gener- In International Con- ative adversarial networks. ference on Learning Representations, 2016.
+[16] Papers With Code. https://paperswithcode.
+com/sota/image-generation-on-cifar-10, 2023.
+[17] Elise Devaux. List of synthetic data vendors— https://elise-deux.medium.com/
+2022. new-list-of-synthetic-data-vendors-2022-f06dbe91784, 2022.
+[18] Prafulla Dhariwal and Alexander Nichol. Diffusion models beat GANs on image synthesis. Advances in Neural Information Processing Systems, 2021.
+[19] Tim Dockhorn, Tianshi Cao, Arash Vahdat, and Karsten Kreis. Differentially private diffusion mod- els. arXiv preprint arXiv:2210.09929, 2022.
+[20] August DuMont Sch¨utte, J¨urgen Hetzel, Sergios Gatidis, Tobias Hepp, Benedikt Dietz, Stefan Bauer, and Patrick Schwab. Overcoming barriers to data sharing with medical image generation: a comprehensive evaluation. NPJ Digital Medicine, 2021.
+[21] C Dwork, F McSherry, K Nissim, and A Smith. Calibrating noise to sensitivity in private data anal- ysis. In TCC, 2006.
+[22] Cynthia Dwork. Differential privacy: A survey of
+results. In TAMC, 2008.
+[23] Benj Edwards.
+Artist ﬁnds private med- train- popular AI in https://arstechnica.
+record data
+ical ing com/information-technology/2022/09/ artist-finds-private-medical-record-photos-in-popular-ai-training-data-set, 2022.
+photos
+set.
+[24] Vitaly Feldman. Does learning require memo- rization? A short In ACM SIGACT Symposium on Theory of Comput- ing, 2020.
+tale about a long tail.
+
+
+[25] Vitaly Feldman and Chiyuan Zhang. What neural networks memorize and why: Discovering the long tail via inﬂuence estimation. Advances in Neural Information Processing Systems, 2020.
+[26] Qianli Feng, Chenqi Guo, Fabian Benitez-Quiroz, and Aleix M Martinez. When do GANs replicate? on the choice of dataset size. In IEEE/CVF Inter- national Conference on Computer Vision, 2021.
+[27] Matt Fredrikson, Somesh Jha, and Thomas Risten- part. Model inversion attacks that exploit conﬁ- dence information and basic countermeasures. In ACM Conference on Computer and Communica- tions Security (CCS), 2015.
+[28] Matthew Fredrikson, Eric Lantz, Somesh Jha, Si- mon Lin, David Page, and Thomas Ristenpart. Privacy in pharmacogenetics: An end-to-end case study of personalized warfarin dosing. In USENIX Security Symposium, 2014.
+[29] Ian Goodfellow, Yoshua Bengio,
+and Aaron
+Courville. Deep learning. MIT press, 2016.
+[30] Ian Goodfellow,
+Jean Pouget-Abadie, Mehdi Mirza, Bing Xu, David Warde-Farley, Sherjil Ozair, Aaron Courville, and Yoshua Bengio. Generative adversarial networks. Advances in Neural Informa- tion Processing Systems, 2014.
+[31] Peter Henderson, Koustuv Sinha, Nicolas Angelard-Gontier, Nan Rosemary Ke, Genevieve Fried, Ryan Lowe, and Joelle Pineau. Ethical challenges in data-driven dialogue systems. In AAAI/ACM Conference on AI, Ethics, and Society, 2018.
+[32] Martin Heusel, Hubert Ramsauer, Thomas Un- terthiner, Bernhard Nessler, and Sepp Hochreiter. GANs trained by a two time-scale update rule con- verge to a local nash equilibrium. Advances in Neu- ral Information Processing Systems, 2017.
+[33] Jonathan Ho, Ajay Jain, and Pieter Abbeel. De- noising diffusion probabilistic models. Advances in Neural Information Processing Systems, 2020.
+[34] Hailong Hu and Jun Pang. Membership in- arXiv preprint
+ference of diffusion models. arXiv:2301.09956, 2023.
+[35] Daphne Ippolito, Florian Tram`er, Milad Nasr, Chiyuan Zhang, Matthew Jagielski, Katherine Lee,
+18
+Christopher A Choquette-Choo, and Nicholas Car- lini. Preventing verbatim memorization in lan- guage models gives a false sense of privacy. arXiv preprint arXiv:2210.17546, 2022.
+[36] Matthew Jagielski, Jonathan Ullman, and Alina Oprea. Auditing differentially private machine learning: How private is private SGD? Advances in Neural Information Processing Systems, 2020.
+[37] Ali Jahanian, Xavier Puig, Yonglong Tian, and Phillip Isola. Generative models as a data source for International multiview representation learning. Conference on Learning Representations, 2021.
+[38] Bargav Jayaraman and David Evans. Are attribute inference attacks just imputation? ACM Confer- ence on Computer and Communications Security (CCS), 2022.
+[39] Bargav Jayaraman, Lingxiao Wang, Katherine Knipmeyer, Quanquan Gu, and David Evans. Re- visiting membership inference under realistic as- sumptions. Proceedings on Privacy Enhancing Technologies, 2020.
+[40] Nikhil Kandpal, Haikang Deng, Adam Roberts, Eric Wallace, and Colin Raffel. Large language models struggle to learn long-tail knowledge. arXiv preprint arXiv:2211.08411, 2022.
+[41] Nikhil Kandpal, Eric Wallace, and Colin Raffel. Deduplicating training data mitigates privacy risks in language models. International Conference on Machine Learning, 2022.
+[42] MinGuk Kang, Joonghyuk Shin, and Jaesik Park. StudioGAN: A Taxonomy and Benchmark of arXiv preprint GANs for arXiv:2206.09479, 2022.
+Image Synthesis.
+[43] Tero Karras, Miika Aittala, Janne Hellsten, Samuli Laine, Jaakko Lehtinen, and Timo Aila. Training generative adversarial networks with limited data. In Advances in Neural Information Processing Sys- tems, 2020.
+[44] Tero Karras, Samuli Laine, and Timo Aila. A style- based generator architecture for generative adver- sarial networks. In IEEE/CVF conference on com- puter vision and pattern recognition, 2019.
+[45] Salome Kazeminia, Christoph Baur, Arjan Kuijper, Bram van Ginneken, Nassir Navab, Shadi Albar- qouni, and Anirban Mukhopadhyay. GANs for
+
+
+medical image analysis. Artiﬁcial Intelligence in Medicine, 2020.
+[46] Diederik P Kingma and Max Welling. Auto- encoding variational bayes. In International Con- ference on Learning Representations, 2014.
+[47] Katherine Lee, Daphne Ippolito, Andrew Nystrom, Chiyuan Zhang, Douglas Eck, Chris Callison- Burch, and Nicholas Carlini. Deduplicating train- ing data makes language models better. In Associ- ation for Computational Linguistics, 2022.
+[48] Andreas Lugmayr, Martin Danelljan, Andres Romero, Fisher Yu, Radu Timofte, and Luc Van Gool. RePaint: Inpainting using denoising dif- fusion probabilistic models. In IEEE/CVF Confer- ence on Computer Vision and Pattern Recognition, 2022.
+[49] AnGeL Ministries.
+File:Anne
+ham Lotz //commons.wikimedia.org/wiki/File: Anne_Graham_Lotz_(October_2008).jpg. Accessed on December 2022.
+(October
+2008).
+Gra- https:
+[50] Vaishnavh Nagarajan, Colin Raffel, and Ian J Goodfellow. Theoretical insights into memoriza- In Neural Information Processing tion in GANs. Systems Workshop, 2018.
+[51] Alex Nichol, Prafulla Dhariwal, Aditya Ramesh, Pranav Shyam, Pamela Mishkin, Bob McGrew, Ilya Sutskever, and Mark Chen. GLIDE: To- wards photorealistic image generation and editing with text-guided diffusion models. arXiv preprint arXiv:2112.10741, 2021.
+[52] Alexander Quinn Nichol and Prafulla Dhariwal. Improved denoising diffusion probabilistic models. In International Conference on Machine Learning, 2021.
+[53] Walter H. L. Pinaya, Petru-Daniel Tudosiu, Jes- sica Dafﬂon, Pedro F da Costa, Virginia Fer- nandez, Parashkev Nachev, Sebastien Ourselin, and M. Jorge Cardoso. Brain imaging genera- tion with latent diffusion models. arXiv preprint arXi:2209.07162, 2022.
+[54] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual mod- els from natural language supervision. In Interna- tional Conference on Machine Learning, 2021.
+19
+[55] Alec Radford, Luke Metz, and Soumith Chintala. Unsupervised representation learning with deep convolutional generative adversarial networks. In International Conference on Learning Representa- tions, 2016.
+[56] Aditya Ramesh, Prafulla Dhariwal, Alex Nichol, Casey Chu, and Mark Chen. Hierarchical text- conditional image generation with CLIP latents. arXiv preprint arXiv:2204.06125, 2022.
+[57] Aditya Ramesh, Mikhail Pavlov, Gabriel Goh, Scott Gray, Chelsea Voss, Alec Radford, Mark Chen, and Ilya Sutskever. Zero-shot text-to-image In International Conference on Ma- generation. chine Learning, 2021.
+[58] Robin Rombach, Andreas Blattmann, Dominik Lorenz, Patrick Esser, and Bj¨orn Ommer. High- resolution image synthesis with latent diffusion models. In IEEE/CVF Conference on Computer Vi- sion and Pattern Recognition, 2022.
+[59] Pouria Rouzrokh, Bardia Khosravi, Shahriar Faghani, Mana Moasseﬁ, Sanaz Vahdati, and Bradley J. Erickson. Multitask brain tumor inpaint- ing with diffusion models: A methodological re- port. arXiv preprint arXiv:2210.12113, 2022.
+[60] Chitwan Saharia, William Chan, Saurabh Sax- ena, Lala Li, Jay Whang, Emily Denton, Seyed Kamyar Seyed Ghasemipour, Burcu Karagol Ayan, S Sara Mahdavi, Rapha Gontijo Lopes, et al. Photorealistic text-to-image diffusion models with arXiv preprint deep language understanding. arXiv:2205.11487, 2022.
+[61] Tim Salimans, Ian Goodfellow, Wojciech Zaremba, Vicki Cheung, Alec Radford, and Xi Chen. Im- proved techniques for training GANs. Advances in Neural Information Processing Systems, 2016.
+[62] Reza Shokri, Marco Stronati, Congzheng Song, and Vitaly Shmatikov. Membership inference at- In IEEE tacks against machine learning models. Symposium on Security and Privacy, 2017.
+[63] Abhishek Sinha, Kumar Ayush, Jiaming Song, Bu- rak Uzkent, Hongxia Jin, and Stefano Ermon. Neg- ative data augmentation. In International Confer- ence on Learning Representations, 2021.
+[64] Jascha Sohl-Dickstein, Eric Weiss, Niru Mah- eswaranathan, and Surya Ganguli. Deep unsu- pervised learning using nonequilibrium thermody-
+
+
+In International Conference on Machine
+namics. Learning, 2015.
+[65] Gowthami Somepalli, Vasu Singla, Micah Gold- blum, Jonas Geiping, and Tom Goldstein. Dif- Investigating data fusion art or digital forgery? arXiv preprint replication in diffusion models. arXiv:2212.03860, 2022.
+[66] Yang Song and Stefano Ermon. Generative mod- eling by estimating gradients of the data distribu- tion. Advances in Neural Information Processing Systems, 2019.
+[75] Gerrit van den Burg and Chris Williams. On mem- orization in probabilistic deep generative models. Advances in Neural Information Processing Sys- tems, 2021.
+[76] James Vincent.
+could rewrite the rules of AI copyright. https: //www.theverge.com/2022/11/8/23446821/ microsoft-openai-github-copilot-class-action-lawsuit-ai-copyright-violation-training-data, 2022.
+The
+lawsuit
+that
+[77] Eric Wallace, Florian Tram`er, Matthew Jagielski, and Ariel Herbert-Voss. Does GPT-2 know your phone number? BAIR Blog, 2020.
+[67] Midjourney Team. https://www.midjourney.
+com/, 2022.
+[68] D´avid Terj´ek. Adversarial lipschitz regularization. In International Conference on Learning Represen- tations, 2019.
+[69] Yuan Tian, Qin Wang, Zhiwu Huang, Wen Li, Dengxin Dai, Minghao Yang, Jun Wang, and Olga Fink. Off-policy reinforcement learning for efﬁ- cient and effective gan architecture search. In Eu- ropean Conference on Computer Vision, 2020.
+[78] Yixin Wu, Ning Yu, Zheng Li, Michael Backes, and Yang Zhang. Membership inference attacks against text-to-image generation models. arXiv preprint arXiv:2210.00968, 2022.
+[79] Jiayuan Ye, Aadyaa Maddi, Sasi Kumar Mu- rakonda, Vincent Bindschaedler, and Reza Shokri. Enhanced membership inference attacks against In ACM SIGSAC Con- machine learning models. ference on Computer and Communications Security (CCS), 2021.
+[70] Patrick Tinsley, Adam Czajka, and Patrick Flynn. it might be This face does not exist... but yours! Identity leakage in generative models. In IEEE/CVF Winter Conference on Applications of Computer Vision, 2021.
+[80] Samuel Yeom, Irene Giacomelli, Matt Fredrikson, and Somesh Jha. Privacy risk in machine learning: In IEEE Analyzing the connection to overﬁtting. Computer Security Foundations Symposium (CSF), 2018.
+[81] Yuheng Zhang, Ruoxi Jia, Hengzhi Pei, Wenxiao Wang, Bo Li, and Dawn Song. The secret re- vealer: Generative model-inversion attacks against deep neural networks. In IEEE/CVF conference on computer vision and pattern recognition, 2020.
+[71] Rob Toews.
+Synthetic data is about to trans- https://www.
+intelligence. form artiﬁcial forbes.com/sites/robtoews/2022/06/12/ synthetic-data-is-about-to-transform-artificial-intelligence/, 2022.
+[72] Florian Tram`er, Gautam Kamath, and Nicholas Carlini. Considerations for differentially private learning with large-scale public pretraining. arXiv preprint arXiv:2212.06470, 2022.
+[82] Shengyu Zhao, Zhijian Liu, Ji Lin, Jun-Yan Zhu, and Song Han. Differentiable augmentation for data-efﬁcient GAN training. Advances in Neural Information Processing Systems, 2020.
+[73] Allan Tucker, Zhenchen Wang, Ylenia Rotalinti, and Puja Myles. Generating high-ﬁdelity synthetic patient data for assessing machine learning health- care software. NPJ Digital Medicine, 2020.
+[74] Ryan Turner,
+Jane Hung, Eric Frank, Yunus Saatchi, and Jason Yosinski. Metropolis-hastings In International generative adversarial networks. Conference on Machine Learning, 2019.
+20
+
+
+A Collected Details for Figures
+Table 3: Catalog of ﬁgures containing qualitative examples.
+Figure #
+Model
+Dataset
+Who trained it?
+Figure 1 Figure 2 Figure 3 Figure 6 Figure 7 Figure 8 Figure 12 Figure 13 Figure 15 Figure 17 Figure 20 Figure 22 Figure 23 Figure 24
+Stable Diffusion Stable Diffusion Stable Diffusion Uncond Diffusion Uncond Diffusion Uncond Diffusion Uncond Diffusion Uncond Diffusion StyleGAN, MHGAN, BigGAN Uncond Diffusion Uncond Diffusion Uncond Diffusion Uncond Diffusion Several different GANs
+LAION LAION LAION CIFAR-10 CIFAR-10 CIFAR-10 CIFAR-10 CIFAR-10 CIFAR-10 CIFAR-10 CIFAR-10 CIFAR-10 CIFAR-10 CIFAR-10
+Stability AI Stability AI Stability AI Ours Ours Ours Ours Ours Ours Ours Ours Ours Ours Original paper authors
+21
+Sampling strategy
+PLMS PLMS PLMS DDIM DDIM DDIM Inpainting Inpainting GAN default DDIM DDIM Inpainting Inpainting GAN default
+
+
+B All CIFAR-10 Memorized Images
+Figure 17: All 1280 images we extract from diffusion models trained on CIFAR-10, after 1 million generations from 16 diffusion models.
+22
+
+
+C Additional Attacks on CIFAR-10
+Here, we expand on our investigation of memorization of training data on CIFAR-10.
+C.1 Membership Inference at Different Training Steps
+1000
+0.8
+4000Each train example processed X times
+3000
+1.0TPR@FPR=1%
+0.2
+2000
+0.6
+0.4
+0.6
+0.6
+1.0TPR@FPR=1%
+0.2
+1.0Training data seen1e8
+0.8
+0.8
+0.2
+0.4
+0.4
+102
+False positive rate
+101
+101
+102
+Data seen: 102MAUC: 0.997TPR@FPR=1%: 0.989
+103
+103
+True positive rate
+100
+100
+Data seen: 5MAUC: 0.742TPR@FPR=1%: 0.050
+(a) How membership attack success changes as a training example is processed repeatedly throughout training.
+(b) How membership attack success changes as more data is processed throughout training.
+(c) ROC curve for the membership attack for different training steps.
+Figure 18: Membership inference attacks as a function of the amount of training data processed on CIFAR-10.
+In Section 5.2.3, we implicitly investigated membership attack success as a function of the number update steps when training a diffusion model. We explicitly model this relationship in Figure 18. First, in Figure 18a we plot membership attack success as a function of the number of times that an example was processed over training. If an example is processed more than 2000 times during training, invariably membership attacks are perfect against that example. Second, in Figure 18b, we plot membership attack success as a function of the total amount of data processed during training. Unsurprisingly, membership attack success increases as more training data is processed. This is highlighted in Figure 18c, where we plot the membership attack ROC curve. At 5M training examples processed, at a FPR of 1% the TPR is 5%, and increases to 99% after 102M examples are processed. Note that this number of processed training inputs is commonly used in diffusion model training. For example, the OpenAI CIFAR-10 diffusion model 9 is trained for 500,000 steps at a batch size of 128, meaning 64M training examples are processed. Even at this number of processed training examples, our membership attack has a TPR > 95% at a FPR of 1%.
+9https://github.com/openai/improved-diffusion
+23
+
+
+C.2 Membership Inference with Different Augmentation Strategies
+101
+101
+False positive rate
+102
+102
+n: 10 AUC: 0.996TPR@FPR=0.1%: 0.260
+103
+100
+n: 2 AUC: 0.991TPR@FPR=0.1%: 0.128
+n: 5 AUC: 0.995TPR@FPR=0.1%: 0.210
+True positive rate
+n: 1 AUC: 0.982TPR@FPR=0.1%: 0.071
+100
+103
+n: 20 AUC: 0.997TPR@FPR=0.1%: 0.294
+w/ Augn: 20AUC: 0.997TPR@FPR=0.1%: 0.437
+101
+101
+102
+False positive rate
+102
+103
+w/o Augn: 20AUC: 0.997TPR@FPR=0.1%: 0.294
+100
+100
+103
+True positive rate
+(a)
+(b)
+In (a), Figure 19: We can improve membership inference attack success rates on CIFAR-10 by reducing noise. membership inference attacks are improved by averaging the loss over multiple noise samples in the diffusion process. In (b), attacks are improved by querying on augmented versions of the candidate image.
+24
+
+
+C.3 Membership Inference Inliers and Outliers
+Figure 20: When performing our membership inference attack, the hardest-to-attack examples (left) are all duplicates in the CIFAR-10 training set, and the easiest-to-attack examples (right) are visually outliers from CIFAR-10 images.
+25
+
+
+C.4 Membership Inference on Conditional and Unconditional Models
+Diffusion models can be conditioned on labels (or prompts for text-to-image models). We compare the difference in membership inference on a CIFAR-10 diffusion model trained unconditionally with a model conditionally trained on CIFAR-10 labels. The conditional and unconditional models reach approximately the same FID after training; between 3.5-4.2 FID. We plot the membership attack ROC curve in Figure 21 and note that the conditional model is marginally more vulnerable. However, it is difﬁcult to tell if this is a fundamental difference between conditional and unconditional models, or because the conditional model contains more parameters than unconditional model (the conditional models contains an extra embedding layer for the one-hot label input).
+Unconditional.AUC: 0.970TPR@FPR=1%: 0.549
+101
+101
+False positive rate
+102
+102
+103
+103
+True positive rate
+Conditional.AUC: 0.982TPR@FPR=1%: 0.714
+100
+100
+Figure 21: Membership attack against a conditional and unconditional diffusion model on CIFAR-10.
+26
+
+
+D More Inpainting Attacks on CIFAR-10
+Here, we take a deeper dive into the inpainting attacks introduced in Section 5.3. As previously explained, for a target x, we create Xrec where |Xrec| = 5000. In Figure 22a, for every xrec ∈ Xrec, we plot the normalized (cid:96)2 distance between the reconstruction and target, against the loss (at diffusion timestep 100) of xrec. We also plot in Figure 22d, the eight examples from Xrec that have the smallest loss on the main model. There is a small positive correlation between loss and (cid:96)2 distance; although some appear to be similar to x, there are notable differences.
+In Figure 22b we compare the loss of each reconstruction on the main model against the support model we will use to form the contrastive loss. We make this correlation more pronounced by dividing the main loss by the support loss in Figure 22c. This has the effect of increasing the correlation between the (now contrastive) loss and (cid:96)2 distance. This has the effect of ﬁltering out examples that are seen as likely under both models, and can be seen by inspecting the eight examples from Xrec that have have the smallest main model loss support model loss in Figure 22e. These examples look more visually similar to x in comparison to examples in Figure 22d.
+Figure 22 inspected the attack success when x was in the training set. We show in Figure 23 that the attack fails when x was not included in training; using a contrastive loss doesn’t signﬁcantly increase the Pearson correlation coefﬁcient. This means our attack is indeed exploiting the fact that the model can only inpaint correctly because of memorisation and not due to generalisation.
+27
+
+
+(a) Loss (using the main model at diffusion timestep 100) on all 5,000 inpainted examples Xrec.
+(b) Comparison of loss on main and support models (at diffusion timestep 100) on all 5,000 inpainted examples.
+(c) Contrastive loss ( main model loss
+support model loss ) on
+all 5,000 inpainted examples Xrec.
+(d) 8 inpainted examples with the smallest loss. Leftmost is the original example, second to left is the masked example and the rest are inpainted examples.
+(e) 8 inpainted examples with the smallest main model loss Leftmost is the original example, second to left is the masked example and the rest are inpainted examples.
+support model loss .
+Figure 22: Example of an inpainting attack (against a model we refer to as the main model) on an image of a bird from CIFAR-10 when that image is included in training, and we mask out 60% of the central pixels. In (a) we plot the L2 distance between 5,000 inpainted reconstructions and the original (non-masked out) image and compare this to the loss with respect to the (main) model. In (b), we compare the loss of these reconstructions on the (main) model with a support model for which we know the image wasn’t contained in the training set. In (c), we compare L2 distances between reconstructions with a contrastive loss which is given as the loss of the image with respect to the main model divided by the loss of the image with respect to the support model, and ﬁnd there is stronger relationship between smaller L2 distances and smaller losses compared to (a). Figure (d) gives examples of reconstructions with small loss and Figure (e) gives examples of reconstructions with small contrastive loss.
+28
+
+
+(a) Loss (using the main model at diffusion timestep 100) on all 5,000 inpainted examples Xrec.
+(b) Comparison of loss on main and support models (at diffusion timestep 100) on all 5,000 inpainted examples.
+(c) Contrastive loss ( main model loss
+support model loss ) on
+all 5,000 inpainted examples Xrec.
+(d) 8 inpainted examples with the smallest loss. Leftmost is the original example, second to left is the masked example and the rest are inpainted examples.
+(e) 8 inpainted examples with the smallest main model loss Leftmost is the original example, second to left is the masked example and the rest are inpainted examples.
+support model loss .
+Figure 23: Example of an inpainting attack (against a model we refer to as the main model) on an image of a bird from CIFAR-10 when that image is not included in training, and we mask out 60% of the central pixels. In (a) we plot the L2 distance between 5,000 inpainted reconstructions and the original (non-masked out) image and compare this to the loss with respect to the (main) model. In (b), we compare the loss of these reconstructions on the (main) model with a support model for which we know the image wasn’t contained in the training set. In (c), we compare L2 distances between reconstructions with a contrastive loss which is given as the loss of the image with respect to the main model divided by the loss of the image with respect to the support model, and ﬁnd there is stronger relationship between smaller L2 distances and smaller losses compared to (a). Figure (d) gives examples of reconstructions with small loss and Figure (e) gives examples of reconstructions with small contrastive loss.
+E GAN Training Setup
+We used on StudioGAN10 codebase for training GAN in this work. For the StyleGAN and MHGAN architectures, we followed the default hyper-parameters provided in the StudioGAN repository. However, for the BigGAN architecture, we increased the number of training steps to 200,000, which is different from the original hyper-parameters, to increase image ﬁdelity. We trained a total of 256 models for each GAN architecture, with each model being trained on a randomly selected half of the CIFAR-10 dataset. We selected the iteration that achieved the highest FID score on the test set for each model.
+F Additional GAN Extraction Results
+Figure 24 and Figure 25 contain additional examples extracted from GANs trained on CIFAR-10.
+10https://github.com/POSTECH-CVLab/PyTorch-StudioGAN
+29
+
+
+(a) StyleGAN
+(b) MHGAN
+(c) BigGAN
+Figure 24: Training examples extracted from a CIFAR-10 GAN for different architectures across 107 generations.
+30
+
+
+(a) WGAN
+(b) E2GAN
+(c) NDA
+(d) DiffAugment-BigGAN
+(e) StyleGAN-ADA
+(f) DDPM
+Figure 25: Training examples extracted from different publicly available pretrained GANs and diffusion (DDPM) models. We use normalized (cid:96)2 distance in pixel space to ﬁnd memorized training samples. In each pair of images, left and right image corresponds to real and it closely synthetic image. For StyleGAN-ADA and DDPM model we display 120 pairs with smallest normalized (cid:96)2 distance. For others we display all memorized training images. 1M generations
+31

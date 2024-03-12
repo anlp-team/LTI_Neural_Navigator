@@ -1,0 +1,1181 @@
+3 2 0 2
+y a M 9 2
+] S A . s s e e [
+2 v 5 9 7 6 0 . 4 0 3 2 : v i X r a
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+Hainan Xu 1 Fei Jia 1 Somshubra Majumdar 1 He Huang 1 Shinji Watanabe 2 Boris Ginsburg 1
+Abstract
+introduces a novel Token-and- This paper Duration Transducer (TDT) architecture for sequence-to-sequence tasks. TDT extends conven- tional RNN-Transducer architectures by jointly predicting both a token and its duration, i.e. the number of input frames covered by the emitted token. This is achieved by using a joint network with two outputs which are independently nor- malized to generate distributions over tokens and durations. During inference, TDT models can skip input frames guided by the predicted dura- tion output, which makes them significantly faster than conventional Transducers which process the encoder output frame by frame. TDT models achieve both better accuracy and significantly faster inference than conventional Transducers on different sequence transduction tasks. TDT models for Speech Recognition achieve better ac- curacy and up to 2.82X faster inference than con- ventional Transducers. TDT models for Speech Translation achieve an absolute gain of over 1 BLEU on the MUST-C test compared with con- ventional Transducers, and its inference is 2.27X faster. In Speech Intent Classification and Slot Filling tasks, TDT models improve the intent ac- curacy by up to over 1% (absolute) over conven- tional Transducers, while running up to 1.28X faster. Our implementation of the TDT model will be open-sourced with the NeMo (https: //github.com/NVIDIA/NeMo) toolkit.
+1. Introduction
+encoder and decoder (AED) models (Chorowski et al., 2015; Chan et al., 2016), Connectionist Temporal Classification (CTC) (Graves et al., 2006), and Transducers (Graves, 2012). Those models are commonly used in academia and industry, and there exist open-source toolkits with efficient implemen- tation for those methods, including ESPNet (Watanabe et al., 2018), NeMo (Kuchaiev et al., 2019), Espresso (Wang et al., 2019), SpeechBrain (Ravanelli et al., 2021) etc.
+This paper focuses on Transducer models. There have been a significant number of works that improve different aspects of the original Transducer (Graves, 2012). For example, the original LSTM encoder of transducer models has been replaced with Transformers (Tian et al., 2019; Yeh et al., 2019; Zhang et al., 2020), Contextnet (Han et al., 2020) and Conformers (Gulati et al., 2020). Decoders for transducers are well-investigated as well, e.g. (Ghodsi et al., 2020) used stateless decoders instead LSTM decoders; (Shrivastava et al., 2021) proposed Echo State Networks and showed that a decoder with random parameters could perform as well as a well-trained decoder. The loss function of Transducers has also been an active research area. FastEmit (Yu et al., 2021) introduces biases in the gradient update of the transducer loss to reduce latency. Multi-blank Transducers (Xu et al., 2022) introduce a generalized Transducer architecture and loss function with big blank symbols that cover multiple frames of the input.
+RNN-Ts have achieved impressive accuracy in speech tasks, but the auto-regressive decoding makes their inference com- putationally costly. To alleviate this issue, we propose a new Transducer architecture that jointly predicts a token and its duration. The predicted token duration can direct the model decoding algorithm to skip frames during inference. We call it a TDT (Token-and-Duration Transducer) model. The primary contributions of this paper are:
+Over the past years, automatic speech recognition (ASR) models have undergone shifts from conventional hybrid models (Jelinek, 1998; Woodland et al., 1994; Povey et al., 2011) to end-to-end ASR models, including attention-based
+1NVIDIA, USA 2Carnegie Mellon University, PA, USA. Corre-
+spondence to: Hainan Xu <hainanx@nvidia.com>.
+Proceedings of the 40 th International Conference on Machine Learning, Honolulu, Hawaii, USA. PMLR 202, 2023. Copyright 2023 by the author(s).
+1. A novel Token-and-Duration Transducer (TDT) archi- tecture that jointly predicts a token and its duration.
+2. An extension of the forward-backward algorithm to derive the analytical solution of the gradients of the TDT model. We also derive gradients of pre-softmax logits for the token prediction inspired by Transducer function-merging (Li et al., 2019).
+3. TDT models achieve better accuracy and significant
+1
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+blank symbol Ø; a text sequence could be augmented by adding an arbitrary number of blanks between any adjacent tokens. During training, we maximize the log-probability log PRNNT(y|x) for an audio utterance x with corresponding text y, which requires summing over all possible ways to augment the text sequence to match the audio:
+LRNNT(y|x) = log PRNNT(y|x)
+= log
+(cid:88)
+Pframe-level(π|x),
+π:B−1(π)=y
+where π represents an augmented sequence (including Ø), B(.) is the operation to augment a sequence by adding blanks, and B−1 is the inverse of the operation B, which removes all the blanks in the sequence.
+Figure 1. From top to bottom: alignments generated with con- ventional RNNT, TDT models with config [0-8], and the corre- sponding spectrogram. Each unit in the T axis of the alignment corresponds to 4 frames in the spectrogram due to subsampling. Note, TDT model learns to skip frames. Long skips are not fre- quently used in the audio where speech is present, but for the 4 relatively silent segments in the audio, where conventional RNN- T’s alignment shows mostly horizontal lines, the TDT model uses long durations to skip the majority of frames.
+Computing PRNNT(y|x) using its definition is intractable since it needs to sum over exponentially many possible aug- mented sequences. In practice, the probability can be effi- ciently computed with the forward variables α(t, u) or back- ward variables β(t, u), which are calculated recursively:
+α(t, u) = α(t − 1, u)P (Ø|t − 1, u) + α(t, u − 1)P (yu|t, u − 1)
+β(t, u) = β(t + 1, u)P (Ø|t, u)
++ β(t, u + 1)P (yu+1|t, u).
+inference speed-up compared to original RNN-Ts for 3 different tasks – speech recognition, speech translation, and spoken language understanding.
+4. TDT-based ASR models are more robust to noise than conventional RNN-Ts models, and they don’t suffer from the performance degradation for speech corre- sponding to the text with repeated tokens.
+with recursion base conditions α(1, 0) = 1 and β(T, U ) = P (Ø|T, U ). In order to make this recursion well-defined, we require that both α(t, u) and β(t, u) are zero outside domain 1 ≤ t ≤ T and 0 ≤ u ≤ U . With those quantities defined, PRNNT(y|x) could be computed with either the α or β efficiently:
+PRNNT(y|x) = α(T, U )P (Ø|T, U ) = β(1, 0).
+Our TDT model implementation will be open-sourced with NVIDIA’s NeMo 1 toolkit.
+Then we could compute the loss function as,
+2. Background: Transducers
+LRNNT(y|x) = log PRNNT(y|x).
+An RNN-Transducer2 (Graves, 2012) consists of an encoder, a decoder (or a prediction network), and a joint network (or a joiner). The encoder and decoder extract higher-level rep- resentations of the acoustic and text and feed the output to the joint network, which generates a probability distribu- tion over the vocabulary. The vocabulary includes a special
+3. Token-and-Duration Transducers
+A Token-and-Duration Transducer (TDT) differs from con- ventional transducers in that it predicts the token duration of the current emission. Namely, the TDT joiner generates two sets of output, one for the output token, and the other for the duration of the token (see Fig. 2). 3 Let us first
+1https://github.com/NVIDIA/NeMo/. Pull request
+https://github.com/NVIDIA/NeMo/pull/6536
+2When originally proposed, an RNN-Transducer uses a recur- rent network as the encoder hence the name RNN-T; nowadays Transducers usually adopt more sophisticated networks involving self-attention in their encoder. In this paper, we use the words RNN-T and Transducer interchangeably to represent any encoder- decoder-joiner model that uses the Transducer loss.
+3In our implementation, the two outputs are disjoint sub-vectors of the joiner output. For example, let’s take vocabulary size (voc) of 1024 (including Ø) that supports durations {0,1,2,3,4} (a total of 5 durations). The last layer of the joiner maps the hidden activation to a tensor joiner_out of size 1024 + 5 = 1029. Then joiner_out[:1024] and joiner_out[1024:] are independently normalized to generate the two sets of distributions.
+2
+(1)
+(2)
+(3)
+(4)
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+Figure 2. Architecture of a TDT model, which contains an encoder, a decoder, and a joint network. The TDT joint network emits two sets of output, one for the output token Z(t, u)[:voc], and the other for the duration of the token Z(t, u)[voc:]. The two distributions are jointly trained during model training.
+define a joint probability P (v, d|t, u) as the probability of generating token v (v could either be a text token or Ø), with duration d at location (t, u). We assume that token and durations are conditionally independent:
+Figure 3. Output probability lattice of TDT model with supported durations {0,1,2}. We follow the convention in (Graves, 2012) making t start with 1 and u with 0. The probability of observing the first u output labels in the first t frames is represented by node (t, u). Dotted arrows constitute a complete path in the lattice.
+PTDT(y|x) is computed through α at the terminal node: 5
+PTDT(y|x) = α(T + 1, U )
+P (v, d|t, u) = PT (v|t, u)PD(d|t, u)
+(5)
+The backward variables (β) are computed as,
+β(t, u) =
+(cid:88)
+β(t + d, u)P (Ø, d|t, u)
+where PT (.) and PD(.) correspond to the token distribu- tion and duration distribution, respectively. Next, we can compute the forward variables α(t, u):
++
+d∈D\{0} (cid:88)
+β(t + d, u + 1)P (yu+1, d|t, u)
+d∈D
+α(t, u) =
+(cid:88)
+α(t − d, u)P (Ø, d|t − d, u)
+with the base condition β(T + 1, U ) = 1. The probability of the whole sequence is PTDT(y|x) = β(1, 0).
++
+d∈D\{0} (cid:88)
+α(t − d, u − 1)P (yu, d|t − d, u − 1)
+(6)
+With those quantities defined, we define TDT loss as
+d∈D
+LTDT = − log PTDT(y|x)
+with the same base condition α(1, 0) = 1 as that of the conventional Transducer. Note, this Equation differs from 2 in that, for both non-blank and blank emissions, we need to sum over durations in D to consider all possible contri- butions from states that can reach (t, u), weighted by the corresponding duration probabilities.4 Readers are encour- aged to compare those Equations with the transition arcs in Figure 3 to see the connections. The total output probability
+3.1. TDT Gradient Computation
+We derive an analytical solution for the gradient of the TDT loss, since automatic differentiation for transducer loss is highly inefficient. 6 The gradient of the TDT loss L has two parts. The first part is the gradient with respect to the token probabilities PT (v|t, u):
+∂LTDT ∂PT (v|t, u)
+= −
+α(t, u)b(v, t, u) PTDT(y|x)
+4We disallow blank emission with duration 0, thus the sum is over D \ {0} for the blank emission. This makes the model not strictly probabilistic unless we renormalize the duration proba- bilities excluding duration = 0 for blank emissions computation. Although in practice we find that this does not matter, since du- ration=0 is in general rarely predicted according to Figure 4, and this design makes the derivation of gradients much easier.
+5This equation, and the base condition of β are slightly different from the common definition used for conventional RNNT, although they are equivalent to the standard definition. For TDT though, this notation will make the boundary case much easier. In the recursion, we have β(T + 1, u) = α(T + 1, u) = 0, ∀u ̸= U . 6The detailed derivation for all gradients is in Appendix A.
+3
+(7)
+(8)
+(9)
+(10)
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+where α(t, u) are defined in Equation 6 and b(v, t, u) is define as:
+b(v, t, u) =
+
+ 
+(cid:88)
+β(t + d, u + 1)PD(d|t, u),
+d∈D
+(cid:88)
+β(t + d, u)PD(d|t, u),
+d∈D\{0} 0,
+v = yu+1
+v = Ø
+otherwise. (11)
+Note, b(v, t, u) can be interpreted as a weighted sum of β’s that are reachable from (t, u), where the weights are from the duration probabilities.
+The second part is the gradient with respect to the duration probabilities PD(d|t, u):
+Algorithm 1 Greedy Inference of Conventional Transducer
+1: input: acoustic input x 2: enc = encoder(x) 3: hyp = [] 4: t = 0 5: while t < len(enc) do dec = decoder(hyp) 6: joined = joint(enc[t], dec) 7: idx = argmax(joined) 8: if token is not blank then 9: 10: 11: 12: 13: 14: end while 15: return hyp
+hyp.append(idx2token[idx])
+else
+t += 1
+end if
+∂LTDT ∂PD(d|t, u)
+= −
+α(t, u)c(d, t, u) P (y|x)
+(12)
+where
+c(d, t, u) =
+ 
+
+β(t, u + 1)PT (yu+1|t, u), β(t + d, u + 1)PT (yu+1|t, u) +β(t + d, u)PT (Ø|t, u),
+d = 0
+d > 0.
+The TDT model uses the pseudo “probability” P ′ T (v|t, u) in its forward and backward computation, which under- normalize the logits in the following way:
+(13)
+T (v|t, u) = log softmaxv′(hv′
+log P ′
+(t, u)) − σ.
+3.2. Gradient with Transducer Function Merging
+The PT (v|t, u) terms in the Transducer loss are usually com- puted with a softmax function. Thus the gradients of the TDT loss have to go through the gradient of the softmax function to be passed to the previous layers, which could be costly. We use Transducer function merging proposed in (Li et al., 2019) to directly compute the gradient of the Trans- ducer loss with respect to the pre-softmax logits (hv(t, u)):
+∂LTDT(y|x) ∂hv(t, u)
+=
+(cid:104) PT (v|t, u)α(t, u)
+β(t, u) − b(v, t, u)
+PTDT(y|x)
+(14) where b(v, t, u) is defined in Eq. 11. Note we apply function merging only to the token logits, not duration logits since the latter usually has very small dimensions, and the negli- gible efficiency improvements do not outweigh the added complexity in implementation.
+(cid:105)
+The under-normalization is only used in training, which encourages TDT models to prioritize emissions of any token (blank or non-blank) with longer durations. The gradients that incorporate the logit under-normalization method are shown in Eq. 17,
+∂LTDT(y|x) ∂hv(t, u)
+=
+(cid:104) PT (v|t, u)α(t, u)
+β(t, u) − b(v,t,u) exp(σ) (cid:105) (cid:104) LTDT(y|x)
+exp
+(17) where b(v, t, u) are defined in Eq. 11.7 Note that Eq. 17 is similar to Eq. 14, with the only difference being for TDT, the b(v, t, u) term is scaled by
+1 exp(σ) .
+3.4. TDT Inference
+3.3. Logits Under-normalization
+We adopt the logit under-normalization method from (Xu et al., 2022) during the training of TDT models, in order to encourage longer durations. In our TDT implementa- tions, we compute PT (v|t, u) in the log domain in order to have better numerical stability. The log probabilities log PT (v|t, u) are computed from the logits hv(t, u) corre- sponding to token v:
+We compare the inference algorithms of conventional Trans- ducer models (Algorithm 1) and TDT models (Algorithm 2), which fully utilize the duration output. Note, that for TDT, an additional distribution over durations is computed from the joiner (line 9). This duration can increment t by more than one (line 13), compared with line 12 of conventional Transducer algorithm, where t could only be incremented by 1 at a time, and this only happens for blank emissions. This is the key place that makes TDT inference faster.
+log PT (v|t, u) = log softmaxv′(hv′
+(t, u)).
+(15)
+7PT (.) in Eq. 17, represents “real” probability, while the loss
+function L is computed with pseudo-probabilities.
+4
+(16)
+(cid:105)
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+Algorithm 2 Greedy Inference of TDT Models
+TDT config WER(%)
+time(s)
+rel. speed-up
+1: input: acoustic input x 2: enc = encoder(x) 3: hyp = [] 4: t = 0 5: while t < len(enc) do dec = decoder(hyp) 6: joined = joint(enc[t], dec) 7: idx = argmax(joined[:vocab size]) 8: duration idx = argmax(joined[vocab size:]) 9: if token is not blank then 10: 11: 12: 13: 14: end while 15: return hyp
+hyp.append(idx2token[idx])
+end if t += duration idx2duration[duration idx]
+RNNT 0-2 0-4 0-6 0-8
+2.14 2.35 2.17 2.14 2.11
+256 175 129 119 117
+1.46X 1.98X 2.15X 2.19X
+Table 1. English ASR, Librispeech test-clean. TDT vs RNNT: WER, decoding time, and relative speed-up against the RNNT.
+TDT config WER(%)
+time(s)
+rel. speed-up
+RNNT 0-2 0-4 0-6 0-8
+5.11 5.50 5.06 5.05 5.16
+244 171 128 118 115
+1.43X 1.91X 2.07X 2.12X
+4. Experiments
+Table 2. English ASR, Librispeech test-other. TDT vs RNNT: WER, decoding time, and relative speed-up against the RNNT.
+We evaluate our model in three different tasks: speech recog- nition, speech translation, and spoken language understand- ing. We use the NeMo (Kuchaiev et al., 2019) toolkit for all experiments. Unless specified otherwise, we use Conformer- Large for all tasks. 8 For acoustic feature extraction, we use audio frames of 10 ms and window sizes of 25 ms. Our model has a conformer encoder with 17 layers with num- heads = 8, and relative position embeddings. The hidden dimension of all the conformer layers is set to 512, and for the feed-forward layers in the conformer, an expansion factor of 4 is used. The convolution layers use a kernel size of 31. At the beginning of the encoder, convolution-based subs-ampling is performed with subsampling rate 4. All models have around 120M parameters, The exact number of parameters may vary, depending on the size of the sub- word vocabulary and durations used with TDT models. We use different subword-based tokenizers for different models, which will be described in their respective sections. Un- less specified otherwise, logit under-normalization is used during training with σ = 0.05. For all experiments, we train our models for no more than 200 epochs, and run checkpoint-averaging performed on 5 checkpoints with the best performance on validation data, to generate the model for evaluation. We run non-batched greedy search inference 9 for all evaluations reported in this Section. TDT Batched inference is discussed in Section 5.2. No external LM is used in any of our experiments.
+8examples/asr/conf/conformer/conformer_ in
+transducer_bpe.yaml NVIDIA/NeMo
+https://github.com/
+4.1. Speech Recognition
+We evaluate TDT for English, German, and Spanish ASR. All ASR models uses Conformer-Large encoder with state- less decoders (Ghodsi et al., 2020), which concatenates the embeddings of the last 2 history words as the decoder output. All models use Byte-Pair Encoding (BPE) (Sennrich et al., 2015) as the text representation with vocabulary size = 1024. Fast-emit (Yu et al., 2021) regularization is used in all our models, with λ = 0.01.
+For each language, the baseline is the conventional Trans- ducer model. We test TDT models with different D con- figurations. We choose consecutive integers as our con- figurations, and use a shorthand notation to represent du- rations from 0 to the maximum value, e.g. “0-4” means D = {0, 1, 2, 3, 4}. All models have been trained only on public datasets to make the experiments reproducible.
+4.1.1. ENGLISH ASR
+Our English ASR models are trained on the Librispeech (Panayotov et al., 2015) set with 960 hours of speech. Speed perturbation with factors (0.9, 1.0, 1.1) is performed to augment the dataset. TDT models achieve similar accuracy compared to the baseline (RNNT). TDT models are also significantly faster in inference, up to 2.19X and 2.12X with config 0-8 for test-clean and test-other, respectively (see Tables 1 and 2).
+9Beam search for TDT models is highly complex since the search space spans both token and duration dimensions. That being said, it is possible to come up with different pruning methods to step up the TDT beam search, which will be our future work.
+4.1.2. SPANISH ASR
+Our Spanish models are trained on combination of Mozilla Common Voice (MCV) (Ardila et al., 2019), Multilingual
+5
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+TDT config WER(%)
+time(s)
+rel. speed-up
+RNNT 0-2 0-4 0-6 0-8
+19.84 17.95 18.57 18.06 18.73
+47 33 26 24 24
+1.42X 1.81X 1.96X 1.96X
+Table 3. Spanish ASR, on CallHome dataset. TDT vs RNNT: WER, decoding time, and relative speed-up against RNNT.
+TDT config WER(%)
+time(s)
+rel. speed-up
+RNNT 0-2 0-4 0-6 0-8
+3.99 4.10 3.93 4.00 3.95
+558 352 232 207 198
+1.59X 2.41X 2.70X 2.82X
+Table 4. German ASR on MLS set. TDT vs RNNT: WER, decod- ing time, and relative speed-up against RNNT.
+at the time of writing this paper, there are no reported re- sults with such models, while the closest are from (Xue et al., 2022), where the authors added attention pooling to the joint network in the Transducer model in order to better model reordering in translations. We train our models on a combination of MUST-C V2 (Cattoni et al., 2021), CoVoST V2 (Wang et al., 2021b), ST-TED (Niehues et al., 2018), Europarl-ST (Iranzo-S´anchez et al., 2020), as well as En- glish audio data from CommonVoice v6 and VoxPopuli v2 with German text generated with an NMT model trained on WMT21 (Farhad et al., 2021) data. Tokenization of the text uses the YouTokenToMe 11 tokenizer, with a 16k vocabulary size. All models are trained from scratch using the afore- mentioned training set. Table 5 shows our results on the MUST-C V2 Test dataset. For reference, we also include results of the best publicly available model at the time of writing from (Indurthi et al., 2021).12 Note, the models are not directly comparable with our RNNT and TDT models, since they are trained on different datasets. We see that while baseline RNNT gives a decent result of a BLEU score of 23.21, TDT models consistently improve that with up to 1.26 BLEU score points, and the inference is up to 2.27X faster (see Table 5). TDT models demonstrate a stronger modeling capacity over conventional RNNTs.
+Librispeech (MLS) (Pratap et al., 2020), Voxpopuli (Wang et al., 2021a), and Fisher (LDC2010S01) dataset with 1340 hours in total. We evaluate our model on the Spanish Call- home (LDC96S35) test set. We see consistent WER im- provement with TDT models compared to RNNT, with up to almost 2 absolute WER points for 0-2 TDT, and over 1 absolute WER point for our fastest model with configura- tion = 0-8 (See Table 3). TDT models are much faster than RNNT, with maximum speed up factor of 1.96 for 0-6 and 0-8 TDT configurations.
+Model
+(Indurthi et al., 2021)
+RNNT TDT 0-2 TDT 0-4 TDT 0-8
+BLEU (%)
+28.88
+23.21 24.03 24.15 24.47
+time(s)
+N/A
+218 143 106 96
+speed-up
+N/A
+1.52X 2.06X 2.27X
+4.1.3. GERMAN ASR
+The German ASR was trained on MCV, MLS, and Voxpop- uli datasets, with a total of around 2000 hours. Models are evaluated on MLS test set. TDT models have accuracy sim- ilar or better than RNNTs (Table 4). We also observe 2.82X speed up on German MLS test for TDT 0-8 configuration, which is higher than on other datasets.10
+4.2. Speech Translation
+We evaluate TDT models on English-to-German Speech Translation. For baseline, we directly applies a Conformer Transducer model on speech translation datasets, without any changes to the model. To the best of our knowledge,
+10The large speed-up is related to the fact that MLS dataset has longer text: for other datasets (Librispeech, Spanish Callhome), an utterance contains on average between 20 and 40 subword tokens, but MLS has 68. While the encoder is easily parallelized, the decoding is autoregressive and it has to be performed sequentially. Therefore the model spends more time in the decoding search, so we see a larger speed up.
+Table 5. Speech Translation, MUST-C V2 Test dataset. TDT vs RNNT: BLEU score, inference time, and relative inference speed- up of different speech translation models.
+4.3. Spoken Language Understanding
+In this section, we apply TDT models to spoken language understanding (SLU), specifically the Speech Intent Classi- fication and Slot Filling (SICSF) task, which takes audio as input to detect user intents and extract the corresponding lex- ical fillers for detected entity slots (Bastianelli et al., 2020). An intent is composed of a scenario type and an action type, while slots and fillers are represented by key-value pairs. The ground-truth intents and slots of input are organized as a Python dictionary, represented as a Python string. The SICSF task is to predict this text based on the input audio. Experiments are conducted using the SLURP (Bastianelli et al., 2020) dataset, where intent accuracy and SLURP-F1
+11https://github.com/VKCOM/YouTokenToMe 12https://paperswithcode.com/sota/
+speech-to-text-translation-on-must-c-en-de.
+6
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+Model
+SpeechBrain ESPnet-SLU
+#params (M) 96 109
+intent acc. 87.7 86.52
+SLURP F1 76.19 76.91
+rel. speedup N/A N/A
+RNNT TDT 0-2 TDT 0-4 TDT 0-6 TDT 0-8
+119 119 119 119 119
+88.53 87.12 89.85 89.28 90.07
+79.41 79.43 80.03 80.61 79.90
+1.17x 1.17x 1.28x 1.28x
+Table 6. Speech intent classification and slot filling on SLURP dataset. TDT vs RNNT: Relative speed-up against RNNT.
+Figure 4. Duration distribution during inference on Librispeech test-other. The model is trained with 4X subsampling. The y-axis shows the number of emissions of different types of durations during the inference of Librispeech test-other datasets.
+are used as the evaluation metric.
+Our baseline model is a Conformer Transducer model, ini- tialized from our pretrained ASR model 13. We also in- clude results from two state-of-the-art models from ESPNet- SLU (Arora et al., 2022) and SpeechBrain (Wang et al., 2021c) for comparison. Both ESPNet-SLU and Speech- Brain use HuBERT (Hsu et al., 2021) encoders pretrained on LibriLight-60k (Kahn et al., 2020), while ESPNet-SLU further finetunes the encoder on LibriSpeech before training on SLURP. For our TDTs, we use the same duration config- urations that contain maximum durations 2, 4, 6, and 8. Dif- ferent from our ASR and ST experiments that use σ = 0.05, here we use σ = 0.02 for all experiments since we found using σ = 0.05 may destabilize training for SLURP14.
+The results are shown in Table 6. While the RNNT base- line already has better performance than ESPNet-SLU and SpeechBrain baselines, TDT models with [0-4], [0-6], and [0-8] configurations achieve even better accuracy which makes the new state-of-the-art in the SICSF. In addition, the TDT [0-8] model is 1.28X faster in inference than RNNT.15 The results demonstrate not only the effectiveness but also the efficiency of TDT algorithm applied in SICSF tasks.
+We notice relatively smaller speed-up factors with TDT in this task. This could be explained by the much lower average audio-to-token-length ratio for SICSF tasks. For example, in ASR tasks, the typical ratio between audio length to text length is around 7:1, and the ratio is around 0.89:1 for the
+13https://catalog.ngc.nvidia.com/orgs/ nvidia/teams/nemo/models/stt_en_conformer_ transducer_large
+14This is caused by a much smaller ratio between the audio and text length of SLU datasets: the average ratio of audio to and text is 0.89:1 for SLURP, compared to around 5.5:1 for ASR for example. Since on average audio is shorter than text, setting σ too high, which encourages large duration outputs, will hurt training. A smaller σ alleviates the issue.
+15SLURP has on average shorter audio than text . This means larger durations occur much less for SLURP, resulting in smaller speed-ups compared to ASR and ST.
+SLURP testset, with average text sequence being longer than audio sequence16. Nevertheless, we see a significant speed up, which also shows that TDT models can bring improvement even for scenarios where the audio sequence is longer than the text sequences.
+5. Discussion
+5.1. TDT Emission Analysis
+In this section, we investigate the output distribution of TDT models using Librispeech test-other dataset. First, we collect statistics on the duration predicted during decoding, with different TDT configurations (Fig. 4). For the baseline RNN-T, we treat blank and non-blank symbol emissions as having durations 1 and 0, respectively, since blank advances the t by one and non-blank does not. TDT models with configs [0-2] and [0-4] fully utilize longer durations during inference, with almost all of the durations predicted for the [0-2] model, and around 90% of durations for the [0-4] model have the maximum duration. For [0-6] and [0-8] models, the frequencies of predicted long durations are reduced. This is expected since our analysis shows the average ratio of audio length to text length for Librispeech test-other is 5.5:1, smaller than 6. Hence, it is not possible to always emit such long durations.
+Next, we collect the frequency of blank emissions vs non- blank emissions (Fig. 5). We can see that as the model incorporates longer durations, fewer and fewer blank emis- sions are produced with TDT models, while the number of non-blank emissions remains unchanged. TDT models with durations [0-6] and [0-8] have very few blank emissions, indicating that TDT models are close to the theoretical lower bound in terms of the least number of decoding steps.
+16Text sequence is computed as the number of subword tokens, and audio sequence is computed as the number of 40ms frames due to 10ms per audio frame during feature extraction, with 4X subsampling performed by the encoder.
+7
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+TDT config
+clean
+other
+total time
+rel speed-up
+RNNT 0-2 0-4 0-6 0-8
+2.13 2.10 2.15 2.10 2.13
+5.11 4.94 5.04 4.91 5.03
+274 182 151 146 159
+1.51X 1.81X 1.88X 1.79X
+Figure 5. Emission counts of blanks VS non-blanks in Librispeech test-other. The model is trained with 4X subsampling. The y-axis shows the number of emissions of either a blank symbol (red) or a non-blank symbol (blue) during the inference of Librispeech test-other datasets.
+Table 7. Batched inference for TDT ASR models, trained with loss sampling ω = 0.1. WER (%) on Librispeech test-clean and test-other. Batch-size=4. When different utterances in the same batch predict different durations, we take the minimum of those predictions and advance all utterances in the batch by that amount.
+5.3. TDT Robustness to noise
+5.2. TDT Batched Inference
+The main difficulty with batched inference for TDT models is that utterances in the batch may have different duration outputs that denote the number of frames that should be skipped. As a result, it is difficult to fully parallelize the computation for the same batch. One can make the whole batch skip the same number of frames, by selecting the minimum of predicted durations, e.g. if batch-size=4, and predicted durations are {3, 4, 3, 6}, we advance the whole batch by 3 frames. However, we found this method results in significantly increased insertion errors with the same tokens repeated multiple times. This is not surprising since we skip fewer frames than the model indicates, and the model would not be ready to emit the next token, but can only emit previously emitted tokens instead. To solve this issue, we propose a modification to the training loss of our models, by combining TDT loss with conventional transducer loss LTDT with a sampling probability ω:
+In this section, we compare the noise robustness for TDT and RNNT ASR models. For this, we run inference on Librispeech test-clean augmented with noise in different signal-noise-ratios (SNRs). For each utterance, we ran- domly select a noise sample from MUSAN (Snyder et al., 2015) and Freesound 18. The noise sample is sub-segmented if it’s longer than the utterance, or repeated if it’s shorter than the utterance. The utterance samples are augmented with noise samples in 0, 5, 10, 15, and 20 SNRs. We report the WER and inference time of conventional Transducers and TDT models with configuration 0-8. We found TDT models perform much better in noisy conditions than con- ventional Transducers, both in terms of accuracy and speed (Fig. 6). While RNN-T and TDT models achieve similar WERs for clean speech, TDT models gradually outperform RNNT as more noise is added. The inference time for TDT is practically the same for all SNRs. More details of those experiments are in Appendix E.
+Lsampled =
+(cid:40)
+LTransducer, with probability ω LTDT,
+with probability 1 − ω
+(18)
+Note, the conventional transducer loss LTransducer is com- puted on the token logits only, and the duration logits will not take part in the computation nor get updated. We found that the sampled loss solves the aforementioned perfor- mance degradation issue. Table 7 shows the ASR perfor- mance and inference speed of TDT models when training with ω = 0.1, and running inference with batch=4. We even see slightly improved ASR accuracy, as well as inference speed-up with batched inference with TDT. 17
+17The speed-up for batched inference is slightly smaller than for non-batched case because 1. the overhead related to padding for batched computation and 2. all utterances in the batch advance by the minimum of predicted durations which increases the number of decoding steps.
+Figure 6. TDT vs RNNT ASR on noisy speech. WER(%) for Librispeech test-clean with noise added at different SNRs. WER on the original test-clean is shown at SNR = +inf. While TDT and RNNT achieve similar WER at low noise conditions, TDT is more robust to noise.
+18https://freesound.org/
+8
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+model
+WER%
+model max-duration WER time
+rel. speed up
+RNNT-LSTM RNNT-stateless TDT [0-2] TDT [0-4] TDT [0-6] TDT [0-8]
+59.95 64.62 12.59 9.35 6.12 5.78
+RNNT
+MBT TDT
+MBT TDT
+
+2 2
+4 4
+5.11
+5.15 5.50
+5.05 5.06
+244
+208 171
+161 128
+
+1.17X 1.43X
+1.52X 1.91X
+Table 8. WERs with different Transducer models on TTS gener- ated dataset with repeated digits.
+MBT TDT
+8 8
+5.18 5.16
+139 115
+1.76X 2.12X
+5.4. TDT Robustness with respect to repeated tokens
+We notice that RNN-T model performance significantly degrades when the text sequence has repetitions of the same (subword) tokens, for example:
+Table 9. Inference and accuracy comparison between 3 type of ASR models: RNNT, multi-blank RNNT (MBT), and TDT. Greedy WER (%) and the total decoding time of the Librispeech test-other with batch = 1. Relative speed-up is measured against the RNNT. For MBT max-duration=4 means MBT model with big-blank- durations=[2,3,4] in addition to the conventional blank. For TDT models, max-duration=4 means model with durations [0,1,2,3,4].
+Ground truth: seven seven seven nine nine nine eight eight eight
+RNNT w/ LSTM decoder result: seven seven eight eight
+and TDT models give comparable WERs, larger inference speedup factors are seen with TDT models when using the same max-duration configs.
+RNNT w/ stateless decoder result: seven nine eight
+6. Conclusion
+We find TDT models are significantly more robust than RNN-Ts for such cases. We use NeMo TTS to generate 100 audios containing random digits repeating 3 - 5 times and run ASR with different models with results in Table 8. We see that while the conventional RNN-Ts achieve very bad word error rates (all of them with error rates more than 50%, regardless of the type of decoder used), TDT models are able to achieve significantly lower error rates, and this effect is more prominent for TDT models with longer durations. With TDT models with durations 0-8, we achieve a word error rate of 5.78%, which is more than 10X error rate reduction compared to conventional Transducers.
+This set of experiments also shows that TDT models do not suffer from the potential issue of accumulation of errors induced by consecutive duration predictions that might be inaccurate. More details on the analysis of repeated tokens and our experiments can be found in Appendix F.
+5.5. TDT Comparison with Multi-blank Transducers
+In this paper, we propose Token-and-Duration Transducers, which extend conventional Transducer models by adding explicit duration modeling. We present detailed deriva- tions of the extended forward-backward algorithm used for TDT models, as well as the close-form solutions for TDT model training. We show that TDT models are superior to conventional Transducers across multiple se- quence tasks, including speech recognition, speech trans- lation, and spoken language understanding. In all those tasks, we see better or similar performances with TDT models than conventional Transducers, while TDT mod- els run inference significantly faster, with up to 2.82X speed up. TDT is also more noise-robust, and robust to token repetition than conventional RNN-Ts. Our TDT im- plementation will be open-sourced in NVIDIA’s NeMo https://github.com/NVIDIA/NeMo toolkit.
+For future work, we will work on other ways to improve the computational efficiency and accuracy of TDT models, as well as algorithms and implementation for efficient beam- search with TDT models.
+Multi-blank Transducer (MBT) (Xu et al., 2022) introduces big blank symbols that cover multiple input frames. During inference, when a big blank is emitted, the MBT model skips frames according to the duration of the emitted blank symbol. Compared to multi-blank Transducers which skip frames only with certain blank symbols, TDT models al- low frame-skipping for both non-blank and blank symbols, which means potentially larger speed-up factors. We com- pare MBT and TDT in Table 9. We see that while both MBT
+References
+Ardila, R., Branson, M., Davis, K., Henretty, M., Kohler, M., Meyer, J., Morais, R., Saunders, L., Tyers, F. M., and Weber, G. Common voice: A massively-multilingual speech corpus. arXiv:1912.06670, 2019.
+Arora, S., Dalmia, S., Denisov, P., Chang, X., Ueda, Y.,
+9
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+Peng, Y., Zhang, Y., Kumar, S., Ganesan, K., Yan, B., et al. ESPnet-SLU: Advancing spoken language understanding through ESPnet. In ICASSP, 2022.
+Iranzo-S´anchez, J., Silvestre-Cerda, J. A., Jorge, J., Rosell´o, N., Gim´enez, A., Sanchis, A., Civera, J., and Juan, A. Europarl-st: A multilingual corpus for speech translation of parliamentary debates. In ICASSP, 2020.
+Bastianelli, E., Vanzo, A., Swietojanski, P., and Rieser, V. SLURP: A Spoken Language Understanding Resource Package. In EMNLP, 2020.
+Jelinek, F. Statistical methods for speech recognition. MIT
+press, 1998.
+Cattoni, R., Di Gangi, M. A., Bentivogli, L., Negri, M., and Turchi, M. Must-c: A multilingual corpus for end-to-end speech translation. Computer Speech & Language, 66: 101155, 2021.
+Kahn, J., Rivi`ere, M., Zheng, W., Kharitonov, E., Xu, Q., Mazar´e, P.-E., Karadayi, J., Liptchinsky, V., Collobert, R., Fuegen, C., et al. Libri-light: A benchmark for ASR with limited or no supervision. In ICASSP, 2020.
+Chan, W., Jaitly, N., Le, Q. V., and Vinyals, O. Listen,
+Kingma, D. P. and Ba, J. Adam: A method for stochastic
+Attend and Spell. In ICASSP, 2016.
+optimization. In ICLR, 2015.
+Chorowski, J. K., Bahdanau, D., Serdyuk, D., Cho, K., and Bengio, Y. Attention-based models for speech recogni- tion. NeurIPS, 28, 2015.
+Farhad, A., Arkady, A., Magdalena, B., Ondˇrej, B., Ra- jen, C., Vishrav, C., Costa-jussa, M. R., Cristina, E.-B., Angela, F., Christian, F., et al. Findings of the 2021 con- ference on machine translation (WMT21). In Conf. on Machine Translation, 2021.
+Kuchaiev, O., Li, J., Nguyen, H., Hrinchuk, O., Leary, R., Ginsburg, B., Kriman, S., Beliaev, S., Lavrukhin, V., et al. Nemo: a toolkit for building ai applications using neural modules. In NeurIPS Workshop on Systems for ML, 2019.
+Li, J., Zhao, R., Hu, H., and Gong, Y. Improving RNN transducer modeling for end-to-end speech recognition. In ASRU, 2019.
+Ghodsi, M., Liu, X., Apfel, J., Cabrera, R., and Weinstein, E. RNN-Transducer with stateless prediction network. In ICASSP, 2020.
+Niehues, J., Cattoni, R., St¨uker, S., Cettolo, M., Turchi, M., and Federico, M. The IWSLT 2018 evaluation campaign. In IWSLT, 2018.
+Graves, A. Sequence transduction with recurrent neural
+networks. In ICML, 2012.
+Panayotov, V., Chen, G., Povey, D., and Khudanpur, S. Librispeech: an ASR corpus based on public domain audio books. In ICASSP, 2015.
+Graves, A., Fern´andez, S., Gomez, F., and Schmidhuber, J. Connectionist temporal classification: labelling unseg- mented sequence data with recurrent neural networks. In ICML, 2006.
+Gulati, A., Qin, J., Chiu, C.-C., Parmar, N., Zhang, Y., Yu, J., Han, W., Wang, S., Zhang, Z., Wu, Y., et al. Con- former: Convolution-augmented transformer for speech recognition. In Interspeech, 2020.
+Han, W., Zhang, Z., Zhang, Y., Yu, J., Chiu, C.-C., Qin, J., Gulati, A., Pang, R., and Wu, Y. Contextnet: Improv- ing convolutional neural networks for automatic speech recognition with global context. In Interspeech, 2020.
+Hsu, W.-N., Bolte, B., Tsai, Y.-H. H., Lakhotia, K., Salakhutdinov, R., and Mohamed, A. Hubert: Self- supervised speech representation learning by masked prediction of hidden units. IEEE/ACM Transactions on Audio, Speech, and Language Processing, 29:3451–3460, 2021.
+Paszke, A. et al. PyTorch: An Imperative Style, High- Performance Deep Learning Library. In NeuRIPS, 2019.
+Povey, D., Ghoshal, A., Boulianne, G., Burget, L., Glembek, O., Goel, N., Hannemann, M., Motlicek, P., Qian, Y., Schwarz, P., Silovsky, J., Stemmer, G., and Vesely, K. The Kaldi speech recognition toolkit. In ASRU, 2011.
+Pratap, V., Xu, Q., Sriram, A., Synnaeve, G., and Collobert, R. MLS: A large-scale multilingual dataset for speech research. In Interspeech, 2020.
+Ravanelli, M., Parcollet, T., Plantinga, P., Rouhe, A., Cor- nell, S., Lugosch, L., Subakan, C., Dawalatabad, N., Heba, A., Zhong, J., et al. SpeechBrain: A general- purpose speech toolkit. In Interspeech, 2021.
+Sennrich, R., Haddow, B., and Birch, A. Neural machine translation of rare words with subword units. In Proc. of the 54th Annual Meeting of the ACL, 2015.
+Indurthi, S., Zaidi, M. A., Lakumarapu, N. K., Lee, B., Han, H., Ahn, S., Kim, S., Kim, C., and Hwang, I. Task aware multi-task learning for speech to text tasks. In ICASSP, 2021.
+Shrivastava, H., Garg, A., Cao, Y., Zhang, Y., and Sainath, T. Echo state speech recognition. In ICASSP, 2021.
+Snyder, D., Chen, G., and Povey, D. Musan: A music, speech, and noise corpus. arXiv:1510.08484, 2015.
+10
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+Tian, Z., Yi, J., Tao, J., Bai, Y., and Wen, Z. Self-attention transducers for end-to-end speech recognition. In Inter- speech, 2019.
+Wang, C., Riviere, M., Lee, A., Wu, A., Talnikar, C., Haziza, D., Williamson, M., Pino, J., and Dupoux, E. VoxPopuli: A large-scale multilingual speech corpus for representa- tion learning, semi-supervised learning and interpretation. In Proc. of the 59th Annual Meeting of the ACL and the 11th International Joint Conf. on NLP, 2021a.
+Wang, C., Wu, A., and Pino, J. CoVoST 2 and massively multilingual speech-to-text translation. In Interspeech, 2021b.
+Wang, Y., Chen, T., Xu, H., Ding, S., Lv, H., Shao, Y., Peng, N., Xie, L., Watanabe, S., and Khudanpur, S. Espresso: A fast end-to-end neural speech recognition toolkit. In ASRU, 2019.
+Wang, Y., Boumadane, A., and Heba, A. A fine-tuned Wav2vec 2.0/HuBERT benchmark for speech emotion recognition, speaker verification and spoken language understanding. arXiv:2111.02735, 2021c.
+Watanabe, S., Hori, T., Karita, S., Hayashi, T., Nishitoba, J., Unno, Y., Enrique Yalta Soplin, N., Heymann, J., Wiesner, M., Chen, N., Renduchintala, A., and Ochiai, T. ESPnet: In Interspeech, End-to-end speech processing toolkit. 2018.
+Woodland, P. C., Odell, J. J., Valtchev, V., and Young, S. J. Large vocabulary continuous speech recognition using HTK. In ICASSP, 1994.
+Xu, H., Jia, F., Majumdar, S., Watanabe, S., and Gins- burg, B. Multi-blank transducers for speech recognition. arXiv:2211.03541, 2022.
+Xue, J., Wang, P., Li, J., Post, M., and Gaur, Y. Large- scale streaming end-to-end speech translation with neural transducers. arXiv preprint arXiv:2204.05352, 2022.
+Yeh, C.-F., Mahadeokar, J., Kalgaonkar, K., Wang, Y., Le, D., Jain, M., Schubert, K., Fuegen, C., and Seltzer, M. L. Transformer-transducer: End-to-end speech recognition with self-attention. arXiv:1910.12977, 2019.
+Yu, J., Chiu, C.-C., Li, B., Chang, S.-y., Sainath, T. N., He, Y., Narayanan, A., Han, W., Gulati, A., Wu, Y., et al. FastEmit: Low-latency streaming ASR with sequence- level emission regularization. In ICASSP, 2021.
+Zhang, Q., Lu, H., Sak, H., Tripathi, A., McDermott, E., Koo, S., and Kumar, S. Transformer Transducer: A streamable speech recognition model with transformer encoders and RNN-T loss. In ICASSP, 2020.
+11
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+A. Derivations of TDT gradients with respect to probabilities
+A.1. Background: gradients of RNN-Transducer
+The gradient of the conventional Transducer loss function with respect to P (v|t, u) has been derived in (Graves, 2012). The total probability p(y|x) equals to the sum of α(t, u)β(t, u) over any top-left to bottom-right diagonal through the probability lattice, i.e. ∀n : 1 ≤ n ≤ U + T
+(cid:88)
+PRNNT(y|x) =
+α(t, u)β(t, u)
+(t,u):t+u=n
+We plug β(t, u) = β(t + 1, u)p(Ø|t, u) + β(t, u + 1)p(yu|t, u), in the equation above and get:
+PRNNT(y|x) =
+(cid:88)
+α(t, u)
+(cid:34)
+β(t + 1, u)p(Ø|t, u) + β(t, u + 1)p(yu+1|t, u)
+(cid:35)
+(t,u):t+u=n
+Now let us take the partial derivative of p(y|x) over individual p(v|t, u):
+∂PRNNT(y|x) ∂P (v|t, u)
+= α(t, u)
+ 
+
+β(t, u + 1), β(t + 1, u), 0,
+v = yu+1 v = Ø otherwise.
+Since LRNNT = − log PRNNT(y|x), we have
+∂LRNNT ∂P (v|t, u)
+=
+dLRNNT dPRNNT(y|x)
+∂PRNNT(y|x) ∂P (v|t, u)
+= −
+α(t, u) PRNNT(y|x)
+ 
+
+β(t, u + 1), β(t + 1, u), 0,
+v = yu+1 v = Ø otherwise.
+A.2. Gradients of TDT models
+Derivation of gradients for TDT follows similar steps as gradients for conventional Transducers. But first note, that Eq. 19 does not hold true for TDT: since frame-skipping is not possible for a RNNT, for any n, the diagonal (t, u) : t + u contains a set of nodes that all possible paths in the lattice must go through. But for TDT, frame-skipping is allowed, so we also need to consider paths that jump over the diagonal. The correct formulation for TDT is that ∀n : 1 ≤ n ≤ U + T :
+PTDT(y|x) =
+(cid:88)
+α(t, u)β(t, u) +
+(cid:88)
+α(t, u)β(t′, u)P (Ø, t′ − t|t, u)
+(t,u):t+u=n
+(t,u,t′):t+u<n,t′+u>n,(t′−t)∈D
++
+(cid:88)
+α(t, u)β(t′, u + 1)P (yu+1, t′ − t|t, u)
+(t,u,t′):t+u<n,t′+u+1>n,(t′−t)∈D
+Eq. 23 has extra terms comparing to Eq. 19, which correspond to transitions that go across the specified diagonal. Starting from Eq. 23, we follow similar steps as conventional Transducers. To get the gradients of the token probabilities, we replace β(t, u) according to Eq. 8, and take the partial derivative of token probabilities. The last two terms do not have contributions to the partial derivative, and we obtain:
+∂PTDT(y|x) ∂PT (v|t, u)
+= α(t, u)
+
+ 
+(cid:88)
+β(t + d, u + 1)PD(d|t, u),
+d∈D
+(cid:88)
+β(t + d, u)PD(d|t, u),
+d∈D\{0} 0,
+v = yu+1
+v = Ø
+otherwise.
+Then taking LTDT = − log PTDT(y|x), we have:
+∂LTDT ∂PT (v|t, u)
+= −
+α(t, u) PTDT(y|x)
+
+ 
+(cid:88)
+β(t + d, u + 1)PD(d|t, u),
+d∈D
+(cid:88)
+β(t + d, u)PD(d|t, u),
+d∈D\{0} 0,
+v = yu+1
+v = Ø
+otherwise.
+12
+(19)
+(20)
+(21)
+(22)
+(23)
+(24)
+(25)
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+Similarly, starting with Eq. 23 and Eq. 8, we take the partial derivatives of the duration probabilities:
+∂PTDT(y|x) ∂PD(d|t, u)
+= α(t, u)
+(cid:40)
+β(t, u + 1)PT (yu+1|t, u), d = 0 β(t + d, u + 1)PT (yu+1|t, u) + β(t + d, u)PT (Ø|t, u), d > 0.
+Since LTDT = − log PTDT(y|x), we get:
+∂LTDT ∂PD(d|t, u)
+= −
+α(t, u) PTDT(y|x)
+(cid:40)
+d = 0 β(t, u + 1)PT (yu+1|t, u), β(t + d, u + 1)PT (yu+1|t, u) + β(t + d, u)PT (Ø|t, u), d > 0.
+B. Derivations of TDT gradients with respect to pre-softmax logits
+B.1. Background: Softmax function merging for conventional Transducers
+As noted previously, hv compute a closed-form solution of Transducer loss of hv
+t,u are the pre-softmax logits joint network for the token prediction. (Li et al., 2019) proposed to
+t,u by the following steps.
+First, we apply the chain rule to represent the gradients to pre-softmax logits as follows, 19
+∂LRNNT ∂hv
+t,u
+=
+(cid:88)
+v′∈V
+∂LRNNT ∂P (v′|t, u)
+∂P (v′|t, u) ∂hv
+t,u
+∂L
+where V represents a set of all vocabulary including the Ø token. In the summation, ∂P (v|t,u) can be calculated via Eq. 22. Although this summation is over all elements in V, only two of them are non-zero: the one where v′ = Ø and where v′ = yu+1. Therefore, we could simplify Eq. 28 as,
+∂LRNNT ∂hv
+t,u
+=
+∂LRNNT ∂P (Ø|t, u)
+∂P (Ø|t, u) ∂hv
+t,u
++
+∂LRNNT ∂P (yu+1|t, u)
+∂P (yu+1|t, u) ∂hv
+t,u
+Next, consider the second part of each term in the summation, ∂P (.|t,u)
+∂hv
+t,u
+. The gradients of the softmax y = softmax(x) are:
+∂yi ∂xj
+=
+(cid:40)
+−yiyj, i ̸= j yi(1 − yi), i = j
+Now we could simplify Eq. 29 based on different v. When v = Ø, we have
+∂LRNNT ∂hØ t,u
+∂LRNNT ∂P (Ø|t, u)
+∂P (Ø|t, u) ∂hØ t,u α(t, u)β(t + 1, u) PRNNT(y|x) (cid:20) P (Ø|t, u)α(t, u) β(t + 1, u)P (Ø|t, u) + β(t, u + 1)P (yu+1|t, u) PRNNT(y|x) (cid:125) (cid:123)(cid:122) (cid:124) β(t,u) (cid:21)
+∂LRNNT ∂P (yu+1|t, u)
+∂P (yu+1|t, u) ∂hØ t,u
++
+=
+α(t, u)β(t, u + 1) PRNNT(y|x)
+= −
+P (Ø|t, u)(1 − P (Ø|t, u)) +
+=
+P (yu+1|t, u)P (Ø|t, u)
+(cid:21)
+−β(t + 1, u)
+=
+P (Ø|t, u)α(t, u) PRNNT(y|x)
+(cid:20)
+β(t, u) − β(t + 1, u)
+19In the original paper (Li et al., 2019), although their final result is correct, there seems to be a small issue in their Eq. 12, where the
+authors did not include the summation.
+13
+(26)
+(27)
+(28)
+(29)
+(30)
+(31)
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+Similarly, when v = yu+1, we have
+∂LRNNT ∂hyu+1 t,u
+=
+=
+=
+=
+∂LRNNT ∂P (Ø|t, u)
+∂P (Ø|t, u) ∂hyu+1 t,u
+∂P (yu+1|t, u) ∂hyu+1 t,u α(t, u)β(t, u + 1) PRNNT(y|x)
+∂LRNNT ∂P (yu+1|t, u)
++
+α(t, u)β(t + 1, u) PRNNT(y|x) P (yu+1|t, u)α(t, u) PRNNT(y|x)
+P (yu+1|t, u)(1 − P (yu+1|t, u))
+P (Ø|t, u)P (yu+1|t, u) −
+(cid:21)
+(cid:20) β(t + 1, u)P (Ø|t, u) + β(t, u + 1)P (yu+1|t, u) (cid:125) (cid:123)(cid:122) (cid:124) β(t,u) (cid:21)
+−β(t, u + 1)
+(cid:20)
+P (yu+1|t, u)α(t, u) PRNNT(y|x)
+β(t, u) − β(t, u + 1)
+Lastly, when v ̸= Ø and v ̸= yu+1, we have
+∂LRNNT ∂hv
+t,u
+=
+=
+=
+∂LRNNT ∂P (Ø|t, u)
+∂P (Ø|t, u) ∂hv α(t, u)β(t + 1, u) PRNNT(y|x) P (v|t, u)α(t, u) PRNNT(y|x)
+∂LRNNT ∂P (yu+1|t, u)
+∂P (yu+1|t, u) ∂hv
++
+t,u α(t, u)β(t, u + 1) PRNNT(y|x)
+t,u
+P (Ø|t, u)P (v|t, u) +
+P (yu+1|t, u)P (v|t, u)
+(cid:20) (cid:21) β(t + 1, u)P (Ø|t, u) + β(t, u + 1)P (yu+1|t, u) (cid:123)(cid:122) (cid:125) (cid:124) β(t,u)
+=
+P (v|t, u)α(t, u)β(t, u) PRNNT(y|x)
+Combining Eq. 31, 32, 33, we get the gradients of Transducer loss over pre-softmax logits, shown in Eq. 34:
+∂LRNNT ∂hv
+t,u
+=
+P (v|t, u)α(t, u) PRNNT(y|x)
+(cid:34)
+β(t, u) −
+ 
+
+β(t, u + 1), β(t + 1, u), 0,
+v = yu+1 v = Ø otherwise
+(cid:35)
+B.2. Softmax function merging for TDT
+The derivation of pre-softmax logit gradients for TDT loss is slightly more complex than the conventional Transducer but follows similar steps. First we follow the chain rule by writing the gradient as the summation of terms, and then listing only the non-zero terms in the sum,
+∂LTDT ∂hv
+t,u
+=
+(cid:88)
+v∈V
+∂LTDT ∂P (v|t, u)
+∂P (v|t, u) ∂hv
+t,u
+=
+∂LTDT ∂P (Ø|t, u)
+∂P (Ø|t, u) ∂hv
+t,u
++
+∂LTDT ∂P (yu+1|t, u)
+∂P (yu+1|t, u) ∂hv
+t,u
+Now we simplify this depending on different v.
+14
+(32)
+(33)
+(34)
+(35)
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+B.2.1. THE CASE WHEN v = Ø
+∂LTDT ∂hØ t,u
+=
+∂LTDT ∂P (Ø|t, u) α(t, u) (cid:80)
+= −
+∂P (Ø|t, u) ∂hØ t,u
++
+∂LTDT ∂P (yu+1|t, u)
+d∈D\{0} β(t + d, u)PD(d|t, u)
+PTDT(y|x)
+∂P (yu+1|t, u) ∂hØ t,u
+P (Ø|t, u)(1 − P (Ø|t, u))
++
+α(t, u) (cid:80)
+d∈D β(t + d, u + 1)PD(d|t, u)
+PTDT(y|x)
+P (Ø|t, u)P (yu+1|t, u)
+=
+P (Ø|t, u)α(t, u) PTDT(y|x)
+(cid:34)
+(P (Ø|t, u) − 1)
+(cid:88)
+β(t + d, u)PD(d|t, u) + P (yu+1|t, u)
+(cid:88)
+β(t + d, u + 1)PD(d|t, u)
+d∈D\{0}
+d∈D
+The term in the bracket could be further simplified as,
+(P (Ø|t, u) − 1)
+(cid:88)
+β(t + d, u)PD(d|t, u) + P (yu+1|t, u)
+(cid:88)
+β(t + d, u + 1)PD(d|t, u)
+d∈D\{0}
+d∈D
+= −
+(cid:88)
+β(t + d, u)PD(d|t, u)
+d∈D\{0}
++ P (Ø|t, u)
+(cid:88)
+β(t + d, u)PD(d|t, u) + P (yu+1|t, u)
+(cid:88)
+β(t + d, u + 1)PD(d|t, u)
+d∈D\{0}
+d∈D
+= −
+(cid:88)
+β(t + d, u)PD(d|t, u) +
+(cid:34)
+(cid:88)
+β(t + d, u)P (Ø, d|t, u) +
+(cid:88)
+β(t + d, u + 1)P (yu+1, d|t, u)
+d∈D\{0}
+d∈D\{0} (cid:124)
+d∈D (cid:123)(cid:122) β(t,u)
+=β(t, u) −
+(cid:88)
+β(t + d, u)PD(d|t, u)
+d∈D\{0}
+Apply the results of 37 to 35, we get
+∂LTDT ∂hØ t,u
+=
+P (Ø|t, u)α(t, u) PTDT(y|x)
+(cid:34)
+β(t, u) −
+(cid:88)
+d∈D\{0}
+β(t + d, u)PD(d|t, u)
+(cid:35)
+B.2.2. THE CASE WHEN v = yu+1
+∂LTDT ∂hyu+1 t,u
+=
+∂LTDT ∂P (Ø|t, u) α(t, u) (cid:80)
+∂LTDT ∂P (yu+1|t, u) d∈D\{0} β(t + d, u)PD(d|t, u)
+∂P (Ø|t, u) ∂hyu+1 t,u
++
+∂P (yu+1|t, u) ∂hyu+1 t,u
+=
+PTDT(y|x)
+P (Ø|t, u)P (yu+1|t, u)
++
+α(t, u) (cid:80)
+d∈D β(t + d, u + 1)PD(d|t, u)
+PTDT(y|x)
+P (yu+1|t, u)(P (yu+1|t, u) − 1)
+=
+P (yu+1|t, u)α(t, u) PTDT(y|x)
+(cid:34)
+P (Ø|t, u)
+(cid:88)
+β(t + d, u)PD(d|t, u) + (P (yu+1|t, u) − 1)
+(cid:88)
+β(t + d, u + 1)PD(d|t, u)
+d∈D\{0}
+d∈D
+15
+(cid:35)
+(cid:125)
+(cid:35)
+(cid:35)
+(36)
+(37)
+(38)
+(39)
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+The term in the bracket could be further simplified as,
+P (Ø|t, u)
+(cid:88)
+β(t + d, u)PD(d|t, u) + (P (yu+1|t, u) − 1)
+(cid:88)
+β(t + d, u + 1)PD(d|t, u)
+d∈D\{0}
+d∈D
+= −
+(cid:88)
+β(t + d, u + 1)PD(d|t, u) + P (Ø|t, u)
+(cid:88)
+β(t + d, u)PD(d|t, u)
+d∈D
+d∈D\{0}
++ P (yu+1|t, u)
+(cid:88)
+β(t + d, u + 1)PD(d|t, u)
+d∈D
+= −
+(cid:88)
+β(t + d, u + 1)PD(d|t, u) +
+(cid:34)
+(cid:88)
+β(t + d, u)P (Ø, d|t, u) +
+(cid:88)
+β(t + d, u + 1)P (yu+1, d|t, u)
+d∈D
+d∈D\{0} (cid:124)
+d∈D (cid:123)(cid:122) β(t,u)
+=β(t, u) −
+(cid:88)
+β(t + d, u + 1)PD(d|t, u)
+d∈D
+Apply the results of 40 to 35, we get
+∂LTDT ∂hyu+1 t,u
+=
+P (yu+1|t, u)α(t, u) PTDT(y|x)
+(cid:34)
+β(t, u) −
+(cid:88)
+d∈D
+β(t + d, u + 1)PD(d|t, u)
+(cid:35)
+B.2.3. THE CASE WHEN v ̸= yu+1 AND v ̸= Ø
+∂LTDT ∂hv
+t,u
+=
+∂LTDT ∂P (Ø|t, u) α(t, u) (cid:80)
+∂LTDT ∂P (yu+1|t, u) d∈D\{0} β(t + d, u)PD(d|t, u)
+∂P (Ø|t, u) ∂hv
++
+t,u
+∂P (yu+1|t, u) ∂hv
+t,u
+=
+PTDT(y|x)
+P (Ø|t, u)P (yu+1|t, u)
++
+α(t, u) (cid:80)
+d∈D β(t + d, u + 1)PD(d|t, u)
+PTDT(y|x)
+P (yu+1|t, u)P (yu+1|t, u)
+=
+P (yu+1|t, u)α(t, u) PTDT(y|x)
+(cid:34)
+P (Ø|t, u)
+(cid:88)
+β(t + d, u)PD(d|t, u) + P (yu+1|t, u)
+(cid:88)
+β(t + d, u + 1)PD(d|t, u)
+(cid:35)
+d∈D\{0}
+d∈D
+The term in the bracket could be further simplified as,
+P (Ø|t, u)
+(cid:88)
+β(t + d, u)PD(d|t, u) + P (yu+1|t, u)
+(cid:88)
+β(t + d, u + 1)PD(d|t, u)
+d∈D\{0}
+d∈D
+=
+(cid:88)
+β(t + d, u)PD(d|t, u) + P (yu+1|t, u)
+(cid:88)
+β(t + d, u + 1)PD(d|t, u)
+=
+d∈D\{0} (cid:88)
+β(t + d, u)P (Ø, d|t, u) +
+(cid:88)
+d∈D
+β(t + d, u + 1)P (yu+1, d|t, u)
+d∈D\{0}
+d∈D
+=β(t, u)
+Apply the results of 43 to 35, we get
+∂LTDT ∂hv
+t,u
+=
+P (v|t, u)α(t, u)β(t, u) PTDT(y|x)
+Combining the results from Equations 38, 41, 44, we have  
+(cid:34)
+P (v|t, u)α(t, u) PTDT(y|x)
+∂LTDT ∂hv
+β(t, u) −
+=
+t,u
+
+(cid:80) (cid:80)
+0,
+d∈D\{0} β(t + d, u)PD(d|t, u), d∈D β(t + d, u + 1)PD(d|t, u),
+v = Ø v = yu+1 otherwise
+(cid:35)
+16
+(cid:125)
+(cid:35)
+(40)
+(41)
+(42)
+(43)
+(44)
+(45)
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+C. Derivation of TDT Gradients with Logit Under-normalization
+In this section we derive the gradients of TDT with logit under-normalization introduced in Section 3.3). Let’s denote the pseudo “probability” acquired with under-normalization, using the “under-softmax” operation of y′ = softmax(x) as exp(σ) P ′(v|t, u) = P (v|t,u) exp(σ) . Let’s first work out the gradients of the “under-softmax” operation. We assume y = softmax(x) and thus y′ exp(σ) = y, then
+∂y′ i ∂xj
+=
+∂y′ i ∂yi
+∂yi ∂xj
+=
+1 exp(σ)
+(cid:40)
+yi(1 − yi), −yiyj
+i = j i ̸= j
+=
+=
+(cid:40)
+exp(σ)y′ iy′ −y′
+i(1 − exp(σ)y′
+1 exp(σ) (cid:40)
+j exp2(σ)
+i(1 − exp(σ)y′ y′ −y′ j exp(σ)
+i),
+i = j i ̸= j
+iy′
+i),
+i = j i ̸= j
+Next apply the chain rule:
+∂LTDT ∂hv
+t,u
+=
+=
+∂P ′(v|t, u) ∂hv
+∂LTDT ∂P ′(v|t, u)
+(cid:88)
+t,u ∂P ′(Ø|t, u) ∂hv
+v∈V
+∂LTDT ∂P ′(Ø|t, u)
++
+t,u
+∂LTDT ∂P ′(yu+1|t, u)
+∂P ′(yu+1|t, u) ∂hv
+t,u
+We would like to emphasize that under-normalization is only applied to token logits, not duration logits. Now, let’s use P ′(y|x) to denote the pseudo “probability” of the sequence, computed with P ′(v|t, u) throughout the forward-backward algorithm. Now we further simplify the terms.
+C.1. When v is neither Ø nor yu+1
+∂LTDT ∂hv
+t,u
+=
+=
+∂P ′(Ø|t, u) ∂hv
+∂P ′(yu+1|t, u) ∂hv
+∂LTDT ∂P ′(yu+1|t, u)
+∂LTDT ∂P ′(Ø|t, u) α(t, u) (cid:80)
++
+t,u
+t,u
+d∈D\{0} β(t + d, u)PD(d|t, u)
+P ′(Ø|t, u)P ′(v|t, u) exp(σ)
+P ′(y|x)
++
+α(t, u) (cid:80)
+d∈D β(t + d, u + 1)PD(d|t, u)
+P ′(y|x)
+P ′(yu+1|t, u)P ′(v|t, u) exp(σ)
+=
+exp(σ)P ′(v|t, u)α(t, u) P ′(y|x)
+(cid:34) P ′(Ø|t, u)
+(cid:88)
+β(t + d, u)PD(d|t, u) + P ′(yu+1|t, u)
+(cid:88)
+β(t + d, u + 1)PD(d|t, u)
+d∈D\{0}
+d∈D
+(cid:124)
+(cid:123)(cid:122) β(t,u)
+(cid:125)
+=
+exp(σ)P ′(v|t, u)α(t, u)β(t, u) P ′(y|x)
+=
+P (v|t, u)α(t, u)β(t, u) P ′(y|x)
+17
+(cid:35)
+(46)
+(47)
+(48)
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+C.2. When v = Ø
+∂LTDT ∂hØ t,u
+=
+=
+∂P ′(Ø|t, u) ∂hØ t,u
+∂P ′(yu+1|t, u) ∂hØ t,u
+∂LTDT ∂P ′(yu+1|t, u)
+∂LTDT ∂P ′(Ø|t, u) α(t, u) (cid:80)
++
+d∈D\{0} β(t + d, u)PD(d|t, u)
+P ′(Ø|t, u)(P ′(Ø|t, u) exp(σ) − 1)
+P ′(y|x)
++
+α(t, u) (cid:80)
+d∈D β(t + d, u + 1)PD(d|t, u)
+P ′(y|x)
+P ′(yu+1|t, u)P ′(Ø|t, u) exp(σ)
+=
+exp(σ)P ′(v|t, u)α(t, u) P ′(y|x)
+(cid:34)
+−
+1 exp(σ)
+(cid:88)
+β(t + d, u)PD(d|t, u)
+d∈D\{0}
++ P ′(Ø|t, u)
+(cid:88)
+β(t + d, u)PD(d|t, u) + P ′(yu+1|t, u)
+(cid:88)
+β(t + d, u + 1)PD(d|t, u)
+d∈D\{0}
+d∈D
+(cid:124)
+(cid:123)(cid:122) β(t,u)
+=
+exp(σ)P ′(v|t, u)α(t, u) P ′(y|x)
+(cid:20)
+β(t, u) −
+1 exp(σ)
+(cid:88)
+β(t + d, u)PD(d|t, u)
+(cid:21)
+d∈D\{0}
+=
+P (v|t, u)α(t, u) P ′(y|x)
+(cid:20)
+β(t, u) −
+1 exp(σ)
+(cid:88)
+β(t + d, u)PD(d|t, u)
+(cid:21)
+d∈D\{0}
+C.3. When v = yu+1
+∂LTDT ∂hyu+1 t,u
+=
+=
+∂P ′(Ø|t, u) ∂hyu+1 t,u
+∂P ′(yu+1|t, u) ∂hyu+1 t,u
+∂LTDT ∂P ′(yu+1|t, u)
+∂LTDT ∂P ′(Ø|t, u) α(t, u) (cid:80)
++
+d∈D\{0} β(t + d, u)PD(d|t, u)
+P ′(yu+1|t, u)P ′(Ø|t, u) exp(σ)
+P ′(y|x)
++
+α(t, u) (cid:80)
+d∈D β(t + d, u + 1)PD(d|t, u)
+P ′(y|x)
+P ′(yu+1|t, u)(P ′(yu+1|t, u) exp(σ) − 1)
+=
+exp(σ)P ′(v|t, u)α(t, u) P ′(y|x)
+(cid:34)
+−
+1 exp(σ)
+(cid:88)
+β(t + d, u + 1)PD(d|t, u)
+d∈D
++ P ′(Ø|t, u)
+(cid:88)
+β(t + d, u)PD(d|t, u) + P ′(yu+1|t, u)
+(cid:88)
+β(t + d, u + 1)PD(d|t, u)
+d∈D\{0}
+d∈D
+(cid:124)
+(cid:123)(cid:122) β(t,u)
+=
+exp(σ)P ′(v|t, u)α(t, u) P ′(y|x)
+(cid:20)
+β(t, u) −
+1 exp(σ)
+(cid:88)
+d∈D
+β(t + d, u + 1)PD(d|t, u)
+(cid:21)
+=
+P (v|t, u)α(t, u) P ′(y|x)
+(cid:20)
+β(t, u) −
+1 exp(σ)
+(cid:88)
+d∈D
+(cid:21) β(t + d, u + 1)PD(d|t, u)
+Combining Eq. 48, 49 and 50, we have the TDT gradients with under-normalization as,
+∂LTDT ∂hv
+t,u
+=
+P (v|t, u)α(t, u) P ′(y|x)
+(cid:20)
+β(t, u) −
+1 exp(σ)
+ 
+
+(cid:80) (cid:80)
+0,
+d∈D β(t + d, u + 1)PD(d|t, u), d∈D\{0} β(t + d, u)PD(d|t, u),
+v = yu+1 v = Ø
+otherwise
+(cid:21)
+18
+(cid:35)
+(cid:125)
+(cid:35)
+(cid:125)
+(49)
+(50)
+(51)
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+Figure 7. Alignment (P (At,u|x) as a function of the duration (D) supported by the TDT model. Simulated joint (JS) trained with a larger number of duration tokens (Nd) possess align- ments with correspondingly longer gaps between time steps (t ∈ T ) for each token prediction (u ∈ U )
+Figure 8. Alignment (P (At,u|x) as a function of the FastEmit regularization strength (λ). Simulated joint (JS) trained with varying λ possess alignments with a correspondingly shorter delay between each token prediction (u ∈ U ) as compared to the baseline of λ = 0
+D. Analysis of Token-and-Duration Transducer Alignments
+TDT models are capable of learning the alignment P (At,u|x) between an input sequence (S) and the corresponding target sequence (S′). This quantity represents the total probability mass that goes through the state (t, u) in the lattice. We use the definition of alignment P (At,u|x) from (Yu et al., 2021), computed as,
+P (At,u|x) = α(t, u)β(t, u)
+In the following section, we construct a set of force-alignment experiments to determine the effect of input-output sequence interactions and hyper-parameter choices. Unless stated otherwise, all following experiments are with a simulated joint tensor (JS ∈ RT ×U ×(V +1+Nd)) for some input sequence (S) sampled from the normal distribution (N (0, 1)) and a target sequence (S ∈ ZU ) generated from the discrete uniform distribution (U {1, . . . , V }), where Nd refers the the the number of duration tokens and V is the size of the vocabulary of the token set. We use the PyTorch (Paszke et al., 2019) to optimize JS using S′ as the target sequence. We minimize he TDT loss defined in Eq. 9 using the Adam optimizer (Kingma & Ba, 2015) with a fixed learning rate of 0.1 for 100 update steps. Once JS is optimized, we compute P (At,u|x) and plot the T × U alignment matrix. We use a fixed random seed so as to reproduce the same JS and S′ when T , U and V are kept constant and chose a fixed value of T = 70, U = 10, V = 5 (chosen simply to speed up convergence), number of duration tokens (Nd = 8), σ = 0.05, ω = 0.0 and fastemit λ = 0.0 for the experiments unless explicitly mentioned.
+D.1. Effect of Durations on TDT Alignments
+In a TDT model, one head emits the token while another predicts the duration of the token (say D ∈ {0, 1, . . . , (Nd) − 1}) where Nd is the number of duration tokens. In the following set of experiments, we attempt to optimize JS while modifying only the duration set. Given that T >> U , and σ > 0, we expect the alignment to intuitively contain longer-duration tokens as Nd becomes larger.
+In Fig. 7, we see that the learned alignment precisely matches our expectations. As the Nd grows larger, the model selects longer durations, significantly reducing the number of decoding steps required. A natural effect of selecting longer tokens is that token emissions are significantly delayed compared to the baseline of D ∈ {0, 1} which can be considered an
+19
+(52)
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+approximation of conventional Transducer alignment with single duration step per token emitted.
+Note, that longer duration tokens are enabled by the large difference in the input and target sequence lengths (T = 70; U = 10), reducing to a T U = 7 : 1 ratio. This ratio of sequence lengths is slightly larger than the observed ratio of acoustic sequence length versus the corresponding sub-word encoded target text tokens in Librispeech with a sufficiently large sub-word encoding vocabulary, close to TLS ≈ 5.5 : 1. We expect that target token encoding schemes such as character-based ULS encoding will diminish this ratio of sequence lengths to approximately T U ≈ 2 : 1, thereby preventing long-duration tokens from being emitted frequently.
+D.2. Effect of FastEmit on Alignments
+One reduce the delay of token emission using FastEmit method proposed in (Yu et al., 2021). As can be seen in Section D.1, when the number of duration tokens (Nd) is large, the emission of tokens (u ∈ U ) is delayed significantly which may hinder latency-sensitive applications. In the following section, we discuss the utilization of FastEmit (Yu et al., 2021) as a strong regularization scheme in order to prevent the model from deferring token emission to such a degree. FastEmit introduces a hyperparameter λ and scales the gradients to token probabilities by 1 + λ and keeping the gradients to blank probabilities unchanged. We attempt to simply train the same simulated joint (JS) optimized with different strengths of the λ scaling factor for FastEmit.
+In Fig. 8, we find that the effect of FastEmit regularization strength constant (λ) has a substantial effect on reducing the delay between token emissions. It must be noted that λ > 1e-2 is not realistically applicable when training on non-synthetic data, as the strength of the regularization term will cause the model to diverge, but in this simulated setting, it has been done in order to explicitly show the effect of FastEmit on token emission delay.
+An important observation is that when comparing the alignment of Figure 7 (1st row) and Figure 8 (5th row), the first 5 ∼ 6 token emissions occur rapidly with the duration set Nd = 1 but are delayed by a significant number of steps for Nd = 8. FastEmit does improve the token emission of the first few tokens, however since each token presents a duration of roughly 8 timesteps, the overall latency is significantly higher. This can be tackled by carefully modifying the strength of σ along with λ, so as to discourage long tokens while encouraging faster emission of tokens if latency is a concern.
+D.3. Effect of Input Sequence length on Duration Prediction
+In Section D.1, we note that the large ratio of input sequence to target sequence T U was important to the emission of tokens with long durations, and that with a smaller ratio, the model would emit shorter duration tokens, even if it supported a large duration set (Nd = 8). In the following section, we attempt to analyze such a scenario, using different input sequence lengths (T = {20, 40, 70, 100}) while maintaining the target sequence length of U = 10. This enables us to analyze the effect of modifying the ratio T U . Note that as a result of changing T , JS is effectively a different sampled Joint tensor (represented as JST ), however, the target sequence U remains the same. In Fig. 9, we observe the alignments as we modify T . Of particular note is that when the ratio T U is small, tokens with short duration are preferred, performing nearly all token emissions without significant delay, and only towards the end does it emit a d ∈ {6, 8} duration token. On the other hand, when the ratio T U is large, tokens with long duration are preferred (with a large number of tokens having duration d = 8), and with a significant delay of token emission (note that FastEmit has not been enabled here). In Figure 10, we see that increasing the FastEmit strength (λ) provides a corresponding decrease in token latency, even for large differences in sequence lengths.
+E. Robustness to Noise
+We measure the noise robustness of TDT models, by running inference on Librispeech test-clean augmented with noise samples in different signal-noise-ratios (SNRs). For each utterance, we randomly select a noise sample from MUSAN (Snyder et al., 2015) and Freesound 20. The noise sample is sub-segmented if it’s longer than the utterance, or repeated if it’s shorter than the utterance. The utterance samples are augmented with noise samples in 0, 5, 10, 15, and 20 SNRs. We report the WER and inference time of conventional Transducers and TDT models with configuration 0-8. The results are shown in Figure 6. As we can see, while Transducer and TDT models achieve very similar WERs in high SNR scenarios, as more noise is added, TDT models gradually outperform Transducers with larger and larger margins. We also see that despite the
+20https://freesound.org/
+20
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+Figure 9. Alignment (P (At,u|x) as a function of the input sequence length (T ). For each T , the corresponding simulated joint (JST ) is trained. The alignments for each JST show that as T grows, thereby causing a larger ratio of T U , the model begins to emit tokens with longer duration, as well as increased delay in token emission.
+Figure 10. Alignment (P (At,u|x) as a function of the input sequence length (T ), with FastEmit weight (λ) as regularization. For given T >> U , the corresponding simulated joint (JST ) is trained. The alignments for each JST show that as T grows, thereby causing a larger ratio of T U , the model begins to emit tokens with longer duration, as well as increased delay in token emission. By modifying λ, we encourage reduction in token emission delay.
+SNR changes, the inference time for TDT only has minimal increases. This shows that TDT models have the capacity to perform much better in noisy conditions than conventional Transducers, in terms of both accuracy and speed aspects.
+21
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+Figure 11. Comparison of TDT VS RNNT on Librispeech test-clean with noise added at different SNRs. TDT model uses 0-8 configuration. The original test-clean dataset is listed as having SNR = +inf. We see while TDT and RNNT achieve similar WER at low noise conditions, TDT is more robust to noise in low SNR settings. We also notice that the inference time stays constant for all TDT models, and this shows having additional noise in the audio does not change how the model emits long durations in inference. This Figure is the same as Figure 6, placed here for easy access.
+F. Robustness to Token Repetitions
+We notice that RNN-T models often suffer serious performance degradation when the text sequence has repetitions of the same tokens (repetition on the subword level to be exact if using subword tokenizations). Our investigation shows that more training data will not solve this issue, and this is an intrinsic issue of RNN-Ts.
+Let’s demonstrate the issue with an example here: suppose we have audio with text sequence two two two two two two two five. Those words are frequent enough that they are all part of the BPE vocabulary. Let’s assume in the audio, frames 0 to frame 40 correspond to all the twos, and five starts at frame 41; let’s also assume we are at audio frame 30, and the model just emitted 5 twos during decoding. At this time, the decoder state was updated by feeding in 5 twos. At this point, there are two possibilities,
+Option 1. If the model emits another two between frame 30 and 40, say at frame t, this means,
+)(cid:1) two = argmax(cid:0)join(enc[t], dec(<bos>, two, two, two, two, two (cid:125)
+(cid:124)
+(cid:123)(cid:122) 5 twos
+where join, enc, dec represent the computation of joiner, encoder, and decoder of the RNN-T model; for convenience, we assume the argmax operation directly returns the word from the distribution generated by the joiner. dec(a, b, c, d, ...) represents the final output of the decoder, after we sequentially pass a, b, c, d, ... as the decoder input. Since an LSTM decoder21 rarely has memory beyond 3-4 words, we have
+) ) ≈ dec(<bos>, two, two, two, two, two, two dec(<bos>, two, two, two, two, two (cid:125) (cid:125)
+(cid:124)
+(cid:123)(cid:122) 5 twos
+(cid:124)
+(cid:123)(cid:122) 6 twos
+We would like to point out that having a large number of repetitions isn’t the necessary condition for this to happen; sometimes this happens with just two repetitions of the same token. Since two is a non-blank emission, t will not get incremented, and the next decoding step operates on the same enc(t). Therefore, when we compute the output distribution of
+21Or in the case of stateless decoders, if the context size is less than 5, then it should be strictly equal.
+22
+(53)
+(54)
+
+
+Efficient Sequence Transduction by Jointly Predicting Tokens and Durations
+the next decoding step, it’s likely that,
+) ≈ join(enc[t], dec(<bos>, two, two, two, two, two join(enc[t], dec(<bos>, two, two, two, two, two, two (cid:125) (cid:125)
+(cid:124)
+(cid:123)(cid:122) 6 twos
+(cid:124)
+(cid:123)(cid:122) 5 twos
+Note, since joiner usually has a non-linearity in its computation, this does not strictly follow; although based on what we observed this is usually the case. The equations above are not meant to be rigorous proof but only serve to explain the issue.
+Therefore in this next decoding step, it is likely that,
+two = argmax(cid:0)join(enc[t], dec(<bos>, two, two, two, two, two, two (cid:125)
+(cid:124)
+(cid:123)(cid:122) 6 twos
+)(cid:1)
+i.e. the model emits two for a second time at frame t. This will likely keep happening for 3 twos, 4 twos, etc, causing an infinite loop and won’t terminate unless some max-symbol-per-decoding-step is implemented in the decoding algorithm. In this case, we will end up having a lot of insertion errors in the output in the form of the same token repeating too many times.
+Option 2. if the model keeps emitting all blanks until somewhere after frame 41, and then it emits a five. Then we would have deletion errors in the decoding output.
+TDT is less prone to such repetition issues because the duration output of the model makes it not likely to stay on the same frame at different decoding steps (refer back to Fig. 4, there are very rare cases when duration 0 is emitted). Due to a lack of datasets specifically made with text repetitions, we use NeMo-TTS to generate 100 utterances, which randomly pick three digits from 1 to 9, and repeat each digit 3 - 5 times. We run ASR with different models on this dataset and results are reported in Table 10. We see that TDT models are much more robust than RNN-Ts with repeated speech.
+model
+WER%
+RNNT-LSTM RNNT-stateless TDT [0-2] TDT [0-4] TDT [0-6] TDT [0-8]
+59.95 64.62 12.59 9.35 6.12 5.78
+Table 10. WERs with different Transducer models on TTS generated dataset with repeated digits. This table is the same as Table 8 placed here for easy access.
+23
+)
+(55)
+(56)

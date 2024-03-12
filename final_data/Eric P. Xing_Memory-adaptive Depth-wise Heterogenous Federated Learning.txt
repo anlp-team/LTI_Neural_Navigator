@@ -1,0 +1,340 @@
+4 2 0 2
+n a J
+0 1
+]
+G L . s c [
+2 v 7 8 8 4 0 . 3 0 3 2 : v i X r a
+Memory-adaptive Depth-wise Heterogenous Federated Learning
+Kai Zhang 1*, Yutong Dai 1, Hongyi Wang 2, Eric Xing 2,4,5, Xun Chen 3, Lichao Sun 1 1 Lehigh University, 2 Carnegie Mellon University, 3 Samsung Research America, 4 Mohamed bin Zayed University of Artificial Intelligence, 5 Petuum Inc. *kaz321@lehigh.edu
+Abstract
+Federated learning is a promising paradigm that allows multi- ple clients to collaboratively train a model without sharing the local data. However, the presence of heterogeneous devices in federated learning, such as mobile phones and IoT devices with varying memory capabilities, would limit the scale and hence the performance of the model could be trained. The mainstream approaches to address memory limitations focus on width-slimming techniques, where different clients train subnetworks with reduced widths locally and then the server aggregates the subnetworks. The global model produced from these methods suffers from performance degradation due to the negative impact of the actions taken to handle the varying subnetwork widths in the aggregation phase. In this paper, we introduce a memory-adaptive depth-wise learning solution in FL called FEDEPTH, which adaptively decomposes the full model into blocks according to the memory budgets of each client and trains blocks sequentially to obtain a full inference model. Our method outperforms state-of-the-art approaches, achieving 5% and more than 10% improvements in top-1 ac- curacy on CIFAR-10 and CIFAR-100, respectively. We also demonstrate the effectiveness of depth-wise fine-tuning on ViT. Our findings highlight the importance of memory-aware techniques for federated learning with heterogeneous devices and the success of depth-wise training strategy in improving the global model’s performance.
+equipped with a wide range of computation and communi- cation capabilities — challenges the underlying assumption of conventional FL setting that local models have to share the same architecture as the global model (Diao, Ding, and Tarokh 2021). In the last five years, data heterogeneity has been largely explored in many studies (Karimireddy et al. 2019; Lin et al. 2020a; Li et al. 2020a; Seo et al. 2020; Acar et al. 2021; Zhu, Hong, and Zhou 2021; Li, He, and Song 2021; Tan et al. 2022). However, only a few works aim to address the problem of heterogeneous clients, particularly memory heterogeneity in FL (Diao, Ding, and Tarokh 2021; Hong et al. 2022).
+One solution to heterogeneous clients is to use the small- est model that all clients can train, but this can severely im- pact FL performance as larger models tend to perform better (Frankle and Carbin 2019; Neyshabur et al. 2019; Bubeck and Sellke 2021). Another approach is to prune channels of the global model for each client based on their memory bud- gets and average the resulting local models to produce a full- size global model (Diao, Ding, and Tarokh 2021; Hong et al. 2022; Horvath et al. 2021). However, such approaches suf- fer from the issue of under-expression of small-size models, since the reduction in the width of local models can signif- icantly degrade their performance due to fewer parameters (Frankle and Carbin 2019). The negative impact of aggre- gating small-size models in FL is also verified by our case studies in Section .
+Introduction Federated Learning (FL) is a popular distributed learning paradigm that can address decentralized data and privacy- preserving challenges by collaboratively training a model among multiple local clients without centralizing their pri- vate data (McMahan et al. 2017; Kairouz et al. 2021). FL has gained widespread interest and has been applied in nu- merous applications, such as healthcare (Du Terrail et al. 2022), anomaly detection (Zhang et al. 2021), recommenda- tion system (Lin et al. 2020b), and knowledge graph com- pletion (Zhang et al. 2022). However, a defining trait of FL is the presence of heterogeneity — 1) data heterogene- ity, where each client may hold data according to a dis- tinct distribution, leading to a sharp drop in accuracy of FL (Zhao et al. 2018), and 2) heterogeneous clients, which are
+Copyright © 2024, Association for the Advancement of Artificial Intelligence (www.aaai.org). All rights reserved.
+Considering the exceptional performance of the full-size model, we aim to provide an algorithmic solution to enable each client to train the same full-size model and acquire ad- equate global information in FL. Specifically, we propose memory-adaptive depth-wise learning, where each client se- quentially trains blocks of a neural network based on the local memory budget until the full-size model is updated. To ensure the classifier layer’s supervised signal can be utilized for training each block, we propose two learning strategies: 1) incorporating a skip connection between training blocks and the classifier, and 2) introducing auxiliary classifiers. Our method is suitable for memory-constrained settings as it does not require storing the full intermediate activation and computing full intermediate gradients. Additionally, it can be seamlessly integrated with most FL algorithms, e.g., Fe- dAvg (McMahan et al. 2017) and FedProx (Li et al. 2020a). Apart from providing adaptive strategies for low-memory
+
+
+local training, we investigate the potential of mutual knowl- edge distillation (Hinton et al. 2015; Zhang et al. 2018) to address on-the-fly device upgrades or participation of new devices with increased memory capacity. Lastly, we con- sider devices with extremely limited memory budgets such that some blocks resulting from the finest network decom- position cannot be trained. We propose a partial training strategy, where some blocks that are close to the input sides are never trained throughout. The main contributions of our work are summarized as follows.
+1. Through comprehensive analysis of memory con- sumption, we develop two memory-efficient training paradigms that empower each client to train a full-size model for improving the global model’s performance. 2. Our framework is model- and optimizer-agnostic. The flexibility allows for deployment in real-world cross- device applications, accommodating clients with varying memory budgets on the fly.
+3. Our proposed approach is not sensitive to client partic- ipation resulting from unstable communication because we learn a unified model instead of different local mod- els as in prior works.
+4. Experimental results demonstrate that the performance of the proposed methods is better than other FL base- lines regarding top-1 accuracy in scenarios with hetero- geneous memory constraints and diverse non-IID data distributions. We also show the negative impact of sub- networks using width-slimming techniques. Related Work
+4. Experimental results demonstrate that the performance of the proposed methods is better than other FL base- lines regarding top-1 accuracy in scenarios with hetero- geneous memory constraints and diverse non-IID data distributions. We also show the negative impact of sub- networks using width-slimming techniques. Related Work
+Federated Learning FL emerges as an important paradigm for learning jointly among clients’ decentralized data (Koneˇcn`y et al. 2016; McMahan et al. 2017; Li et al. 2020a; Kairouz et al. 2021; Wang et al. 2021a). One major motivation for FL is to pro- tect users’ data privacy, where users’ raw data are never dis- closed to the server and any other participating users (Abadi et al. 2016; Bonawitz et al. 2017; Sun et al. 2019). Partly opened by the federated averaging (FedAvg) (McMahan et al. 2017), a line of work tackles FL as a distributed op- timization problem where the global objective is defined by a weighted combination of clients’ local objectives (Mohri, Sivek, and Suresh 2019; Li et al. 2020a; Reddi et al. 2020; Wang et al. 2020b). The federated learning paradigm of Fe- dAvg has been extended and modified to support different global model aggregation methods and different local opti- mization objectives and optimizers (Yurochkin et al. 2019; Reddi et al. 2020; Wang et al. 2021a,b, 2020a). Theoretical analysis has been conducted, which demonstrated that feder- ated optimization enjoys convergence guarantees under cer- tain assumptions (Li et al. 2020b; Wang et al. 2021a).
+Device Heterogeneity in Federated Learning. Especially for cross-device FL, it is a natural setting that client devices are with heterogeneous computation power, communication bandwidth, and/or memory capacity. A few research efforts have been paid to designing memory
+heterogeneity-aware FL algorithms. HeteroFL (Diao, Ding, and Tarokh 2021) and FjORD (Horvath et al. 2021) al- lows model architecture heterogeneity among participating clients via varying model widths. The method bears similar- ity to previously proposed slimmable neural network (Yu et al. 2018; Yu and Huang 2019) where sub-networks with various widths and shared weights are jointly trained with self-distillation (Zhang, Bao, and Ma 2021). SplitMix (Hong et al. 2022) tackles the same device heterogeneity problem via learning a set of base sub-networks of different sizes among clients based on their hardware capacities, which are later aggregated on-demand according to inference re- quirements. While recent studies like InclusiveFL (Liu et al. 2022) and DepthFL (Kim et al. 2023) have also embraced a layer-wise training approach, they allocate model sizes to clients primarily based on a fixed network depth, e.g., tak- ing 2 layers as a computation block. This method does not accurately represent on-device capabilities during network splitting, as layers at varying depths have distinct computa- tion and memory costs.
+Empirical Study
+Preliminaries This section briefly reviews prior significant and open- sourced works that aim to address heterogeneous clients in FL, including HeteroFL (Diao, Ding, and Tarokh 2021) and SplitMix (Hong et al. 2022). We then conduct an extensive analysis of memory consumption of training a neural net- work, which has not been explored thoroughly in the FL community.
+Width-scaling FL for heterogeneous clients. Existing works such as HeteroFL (Diao, Ding, and Tarokh 2021) and SplitMix (Hong et al. 2022) address memory hetero- geneity by pruning a single global model in terms of chan- nels, creating heterogeneous local models. HeteroFL is the first work in FL that tackles memory heterogeneity via the width-scaling approach but still produces a full-size global model. However, HeteroFL suffers from two major limita- tions: 1) partial model parameters are under-trained because only partial clients and data are accessible for training the full-size model; 2) small models’ information tends to be ig- nored because of their small-scale parameters. SplitMix was then proposed to address these two issues, which first splits a wide neural network into several base sub-networks for increasing accessible training data, then boosts accuracy by mixing base sub-networks.
+Memory consumption analysis. Training a neural net- work with backpropagation consists of feedforward and
+
+
+backward passes (Rumelhart, Hinton, and Williams 1986). A feed-forward pass over each block of a neural network generates an activation or output. These intermediate acti- vations are stored in the memory for the backward pass to update the neural network. Although several works of lit- erature (Sohoni et al. 2019; Gomez et al. 2017; Raihan and Aamodt 2020; Chen et al. 2021) demonstrate that activations usually consume most of the memory in standard training of a neural network as shown in Figure 1, HeteroFL and Split- Mix merely consider the number of model parameters as the memory budget in their experiments. Specifically, they di- vide clients into groups that are capable of different widths, e.g., a 1 8 -width neural network, which costs approximately 1 8 activations but only around 1 82 model parameters compared to the full-size neural network.
+Wide-ResNetDC-TransformerActivation,387.3 MBActivation,2.896 GB
+Optimizer,11.7 MB
+Model,155 MB
+Model,5.8MBOptimizer,464 MB
+Figure 1: Training memory consumption for left: WideResNet on CIFAR-10 and right: DC-Transformer on IWSLT’14 German to English. Data source: (Sohoni et al. 2019).
+Behaviors of Sub-networks in Prior Works
+In this section, we analyze the behaviors and influences of sub-networks in HeteroFL and SplitMix with respect to the performance of the global model.
+Experimental setting. We follow the configuration on the CIFAR-10 dataset in SplitMix (Hong et al. 2022), where 10 out of 100 clients participate in training in any given communication round, and each client has three classes of the data. In our case studies, we divide clients into four groups with { 1 2 , 1}-width sub-networks in HeteroFL, and into two groups with {r, 1} in SplitMix, where r = 16 , 1 { 1 1. Small sub-networks make negative contributions in HeteroFL. Figure 2 (left) presents typical examples of HeteroFL (Diao, Ding, and Tarokh 2021) under non-IID settings. The orange line represents the default setting of HeteroFL, where all sub-networks of different widths are aggregated. The other lines indicate specific size of sub-networks that are not aggregated. For example, the green line indicates that the smallest ( 1 8 -width) sub- networks do not participate in aggregation. We observe that the global model obtained via aggregating small sub- networks consistently has worse performance than the global model obtained via only aggregating the full-size neural networks, indicating that small size sub-networks make negative contributions.
+8 , 1
+4 , 1
+8 , 1
+4 , 1
+2 }. Our observations are summarized below.
+2. Small sub-networks limit global performance in Split- Mix. Figure 2 (right) depicts the prediction performance of the global model in SplitMix (Hong et al. 2022) by mixing base neural networks with different-width. It clearly illustrated that slimmer base neural networks pro- duce a less powerful global model. Intuitive reasoning is that combining very weak learners leads to an ensemble model with worse generalization.
+3. The full-size net makes a difference. Inadequate pres- ence of the full-size models incurs degradation of vali- dation accuracy as shown in Figure 2. Besides, in real- world FL systems, communication can be unstable, and clients with the largest memory budgets may not be avail- able in each round of communication (Bonawitz et al. 2017). This constraint limits the practicality of both Het- eroFL and SplitMix.
+Figure 2: Performance of the global model in HeteroFL (left) and SplitMix (right) with the varying-width base model, respectively.
+Methodology Inspired by the observation in the previous section, we in- troduce a memory-efficient framework FEDEPTH to train full-size neural networks with memory budget constraints in the FL setting. FEDEPTH aims to empirically solve the opti- mization problem minW F (W) := (cid:80)K k=1 pkFk(W). Here, Fk represents the loss function on the kth clients. pk > 0 for all k and (cid:80)K k=1 pk = 1. FEDEPTH features memory- adaptive decomposition, where a neural network is decom- posed into blocks based on the memory consumption and local clients’ memory budgets. An implict assumption made is that all blocks can be trained locally after the decomposi- tion. To further address extreme case that some blocks still cannot fit into the memeory even after the finnest decom- position, FEDEPTH integrates the partial training strategy into the local training stage. We also consider the possibilty that some clients with rich memory budgets may suffer from memory underutilization, hence a variant of FEDEPTH is propsed to use mutual knowledge distillation (Zhang et al. 2018) to boost the performance and fully exploit the local memory of clients.
+FEDEPTH and Its Variants Memory-adaptive network decomposition. Since vari- ous clients could have drastically different memory budgets, FEDEPTH conducts local training in a memory-adaptive manner. Specifically, for the k-th client the full model i.e., W = W is decomposed to into Jk + 1 blocks,
+
+
+Algorithm 1: FEDEPTH
+Require: Total number of clients K; participation rate γ; number
+of communication rounds R. Initialization: Model parameter W 0. 1: for t = 0, . . . , R − 1 communication rounds do 2: 3: 4: 5: 6: 7: 8: end for 9: procedure CLIENTUPDATE(W t, k) 10: 11: end for 12: Set ϕt+1 13: Return W t 14: 15: end procedure
+Sample a subset S t of clients with |S t| = ⌈γK⌉. Broadcast W t to clients k ∈ S t. for each client k ∈ S t in parallel do k ← ClientUpdate(W t, k).
+W t+1
+end for Aggregate as W t+1 = (cid:80)
+pk k′ ∈St pk′
+W t+1 k
+(cid:80)
+k∈St
+for j = 1, · · · , Jk do
+Approximately solve the problem (1).
+k = ϕt+1
+J
+k = {θt+1
+k,1 , · · · , θt+1 k,Jk
+, ϕt+1
+k }.
+.
+{θk,1, · · · , θk,Jk , ϕ}, where {θk,j}Jk j=1 and ϕ denote body and head of the neural network, respectively. Note that θk,j can be different from θk′,j for any (k, k′, j) triple, and the number of parameters contained in θk,j is solely deter- mined by the kth client’s memory budget, hence FEDEPTH is memory-adaptive. In practice, the model decomposition can be determined for each client before training via the es- timating memory consumption (Gao et al. 2020). See Figure 3 for an illustration. Suppose the full-size model is com- posed of 6 layers, where each of layer costs memory of {3, 2, 1, 0.5, 0.5, 0.5} GB, respectively. Assume the kth and k′th client has 3 GB and 5 GB memory budget, respectively. Then, client k has Jk = 3 and client k′ has Jk′ = 2 trainable blocks, respectively. That is, client k′ will start with training the first two blocks, then the remaining four blocks.
+Depth-wise sequential learning. Once the decomposition is determined, the k-th client at the t-th round, locally solves Jk subproblems in a block-wise fashion, i.e., for all j ∈ {1, . . . , Jk}, k,j , ϕt+1
+j−1,i, yi}nk
+L(θk,j, ϕ; {zt+1
+(θt+1
+i=1),
+) ∈ arg min θk,j ,ϕ
+j
+j−1,i}nk where L is a loss function, e.g, cross-entropy; {zt+1 i=1 are activations obtained after the local training samples forward-passed through the first j blocks, i.e., zt+1 j−1,i = f (xi; {θt+1 ℓ=1) for i ∈ [nk] and f (·; {θt+1 ℓ=1) is the neural network up to the first j − 1 blocks; nk is the to- tal number of training samples. Specifically, zt+1 0,i = xi for all i ∈ [nk]. Problem (1) can be solved by any stochas- tic gradient-based method. When solving for the j-th sub- problem at the tth round, to fully leverage the global model W t’s body and the locally newly updated head, we use (θt j−1) as the initial point. See the data flow in Figure 4 when performing the training for the jth block. We re- mark that when the memory budget permits, the activation {zt+1 i=1, which no longer requires the gradient, could be buffered to compute {zt+1 is ob-
+k,ℓ }j−1
+k,ℓ }j−1
+j, ϕt+1
+j−1,i}nk
+j,i }nk
+i=1 once the θt+1
+k,j
+(1)
+tained, hence saving the redundant forward-pass from the first block to the jth block. Also, the number computation required for approximately solving Jk subproblems in the form of (1) should be similar to approximately solving the problem minW Fk(W) if we perform the same number of local updates, and ignore the negligible computation over- head in updating in the head ϕ. This is because the amount of computation required by one gradient evaluation ∇W Fk is equivalent to that of the summation of gradient evaluation of {∇θj L}Jk
+j=1.
+𝜙𝜃!,$𝜃!,%
+𝑦"
+𝜃!,#
+𝑘-thclient decomposition𝑘′-thclient decomposition𝑥
+𝜃!‘,#𝜃!‘,$
+Figure 3: Memory-adaptive neural network decomposition. The second row represents the full neural network with the block size indicating the memory consumption. The first and third rows explain the neural network decomposition based on different clients’ memory budgets.
+𝜙
+𝑦#
+𝑥
+𝑥
+𝑦#
+𝑦#
+𝜃!,#𝜃!,$𝜃!,%
+InactiveActive𝑥
+Frozen Block
+Training Block
+𝜃!,#𝜃!,$𝜃!,%
+𝜃!,#𝜃!,$𝜃!,%
+𝜙
+𝜙
+Figure 4: An example of depth-wise sequential learning. There are three training steps: 1) training the first block and the classifier with the skip connection (He et al. 2016a); 2) freezing the updated first block and using its activation to train the second block and the classifier with the skip con- nection; 3) freezing the updated first two blocks and using the activation of the second block to train the third block and the classifier.
+Memory-efficient Inference. Depth-wise inference fol- lows the similar logic of the frozen-then-pass forward in depth-wise training. Specifically, for each input x, we store the activation zj in the hard drive and discard the predeces- sor activation zj−1. Then we can reload zj into memory as the input and get the activation zj+1. The procedure is re- peated until the prediction ˆy is obtained.
+We end this section by giving the detailed algorithmic de-
+scription in Algorihtm 1.
+
+
+Handle Extrem Memory Constraints with Partial Tranining According to the memory consumption analysis in the Em- pirical Study, the memory bottleneck of training a neural network is related to the block with the largest activations, which some devices may still not afford. These “large” blocks are usually the layers close to the input side. To tackle this issue, we borrow the idea of partial training in FEDEPTH, where we skip the first few blocks that are too large to fit even after the finnest blocks decomposition. This mechanism would not incur significant performance degra- dation because the input-side layers learn similar represen- tations on different datasets (Kornblith et al. 2019), and clients with sufficient memory will provide model param- eters of these input-side layers in the FL aggregation phase. Figure 5 emeprically validates such a strategy. We train a customized 14-layer ResNet (13 convolution layers and one classifier) on MNIST with 20 clients under non-IID distribu- tion, respectively and measure the similarity of neural net- work representations, using both canonical correlation anal- ysis (CCA) and centered kernel alignment (CKA) (Kornblith et al. 2019).
+Figure 5: Correspondences between layers of different local neural networks trained from private datasets in FL under non-IID distribution. We observe that early layers, but not later layers, learn similar representations.
+Exploit Sufficient Memory with Mutual Knowledge Distillation Previous works on heterogeneous FL ignore the situation where some clients with rich computing resources may par- ticipate in the federated training on the fly. Their sufficient memory budget could be potentially utilized to improve the performance of FL via regularizing local model training (Mendieta et al. 2022; Li et al. 2020a). Ensembling multiple models is an effective way to improve generalization and reduce variance (Shi et al. 2021; Nam et al. 2021). How- ever, considering each model is independently trained in en- semble learning methods, we have to upload/download all of these models in FL settings leading to a significant com- munication burden. Therefore, we design a new training and aggregation method based on mutual knowledge distillation (MKD) (Hinton et al. 2015; Zhang et al. 2018), where all student neural networks learn collaboratively and teach each other. Therefore, clients with sufficient memory only need to upload one of the local models to the server for aggregation because the knowledge consensus achieved among all mod- els through distillation. Formally, assume the kth client has
+Depth Memory Width Memory
+B1∼3 B4 B5∼6 B7 B8∼9
+20.02 14.05 10.07 7.21 5.28
+× 1 8 × 1 6 × 1 3 × 1 2 ×1
+14.51 19.34 38.68 58.02 116.04
+Table 1: Memory cost (in MB) with respect to depth and width of PreResNet-20. Each block consists of 2 convolu- tion layers. B1∼3 indicates Block 1, 2 and 3 in PreResNet- 20 have the same memory cost of 20.02 MB. The values are estimated by pytorch-summary1.
+a rich memory budget to train M > 1 models. Then locally it solves
+min k ,··· ,WM
+{W 1
+k }
+1 M
+M (cid:88)
+m=1
+Fk(W m
+k ) +
+1 M − 1
+M (cid:88)
+m′̸=m
+KL
+(cid:16) hm′
+∥hm(cid:17)
+where hm are logits calculated from the model Wm over the local training set and KL is the Kullback Leibler Divergence. More con- (cid:80)nk = 1 cretely, KL is nk the logits of the ith sample computed over model Wm.
+(cid:16)
+∥hm(cid:17)
+hm′
+i=1 KL(hm′
+i ∥hm
+i ), where hm i
+Experiments
+Experimental Setups Datasets and data partition. Our experiments are mainly conducted on CIFAR-10 and CIFAR100 (LeCun et al. 1998; Krizhevsky and Hinton 2009). Extensive results are attached in the appendix. To simulate the non-IID setting with class imbalance, we follow (Yurochkin et al. 2019; Acar et al. 2021; Gao et al. 2022) to distribute each class to clients using the Dirichlet distribution with α(λ), where λ = {0.3, 1.0}. Besides, we adopt pathological non-IID data partition β(Λ) that is used by the selected baselines – HeteroFL and SplitMix (Diao, Ding, and Tarokh 2021; Hong et al. 2022), where each device has unique Λ labels with Λ = {2, 5} for CIFAR-10 while Λ = {10, 30} for CIFAR-100. We note that the balanced data partition is applied by default, which makes each client holds the same number of examples. The unbalanced αu(λ) non-IID, where clients may have a different amount of samples with different feature distribution skew, is also used to evaluate the stability of FEDEPTH. Memory budgets. Using Pre-Activation ResNet-20 (PreResNet- 20) (He et al. 2016b) as an example, we show the relation of the memory cost of each block between width-wise and depth-wise training in Table 1. We can see that if clients afford to train 1 6 - width PreResNet-20, they can train the full-size neural network via depth-wise training. The training order is { B1 → B2 → B3 → B4 → B5,6 → B7,8,9 }. Inspired by this example, we simulate three memory budget scenarios.
+(Fair). The memory budgets depend on the hidden channel shrinkage ratio, r = { 1 2 , 1}, and are uniformly distributed into clients. It means 1/4 of clients can train a PreResNet-20 model within a maximal width of 1 2 - and full width, respectively. • (Lack). r = { 1 6 , 1
+6 , 1
+3 , 1
+(Surplus). r = { 1 6 , 1 ory can apply MKD.
+3 , 1
+2 , 2}. 1/4 of clients with sufficient mem-
+,
+
+
+Budget
+Method
+CIFAR-10
+CIFAR-100
+α(0.3)
+α(1.0)
+β(2)
+β(5)
+α(0.3)
+α(1.0)
+β(10)
+β(30)
+Unrealistic
+FedAvg (×1)
+63.44 ± 2.95
+69.77 ± 1.48
+34.10 ± 1.68
+68.33 ± 0.75
+28.14 ± 0.48
+31.28 ± 0.17
+31.56 ± 0.28
+43.54 ± 0.16
+Fair
+FedAvg (× 1 6 ) HeteroFL SplitMix DepthFL
+FeDepth
+47.66 ± 2.67 56.35 ± 3.44 55.63 ± 2.60 58.52 ± 1.76 60.62 ± 1.84
+53.10 ± 1.27 60.48 ± 3.23 58.70 ± 1.33) 58.55 ± 1.27 64.95 ± 1.56
+25.82 ± 1.34 26.47 ± 2.98 28.70 ± 1.92 29.21 ± 1.73 30.32 ± 2.19
+54.02 ± 0.96 57.51 ± 2.76 58.15 ± 2.03 59.29 ± 1.60 61.26 ± 1.83
+15.83 ± 0.25 19.20 ± 3.35 22.61 ± 0.88 23.56 ± 1.45 26.20 ± 1.61
+16.39 ± 0.08 23.62 ± 3.48 24.86 ± 0.44 25.27 ± 0.94 27.57 ± 1.67
+13.89 ± 0.21 20.52 ± 2.14 19.55 ± 0.79 23.14 ± 1.26 24.47 ± 1.42
+17.96 ± 0.08 32.04 ± 2.56 26.89 ± 0.32 33.46 ± 1.08 36.35 ± 1.21
+m-FeDepth
+60.03 ± 1.90
+65.49 ± 2.18
+32.50 ± 2.42
+64.18 ± 1.95
+30.53 ± 1.30
+32.85 ± 1.85
+25.15 ± 1.58
+38.36 ± 1.34
+Lack
+FedAvg (× 1 8 ) HeteroFL SplitMix DepthFL
+FeDepth
+45.88 ± 2.92 54.05 ± 3.72 49.18 ± 2.88 56.04 ± 2.03 58.63 ± 2.11
+51.30 ± 1.54 58.03 ± 3.58 52.95 ± 1.60 57.95 ± 1.50 62.83 ± 1.83
+23.90 ± 1.61 25.83 ± 3.35 24.47 ± 2.29 27.02 ± 2.12 29.01 ± 2.54
+48.93 ± 1.23 55.68 ± 3.33 52.40 ± 1.48 57.13 ± 2.10 59.76 ± 1.28
+14.05 ± 0.50 18.40 ± 3.45 21.20 ± 1.23 22.57 ± 1.68 25.31 ± 2.52
+14.28 ± 0.32 21.79 ± 3.52 22.60 ± 1.01 24.18 ± 1.12 26.97 ± 1.34
+11.62 ± 0.53 18.70 ± 1.34 17.71 ± 1.15 21.20 ± 1.33 22.95 ± 1.29
+15.73 ± 0.44 29.33 ± 2.12 22.58 ± 0.64 31.14 ± 1.45 34.71 ± 1.78
+m-FeDepth
+57.56 ± 2.18
+62.61 ± 2.45
+28.34 ± 2.79
+62.73 ± 2.44
+30.39 ± 1.68
+31.08 ± 1.57
+23.58 ± 1.41
+37.34 ± 1.89
+Surplus
+FeDepth m-FeDepth
+61.35 ± 1.10 62.30 ± 1.25
+67.15 ± 0.80 66.65 ± 1.65
+33.25 ± 1.80 33.82 ± 1.85
+66.17 ± 1.50 67.57 ± 1.89
+25.68 ± 0.85 32.55 ± 1.13
+29.85 ± 1.47 37.00 ± 1.52
+27.73 ± 1.66 29.20 ± 1.70
+38.33 ± 1.53 40.42 ± 1.58
+Table 2: Test results (top-1 accuracy) under balanced non-IID data partitions using PreResNet-20. Grey texts indicate that the training cannot conform to the pre-defined budget constraint. If not specified, FedAvg denotes the results with × min(r) -width network. We highlight the best results with Blue Shadow , Red Shadow , and Bold in the scenarios including clients equipped with fairly sufficient, insufficient and abundant memory, respectively.
+Implementation and evaluation. We compare FEDEPTH and its variants with several methods, including FedAvg (McMahan et al. 2017), HeteroFL (Diao, Ding, and Tarokh 2021), SplitMix (Hong et al. 2022) and DepthFL 2 (Kim et al. 2023) in terms of the average Top-1 Accuracy over 5 different runs. The memory budgets are uniformly distributed to 100 clients. All experiments perform 500 communication rounds with a learning rate of 0.1, local epochs of 10, batch size of 128, SGD optimizer, and a cosine scheduler.
+200
+400FeDepth on Cifar10
+0.0
+1.0
+(5)
+0
+1.5
+2.0
+200
+400m-FeDepth on Cifar10
+0.5
+0.5
+(2)
+(0.3)
+2.0Training Loss
+1.5
+1.0
+0.0
+0
+(1.0)
+Global Model Evaluation Results in the Fair Budget scenario. In Table 2, we compare test results on a global test dataset (10,000 samples) considering a vari- ety of balanced non-IID data partition and memory constraints. We highlight the best results under different scenarios. In all cases, Het- eroFL, SplitMix, and FEDEPTH family outperform vanilla FedAvg, showing their system designs’ effectiveness under balanced data distribution. Among all methods, our proposed FEDEPTH and m- FEDEPTH achieve the best performance with significant improve- ments. For example, on CIFAR10, under Fair Budget, FEDEPTH gains 4.09 ± 0.30% average improvement compared to HeteroFL while gains 3.99±1.77% average improvement compared to Split- Mix. m-FEDEPTH gains 5.35±1.13% average improvement com- pared to HeteroFL while gains 5.25 ± 1.20% average improve- ment compared to SplitMix. Figure 6 shows convergence curves of FEDEPTH on non-IID CIFAR-10 dataset. Results in the Lack Budget scenario. We observe that HeteroFL has relatively slight accuracy drops or increases compared to the fair budget scenario. The explanation could be deducted from the behaviors of sub-networks discussed in the previous section and Figure 2 that small sub-networks slightly influence the global per- formance because the small number of model parameters provides limited knowledge of the global model in the aggregation phase of FL. In contrast, SplitMix has an apparent performance degrada- tion of an average of 5.55 ± 0.81% due to the weaker base learner. The FEDEPTH and m-FEDEPTH are relatively stable algorithms against insufficient memory budget, showing 1.73 ± 0.34% and 2.74 ± 0.97% degradation, respectively.
+1https://github.com/sksq96/pytorch-summary 2We reproduced this algorithm to conform to our predefined
+Figure 6: Convergence of FEDEPTH family on Cifar10.
+Results in the Surplus Budget scenario. We let the new clients with rich resources r = 2 join in FL and replace the clients with r = 1. Prior works, like HeteroFL and SplitMix, did not con- sider such dynamics, and the clients with more memory budgets still train ×1 neural networks. An alternative way is to train a new large base model from scratch and discard previously trained ×1 neural networks, hence wasting computing resources.
+From Table 2, we can observe that MKD indeed makes sense for improving the performance of the global model (still ×1- width). Furthermore, we note that combining depth-wise training and MKD is a flexible solution to simultaneously solve dynamic partition, device upgrade, and memory constraints. For example, when a new client with r = 7 6 enters into the federated learning, the client can locally learn two models via regular and depth-wise se- quential training, respectively, and then perform MKD while main- taining an original-size model for aggregation.
+Comparison between FEDEPTH and its variant. As shown in Table 2, for CIFAR-10, FEDEPTH and m-FEDEPTH can achieve similar prediction accuracy. However, for CIFAR-100, m- FEDEPTH always outperforms FEDEPTH. It is worth recalling the design of FEDEPTH, which introduces zero paddings to match the dimension between two skip-connected blocks. This may inject negligible noise for the training on more complex data. Replacing the zero paddings with other modules, such as convolutions, may result in a better model. However, this usually comes at the cost of extra memory because of the new activations and parameters, which is usually intolerable to resource-constrained devices.
+memory budgets, rather than the original fixed-depth allocation.
+
+
+(2)
+60
+0
+100Top-1 Accuracy
+(1.0)
+(0.3)
+20
+40
+80
+(5)
+FeDepth
+(1.0)
+0
+100Top-1 Accuracy
+80
+FedAvg (×1)
+20
+40
+FedAvg
+m-FeDepth
+(2)
+60
+(5)
+(0.3)
+Figure 7: Fine-tuning ViT-T/16 on CIFAR-10 (left) and CIFAR-100 (right) under balanced non-IID data partitions with FedAvg FEDEPTH, and m-FEDEPTH. FedAvg (×1) assumes each client can afford to train the full-size model with 12 identical encoder blocks, while FedAvg (× 1 6 -width model, whose memory consumption is equal to train two encoder blocks.
+6 ) assumes each client trains a 1
+Influence of Unbalanced Non-IID Distribution Table 3 shows the prediction results on distributed datasets in FL from the unbalanced Dirichlet partition (Fair Budget). We note that HeteroFL and SplitMix were not evaluated on such an unbalanced distribution. Overall, the higher skewed distribution leads to worse performance for FL, which can be observed by comparing results on Table 2 and Table 3.
+Since the number of samples per class in CIFAR-100 is lim- ited (there are 500 samples for each class), αu(λ) and α(λ) will output similar statistical distribution according to the number of samples on each client in FL. Therefore, we obtain similar CIFAR- 100 results on both balanced and unbalanced non-IID data parti- tions. Specifically, α(λ) always outputs 400 training samples per client on average. For CIFAR-100, αu(0.3) outputs 399.40±34.53 training samples per client, αu(1.0) outputs 399.34 ± 17.74. For CIFAR-10, αu(0.3) outputs 399.44 ± 150.60 training samples per client, αu(1.0) outputs 399.39 ± 77.37.
+CIFAR-10
+CIFAR-100
+Method
+αu(0.3)
+αu(1.0)
+αu(0.3)
+αu(1.0)
+FedAvg (× 1 6 ) HeteroFL SplitMix DepthFL FeDepth m-FeDepth
+46.46 46.14 31.23 47.13 52.61 51.58
+52.02 52.20 44.70 55.49 58.55 57.91
+15.62 16.02 22.68 23.19 23.25 27.86
+17.99 18.36 25.28 26.02 26.16 29.56
+Table 3: Experimental results on unbalanced Dirichlet par- titions. Because of the relatively limited number of samples per class in CIFAR-100, an unbalanced Dirichlet partition outputs similar statistical distribution according to the num- ber of local data examples.
+Regarding CIFAR-10 results, we observe that HeteroFL and SplitMix cannot achieve comparable predictions or generalization ability compared to FedAvg. SplitMix even performs worse than training with the smallest models in FL. This result indicates that SplitMix is not robust to unbalanced distribution. One reason for this phenomenon is that small base models cannot capture repre- sentative features due to the significant weight divergence between local clients stemming from a highly skewed distribution (Frankle and Carbin 2019; Li et al. 2022). For HeteroFL, as mentioned in the case study in Section , the full-size neural networks on resource- sufficient devices provide the fundamental ability but small sub- networks trained with unbalanced distribution indeed affect the global performance. In contrast to HeteroFL and SplitMix, our pro- posed FEDEPTH and m-FEDEPTH gain substantial improvements of 6.15% and 6.53% on CIFAR-10, and of 12.24% and 11.57% on CIFAR-100 compared to FedAvg.
+r = { 1 setting of PreResNet-20 in the scenario of Fair Budget.
+6 , 1
+3 , 1
+2 , 1} are uniformly allocated to 100 clients as the same
+For fine-tuning, we choose a learning rate of 5 × 104 and a training epoch of 100. Figure 7 shows the test results of ViT- T/16 (Qu et al. 2022) under balanced Dirichlet data partitions, on which we observe that exploiting FEDEPTH and m-FEDEPTH can produce good global models. Specifically, FEDEPTH-ViT signifi- cantly outperforms FEDEPTH-PreResNet-20 with 36.06 ± 12.79% and 30.64 ± 4.24% improvements on CIFAR-10 and CIFAR- 100 on average, respectively. m-FEDEPTH-ViT significantly out- performs m-FEDEPTH-PreResNet-20 with 36.66 ± 12.88% and 27.41 ± 3.13% improvements on CIFAR-10 and CIFAR-100 on average, respectively. We also observe that although local ViTs are fine-tuned on varying distribution data, we obtain global models with similar performance. It indicates that ViT is more robust to distribution shifts and hence improves FL over heterogeneous data.
+Depth-wise Fine-tuning on ViT Foundation models or Transformer architectures (Vaswani et al. 2017; Zhou et al. 2023), such as Vision Transformer (ViT) (Doso- vitskiy et al. 2020), has shown robustness to distribution shifts (Bhojanapalli et al. 2021). Recent work has demonstrated that re- placing a convolutional network with a pre-trained ViT can greatly accelerate convergence and result in better global models in FL(Qu et al. 2022). Inspired by this finding, we hypothesize that fine- tuning ViT with depth-wise learning will still produce a better global model because 1) decomposing blocks in a depth-wise manner maintains the knowledge learned from pretraining, and 2) memory consumptions of activations in each ViT’s block are identical, which indicates that skip connection for handling re- source constraints does not introduce any noises and extra param- eters. The memory budgets in terms of the width shrinkage ratio
+Conclusions Despite the recent progress in FL, memory heterogeneity still re- mains largely underexplored. Unlike previous methods based on width-scaling strategies or fixed-depth split, we propose adap- tive depth-wise learning for handling varying memory capabili- ties. The experimental results demonstrate our proposed FEDEPTH family outperform the state-of-the-art algorithms including Het- eroFL, SplitMix and DepthFL and are robust to data heterogeneity and client participation. Furthermore, using the robustness of ViT to heterogeneous distribution shifts, we reach an excellent global model via our depth-wise solutions. FEDEPTH is a flexible and scalable framework that can be compatible with most FL algo- rithms and is reliable to be deployed in practical FL systems and applications.
+
+
+References Abadi, M.; Chu, A.; Goodfellow, I.; McMahan, H. B.; Mironov, I.; Talwar, K.; and Zhang, L. 2016. Deep learning with differential privacy. In Proceedings of the 2016 ACM SIGSAC conference on computer and communications security, 308–318. Acar, D. A. E.; Zhao, Y.; Matas, R.; Mattina, M.; Whatmough, P.; and Saligrama, V. 2021. Federated Learning Based on Dynamic In International Conference on Learning Repre- Regularization. sentations. Bhojanapalli, S.; Chakrabarti, A.; Glasner, D.; Li, D.; Unterthiner, T.; and Veit, A. 2021. Understanding robustness of transformers for image classification. In Proceedings of the IEEE/CVF interna- tional conference on computer vision, 10231–10241. Bonawitz, K.; Ivanov, V.; Kreuter, B.; Marcedone, A.; McMahan, H. B.; Patel, S.; Ramage, D.; Segal, A.; and Seth, K. 2017. Practi- cal secure aggregation for privacy-preserving machine learning. In proceedings of the 2017 ACM SIGSAC Conference on Computer and Communications Security, 1175–1191. Bubeck, S.; and Sellke, M. 2021. A universal law of robustness via isoperimetry. Advances in Neural Information Processing Systems, 34: 28811–28822. Caldas, S.; Duddu, S. M. K.; Wu, P.; Li, T.; Koneˇcn`y, J.; McMahan, H. B.; Smith, V.; and Talwalkar, A. 2018. Leaf: A benchmark for federated settings. arXiv preprint arXiv:1812.01097. Chen, J.; Zheng, L.; Yao, Z.; Wang, D.; Stoica, I.; Mahoney, M.; and Gonzalez, J. 2021. Actnn: Reducing training memory footprint via 2-bit activation compressed training. In International Confer- ence on Machine Learning, 1803–1813. PMLR. Diao, E.; Ding, J.; and Tarokh, V. 2021. HeteroFL: Computation and Communication Efficient Federated Learning for Heteroge- In International Conference on Learning Repre- neous Clients. sentations. Dosovitskiy, A.; Beyer, L.; Kolesnikov, A.; Weissenborn, D.; Zhai, X.; Unterthiner, T.; Dehghani, M.; Minderer, M.; Heigold, G.; Gelly, S.; et al. 2020. An Image is Worth 16x16 Words: Transform- ers for Image Recognition at Scale. In International Conference on Learning Representations. Du Terrail, J. O.; Ayed, S.-S.; Cyffers, E.; Grimberg, F.; He, C.; Loeb, R.; Mangold, P.; Marchand, T.; Marfoq, O.; Mushtaq, E.; et al. 2022. FLamby: Datasets and Benchmarks for Cross-Silo Federated Learning in Realistic Healthcare Settings. In NeurIPS, Datasets and Benchmarks Track. Frankle, J.; and Carbin, M. 2019. The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks. In International Con- ference on Learning Representations. Gao, L.; Fu, H.; Li, L.; Chen, Y.; Xu, M.; and Xu, C.-Z. 2022. FedDC: Federated Learning with Non-IID Data via Local Drift De- coupling and Correction. In Proceedings of the IEEE/CVF Confer- ence on Computer Vision and Pattern Recognition, 10112–10121. Gao, Y.; Liu, Y.; Zhang, H.; Li, Z.; Zhu, Y.; Lin, H.; and Yang, M. 2020. Estimating gpu memory consumption of deep learning mod- els. In Proceedings of the 28th ACM Joint Meeting on European Software Engineering Conference and Symposium on the Founda- tions of Software Engineering, 1342–1352. Gomez, A. N.; Ren, M.; Urtasun, R.; and Grosse, R. B. 2017. The reversible residual network: Backpropagation without storing acti- vations. Advances in neural information processing systems, 30. He, K.; Zhang, X.; Ren, S.; and Sun, J. 2016a. Deep residual learn- ing for image recognition. In Proceedings of the IEEE conference on computer vision and pattern recognition, 770–778.
+He, K.; Zhang, X.; Ren, S.; and Sun, J. 2016b. Identity mappings in deep residual networks. In European conference on computer vision, 630–645. Springer. Hinton, G.; Vinyals, O.; Dean, J.; et al. 2015. Distilling the knowl- edge in a neural network. Hong, J.; Wang, H.; Wang, Z.; and Zhou, J. 2022. Efficient Split- Mix Federated Learning for On-Demand and In-Situ Customiza- tion. In International Conference on Learning Representations. Horvath, S.; Laskaridis, S.; Almeida, M.; Leontiadis, I.; Venieris, S.; and Lane, N. 2021. Fjord: Fair and accurate federated learning under heterogeneous targets with ordered dropout. Advances in Neural Information Processing Systems, 34: 12876–12889. Kairouz, P.; McMahan, H. B.; Avent, B.; Bellet, A.; Bennis, M.; Bhagoji, A. N.; Bonawitz, K.; Charles, Z.; Cormode, G.; Cum- mings, R.; et al. 2021. Advances and open problems in federated learning. Foundations and Trends in Machine Learning, 14(1-2): 1–210. Karimireddy, S. P.; Kale, S.; Mohri, M.; Reddi, S. J.; Stich, S. U.; and Suresh, A. T. 2019. SCAFFOLD: Stochastic Controlled Aver- aging for On-Device Federated Learning. Kim, M.; Yu, S.; Kim, S.; and Moon, S.-M. 2023. DepthFL : Depthwise Federated Learning for Heterogeneous Clients. In The Eleventh International Conference on Learning Representations. Koneˇcn`y, J.; McMahan, H. B.; Yu, F. X.; Richt´arik, P.; Suresh, Federated learning: Strate- A. T.; and Bacon, D. 2016. arXiv preprint gies for improving communication efficiency. arXiv:1610.05492. Kornblith, S.; Norouzi, M.; Lee, H.; and Hinton, G. 2019. Simi- larity of neural network representations revisited. In International Conference on Machine Learning, 3519–3529. PMLR. Krizhevsky, A.; and Hinton, G. 2009. Learning multiple layers of features from tiny images. LeCun, Y.; Bottou, L.; Bengio, Y.; and Haffner, P. 1998. Gradient- based learning applied to document recognition. Proceedings of the IEEE, 86(11): 2278–2324. Li, Q.; Diao, Y.; Chen, Q.; and He, B. 2022. Federated learning on non-iid data silos: An experimental study. In 2022 IEEE 38th International Conference on Data Engineering (ICDE), 965–978. IEEE. Li, Q.; He, B.; and Song, D. 2021. Model-Contrastive Federated Learning. In Proceedings of the IEEE/CVF Conference on Com- puter Vision and Pattern Recognition, 10713–10722. Li, T.; Hu, S.; Beirami, A.; and Smith, V. 2021. Ditto: Fair and robust federated learning through personalization. In International Conference on Machine Learning, 6357–6368. PMLR. Li, T.; Sahu, A. K.; Zaheer, M.; Sanjabi, M.; Talwalkar, A.; and Smith, V. 2020a. Federated optimization in heterogeneous net- works. Proceedings of Machine Learning and Systems, 2: 429– 450. Li, X.; Huang, K.; Yang, W.; Wang, S.; and Zhang, Z. 2020b. On In International the Convergence of FedAvg on Non-IID Data. Conference on Learning Representations. Lin, T.; Kong, L.; Stich, S. U.; and Jaggi, M. 2020a. Ensemble distillation for robust model fusion in federated learning. Advances in Neural Information Processing Systems, 33: 2351–2363. Lin, Y.; Ren, P.; Chen, Z.; Ren, Z.; Yu, D.; Ma, J.; Rijke, M. d.; and Cheng, X. 2020b. Meta matrix factorization for federated rat- In Proceedings of the 43rd International ACM ing predictions. SIGIR Conference on Research and Development in Information Retrieval, 981–990.
+
+
+Liu, R.; Wu, F.; Wu, C.; Wang, Y.; Lyu, L.; Chen, H.; and Xie, X. 2022. No one left behind: Inclusive federated learning over hetero- geneous devices. In Proceedings of the 28th ACM SIGKDD Con- ference on Knowledge Discovery and Data Mining, 3398–3406. McMahan, B.; Moore, E.; Ramage, D.; Hampson, S.; and y Arcas, B. A. 2017. Communication-efficient learning of deep networks In Artificial intelligence and statistics, from decentralized data. 1273–1282. PMLR. Mendieta, M.; Yang, T.; Wang, P.; Lee, M.; Ding, Z.; and Chen, C. 2022. Local Learning Matters: Rethinking Data Heterogeneity in Federated Learning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, 8397–8406. Mohri, M.; Sivek, G.; and Suresh, A. T. 2019. Agnostic federated learning. In International Conference on Machine Learning, 4615– 4625. PMLR. Nam, G.; Yoon, J.; Lee, Y.; and Lee, J. 2021. Diversity matters when learning from ensembles. Advances in Neural Information Processing Systems, 34: 8367–8377. Neyshabur, B.; Li, Z.; Bhojanapalli, S.; LeCun, Y.; and Srebro, N. 2019. The role of over-parametrization in generalization of neural In International Conference on Learning Representa- networks. tions. Qu, L.; Zhou, Y.; Liang, P. P.; Xia, Y.; Wang, F.; Adeli, E.; Fei-Fei, L.; and Rubin, D. 2022. Rethinking architecture design for tack- ling data heterogeneity in federated learning. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recogni- tion, 10061–10071. Raihan, M. A.; and Aamodt, T. 2020. Sparse weight activation training. Advances in Neural Information Processing Systems, 33: 15625–15638. Reddi, S. J.; Charles, Z.; Zaheer, M.; Garrett, Z.; Rush, K.; Koneˇcn`y, J.; Kumar, S.; and McMahan, H. B. 2020. Adaptive Federated Optimization. In International Conference on Learning Representations. Rumelhart, D. E.; Hinton, G. E.; and Williams, R. J. 1986. Learn- ing representations by back-propagating errors. nature, 323(6088): 533–536. Seo, H.; Park, J.; Oh, S.; Bennis, M.; and Kim, S.-L. 2020. Feder- ated knowledge distillation. arXiv preprint arXiv:2011.02367. Shi, N.; Lai, F.; Kontar, R. A.; and Chowdhury, M. 2021. Fed- ensemble: Improving generalization through model ensembling in federated learning. arXiv preprint arXiv:2107.10663. Sohoni, N. S.; Aberger, C. R.; Leszczynski, M.; Zhang, J.; and R´e, C. 2019. Low-memory neural network training: A technical report. arXiv preprint arXiv:1904.10631. Sun, Z.; Kairouz, P.; Suresh, A. T.; and McMahan, H. B. 2019. arXiv preprint Can you really backdoor federated learning? arXiv:1911.07963. Tan, A. Z.; Yu, H.; Cui, L.; and Yang, Q. 2022. Towards person- alized federated learning. IEEE Transactions on Neural Networks and Learning Systems. Vaswani, A.; Shazeer, N.; Parmar, N.; Uszkoreit, J.; Jones, L.; Gomez, A. N.; Kaiser, Ł.; and Polosukhin, I. 2017. Attention is all you need. Advances in neural information processing systems, 30. Wang, H.; Yurochkin, M.; Sun, Y.; Papailiopoulos, D.; and Khaz- aeni, Y. 2020a. Federated Learning with Matched Averaging. In International Conference on Learning Representations. Wang, J.; Charles, Z.; Xu, Z.; Joshi, G.; McMahan, H. B.; Al- Shedivat, M.; Andrew, G.; Avestimehr, S.; Daly, K.; Data, D.; et al. 2021a. A field guide to federated optimization. arXiv preprint arXiv:2107.06917.
+Wang, J.; Liu, Q.; Liang, H.; Joshi, G.; and Poor, H. V. 2020b. Tackling the objective inconsistency problem in heterogeneous fed- erated optimization. Advances in neural information processing systems, 33: 7611–7623. Wang, J.; Xu, Z.; Garrett, Z.; Charles, Z.; Liu, L.; and Joshi, G. 2021b. Local Adaptivity in Federated Learning: Convergence and Consistency. arXiv preprint arXiv:2106.02305. Yu, J.; and Huang, T. S. 2019. Universally slimmable networks and In Proceedings of the IEEE/CVF improved training techniques. international conference on computer vision, 1803–1811. Yu, J.; Yang, L.; Xu, N.; Yang, J.; and Huang, T. 2018. Slimmable Neural Networks. In International Conference on Learning Repre- sentations. Yurochkin, M.; Agarwal, M.; Ghosh, S.; Greenewald, K.; Hoang, N.; and Khazaeni, Y. 2019. Bayesian nonparametric federated learning of neural networks. In International Conference on Ma- chine Learning, 7252–7261. PMLR. Zhang, K.; Jiang, Y.; Seversky, L.; Xu, C.; Liu, D.; and Song, H. 2021. Federated variational learning for anomaly detection In 2021 IEEE International Perfor- in multivariate time series. mance, Computing, and Communications Conference (IPCCC), 1– 9. IEEE. Zhang, K.; Wang, Y.; Wang, H.; Huang, L.; Yang, C.; Chen, X.; and Sun, L. 2022. Efficient Federated Learning on Knowledge Graphs via Privacy-preserving Relation Embedding Aggregation. In Find- ings of the Association for Computational Linguistics: EMNLP 2022, 613–621. Abu Dhabi, United Arab Emirates: Association for Computational Linguistics. Zhang, L.; Bao, C.; and Ma, K. 2021. Self-distillation: Towards ef- ficient and compact neural networks. IEEE Transactions on Pattern Analysis and Machine Intelligence, 44(8): 4388–4403. Zhang, Y.; Xiang, T.; Hospedales, T. M.; and Lu, H. 2018. Deep mutual learning. In Proceedings of the IEEE conference on com- puter vision and pattern recognition, 4320–4328. Zhao, Y.; Li, M.; Lai, L.; Suda, N.; Civin, D.; and Chandra, V. 2018. Federated learning with non-iid data. arXiv preprint arXiv:1806.00582. Zhou, C.; Li, Q.; Li, C.; Yu, J.; Liu, Y.; Wang, G.; Zhang, K.; Ji, C.; Yan, Q.; He, L.; et al. 2023. A Comprehensive Survey on Pre- trained Foundation Models: A History from BERT to ChatGPT. arXiv preprint arXiv:2302.09419. Zhu, Z.; Hong, J.; and Zhou, J. 2021. Data-free knowledge distil- lation for heterogeneous federated learning. In International Con- ference on Machine Learning, 12878–12889. PMLR.
+
+
+Visualization of Label Distribution We consider 100 clients in all experiments, and in Figure 8, we show label distributions of 5 out of 100 clients under balanced α(0.3), α(1.0) and unbalanced αu(0.3), αu(1.0) splits of CIFAR- 10.
+Extensive Experimental Results
+Large-scale FL experiments We also conducted experiments on EMNIST with 500 and 1000 clients, respectively, with the 0.1 participation rate, and fair budget with α(1). Additionally, we report the results on FEMNIST (Cal- das et al. 2018), a natural-split FL dataset derived from partition- ing 3597 writers from EMNIST. Furthermore, we present results on TinyImageNet under with 100 clients and 0.1 participation rate. The results are shown in the following table.
+Datasets EMNIST (0.5K) EMNIST (1.0K) FEMNIST TinyImageNet
+FedAvg HeteroFL SplitMix DepthFL 77.44 74.24 62.69 21.00
+79.26 77.95 71.05 23.98
+70.94 62.04 54.62 30.87
+73.88 70.18 73.80 30.89
+FEDEPTH m-FEDEPTH
+82.07 81.91 78.07 33.97
+81.73 81.68 76.24 37.79
+Fairness evaluation According to the definition of fairness in FL from (Li et al. 2021), we can take the std of test accuracy as a fairness measure. Here we use the std of testing accuracy across 100 clients with the Cifar10 dataset as shown in the following table. Besides, we compare the local training time (in seconds) of each client in one round in the table below.
+Metric Time (s) Fairness
+FedAvg 0.42 ± 0.05 0.05253
+HeteroFL 0.75 ± 0.09 0.03888
+SplitMix 1.90 ± 0.60 0.04919
+FEDEPTH m-FEDEPTH 2.32 ± 0.93 2.49 ± 0.93 0.04762 0.04596
+
+
+Figure 8: Visualization of statistical heterogeneity among partial clients on CIFAR-10 dataset, where the x-axis indicates client IDs, the y-axis indicates class labels, and the size of scattered points indicates the number of training samples for a label available to the client.

@@ -1,0 +1,819 @@
+3 2 0 2
+y a M 3 2
+] L C . s c [
+1 v 7 0 7 3 1 . 5 0 3 2 : v i X r a
+Do All Languages Cost the Same? Tokenization in the Era of Commercial Language Models
+♢
+♠
+♢
+Sachin Kumar
+Hila Gonen ♢♡
+Orevaoghene Ahia
+Jungo Kasai
+♠
+♢
+David R. Mortensen
+Noah A. Smith
+Yulia Tsvetkov
+♢
+♢
+Paul G. Allen School of Computer Science & Engineering, University of Washington Language Technologies Institute, Carnegie Mellon University Allen Institute for Artificial Intelligence
+♠
+♡
+Abstract
+Language models have graduated from being research prototypes to commercialized prod- ucts offered as web APIs, and recent works have highlighted the multilingual capabilities of these products. The API vendors charge their users based on usage, more specifically on the number of “tokens” processed or gener- ated by the underlying language models. What constitutes a token, however, is training data and model dependent with a large variance in the number of tokens required to convey the same information in different languages. In this work, we analyze the effect of this non- uniformity on the fairness of an API’s pricing policy across languages. We conduct a system- atic analysis of the cost and utility of OpenAI’s language model API on multilingual bench- marks in 22 typologically diverse languages. We show evidence that speakers of a large num- ber of the supported languages are overcharged while obtaining poorer results. These speak- ers tend to also come from regions where the APIs are less affordable to begin with. Through these analyses, we aim to increase transparency around language model APIs’ pricing policies and encourage the vendors to make them more equitable.
+�
+κ
+�
+�
+�
+?
+�
+?
+�
+�
+�
+�
+�
+τ
+Morocco
+τ
+$
+$
+the
+capital
+ρ
+ρ
+Ποια είναι η πρωτεύουσα του Μαρόκου;?
+$
+is
+ω
+�
+ο
+ι
+σ
+$
+ε
+�
+ι
+What
+α
+Η πρωτεύουσα του Μαρόκου είναι η πόλη Ραμπάτ, ή επίσης γνωστή ως Ραμπάτ Σαλέ.
+The capital of Morocco is Rabat.
+ο
+of
+α
+α
+;
+α
+ο
+ο
+�
+�
+�
+ν
+�
+�
+�
+�
+�
+�
+�
+What is the capital of Morocco?
+Figure 1: We investigate the effects of subword tokeniza- tion in LLMs across languages with different writing systems. Our findings highlight disparities in the utility of LLMs, as well as socio-economic disparities and in- creased costs in using commercial APIs for speakers of underrepresented languages. 1
+can be accessed for inference using (paid) web APIs. The majority of these models (Ouyang et al., 2022) offer multilingual capabilities, and the API providers charge the users proportionally to the number of tokens processed or generated.
+1
+Introduction
+Language models (LMs) have come to be known as general-purpose solutions capable of perform- ing many tasks by following natural language instructions (Brown et al., 2020; Ouyang et al., 2022; Chung et al., 2022), and generalizing to new tasks at test time using a handful of demonstra- tions (Brown et al., 2020; Su et al., 2023). Moti- vated by their potential for commercial use, many industrial research institutions have moved away from openly releasing them (Abdalla et al., 2023). Instead, a new business model of LM as a Ser- vice (Sun et al., 2022) has emerged where LMs
+1OpenAI’s tokenizer interface displays byte tokens absent
+In this work, we examine the fairness of this pricing model for different languages, based on how a “token” is defined in practice. Most LMs rely on tokenizers that split text strings into chunks (subwords). Subword tokenizers (Mielke et al., 2021; Sennrich et al., 2016; Kudo, 2018; Song et al., 2020) are typically data-driven and learn to split text based on frequency patterns of characters or bytes in some corpus.
+Prior work has argued that, in multilingual set- tings, subword tokenizers lead to disproportion- ate fragmentation rates for different languages and writing scripts (Zhang et al., 2022a; Rust et al., 2021; Muller et al., 2021). Many commercial lan- guage models are multilingual, and text from lan- guages that suffer from excessive fragmentation will be represented using more tokens. This directly
+from their vocabulary as "?".
+
+
+increases cost of API usage for certain language speakers, even if they convey the same information as others.
+We highlight this unfairness through three stages First, we show evi- of systematic analyses. dence that tokenizers of popular LMs indeed over- fragment texts in certain languages and scripts. We quantify the API cost disparity that this issue causes. We discover that this disparity is not caused just by data imbalance, but is rooted in inherent properties of the languages or the ways they are represented in Unicode. Second, we show that lan- guages that have longer token lengths as a result of greater fragmentation derive less model utility with in-context learning (Brown et al., 2020).
+Finally, we find that languages that cost more and perform worse are often associated with pop- ulations of speakers for whom the APIs are less affordable on average, exacerbating the economic divide in the accessibility of NLP technology.
+Through these analyses, we argue that commer- cial LM API vendors should revisit their processing and pricing strategies to be more equitable. In ad- dition, we encourage the NLP community to pay better attention to tokenizers, an often neglected part of the LLM pipeline.
+2 Do All Languages Cost the Same?
+2.1 Background
+Language Model APIs Autoregressive language models are trained to predict the next “token” given a previous context. Following the success of such models, many commercial LM web APIs have emerged and allow users to interface with the models using natural language instructions to per- form various tasks with little to no exposure to the underlying workings of the models. The API providers often support dozens of languages and charge users2 at a fixed rate based on the total num- ber of input and generated tokens.3
+What constitutes a “token,” however, is not a universally accepted definition but a design choice that the model developers make. The total token count is also not immediately obvious to users ex- cept through a tokenizer interface4 separate from the chat interface.
+2While most services also have free tiers, they limit daily
+usage to a small number of tokens per use.
+3e.g. see OpenAI models’ cost: https://openai.com/p
+ricing.
+4https://platform.openai.com/tokenizer
+LMs Tokenization— Tokenization segmenting text an active research area. Proposed approaches range from defining tokens as whitespace-delimited words (for languages that use whitespace) which makes the vocabulary extremely large, to defining tokens as characters or even bytes, which makes the tokenized sequences extremely long in terms of number of tokens; see Mielke et al. (2021) for a detailed survey. A commonly-used solution now is to tokenize text into subword chunks (Sennrich et al., 2016; Kudo, 2018; Song et al., 2021). With Sennrich et al. (2016), one starts with a base vocab- ulary of only characters and adds new vocabulary items by recursively merging existing ones based on their frequency statistics in a training corpus. Other approaches judge subword candidates to be included into the vocabulary using a language model (Kudo, 2018; Song et al., 2021). For multilingual models containing data in a variety of scripts, even the base vocabulary of only characters (based on Unicode symbols) can be very large with over 130K types. Radford et al. (2019) instead proposed using a byte-level base vocabulary with only 256 tokens. Termed byte-level byte pair encoding (BBPE), this approach has become the de facto standard used in most modern language modeling efforts (Brown et al., 2020; Muennighoff et al., 2022; Scao et al., 2022; Black et al., 2022; Rae et al., 2022; Zhang et al., 2022b; Dey et al., 2023; Nagoudi et al., 2022; Zhang et al., 2022b).
+in into atomic units—is
+In this work, we investigate the impact this tok- enization strategy has on LM API cost disparity as well as downstream task performance (i.e., utility) across different languages.
+2.2
+Investigating the Impact of Byte-level Subword Segmentation
+There are hundreds of distinct writing systems in the world. BBPE, by design, makes vocabulary construction script-agnostic, even allowing (in prin- ciple) new scripts to be supported later on without modifying the vocabulary. However, not only are different scripts encoded differently, their distri- bution in the training corpora varies widely. To investigate the effects of this variation, we propose the following research questions as the main focus of this work.
+RQ1 (number of tokens): do all languages con- vey the same information with the same num- ber of tokens? We analyze the fragmentation
+
+
+of sequences in different languages with different tokenizers. We find that among the supported lan- guages in popular LLMs, there is a large variance in the average number of tokens required to convey the same information with some languages requir- ing 5 times as many tokens than others. Previous work has shown that tokenization in multilingual models is usually biased towards high-resourced languages in the pretraining data (Ács, 2019; Rust et al., 2021); we observe that this is not always the case, but it could also be dependent on linguistic features or properties of language scripts.
+RQ2 (cost): do non-uniform tokenization rates lead to LM API cost disparity for speakers of dif- ferent languages? LM APIs like ChatGPT are available worldwide and have been widely claimed to have multilingual capabilities (Kasai et al., 2023; Lai et al., 2023).5 We show that disparate frag- mentation rates in different languages can lead to significantly high usage costs for less represented languages and argue for a more equitable API pric- ing system.
+RQ3 (model utility): do non-uniform tokeniza- tion rates affect the models’ utility? LMs have exhibited in-context learning capabilities, perform- ing new tasks with a few demonstrations as input (without parameter finetuning). This is a highly desirable property in any LM API as it avoids com- putational, annotation (and thus financial) costs. We show that the high fragmentation rate of a lan- guage can negatively affect the in-context learning performance in that language, resulting in reduced model utility.
+RQ4 (socio-economic aspects): what are the socio-economic implications of the API’s cross- lingual cost and performance disparity? Our analysis shows evidence that not only are LMs more expensive for certain languages, they are also less effective for them. To highlight the implica- tions of these findings, we correlate those measure- ments with the socio-economic indicators of lan- guage speakers as a proxy for affordability of the APIs. This analysis indicates that users who likely cannot afford high API costs are charged more for poorer service, hindering uniform accessibility of this technology.
+5https://help.openai.com/en/articles/674236 9-how-do-i-use-the-openai-api-in-different-lan guages
+3 Experimental Setup
+3.1 Models
+Throughout this work, we focus on two language models: ChatGPT (Ouyang et al., 2022; Brown et al., 2020) (gpt-3.5-turbo) and BLOOMZ (Muen- nighoff et al., 2022). Both of these models are trained and advertised as general-purpose models capable of following instructions and performing a wide range of tasks (Bang et al., 2023; Qin et al., 2023; Zhu et al., 2023b; Ahuja et al., 2023; Huang et al., 2023; Zhu et al., 2023a).
+ChatGPT (Ouyang et al., 2022) is a closed model only accessible through an API (with a premium tier) provided by OpenAI. Studies report that it supports as many as 90 languages (Ahuja et al., 2023). ChatGPT can handle a maximum sequence length of 4096 tokens (including both the prompt and generated tokens).
+BLOOMZ (Muennighoff et al., 2022) is an open- source multilingual model trained on 46 natural lan- guages and 13 programming languages. The best- performing version of this model has 175B parame- ters and is not feasible to be loaded on our academic servers; hence we rely on a free API of BLOOMZ hosted by Huggingface.6 Although BLOOMZ was trained with ALiBi positional embeddings (Press et al., 2022) which allows the model to extrapolate to any length sequences during inference, the Hug- gingface API has a context limit of 1000 tokens.
+3.2 Tasks and Datasets
+To answer RQ1—whether the same information is conveyed with similar numbers of tokens in dif- ferent languages—we use a subset of FLORES- 200 (Goyal et al., 2022), a multilingual parallel cor- pus containing examples in over 200 languages.7 We tokenize each sentence in the FLORES-200 subset with ChatGPT’s tokenizer8 and compute the average number of tokens per sentence for each language. Using parallel data controls for the same information across languages. We consider that language A is more efficiently tokenized than lan- guage B if it uses fewer tokens per sentence on average. While previous studies have computed fragmentation rates with fertility (Ács, 2019), we
+6https://huggingface.co/docs/api-inference/q
+uicktour.
+7We also experimented with WMT 2021 data (Akhbardeh et al., 2021) and found similar results. Note that the WMT data are focused on European languages.
+8see ChatGPT’s tokenizer https://github.com/opena
+i/tiktoken
+
+
+instead define it as the average number of tokens in a sequence for two reasons. First, our goal is to compare LLM API costs across languages that charge users based on the number of tokens. To control for content, we use a parallel corpus for this analysis. Second, many languages we analyze are understudied and do not have word tokenizers available which are required to compute fertility.
+For RQ2 and RQ3, to clearly highlight the cost and utility disparities, we evaluate the models on NLP tasks that involve long-form texts either at input or output. We evaluate the models on di- verse, challenging natural language generation and classification tasks on the following benchmarks:
+Classification We evaluate on (1) XNLI (Con- neau et al., 2018): inference benchmark comprising of 11 typologically diverse languages. It involves two sub-tasks, passage selection and minimum answer span (Gold-P). We focus on the latter task in our experiments. (2) XFACT (Gupta and Srikumar, 2021): a multi- lingual fact verification dataset of naturally existing real-world claims covering 25 languages.
+a cross-lingual
+Span Prediction We use XQUAD (Artetxe et al., 2019): a crosslingual question-answering dataset where each example consists of a paragraph, a ques- tion, and the answer as a span in the paragraph.
+Generation We (1) Cross a cross-lingual Sum (Hasan et al., 2021a): abstractive summarization dataset comprising 1.7 million article-summary samples in 1500+ language pairs, and, (2) XLSUM (Hasan et al., 2021b): a summarization dataset covering 44 typologically diverse languages. The dataset comprises news articles and summaries in the same language as the article.
+evaluate
+on
+3.3 Prompting Formulation
+We evaluate both models in a k-shot in-context learning setup where we also provide task instruc- tions. We experiment with 0 ≤ k ≤ X, where X is the maximum number of in-context examples that can be provided. Note that X is not a fixed value, but is determined by the language model API’s limit on the number of input tokens and the fragmentation rate of the language.
+For all tasks, we provide the instructions in En- glish following Ahuja et al. (2023), who show that on several multilingual benchmarks, English in- structions outperform the in-language prompts (see
+122111221128131112
+LatinJapaneseHangulCyrillicArabicThaiHebrewDevanagariGreekBengaliTamilTeluguGeorgianTibetanLanguageScript
+200
+0
+100
+300Averagenumberoftokens
+Figure 2: Average number of tokens by script after tokenizing the Flores dataset. The fragmentation rate is lower for Latin script languages and higher for other scripts. Number of languages per language group is indicated at the top of each bar.
+Table 2 in the Appendix for the prompting format for all tasks). For each task, we randomly sample at most 500 test examples for evaluation.
+4 Results and Analysis
+4.1 RQ1 (number of tokens): do all languages convey the same information with the same number of tokens?
+In Figure 2 we show that Latin-script languages are represented with substantially fewer tokens com- pared to languages in other scripts. While Cyrillic and Japanese script languages come close to the Latin script, languages that have their own script, e.g. Telugu and Georgian, require up to 5× more tokens to convey the same information. We hy- pothesize that this disparity is due to training data imbalance since ChatGPT’s tokenizer was primar- ily trained with Latin-script languages, mainly En- glish. The training details of ChatGPT are not available. However, we make a reasonable assump- tion that its training dataset has a similar propor- tion of languages as the publicly available large corpus CC100 (Wenzek et al., 2020). If we sort lan- guages shown in Figure 2 based on their data size in CC100 (see Figure 14 in the Appendix), low- resourced languages of Latin script appear to be less fragmented compared to other mid-resourced languages of non-Latin scripts. In Figure 15 in the Appendix, we present a similar analysis for BLOOMZ’s tokenizer. We sort the languages based on their size in the pretraining data (ROOTS corpus; Laurençon et al., 2023). We observe that languages with fewer resources generally have a higher av-
+
+
+erage token length. Arabic is an outlier here as it appears to be have more tokens than some other mid-resourced languages.
+What influences the non-uniformity of a to- kenizer across languages? From our analysis above, we identify two influential factors: (1) the proportion of the language in the pretraining data, and (2) inherent properties of the language and its writing script. While we see some correlation be- tween pretraining data size and fragmentation rate in BLOOMZ, with ChatGPT it is quite different as higher-resourced non-Latin script languages still get excessively tokenized.
+To disentangle the effects of factors (1) and (2) we train BBPE tokenizers on a variety of languages with diverse scripts with vocabulary sizes ranging from 5,000 to 50,000, while controlling for content and data size. Specifically, we train the tokenizers on parallel corpora and include one language per script. We then use these tokenizers to tokenize the text they were trained on, and compute the average number of tokens per sentence.
+5000
+500
+50
+200
+Latin
+Cyrillic
+350
+50000Vocabsize
+10000
+Khmer
+25000
+1000
+Tibetan
+200
+250
+Myanmar
+100
+150
+300
+400Avgnumberoftokens
+Hangul
+Arabic
+Japanese
+Figure 3: BBPE tokenizer trained on parallel text from different language scripts with varying vocabulary sizes. We display a larger version with 21 more scripts in Figure 18 in the Appendix.
+As shown in Figure 3 , even when controlling for the content, there is still a disparity in the tokeniza- tion rate at different vocabulary sizes. In particular, most scripts are very sensitive to smaller vocabu- lary sizes compared to Latin and Hangul scripts. We could not achieve uniform fragmentation rate across all language scripts even with large vocabu- lary sizes. We, therefore, conclude that uniformity of BBPE tokenizers across languages is not just determined by the proportion of text from language in the pretraining data but also by language/script properties.
+4.2 RQ2 (cost): how do non-uniform
+tokenization rates affect LM API costs for different languages?
+LM APIs charge users a fixed amount for a given number of input and generated tokens. Since the same information is expressed using different num- ber of tokens in different languages, we aim to investigate the disparity in what users pay to use the API for different languages. From the results of our analysis in §4.1, we compute the estimated cost of API use per language as a function of the average sequence length derived in Figure 2. We report this on a subset of languages in Figure 16 in the Appendix and present a granular analysis of languages that share family and script in Figure 4. Languages that are more heavily segmented have predictably higher costs of usage. Overall, we see that the API costs are biased towards (i.e., cheaper for) Indo-European and Latin script lan- guages and against many non-Latin script lan- guages. In most mid-resourced Indic languages with non-Latin scripts, we see close to a 5× in- crease in cost compared to English.
+12CostrelativetoEnglish
+(AA,Latin)
+(IE,Cyrillic)
+(IE,Bengali)
+(AA,Hebrew)
+(KA,Georgian)
+(IE,Arabic)
+(ST,Bengali)
+(DR,Telugu)
+(AA,Arabic)
+(IE,Greek)
+(IE,Devanagari)
+(ST,Tibetan)LanguageFamilyandScript
+4
+(IE,Latin)
+8
+1
+(AC,Latin)
+(IE,Hebrew)
+(DR,Tamil)
+(ST,Latin)
+Figure 4: Estimated cost per language family/script, rel- ative to English. The language families are abbreviated as follows: IE: Indo-European, ST: Sino-Tibetan, AC: Atlantic-Congo, AA: Afro-Asiatic, DR: Dravidian, KA: Kartvelian.
+Next, we report the costs of running experiments relative to English. We report costs based on our zero-shot experiments across all tasks listed in §3.2. This is due to excessive tokenization in some lan- guages for which we can only do zero-shot evalua- tions. For XLSUM, we show in Figure 5 that we spend up to 4× more for both prompting and gen- eration in Telugu and Amharic. We observe similar findings in XFACT and CROSSUM, as displayed in Figure 11 in the Appendix.
+While the majority of the commercial LMs are perhaps being optimized to perform well in many
+
+
+3
+ko
+4ExperimentCostrelativetoEnglish
+ar
+amLanguage
+hi
+sw
+th
+te
+ja
+ru
+pt
+en
+es
+vi
+2
+0
+fr
+1
+Figure 5: Average cost of prompt + generated tokens for XLSUM evaluations relative to English.
+languages, we show that there is less focus on the individual experiences of speakers of languages other than English. While a language model like ChatGPT might perform tasks in Telugu, for exam- ple, a user in Andhra Pradesh might have to pay 5× more than an English user in the US would pay for an equivalent use of the model.
+4.3 RQ3 – Model utility: do non-uniform tokenization rates affect the models’ utility?
+Korean
+8
+4
+Spanish
+0
+Russian
+Hindi
+French
+Swahili
+Vietnamese
+80%
+60%
+6
+Portuguese
+English
+Telugu
+Thai
+40%
+2
+0%
+10In-contextexamples
+20%
+Amharic
+Arabic
+Japanese
+100%%testdatathatdoesn’tﬁtthecontextlength
+Figure 6: Percentage of test examples per language in XLSUM that do not successfully fit into the context length of ChatGPT. We can fit more few-shot examples in Latin script languages than in other languages.
+LM APIs typically have an upper bound of the number of tokens they can handle, e.g., ChatGPT can process a maximum of 4,096 tokens. Hence, due to non-uniform fragmentation rates across lan- guages, there is a disparity in the amount of in- formation the models can process in different lan- guages. As an illustration, in Figure 6 we plot the percentage of XLSUM test examples against the minimum number of in-context examples those test examples can be accompanied with.
+For example, we find that Telugu and Amharic struggle to fit even one in-context example for the majority of their test set. As a result, the model is only capable of zero-shot prompting for these two
+languages.
+To measure the impact of this issue on task per- formance, we evaluate ChatGPT and BLOOMZ with a k-shot learning setup on the 5 tasks on di- verse languages as described in §3.2. Figure 7 shows ChatGPT’s performance according to stan- dard automatic metrics of all tasks. Note that the focus of this experiment is to illustrate the impact of tokenization in in-context learning settings. There- fore, we are interested not in the absolute value of the metrics or comparisons among languages but the relative improvement within the test sets of the same language as we increase the number of in- context examples. For all tasks and most languages, we see consistent performance improvements as we increase the number of in-context examples, from zero-shot to k (even for k = 1). For many lan- guages such as Telugu and Thai , due to their high fragmentation rates, we were unable to fit even one complete demonstration and hence, only report zero-shot results. Based on trends from other lan- guages, we suspect that these languages could also have benefitted from more demonstrations. Hence, as a result of unfair tokenization, ChatGPT’s utility is much lower for speakers of those languages com- pared to better represented languages like English.
+Figure 9 reports the results of the same experi- ment for BLOOMZ. Here, across all tasks we find that adding in-context examples does not help at all. In fact, in some cases, there is a drastic drop in performance even with one in-context example. Upon manual inspection of the model generated outputs from the one-shot experiments, the model has a tendency to copy spans from the in-context example, presenting that as output and thus not suc- cessfully utilize demonstrations. Our hypothesis here is that BLOOMZ is better optimized for zero- shot prompting and is not suitable for in-context learning.
+Due to the limited number of tokens that the BLOOMZ’s inference API accepts, some examples in some languages cannot fit the 1000 token con- text length when doing zero-shot prompting. We experienced this with the XLSUM dataset as we couldn’t fully fit news articles for some languages. Understandably, some of these languages are not even present in its pretraining data, and hence we do not expect them to be tokenized efficiently. For these examples that do not fit the context length, we feed in truncated news articles into the model. We therefore evaluate the generations for the frac-
+
+
+5Numberofin-contextexamples
+0
+fr
+1
+ar
+30Rouge-L
+ja
+ru
+es
+vi
+en
+pt
+te
+ko
+20
+sw
+th
+hi
+3
+10
+am
+2
+ka
+0
+1
+it
+8
+10Numberofin-contextexamples
+ar
+id
+10
+es
+30F1-Score
+20
+pt
+tr
+hi
+ta
+5
+ro
+pl
+de
+3
+2
+es
+10
+1
+30Rouge-L
+ta
+ja
+am
+en
+pt
+vi
+3
+0
+20
+ru
+ar
+2
+te
+ko
+sw
+id
+5Numberofin-contextexamples
+hi
+fr
+(a) XLSUM
+(b) XFACT
+(c) CROSS-SUM
+Figure 7: Results from ChatGPT few-shot evaluations. In most tasks, we see a significant increase in performance as we increase the number of in-context examples.
+fr
+th
+vi
+ne
+es
+am
+ar
+ja
+sw
+ta
+10
+mr
+urLanguages
+uk
+truncatedarticle
+ko
+30
+ru
+20
+hi
+fullarticle
+id
+40Rouge-L
+en
+pt
+te
+ky
+Task
+XFACT XLSUM CROSS SUM
+Cost-HDI Spearman **–0.41 **–0.42 **–0.41
+Pearson **–0.60 **–0.43 **–0.45
+HDI-Utility Spearman *0.34 **–0.44 *–0.18
+Pearson **0.38 **–0.57 *0.24
+Cost-Utility Spearman **–0.61 *–0.23 *0.27
+Pearson **–0.55 *0.21 *–0.17
+Table 1: Correlation between model utility, cost of API access and Human Development Index for each task. We mark correlations with p < 0.05 with * and also mark correlations with p < 0.0056 (according to Bon- ferroni correction for multiple hypotheses) with **.
+Figure 8: Zero-shot evaluation of BLOOMz on XL- SUM. Since, we cannot fit the full article in the context length for some languages, we compare results on eval- uating full articles vs. truncated articles.
+tion of examples that fit context and ones that do not fit the context separately. Figure 8 shows the performance comparison when we use truncated summaries in the prompt and when we use the full articles. While the performance drop is expected, our focus here is to highlight a consequence of differentiated tokenization in language models.
+between pairs of each of the following variables: average financial cost of experiments, model utility (performance), and human development index of the country in which each language is spoken. We term this doubled unfairness as people from less economically developed countries are overcharged at a fixed rate per-token due to excessive tokeniza- tion, but often derive lesser utility from the model.
+5 What is the Way Forward?
+4.4 RQ4 – Socio-economic aspects: what are
+the socio-economic implications of the API’s cross-lingual cost and performance disparity?
+In Figure 10, we plot the fragmentation rate per language against the Human Development Index in the top country where the language is spoken.9 We find a strong negative correlation, showing that in most cases, the lower the HDI index, the higher the fragmentation rate and vice versa. Evidently, the model’s vocabulary is biased towards users of more developed countries.
+This bias is further validated by results shown in Table 1 where we mostly find negative correlations
+9HDI is a composite of life expectancy, education, and income per capita indicators, used to rank countries into tiers of human development.
+Transparency in API limitations While the NLP community is aware of many of the issues we point out in this work, LM APIs are advertised to a general audience. Much like the policy of adding limitations to research papers, LM API providers ought to be more transparent about the flaws and biases in their models, especially when describing their multilingual capabilities. Many users are not privy to the inner workings of these models and can thereby be unfairly charged higher prices if they use the model in their native languages.
+Rethinking the API pricing models Higher API costs for certain languages in underprivileged com- munities risks excluding many populations from using language technologies. A potential solu- tion is to develop pricing policies based on lan- guages/regions while also accounting for model performance on language-specific benchmarks. An
+
+
+th
+tr
+40
+vi
+2Numberofin-contextexamples
+bg
+ru
+20
+5
+en
+el
+es
+ar
+de
+hi
+sw
+8
+15
+30
+10
+ur
+3
+50F1-Score
+0
+1
+fr
+zh
+te
+ky
+ta
+th
+fr
+0
+ur
+ru
+15
+en
+ne
+hi
+sw
+es
+35Rouge-L
+pt
+uk
+ar
+mr
+ja
+25
+id
+5
+am
+vi
+1Numberofin-contextexamples
+ko
+es
+50
+1
+tr
+en
+40
+2
+el
+60
+0
+zh
+30
+vi
+3Numberofin-contextexamples
+70ExactMatch
+th
+hi
+de
+ar
+ro
+ru
+20
+(a) XNLI
+(b) XLSUM
+(c) XQUAD
+Figure 9: Results from BLOOMz few-shot evaluations. The BLOOMz model is clearly better at zero-shot prompting than few-shot.
+0.5
+0.9HumanDevelopmentIndex
+150
+200
+0.8
+250
+50
+0.4
+100
+0.6
+AssameseBelarusianBengaliBosnianCatalanGermanGreekEnglishEstonianFinnishFrenchGalicianGujaratiHebrewHindiHungarianArmenianJapaneseKannadaGeorgianKazakhKhmerKyrgyzMalayalamMarathiMacedonianBurmeseEasternPanjabiPortugueseRussianSinhalaSomaliSpanishSundaneseTamilTeluguTagalogThaiUyghurUkrainianUrduVietnamese
+0.7
+300Averagenumberoftokens
+Figure 10: Fragmentation rate per language against the Human Development Index in the top country where the language is spoken.
+licensing issues, language models tend to be large and resource-intensive to train and deploy and re- quire dedicated expensive hardware to run at a com- mercial scale, which again might not be possible for most developers and users, even exceeding the cost of using the APIs. Research on reducing such hardware requirements (Dettmers et al., 2022; Park et al., 2023; Yao et al., 2022) could increase ac- cessibility. Still, this would require a considerable level of technical expertise from developers and users which might be infeasible.
+alternative is to not charge by tokens at all. A re- cently released beta of PaLM 2 API, for example, charges the users based on characters.10 Hence, further analysis is needed to assess the fairness of character-based pricing. Huggingface also offers an inference service for their enterprise customers11 relying on AWS instances and charging them at an hourly rate. Future work may compare this with a per-token rate we study in this work.
+Open-source models vs. paid APIs Given issues with paid APIs, the natural next question might be: should the API users move to open-source mod- els or train their own? In fact, in our experiments, we find BLOOMZ, an open-source model, to per- form better in the zero-shot setting than ChatGPT performs in the few-shot setting, in most cases. However, first, most open-source models are dis- tributed under an academic license whereas most developers are interested in integrating these tech- nologies into their products for commercial use, which may incur licensing costs. Second, barring
+10Prior work has shown evidence that even the number of characters used to express the same information in different languages is variable (Farb, 1974; Neubig and Duh, 2013) 11https://huggingface.co/pricing#endpoints
+Technological improvements in language mod- els Several solutions proposed in recent work to improve language modeling performance can help alleviate the cost and utility issues we highlight. To- kenization is an active area of research and various solutions based on data balancing (Johnson et al., 2017; Conneau and Lample, 2019), optimal trans- port (Xu et al., 2021), fuzzy subwords (Provilkov et al., 2020) , and many more (Chung et al., 2020; Tay et al., 2022) have been proposed. BLOOMZ, for instance, relies on data balancing to improve fragmentation rates across languages. Some work has also focused on increasing the context lengths of language models (Bulatov et al., 2023; Press et al., 2022; Ainslie et al., 2023) which can help alleviate issues with utility by allowing more in- context examples as input.
+6 Related Work
+Analyzing Tokenization methods The impact of tokenization on model performance has been widely studied (Ács, 2019; Rust et al., 2021; Zhang et al., 2022a; Klein and Tsarfaty, 2020; Bostrom and Durrett, 2020; Kamali et al., 2022). Prior works have also investigated the role of tokeniza- tion in inference speed and memory usage of LMs
+
+
+in practical settings (Sun et al., 2023; Hofmann et al., 2022). Ács (2019) analyzes mBERT’s to- kenizer (Devlin et al., 2019) and discover that Indo-European languages largely dominate its vo- cabulary. Rust et al. (2021) find that monolin- gual models perform better than mBERT (Devlin et al., 2019) because some languages suffer from over-fragmentation. Zhang et al. (2022a) find that sentence-level MT models are not particularly sen- sitive to language imbalance in their tokenizer train- ing data. Sun et al. (2023) analyze multilingual tokenizer-free and subword-based models and find that subword-based models achieve better perfor- mance while reducing inference latency and mem- ory usage. In contrast to prior work, our focus is on the cost and performance analysis of multi- lingual LM APIs across languages with regard to over-fragmentation and in-context learning.
+Socio-Economic Impacts of Language Models Prior research has shown that unfairness in LMs can be a consequence of different stages in the model’s development pipeline (Cao and Daumé III, 2020; Talat et al., 2021). Many efforts have been di- rected towards identifying social biases in language model generations (Wolfe and Caliskan, 2021; Dev et al., 2022; Sheng et al., 2021; Chen et al., 2021; Hutchinson et al., 2020). Other works have sur- faced the cultural and language disparity beyond and within multilingual language models (Guru- rangan et al., 2022; Kreutzer et al., 2022; Virtanen et al., 2019). Talat et al. (2022) discuss various challenges that impact bias evaluation in multilin- gual settings. They also examine the power dynam- ics and consequences of training language models emphasizing the importance for researchers to be mindful of the implications associated with the ad- vancement of such technologies. In this work, we study the economic unfairness of LMs across dif- ferent communities. The most closely related to our work is Kasai et al. (2023) which also report unfair API costs as a result of tokenization differ- ences between English and Japanese. We extend this analysis to 21 more languages highlighting the pervasiveness of this issue.
+7 Conclusion
+By analyzing popular language model APIs on challenging multilingual benchmarks, we find that (a) API tokenizers disproportionately favor Latin scripted languages and over-fragment less repre- sented languages and scripts, (b) the API pricing
+policy of charging based on the number of tokens is flawed and extremely unfair towards speakers of the over-fragmented languages, and (c) the API performs poorly on such languages compared to the less-fragmented counterparts. In the current NLP research landscape, where more and more in- dustrial labs are building their own APIs, this is a concerning trend that may reduce the accessibility of these technologies to already marginalized com- munities. Hence, we encourage the vendors to be more transparent about their models’ limitations and rethink their pricing policy.
+Ethics Statement
+This work sheds light on the consequences of unfair tokenization to users of commercial LM APIs that speak languages with scripts less represented in the pretraining data. With the recent widespread use of commercial LMs, we believe that our work is crucial to ensuring that language technologies are accessible to diverse users irrespective of the languages they speak.
+There are different factors that contribute to non- uniform tokenization across languages. Whilst our analysis touches on the size of pretraining data and language writing systems we suspect that there might be other factors not yet uncovered; we leave that for future work. The lack of access to Ope- nAI’s training data prevents us from making solid claims about all the languages that ChatGPT is optimized for; however, their models have been advertised and shown to work well in many lan- guages. More work on large multilingual models should include the release of (details of) training data to further enable this kind of research.
+Limitations
+Translationese We conduct the analysis to an- swer RQ1 using a parallel corpus, FLORES- 200 (Team et al., 2022), in order to control for the same information. This corpus consists of many examples that have been professionally translated. Prior studies have shown that translated texts in any language (referred to as translationese) may differ from original written text in many ways (Laviosa, 2002). These may have caused the information conveyed in different languages to not be exactly the same. We do not have a way to measure these differences. However, we expect them not to be significantly large so as to meaningfully affect the trend of fragmentation rates.
+
+
+Language statistics of ChatGPT training data ChatGPT is a closed model developed by OpenAI who have not released the training details of the model including any information of the languages it supports 12. Hence, we cannot ascertain the ac- tual statistics of all the languages in their training data. We use CC100 (Wenzek et al., 2020), a large multilingual corpus, to estimate these statistics.
+Acknowledgements
+We thank the members of the Tsvetshop Lab and Noah’s Ark Lab at the University of Washington for the valuable discussions and useful feedback. We thank Lucille Njoo for help with our illustrations. We gratefully acknowledge support from NSF the Alfred CAREER Grant No. IIS2142739, P. Sloan Foundation Fellowship, and NSF grants No. IIS2125201, IIS2203097, and IIS2040926. Any opinions, findings and conclusions or recom- mendations expressed in this material are those of the authors and do not necessarily state or re- flect those of the United States Government or any agency thereof.
+12The only official information they provide about Chat- GPT’s multilingual support is here: https://help.opena i.com/en/articles/6742369-how-do-i-use-the-opena i-api-in-different-languages. Prior studies have specu- lated that ChatGPT was trained on at least 90 languages (Ahuja et al., 2023)
+References
+Mohamed Abdalla, Jan Philip Wahle, Terry Ruas, Au- rélie Névéol, Fanny Ducel, Saif M Mohammad, and Karën Fort. 2023. The elephant in the room: Ana- lyzing the presence of big tech in natural language processing research. In Proceedings of ACL.
+Kabir Ahuja, Rishav Hada, Millicent Ochieng, Prachi Jain, Harshita Diddee, Samuel Maina, Tanuja Ganu, Sameer Segal, Maxamed Axmed, Kalika Bali, and Sunayana Sitaram. 2023. Mega: Multilingual evalua- tion of generative ai.
+Joshua Ainslie, Tao Lei, Michiel de Jong, Santiago Ontan’on, Siddhartha Brahma, Yury Zemlyanskiy, David C. Uthus, Mandy Guo, James Lee-Thorp, Yi Tay, Yun-Hsuan Sung, and Sumit K. Sanghai. 2023. Colt5: Faster long-range transformers with conditional computation. ArXiv, abs/2303.09752.
+Farhad Akhbardeh, Arkady Arkhangorodsky, Mag- dalena Biesialska, Ondˇrej Bojar, Rajen Chatter- jee, Vishrav Chaudhary, Marta R. Costa-jussa, Cristina España-Bonet, Angela Fan, Christian Fe- dermann, Markus Freitag, Yvette Graham, Ro- man Grundkiewicz, Barry Haddow, Leonie Harter, Kenneth Heafield, Christopher Homan, Matthias Huck, Kwabena Amponsah-Kaakyire, Jungo Kasai, Daniel Khashabi, Kevin Knight, Tom Kocmi, Philipp Koehn, Nicholas Lourie, Christof Monz, Makoto Morishita, Masaaki Nagata, Ajay Nagesh, Toshiaki Nakazawa, Matteo Negri, Santanu Pal, Allahsera Au- guste Tapo, Marco Turchi, Valentin Vydrin, and Mar- cos Zampieri. 2021. Findings of the 2021 conference on machine translation (WMT21). In Proceedings of the Sixth Conference on Machine Translation, pages 1–88, Online. Association for Computational Linguis- tics.
+Mikel Artetxe, Sebastian Ruder, and Dani Yogatama. 2019. On the cross-lingual transferability of mono- lingual representations. In Annual Meeting of the Association for Computational Linguistics.
+Yejin Bang, Samuel Cahyawijaya, Nayeon Lee, Wen- liang Dai, Dan Su, Bryan Wilie, Holy Lovenia, Ziwei Ji, Tiezheng Yu, Willy Chung, Quyet V. Do, Yan Xu, and Pascale Fung. 2023. A multitask, multilin- gual, multimodal evaluation of chatgpt on reasoning, hallucination, and interactivity.
+Sidney Black, Stella Biderman, Eric Hallahan, Quentin Anthony, Leo Gao, Laurence Golding, Horace He, Connor Leahy, Kyle McDonell, Jason Phang, Michael Pieler, Usvsn Sai Prashanth, Shivanshu Puro- hit, Laria Reynolds, Jonathan Tow, Ben Wang, and Samuel Weinbach. 2022. GPT-NeoX-20B: An open- source autoregressive language model. In Proceed- ings of BigScience Episode #5 – Workshop on Chal- lenges & Perspectives in Creating Large Language Models, pages 95–136, virtual+Dublin. Association for Computational Linguistics.
+Kaj Bostrom and Greg Durrett. 2020. Byte pair encod- ing is suboptimal for language model pretraining. In
+
+
+Findings of the Association for Computational Lin- guistics: EMNLP 2020, pages 4617–4624, Online. Association for Computational Linguistics.
+Tom Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared D Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, Sandhini Agarwal, Ariel Herbert-Voss, Gretchen Krueger, Tom Henighan, Rewon Child, Aditya Ramesh, Daniel Ziegler, Jeffrey Wu, Clemens Winter, Chris Hesse, Mark Chen, Eric Sigler, Ma- teusz Litwin, Scott Gray, Benjamin Chess, Jack Clark, Christopher Berner, Sam McCandlish, Alec Radford, Ilya Sutskever, and Dario Amodei. 2020. In Ad- Language models are few-shot learners. vances in Neural Information Processing Systems, volume 33, pages 1877–1901. Curran Associates, Inc.
+Aydar Bulatov, Yuri Kuratov, and Mikhail S. Burtsev. 2023. Scaling transformer to 1m tokens and beyond with rmt.
+Yang Trista Cao and Hal Daumé III. 2020. Toward gender-inclusive coreference resolution. In Proceed- ings of the 58th Annual Meeting of the Association for Computational Linguistics, pages 4568–4595, On- line. Association for Computational Linguistics.
+Yan Chen, Christopher Mahoney, Isabella Grasso, Esma Wali, Abigail Matthews, Thomas Middleton, Mariama Njie, and Jeanna Matthews. 2021. Gender bias and under-representation in natural language pro- cessing across human languages. In Proceedings of the 2021 AAAI/ACM Conference on AI, Ethics, and Society, AIES ’21, page 24–34, New York, NY, USA. Association for Computing Machinery.
+Hyung Won Chung, Dan Garrette, Kiat Chuan Tan, and Jason Riesa. 2020. Improving multilingual models with language-clustered vocabularies. In Proceed- ings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 4536–4546, Online. Association for Computational Linguistics.
+Hyung Won Chung, Le Hou, Shayne Longpre, Barret Zoph, Yi Tay, William Fedus, Yunxuan Li, Xuezhi Wang, Mostafa Dehghani, Siddhartha Brahma, Al- bert Webson, Shixiang Shane Gu, Zhuyun Dai, Mirac Suzgun, Xinyun Chen, Aakanksha Chowdh- ery, Alex Castro-Ros, Marie Pellat, Kevin Robinson, Dasha Valter, Sharan Narang, Gaurav Mishra, Adams Yu, Vincent Zhao, Yanping Huang, Andrew Dai, Hongkun Yu, Slav Petrov, Ed H. Chi, Jeff Dean, Ja- cob Devlin, Adam Roberts, Denny Zhou, Quoc V. Le, and Jason Wei. 2022. Scaling instruction-finetuned language models.
+Alexis Conneau and Guillaume Lample. 2019. Cross- lingual language model pretraining. In Advances in Neural Information Processing Systems, volume 32. Curran Associates, Inc.
+Alexis Conneau, Ruty Rinott, Guillaume Lample, Ad- ina Williams, Samuel R. Bowman, Holger Schwenk,
+and Veselin Stoyanov. 2018. Xnli: Evaluating cross- lingual sentence representations. In Proceedings of the 2018 Conference on Empirical Methods in Natu- ral Language Processing. Association for Computa- tional Linguistics.
+Tim Dettmers, Mike Lewis, Younes Belkada, and Luke Zettlemoyer. 2022. GPT3.int8(): 8-bit matrix mul- tiplication for transformers at scale. In Advances in Neural Information Processing Systems.
+Sunipa Dev, Emily Sheng, Jieyu Zhao, Aubrie Amstutz, Jiao Sun, Yu Hou, Mattie Sanseverino, Jiin Kim, Ak- ihiro Nishi, Nanyun Peng, and Kai-Wei Chang. 2022. On measures of biases and harms in NLP. In Find- ings of the Association for Computational Linguis- tics: AACL-IJCNLP 2022, pages 246–267, Online only. Association for Computational Linguistics.
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. 2019. BERT: Pre-training of deep bidirectional transformers for language under- standing. In Proceedings of the 2019 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Tech- nologies, Volume 1 (Long and Short Papers), pages 4171–4186, Minneapolis, Minnesota. Association for Computational Linguistics.
+Nolan Dey, Gurpreet Gosal, Zhiming, Chen, Hemant Khachane, William Marshall, Ribhu Pathria, Mar- vin Tom, and Joel Hestness. 2023. Cerebras-gpt: Open compute-optimal language models trained on the cerebras wafer-scale cluster.
+Peter Farb. 1974. Word play : what happens when
+people talk.
+Naman Goyal, Cynthia Gao, Vishrav Chaudhary, Peng- Jen Chen, Guillaume Wenzek, Da Ju, Sanjana Kr- ishnan, Marc’Aurelio Ranzato, Francisco Guzmán, and Angela Fan. 2022. The Flores-101 evaluation benchmark for low-resource and multilingual ma- chine translation. Transactions of the Association for Computational Linguistics, 10:522–538.
+Ashim Gupta and Vivek Srikumar. 2021. X-fact: A new benchmark dataset for multilingual fact checking. In Annual Meeting of the Association for Computational Linguistics.
+Suchin Gururangan, Dallas Card, Sarah Dreier, Emily Gade, Leroy Wang, Zeyu Wang, Luke Zettlemoyer, and Noah A. Smith. 2022. Whose language counts as high quality? measuring language ideologies in text data selection. In Proceedings of the 2022 Con- ference on Empirical Methods in Natural Language Processing, pages 2562–2580, Abu Dhabi, United Arab Emirates. Association for Computational Lin- guistics.
+Tahmid Hasan, Abhik Bhattacharjee, Wasi Uddin Ah- mad, Yuan-Fang Li, Yong-Bin Kang, and Rifat Shahriyar. 2021a. Crosssum: Beyond english- centric cross-lingual abstractive text summarization for 1500+ language pairs. ArXiv, abs/2112.08804.
+
+
+Tahmid Hasan, Abhik Bhattacharjee, Md. Saiful Islam, Kazi Samin, Yuan-Fang Li, Yong-Bin Kang, M. So- hel Rahman, and Rifat Shahriyar. 2021b. Xl-sum: Large-scale multilingual abstractive summarization for 44 languages. In Findings.
+Valentin Hofmann, Hinrich Schuetze, and Janet Pierre- humbert. 2022. An embarrassingly simple method to mitigate undesirable properties of pretrained lan- guage model tokenizers. In Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 2: Short Papers), pages 385–393, Dublin, Ireland. Association for Computational Lin- guistics.
+Haoyang Huang, Tianyi Tang, Dongdong Zhang, Wayne Xin Zhao, Ting Song, Yan Xia, and Furu Wei. 2023. Not all languages are created equal in llms: Improving multilingual capability by cross-lingual- thought prompting.
+Ben Hutchinson, Vinodkumar Prabhakaran, Emily Den- ton, Kellie Webster, Yu Zhong, and Stephen Denuyl. 2020. Social biases in NLP models as barriers for persons with disabilities. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, pages 5491–5501, Online. Association for Computational Linguistics.
+Melvin Johnson, Mike Schuster, Quoc V. Le, Maxim Krikun, Yonghui Wu, Zhifeng Chen, Nikhil Thorat, Fernanda Viégas, Martin Wattenberg, Greg Corrado, Macduff Hughes, and Jeffrey Dean. 2017. Google’s multilingual neural machine translation system: En- abling zero-shot translation. Transactions of the As- sociation for Computational Linguistics, 5:339–351.
+Danial Kamali, Behrooz Janfada, Mohammad Ebrahim Shenasa, and Behrouz Minaei-Bidgoli. 2022. Evalu- ating persian tokenizers.
+Jungo Kasai, Yuhei Kasai, Keisuke Sakaguchi, Yutaro Yamada, and Dragomir R. Radev. 2023. Evaluating GPT-4 and ChatGPT on Japanese medical licensing examinations.
+Stav Klein and Reut Tsarfaty. 2020. Getting the ##life out of living: How adequate are word-pieces for mod- elling complex morphology? In Proceedings of the 17th SIGMORPHON Workshop on Computational Research in Phonetics, Phonology, and Morphology, pages 204–209, Online. Association for Computa- tional Linguistics.
+Julia Kreutzer, Isaac Caswell, Lisa Wang, Ahsan Wahab, Daan van Esch, Nasanbayar Ulzii-Orshikh, Allah- sera Tapo, Nishant Subramani, Artem Sokolov, Clay- tone Sikasote, Monang Setyawan, Supheakmungkol Sarin, Sokhar Samb, Benoî t Sagot, Clara Rivera, Annette Rios, Isabel Papadimitriou, Salomey Osei, Pedro Ortiz Suarez, Iroro Orife, Kelechi Ogueji, An- dre Niyongabo Rubungo, Toan Q. Nguyen, Math- ias Müller, André Müller, Shamsuddeen Hassan Muhammad, Nanda Muhammad, Ayanda Mnyak- eni, Jamshidbek Mirzakhalov, Tapiwanashe Matan- gira, Colin Leong, Nze Lawson, Sneha Kudugunta,
+Yacine Jernite, Mathias Jenny, Orhan Firat, Bonaven- ture F. P. Dossou, Sakhile Dlamini, Nisansa de Silva, Sakine Çabuk Ballı, Stella Biderman, Alessia Bat- tisti, Ahmed Baruwa, Ankur Bapna, Pallavi Baljekar, Israel Abebe Azime, Ayodele Awokoya, Duygu Ata- man, Orevaoghene Ahia, Oghenefego Ahia, Sweta Agrawal, and Mofetoluwa Adeyemi. 2022. Quality at a glance: An audit of web-crawled multilingual datasets. Transactions of the Association for Compu- tational Linguistics, 10:50–72.
+Taku Kudo. 2018. Subword regularization: Improv- ing neural network translation models with multiple subword candidates. In Proceedings of the 56th An- nual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages 66–75, Melbourne, Australia. Association for Computational Linguistics.
+Viet Dac Lai, Nghia Trung Ngo, Amir Pouran Ben Vey- seh, Hieu Man, Franck Dernoncourt, Trung Bui, and Thien Huu Nguyen. 2023. ChatGPT beyond En- glish: Towards a comprehensive evaluation of large language models in multilingual learning.
+Hugo Laurençon, Lucile Saulnier, Thomas Wang, Christopher Akiki, Albert Villanova del Moral, Teven Le Scao, Leandro Von Werra, Chenghao Mou, Eduardo González Ponferrada, Huu Nguyen, Jörg Frohberg, Mario Šaško, Quentin Lhoest, Angelina McMillan-Major, Gerard Dupont, Stella Biderman, Anna Rogers, Loubna Ben allal, Francesco De Toni, Giada Pistilli, Olivier Nguyen, Somaieh Nikpoor, Maraim Masoud, Pierre Colombo, Javier de la Rosa, Paulo Villegas, Tristan Thrush, Shayne Longpre, Se- bastian Nagel, Leon Weber, Manuel Muñoz, Jian Zhu, Daniel Van Strien, Zaid Alyafeai, Khalid Al- mubarak, Minh Chien Vu, Itziar Gonzalez-Dios, Aitor Soroa, Kyle Lo, Manan Dey, Pedro Ortiz Suarez, Aaron Gokaslan, Shamik Bose, David Ade- lani, Long Phan, Hieu Tran, Ian Yu, Suhas Pai, Jenny Chim, Violette Lepercq, Suzana Ilic, Margaret Mitchell, Sasha Alexandra Luccioni, and Yacine Jer- nite. 2023. The bigscience roots corpus: A 1.6tb composite multilingual dataset.
+Sara Laviosa. 2002. Corpus-based translation studies:
+Theory, findings, applications.
+Sabrina J. Mielke, Zaid Alyafeai, Elizabeth Salesky, Colin Raffel, Manan Dey, Matthias Gallé, Arun Raja, Chenglei Si, Wilson Y. Lee, Benoît Sagot, and Sam- son Tan. 2021. Between words and characters: A brief history of open-vocabulary modeling and tok- enization in nlp.
+Niklas Muennighoff, Thomas Wang, Lintang Sutawika, Adam Roberts, Stella Rose Biderman, Teven Le Scao, M Saiful Bari, Sheng Shen, Zheng Xin Yong, Hailey Schoelkopf, Xiangru Tang, Dragomir R. Radev, Alham Fikri Aji, Khalid Almubarak, Samuel Albanie, Zaid Alyafeai, Albert Webson, Edward Raff, and Colin Raffel. 2022. Crosslingual gen- eralization through multitask finetuning. ArXiv, abs/2211.01786.
+
+
+Benjamin Muller, Antonios Anastasopoulos, Benoît Sagot, and Djamé Seddah. 2021. When being un- seen from mBERT is just the beginning: Handling new languages with multilingual language models. In Proceedings of the 2021 Conference of the North American Chapter of the Association for Computa- tional Linguistics: Human Language Technologies, pages 448–462, Online. Association for Computa- tional Linguistics.
+El Moatez Billah Nagoudi, Muhammad Abdul-Mageed, AbdelRahim Elmadany, Alcides Alcoba Inciarte, and Md. Tawkat Islam Khondaker. 2022. Jasmine: Arabic gpt models for few-shot learning. ArXiv, abs/2212.10755.
+Graham Neubig and Kevin Duh. 2013. How much is said in a tweet? a multilingual, information-theoretic perspective. In AAAI Spring Symposium: Analyzing Microtext.
+Long Ouyang, Jeffrey Wu, Xu Jiang, Diogo Almeida, Carroll Wainwright, Pamela Mishkin, Chong Zhang, Sandhini Agarwal, Katarina Slama, Alex Ray, John Schulman, Jacob Hilton, Fraser Kelton, Luke Miller, Maddie Simens, Amanda Askell, Peter Welinder, Paul F Christiano, Jan Leike, and Ryan Lowe. 2022. Training language models to follow instructions with human feedback. In Advances in Neural Information Processing Systems, volume 35, pages 27730–27744. Curran Associates, Inc.
+Gunho Park, Baeseong Park, Minsub Kim, Sungjae Lee, Jeonghoon Kim, Beomseok Kwon, Se Jung Kwon, Byeongwook Kim, Youngjoo Lee, and Dongsoo Lee. 2023. Lut-gemm: Quantized matrix multiplication based on luts for efficient inference in large-scale generative language models.
+Ofir Press, Noah Smith, and Mike Lewis. 2022. Train short, test long: Attention with linear biases enables input length extrapolation. In International Confer- ence on Learning Representations.
+Ivan Provilkov, Dmitrii Emelianenko, and Elena Voita. 2020. BPE-dropout: Simple and effective subword regularization. In Proceedings of the 58th Annual Meeting of the Association for Computational Lin- guistics, pages 1882–1892, Online. Association for Computational Linguistics.
+Chengwei Qin, Aston Zhang, Zhuosheng Zhang, Jiaao Chen, Michihiro Yasunaga, and Diyi Yang. 2023. Is chatgpt a general-purpose natural language process- ing task solver?
+Alec Radford, Jeff Wu, Rewon Child, David Luan, Dario Amodei, and Ilya Sutskever. 2019. Language models are unsupervised multitask learners.
+Jack W. Rae, Sebastian Borgeaud, Trevor Cai, Katie Millican, Jordan Hoffmann, Francis Song, John Aslanides, Sarah Henderson, Roman Ring, Susan- nah Young, Eliza Rutherford, Tom Hennigan, Ja- cob Menick, Albin Cassirer, Richard Powell, George
+van den Driessche, Lisa Anne Hendricks, Mari- beth Rauh, Po-Sen Huang, Amelia Glaese, Jo- hannes Welbl, Sumanth Dathathri, Saffron Huang, Jonathan Uesato, John Mellor, Irina Higgins, Anto- nia Creswell, Nat McAleese, Amy Wu, Erich Elsen, Siddhant Jayakumar, Elena Buchatskaya, David Bud- den, Esme Sutherland, Karen Simonyan, Michela Pa- ganini, Laurent Sifre, Lena Martens, Xiang Lorraine Li, Adhiguna Kuncoro, Aida Nematzadeh, Elena Gribovskaya, Domenic Donato, Angeliki Lazaridou, Arthur Mensch, Jean-Baptiste Lespiau, Maria Tsim- poukelli, Nikolai Grigorev, Doug Fritz, Thibault Sot- tiaux, Mantas Pajarskas, Toby Pohlen, Zhitao Gong, Daniel Toyama, Cyprien de Masson d’Autume, Yujia Li, Tayfun Terzi, Vladimir Mikulik, Igor Babuschkin, Aidan Clark, Diego de Las Casas, Aurelia Guy, Chris Jones, James Bradbury, Matthew Johnson, Blake Hechtman, Laura Weidinger, Iason Gabriel, William Isaac, Ed Lockhart, Simon Osindero, Laura Rimell, Chris Dyer, Oriol Vinyals, Kareem Ayoub, Jeff Stanway, Lorrayne Bennett, Demis Hassabis, Ko- ray Kavukcuoglu, and Geoffrey Irving. 2022. Scaling language models: Methods, analysis & insights from training gopher.
+Phillip Rust, Jonas Pfeiffer, Ivan Vuli´c, Sebastian Ruder, and Iryna Gurevych. 2021. How good is your tok- enizer? on the monolingual performance of multilin- gual language models. In Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Confer- ence on Natural Language Processing (Volume 1: Long Papers), pages 3118–3135, Online. Association for Computational Linguistics.
+Teven Le Scao, Angela Fan, Christopher Akiki, Elizabeth-Jane Pavlick, Suzana Ili’c, Daniel Hesslow, Roman Castagn’e, Alexandra Sasha Luccioni, Franc- cois Yvon, Matthias Gallé, Jonathan Tow, Alexan- der M. Rush, Stella Rose Biderman, Albert Web- son, Pawan Sasanka Ammanamanchi, Thomas Wang, Benoît Sagot, Niklas Muennighoff, Albert Villanova del Moral, Olatunji Ruwase, Rachel Bawden, Stas Bekman, Angelina McMillan-Major, Iz Beltagy, Huu Nguyen, Lucile Saulnier, Samson Tan, Pedro Ortiz Suarez, Victor Sanh, Hugo Laurenccon, Yacine Jer- nite, Julien Launay, Margaret Mitchell, Colin Raf- fel, Aaron Gokaslan, Adi Simhi, Aitor Soroa Etx- abe, Alham Fikri Aji, Amit Alfassy, Anna Rogers, Ariel Kreisberg Nitzav, Canwen Xu, Chenghao Mou, Chris C. Emezue, Christopher Klamm, Colin Leong, Daniel Alexander van Strien, David Ifeoluwa Ade- lani, Dragomir R. Radev, Eduardo Gonz’alez Pon- ferrada, Efrat Levkovizh, Ethan Kim, Eyal Bar Natan, Francesco De Toni, Gérard Dupont, Germán Kruszewski, Giada Pistilli, Hady ElSahar, Hamza Benyamina, Hieu Trung Tran, Ian Yu, Idris Abdul- mumin, Isaac Johnson, Itziar Gonzalez-Dios, Javier de la Rosa, Jenny Chim, Jesse Dodge, Jian Zhu, Jonathan Chang, Jorg Frohberg, Josephine L. To- bing, Joydeep Bhattacharjee, Khalid Almubarak, Kimbo Chen, Kyle Lo, Leandro von Werra, Leon Weber, Long Phan, Loubna Ben Allal, Ludovic Tan- guy, Manan Dey, Manuel Romero Muñoz, Maraim
+
+
+Masoud, Mar’ia Grandury, Mario vSavsko, Max Huang, Maximin Coavoux, Mayank Singh, Mike Tian-Jian Jiang, Minh Chien Vu, Mohammad Ali Jauhar, Mustafa Ghaleb, Nishant Subramani, Nora Kassner, Nurulaqilla Khamis, Olivier Nguyen, Omar Espejel, Ona de Gibert, Paulo Villegas, Peter Hen- derson, Pierre Colombo, Priscilla Amuok, Quentin Lhoest, Rheza Harliman, Rishi Bommasani, Roberto L’opez, Rui Ribeiro, Salomey Osei, Sampo Pyysalo, Sebastian Nagel, Shamik Bose, Shamsuddeen Has- san Muhammad, Shanya Sharma, S. Longpre, So- maieh Nikpoor, Stanislav Silberberg, Suhas Pai, Syd- ney Zink, Tiago Timponi Torrent, Timo Schick, Tris- tan Thrush, Valentin Danchev, Vassilina Nikoulina, Veronika Laippala, Violette Lepercq, Vrinda Prabhu, Zaid Alyafeai, Zeerak Talat, Arun Raja, Benjamin Heinzerling, Chenglei Si, Elizabeth Salesky, Sab- rina J. Mielke, Wilson Y. Lee, Abheesht Sharma, An- drea Santilli, Antoine Chaffin, Arnaud Stiegler, Deba- jyoti Datta, Eliza Szczechla, Gunjan Chhablani, Han Wang, Harshit Pandey, Hendrik Strobelt, Jason Alan Fries, Jos Rozen, Leo Gao, Lintang Sutawika, M Sai- ful Bari, Maged S. Al-shaibani, Matteo Manica, Ni- hal V. Nayak, Ryan Teehan, Samuel Albanie, Sheng Shen, Srulik Ben-David, Stephen H. Bach, Taewoon Kim, Tali Bers, Thibault Févry, Trishala Neeraj, Ur- mish Thakker, Vikas Raunak, Xiang Tang, Zheng Xin Yong, Zhiqing Sun, Shaked Brody, Y Uri, Hadar Tojarieh, Adam Roberts, Hyung Won Chung, Jae- sung Tae, Jason Phang, Ofir Press, Conglong Li, Deepak Narayanan, Hatim Bourfoune, Jared Casper, Jeff Rasley, Max Ryabinin, Mayank Mishra, Minjia Zhang, Mohammad Shoeybi, Myriam Peyrounette, Nicolas Patry, Nouamane Tazi, Omar Sanseviero, Patrick von Platen, Pierre Cornette, Pierre Franc- cois Lavall’ee, Rémi Lacroix, Samyam Rajbhan- dari, Sanchit Gandhi, Shaden Smith, Stéphane Re- quena, Suraj Patil, Tim Dettmers, Ahmed Baruwa, Amanpreet Singh, Anastasia Cheveleva, Anne-Laure Ligozat, Arjun Subramonian, Aur’elie N’ev’eol, Charles Lovering, Daniel H Garrette, Deepak R. Tunuguntla, Ehud Reiter, Ekaterina Taktasheva, Eka- terina Voloshina, Eli Bogdanov, Genta Indra Winata, Hailey Schoelkopf, Jan-Christoph Kalo, Jekate- rina Novikova, Jessica Zosa Forde, Xiangru Tang, Jungo Kasai, Ken Kawamura, Liam Hazan, Ma- rine Carpuat, Miruna Clinciu, Najoung Kim, New- ton Cheng, Oleg Serikov, Omer Antverg, Oskar van der Wal, Rui Zhang, Ruochen Zhang, Sebastian Gehrmann, S. Osher Pais, Tatiana Shavrina, Thomas Scialom, Tian Yun, Tomasz Limisiewicz, Verena Rieser, Vitaly Protasov, Vladislav Mikhailov, Yada Pruksachatkun, Yonatan Belinkov, Zachary Bam- berger, Zdenvek Kasner, Alice Rueda, Amanda Pes- tana, Amir Feizpour, Ammar Khan, Amy Faranak, Ananda Santa Rosa Santos, Anthony Hevia, Antig- ona Unldreaj, Arash Aghagol, Arezoo Abdollahi, Aycha Tammour, Azadeh HajiHosseini, Bahareh Behroozi, Benjamin Olusola Ajibade, Bharat Kumar Saxena, Carlos Muñoz Ferrandis, Danish Contrac- tor, David M. Lansky, Davis David, Douwe Kiela, Duong Anh Nguyen, Edward Tan, Emily Baylor, Ez- inwanne Ozoani, Fatim T Mirza, Frankline Onon-
+iwu, Habib Rezanejad, H.A. Jones, Indrani Bhat- tacharya, Irene Solaiman, Irina Sedenko, Isar Ne- jadgholi, Jan Passmore, Joshua Seltzer, Julio Bonis Sanz, Karen Fort, Lívia Macedo Dutra, Mairon Sama- gaio, Maraim Elbadri, Margot Mieskes, Marissa Ger- chick, Martha Akinlolu, Michael McKenna, Mike Qiu, M. K. K. Ghauri, Mykola Burynok, Nafis Abrar, Nazneen Rajani, Nour Elkott, Nourhan Fahmy, Olanrewaju Samuel, Ran An, R. P. Kromann, Ryan Hao, Samira Alizadeh, Sarmad Shubber, Silas L. Wang, Sourav Roy, Sylvain Viguier, Thanh-Cong Le, Tobi Oyebade, Trieu Nguyen Hai Le, Yoyo Yang, Zachary Kyle Nguyen, Abhinav Ramesh Kashyap, Alfredo Palasciano, Alison Callahan, Anima Shukla, Antonio Miranda-Escalada, Ayush Kumar Singh, Benjamin Beilharz, Bo Wang, Caio Matheus Fon- seca de Brito, Chenxi Zhou, Chirag Jain, Chuxin Xu, Clémentine Fourrier, Daniel Le’on Perin’an, Daniel Molano, Dian Yu, Enrique Manjavacas, Fabio Barth, Florian Fuhrimann, Gabriel Altay, Giyased- din Bayrak, Gully A. Burns, Helena U. Vrabec, Iman I.B. Bello, Isha Dash, Ji Soo Kang, John Giorgi, Jonas Golde, Jose David Posada, Karthi Sivaraman, Lokesh Bulchandani, Lu Liu, Luisa Shinzato, Madeleine Hahn de Bykhovetz, Maiko Takeuchi, Marc Pàmies, María Andrea Castillo, Mar- ianna Nezhurina, Mario Sanger, Matthias Samwald, Michael Cullan, Michael Weinberg, M Wolf, Mina Mihaljcic, Minna Liu, Moritz Freidank, Myung- sun Kang, Natasha Seelam, Nathan Dahlberg, Nicholas Michio Broad, Nikolaus Muellner, Pascale Fung, Patricia Haller, R. Chandrasekhar, R. Eisen- berg, Robert Martin, Rodrigo L. Canalli, Rosaline Su, Ruisi Su, Samuel Cahyawijaya, Samuele Garda, Shlok S Deshmukh, Shubhanshu Mishra, Sid Ki- blawi, Simon Ott, Sinee Sang-aroonsiri, Srishti Ku- mar, Stefan Schweter, Sushil Pratap Bharati, T. A. Laud, Th’eo Gigant, Tomoya Kainuma, Wojciech Kusa, Yanis Labrak, Yashasvi Bajaj, Y. Venkatra- man, Yifan Xu, Ying Xu, Yun chao Xu, Zhee Xao Tan, Zhongli Xie, Zifan Ye, Mathilde Bras, Younes Belkada, and Thomas Wolf. 2022. Bloom: A 176b- parameter open-access multilingual language model. ArXiv, abs/2211.05100.
+Rico Sennrich, Barry Haddow, and Alexandra Birch. 2016. Neural machine translation of rare words with subword units. In Proceedings of the 54th Annual Meeting of the Association for Computational Lin- guistics (Volume 1: Long Papers), pages 1715–1725, Berlin, Germany. Association for Computational Lin- guistics.
+Emily Sheng, Kai-Wei Chang, Prem Natarajan, and Nanyun Peng. 2021. Societal biases in language generation: Progress and challenges. In Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers), pages 4275–4293, Online. Association for Computational Linguistics.
+Xinying Song, Alex Salcianu, Yang Song, Dave Dopson, and Denny Zhou. 2021. Fast WordPiece tokenization.
+
+
+In Proceedings of the 2021 Conference on Empiri- cal Methods in Natural Language Processing, pages 2089–2103, Online and Punta Cana, Dominican Re- public. Association for Computational Linguistics.
+Xinying Song, Alexandru Salcianu, Yang Song, Dave Dopson, and Denny Zhou. 2020. Fast wordpiece tokenization. In Conference on Empirical Methods in Natural Language Processing.
+Hongjin Su, Jungo Kasai, Chen Henry Wu, Weijia Shi, Tianlu Wang, Jiayi Xin, Rui Zhang, Mari Ostendorf, Luke Zettlemoyer, Noah A. Smith, and Tao Yu. 2023. Selective annotation makes language models better few-shot learners. In Proc. of ICLR.
+Jimin Sun, Patrick Fernandes, Xinyi Wang, and Gra- ham Neubig. 2023. A multi-dimensional evaluation of tokenizer-free multilingual pretrained models. In Findings of the Association for Computational Lin- guistics: EACL 2023, pages 1725–1735, Dubrovnik, Croatia. Association for Computational Linguistics.
+Tianxiang Sun, Yunfan Shao, Hong Qian, Xuanjing Huang, and Xipeng Qiu. 2022. Black-box tuning for language-model-as-a-service. In Proceedings of ICML.
+Zeerak Talat, Joachim Bingel, and Isabelle Augenstein. 2021. Disembodied machine learning: On the illu- sion of objectivity in nlp. ArXiv, abs/2101.11974.
+Zeerak Talat, Aurélie Névéol, Stella Biderman, Miruna Clinciu, Manan Dey, Shayne Longpre, Sasha Luc- cioni, Maraim Masoud, Margaret Mitchell, Dragomir Radev, Shanya Sharma, Arjun Subramonian, Jaesung Tae, Samson Tan, Deepak Tunuguntla, and Oskar Van Der Wal. 2022. You reap what you sow: On the chal- lenges of bias evaluation under multilingual settings. In Proceedings of BigScience Episode #5 – Workshop on Challenges & Perspectives in Creating Large Lan- guage Models, pages 26–41, virtual+Dublin. Associ- ation for Computational Linguistics.
+Yi Tay, Vinh Q. Tran, Sebastian Ruder, Jai Gupta, Hyung Won Chung, Dara Bahri, Zhen Qin, Simon Baumgartner, Cong Yu, and Donald Metzler. 2022. Charformer: Fast character transformers via gradient- based subword tokenization. In International Con- ference on Learning Representations.
+NLLB Team, Marta R. Costa-jussà, James Cross, Onur Çelebi, Maha Elbayad, Kenneth Heafield, Kevin Hef- fernan, Elahe Kalbassi, Janice Lam, Daniel Licht, Jean Maillard, Anna Sun, Skyler Wang, Guillaume Wenzek, Al Youngblood, Bapi Akula, Loic Bar- rault, Gabriel Mejia Gonzalez, Prangthip Hansanti, John Hoffman, Semarley Jarrett, Kaushik Ram Sadagopan, Dirk Rowe, Shannon Spruit, Chau Tran, Pierre Andrews, Necip Fazil Ayan, Shruti Bhosale, Sergey Edunov, Angela Fan, Cynthia Gao, Vedanuj Goswami, Francisco Guzmán, Philipp Koehn, Alexandre Mourachko, Christophe Ropers, Safiyyah Saleem, Holger Schwenk, and Jeff Wang. 2022. No language left behind: Scaling human- centered machine translation.
+Antti Virtanen, Jenna Kanerva, Rami Ilo, Jouni Luoma, Juhani Luotolahti, Tapio Salakoski, Filip Ginter, and Sampo Pyysalo. 2019. Multilingual is not enough: Bert for finnish.
+Guillaume Wenzek, Marie-Anne Lachaux, Alexis Con- neau, Vishrav Chaudhary, Francisco Guzmán, Ar- mand Joulin, and Edouard Grave. 2020. CCNet: Extracting high quality monolingual datasets from web crawl data. In Proceedings of the Twelfth Lan- guage Resources and Evaluation Conference, pages 4003–4012, Marseille, France. European Language Resources Association.
+Robert Wolfe and Aylin Caliskan. 2021. Low frequency names exhibit bias and overfitting in contextualizing language models. In Proceedings of the 2021 Con- ference on Empirical Methods in Natural Language Processing, pages 518–532, Online and Punta Cana, Dominican Republic. Association for Computational Linguistics.
+Jingjing Xu, Hao Zhou, Chun Gan, Zaixiang Zheng, and Lei Li. 2021. Vocabulary learning via optimal transport for neural machine translation. In Proceed- ings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers), pages 7361–7373, Online. Association for Computational Linguistics.
+Zhewei Yao, Reza Yazdani Aminabadi, Minjia Zhang, Xiaoxia Wu, Conglong Li, and Yuxiong He. 2022. Zeroquant: Efficient and affordable post-training In Ad- quantization for large-scale transformers. vances in Neural Information Processing Systems.
+Shiyue Zhang, Vishrav Chaudhary, Naman Goyal, James Cross, Guillaume Wenzek, Mohit Bansal, and Francisco Guzman. 2022a. How robust is neural ma- chine translation to language imbalance in multilin- gual tokenizer training? In Proceedings of the 15th biennial conference of the Association for Machine Translation in the Americas (Volume 1: Research Track), pages 97–116, Orlando, USA. Association for Machine Translation in the Americas.
+Susan Zhang, Stephen Roller, Naman Goyal, Mikel Artetxe, Moya Chen, Shuohui Chen, Christopher De- wan, Mona Diab, Xian Li, Xi Victoria Lin, Todor Mi- haylov, Myle Ott, Sam Shleifer, Kurt Shuster, Daniel Simig, Punit Singh Koura, Anjali Sridhar, Tianlu Wang, and Luke Zettlemoyer. 2022b. Opt: Open pre-trained transformer language models.
+Wenhao Zhu, Hongyi Liu, Qingxiu Dong, Jingjing Xu, Shujian Huang, Lingpeng Kong, Jiajun Chen, and Lei Li. 2023a. Multilingual machine translation with large language models: Empirical results and analy- sis.
+Yiming Zhu, Peixian Zhang, Ehsan-Ul Haq, Pan Hui, and Gareth Tyson. 2023b. Can chatgpt reproduce human-generated labels? a study of social computing tasks.
+
+
+Judit Ács. 2019. Exploring BERT’s vocabulary. http: //juditacs.github.io/2019/02/19/bert-tok enization-stats.html.
+A Appendix
+
+
+Task XLSUM
+XQUAD XNLI
+CROSSUM
+XFACT
+Prompt Template Write a short summary sentence of the following text in {language} Article: { article} Summary: Context: context Question: question Answer: Template {Premise} Question : {hypothesis} True, False, or Neither? Answer: Write a short summary sentence of the following text in English. Article: { article} Summary: Tell me whether the following claim is {label 1 } or {label 2 } or {label 3 } ... given evidence {evidence 1 }, {evidence 2 }, {evidence 3 }
+Table 2: Prompt template used for each dataset
+tr
+3
+ka
+4ExperimentCostrelativetoSpanish
+pl
+2
+sr
+es
+1
+it
+de
+id
+ro
+hi
+pt
+taLanguage
+0
+ar
+ko
+4ExperimentCostrelativetoEnglish
+ja
+3
+teLanguage
+0
+fr
+1
+en
+ru
+pt
+sw
+ar
+am
+hi
+ta
+vi
+es
+2
+id
+(a) XFACT
+(b) CROSSUM
+Figure 11: Relative cost of prompt + generated tokens for XFACT and CROSS-SUM evaluations.
+100
+0
+Afro-AsiaticAtlantic-CongoAustroasiaticAustronesianAymaranBasqueCommonTurkicConstructedDravidianIndo-EuropeanJaponicKartvelianKoreanicMandeMongolic-KhitanNiloticQuechuanSaharanSino-TibetanTai-KadaiTupianTurkicUralicLanguageFamily
+200Averagenumberoftokens
+40Averagenumberoftokens
+0
+20
+10
+Han(Simpliﬁed)DevanagariArabicTamilBengaliKannadaTeluguGujaratiMalayalamGurmukhiLatinLanguageScript
+30
+Figure 12: Average number of tokens per language family after tokenizing Flores dataset with GPT3.5 tok- enizer. The fragmentation rate is lower for Latin script languages and higher for other scripts.
+Figure 13: Average number of tokens per language script after tokenizing Flores dataset with BLOOM to- kenizer. The fragmentation rate is higher on average for Latin script languages. This is because majority of the low-resourced languages are latin-script and have higher fragmentation rate.
+
+
+200
+engrusindvieukrswethajpndeuronhunbulfraﬁnkorspaporellzhodanpolhebitanldslkhinhrvturceslittamcatslvkatsrpbenmalkazesturdhyemkdtelbelsinislkantglglgmareusgujkhmafrkirepoamhpancymglemyasomuigsanjavglabosasmsunLanguage
+0
+300Averagenumberoftokens
+100
+Figure 14: Average number of tokens per language after tokenizing FLORES with GPT3.5 tokenizer. Languages are arranged in descending order based on the size of pretraining data in Commoncrawl.
+engzhofraspaporarbviehinindbencattammaltelurdeuskanmarpangujasmswhyorkinxhoibozulsnalugwolrunfonnsolintsntwinyasottsoakabamkiktumLanguage
+0
+60Averagenumberoftokens
+40
+20
+Figure 15: Average number of tokens per language after tokenizing FLORES with BLOOM tokenizer. Languages are arranged in descending order based on the size of pretraining data in the ROOTS corpus.
+
+
+srp
+eus
+uig
+4
+sun
+guj
+8
+som
+kaz
+pan
+12RelativecosttoEnglish
+dan
+tel
+afr
+zho
+spa
+ron
+por
+hin
+ind
+ces
+tgl
+tur
+bul
+glg
+jav
+bos
+mar
+slv
+kat
+deu
+kir
+swe
+asm
+mal
+ben
+hrv
+ita
+1
+san
+kor
+ﬁn
+cat
+ukr
+gla
+heb
+eng
+epo
+tha
+isl
+hun
+bel
+kan
+lit
+khm
+fra
+pol
+nld
+est
+jpn
+ell
+hye
+cym
+sin
+mkd
+vie
+rus
+urd
+tam
+slk
+myaLanguage
+gle
+Figure 16: Estimated cost of API access to relative to English
+0.6
+150
+0.7
+300Averagenumberoftokens
+200
+AssameseBelarusianBengaliBosnianCatalanGermanGreekEnglishEstonianFinnishFrenchGalicianGujaratiHebrewHindiHungarianArmenianJapaneseKannadaGeorgianKazakhKhmerKyrgyzMalayalamMarathiMacedonianBurmeseEasternPanjabiPortugueseRussianSinhalaSomaliSpanishSundaneseTamilTeluguTagalogThaiUyghurUkrainianUrduVietnamese
+250
+50
+100
+0.5
+0.4
+0.9HumanDevelopmentIndex
+0.8
+Figure 17: Fragmentation rate per language against the Human Development Index in the top country where the language is spoken.
+
+
+Sinhala
+500
+25000
+Khmer
+5000
+Tamil
+Han(Simpliﬁed)
+50
+Turkic
+250
+Malayalam
+200
+200
+Gurmukhi
+Latin
+Hebrew
+OlChiki
+10000
+50000Vocabsize
+1000
+Tiﬁnagh
+Kannada
+Han(Traditional)
+Tibetan
+Greek
+Hangul
+Armenian
+400Avgnumberoftokens
+Lao
+Oriya
+300
+150
+Georgian
+Telugu
+Gujarati
+100
+Thai
+Myanmar
+Arabic
+Devanagari
+Japanese
+Cyrillic
+Geez
+350
+Bengali
+Figure 18: BBPE tokenizer trained on parallel text from 30 language scripts with varying vocabulary sizes. It is impossible to achieve uniform fragmnatation rate even when we have equal pretraining data sizes across all language scripts.

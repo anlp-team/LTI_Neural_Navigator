@@ -1,0 +1,213 @@
+4 2 0 2
+n a J
+9
+] S A . s s e e [
+2 v 6 7 8 8 0 . 9 0 3 2 : v i X r a
+DECODER-ONLY ARCHITECTURE FOR SPEECH RECOGNITION WITH CTC PROMPTS AND TEXT DATA AUGMENTATION
+Emiru Tsunoo, Hayato Futami, Yosuke Kashiwagi
+Siddhant Arora, Shinji Watanabe
+Sony Group Corporation, Japan
+Carnegie Mellon University, USA
+ABSTRACT
+Collecting audio–text pairs is expensive; however, it is much eas- ier to access text-only data. Unless using shallow fusion, end-to- end automatic speech recognition (ASR) models require architec- ture modiﬁcations or additional training schemes to use text-only data. Inspired by recent advances in decoder-only language mod- els (LMs), such as GPT-3 and PaLM adopted for speech-processing tasks, we propose using a decoder-only architecture for ASR with simple text augmentation. To provide audio information, encoder features compressed by CTC prediction are used as prompts for the decoder, which can be regarded as reﬁning CTC prediction using the decoder-only model. Because the decoder architecture is the same as an autoregressive LM, it is simple to enhance the model by leverag- ing external text data with LM training. An experimental comparison using LibriSpeech and Switchboard shows that our proposed mod- els with text augmentation training reduced word error rates from ordinary CTC by 0.3% and 1.4% on LibriSpeech test-clean and test- other set, respectively, and 2.9% and 5.0% on Switchboard and Call- Home. The proposed model had advantage on computational efﬁ- ciency compared with conventional encoder–decoder ASR models with a similar parameter setup, and outperformed them on the Lib- riSpeech 100h and Switchboard training scenarios.
+introduced in speech translation (ST) [18] and RNN transducer (RNN-T) decoding [19, 20]. Owing to the strong potential of LLMs, these methods perform well in multi-task scenarios of speech-to-text processing, such as ASR, speech synthesis, and ST. Inspired by this, we adopt a decoder-only architecture for ASR tasks that can be effectively enhanced with external text-only data.
+This study aims to build a decoder-only architecture for ASR tasks and enhance its performance with text augmentation using external text-only data. We provide audio information as prompts compressed by CTC prediction, which can also be regarded as re- ﬁning CTC prediction using a decoder-only model. Although Wu et al. attempted to train a decoder-only from scratch, they obtained a slightly degraded ST model compared to conventional encoder– decoder models. However, we train the decoder for ASR tasks using not only the audio–text pair but also external text-only data as aug- mentation. Thus, the model is trained from scratch for ASR and LM tasks simultaneously. Experimentally, we conﬁrmed that the pro- posed model successfully reﬁned the CTC results while achieving faster inference owing to the compression mechanism. Using Lib- riSpeech 100h subset and Switchboard with text augmentation, the decoder-only model outperformed conventional encoder–decoder models with a similar parameter setup. The main contributions of this study are as follows:
+Index Terms— Speech recognition, Decoder-only ASR, CTC,
+Prompt
+We propose a new training scheme to build a decoder-only model from scratch for ASR tasks simultaneously augmented by text- only data.
+1. INTRODUCTION
+End-to-end automatic speech recognition (ASR) requires a large amount of audio–text pair data, which is difﬁcult to obtain, whereas a large amount of text-only data can be obtained much more easily. How to exploit unpaired text data is not a trivial problem for ASR tasks. It is common to perform score interpolation with an external language model (LM) trained with text data with an ASR model [1, 2]. Some studies have revealed that estimating the linguistic bias in ASR models, an internal LM, is more suitable for further effective fusion [3–5]. To exploit the accessible text-only data directly to the models, some studies modiﬁed the model architecture to accept both audio–text pairs and text-only data as the input for training in a multitask learning manner [6–9].
+To the best of our knowledge, this is the ﬁrst study to success- fully outperform conventional encoder–decoder models with the decoder-only model having similar parameter sizes by exploiting external text-only data effectively.
+We experimentally show that our proposed approach achieves lower word error rates (WERs) by 0.3% and 1.4% for Lib- riSpeech test-clean and test-other, respectively, than the encoder– decoder model, with approximately half the computational cost, when we used paired data of 100h with text augmentation of 960h transcription data.
+2. CTC PROMPTS FOR DECODER-ONLY ASR
+Recently, such text resources have been effectively used by introducing pretrained large LMs (LLMs) including decoder-only LMs such as GPT-3 [10] and PaLM [11] into the ASR formulation. Studies have successfully adapted decoder-only LMs for speech- processing tasks [12–17]. To bridge the audio–text modalities, audio information is injected into the LLMs as a prompt, which are discrete audio units [12–14] or continuous representations injected directly into the linguistic embedding space [15, 16]. In the latter approach, encoded audio features are compressed by convolution layers [15, 16] or by CTC predictions [16], which have also been
+2.1. Decoder-only architecture
+We follow the encoder–decoder conformer ASR model [21], except that there are no source–target attention layers in the decoder trans- former. A transformer decoder that does not have source–target at- tention layers is considered an autoregressive decoder-only LM as GPT-3 [10] or PaLM [11].
+ASR is a task to predict the most probable I-length token se- quence Y I given a T -length input audio X T , i.e., Y I with the high- est probability p(Y I |X T ). Instead of directly using audio input X T
+
+
+Linguistic domain
+<eos>
+Next token prediction
+Decoder
+embedding space
+tokens
+<aud>
+<sos>
+Speech domain
+CTC
+CTC prediction
+Encoder
+audio signals
+Fig. 1. Model architecture of decoder-only model for ASR with CTC prompts.
+in the decoder, it is generally approximated by compact audio rep- resentation. The audio information is provided as τ -length prompts ˆHτ = {ˆht|1 ≤ t ≤ τ } directly in the embedding space of the de- coder. We propose using CTC prediction to efﬁciently generate the prompts, namely, CTC prompts, which are presented in Sec.2.2. The decoder autoregressively predicts the next linguistic token yi given an audio prompt token haudi, CTC prompts ˆHτ , and the previous outputs Y <i = {yj |0 ≤ j < i}. Thus,
+i
+p(Y i) =
+Y j=1
+p(yj| ˆHτ , Y <j )
+i
+=
+Y j=1
+Dec( ˆHτ , Y <j ),
+where y0 is a start-of-sequence token, hsosi. An overview of the proposed method is presented in Fig. 1.
+2.2. Audio prompt using CTC prediction
+CTC prompts are generated using an encoder. Generally, the length of audio is longer than that of the text sequence, which sometimes becomes problematic because the decoder self-attention computa- tion grows quadratically with the input length. A common approach is to use convolution layers [15,16], which downsample the audio in- put to a frame rate of 80 ms or higher to match the granularity of the linguistic tokens. However, Wu et al. showed that the CTC-based compression [18] is more effective than convolution layers [16]. In the literature, they compared removing frames that CTC predicts as “blank” and averaging frames of the same CTC predictions. We adopt the frame-removing approach, and all approaches were exper- imentally compared in Sec. 3.2.
+′-length encoded audio fea- } from audio input X T with a down-
+The conformer encoder outputs T = {ht|1 ≤ t ≤ T
+′
+′
+tures HT sample rate of N as
+HT
+′
+= Enc(X T ),
+′
+= T /N . Subsequently, the CTC module maps HT
+where T to the probability distribution of vocabulary V augmented with a blank token hblanki, which is jointly trained as in [22].
+′
+p(at) = CTC(ht),
+(1)
+(2)
+(3)
+(a)
+<eos>
+Decoder
+<sos>
+(b)
+<eos>
+Decoder
+<aud>
+<sos>
+Fig. 2. LM training methods. (a) is ordinary LM training. (b) is a pseudo prompt with the ground truth embedding vectors.
+where at ∈ {V ∪ hblanki}.
+′ is generally longer than that of text sequences, audio prompts ˆHτ are downsampled so that ′. We remove frames predicted as blank by the CTC and map τ < T them to the embedding space of the decoder, as follows.
+Since the length of audio features T
+ˆHτ = {MLP(ht)|t : ˆat 6= hblanki},
+where ˆat is the most probable one in the probability distribution (3) and MLP(·) is a mapping function from the encoder output to the embedding space, for which we adopt a linear layer for simplicity. Thus, the compressed audio prompt is directly injected into the con- tinuous embedding space of the decoder. The decoder can also be seen as a reﬁnement of the CTC prediction.
+2.3. Training with text augmentation
+While ASR training requires audio–text pair data, a large text corpus is much easier to collect. Therefore, it is reasonable to enhance ASR performance with such text data, generally with a shallow fusion of external LM models [1,2]; for example, the LibriSpeech corpus [23] provides signiﬁcantly more text-only data for training external LMs in addition to the 960h audio–transcription pair data. We focus on these scenarios and aim to enhance the decoder-only architecture us- ing an additional text set. For the ASR task, the encoder for CTC prompts and the autoregressive decoder are jointly trained. Because the architecture of the proposed decoder-only model and general au- toregressive LMs are represented by the same autoregressive trans- former, we use text-only data for text augmentation to train only the decoder for an LM task.
+The encoder and the decoder can be pre-trained using the pair data and unpaired text data, respectively, followed by ﬁne-tuning with paired data as in [15]. However, we aimed to train them from scratch because it is considered to converge to more optimal mod- els, which was conﬁrmed in Sec. 3.2. To conduct combined training, we split the mini-batch B for both the tasks and compute each loss simultaneously, that is, B = {BASR, BLM}.
+2.3.1. ASR training
+Following the joint training of the encoder–decoder and CTC in [22], we train the encoder, decoder, and CTC simultaneously. In each training step, in addition to the CTC loss Lctc, the decoder loss Latt
+(4)
+
+
+Table 1. ASR results with LibriSpeech 100h audio–text pair data and 960h text data results. External LM was trained using external text data. Decoding Fusion Param RTF IDs Models CTC
+Training Data ext-text
+Prompt
+WER
+test-clean 9.6 7.3 7.5 8.9 7.3 14.8 30.2 9.5 9.3 7.2 7.0 7.3
+test-other 23.5 19.6 19.4 21.5 18.9 27.7 41.2 23.0 19.9 18.5 17.5 18.7
+dev-other 22.8 18.8 18.6 20.9 18.0 26.9 41.8 22.4 19.6 18.1 16.8 18.0
+ext-LM dev-clean
+Baseline CTC [24] Baseline CTC [24] Baseline RNN-T [25] Baseline EncDec [21]
+B1 B2 B3 B4 B5 P1 P2 P3 D1 Dec-only w/ textAug D2 D3 F1
+9.2 7.1 7.0 8.6 6.9 14.1 30.5 9.3 8.7 7.0 6.7 7.0
+X X
+X X
+X
+X
+X
+Dec-only
+downsample CTC average CTC remove CTC remove CTC remove CTC remove CTC remove
+X X X X
+X X X
+X X
+Dec-only (ﬁne-tuned) [15]
+34.8M 0.14 44.2M 0.29 54.4M 0.67 46.8M 0.53 56.2M 0.58 45.3M 0.38 45.3M 0.55 45.3M 0.23 45.3M 0.24 45.3M 0.24 54.7M 0.29 54.7M 0.29
+is considered only for the transcription part, not including prompts, using teacher-forcing as:
+3. EXPERIMENTS
+3.1. Experimental setup
+LASR = λLctc + (1 − λ)Latt
+I
+= λLctc + (1 − λ)
+X i=0
+− log p(yi| ˆHτ , ˜Y <i),
+where ˜Y <i comes from the ground truth and ˆHτ is provided by the CTC prediction of the current model introduced in (4). The gradients are passed through ˆHτ such that the encoder parameters are updated based on (5). At the beginning of training, the CTC predictions are not sufﬁciently mature and tend to have fewer blank tokens. This results in longer CTC prompts, which can be problematic for training purposes. Therefore, we use tunable threshold θ to detect immature predictions. When τ > θI, we consider the CTC predictions to be immature and, for the particular training sentence, we replace Latt with LLM, which will be introduced in Sec. 2.3.2.
+2.3.2. LM training
+Because the architecture of the decoder-only model and an LM are represented by the same autoregressive transformer, we can only train the decoder with an LM task using randomly selected text sen- tences from the augmented data. A simple method is to follow or- dinary LM training and minimize the negative log-likelihood, which is equivalent to minimizing the perplexity.
+I
+(5)
+To evaluate the proposed decoder-only ASR model with CTC prompts, we used LibriSpeech [23], which contains an external text-only LM corpus. We also used the Switchboard dataset, which is generally combined with the Fisher corpus, as the external text- only data for LM. Following [21], we trained both the baseline conformer model (Baseline EncDec) and the decoder-only model with CTC prompts (Decoder-only); the difference was that the latter did not have source–target attention layers as described in Sec. 2.1. The input acoustic features were 80-dimensional ﬁlter-bank fea- tures. The decoder (Eq. (1)) was a 6-block transformer, and the encoder (Eq. (2)) was a 12-block conformer, both with four-head 256-unit attention layers and 2048-unit feed-forward layers. The models were trained using multi-task learning with CTC loss, as described in Sec 2.3.1, with a weight of λ = 0.3 in (5). Because we empirically found that ASR training (Eq. (5)) was more important than LM training with text augmentation (Eq. (6)) for ASR tasks, we allocated most of the mini-batches to the ASR tasks and used 10% of them for the LM tasks. Furthermore, we split the minibatch for LM tasks as |BLM| : |B∗ LM| = 1 : 1 as discussed in Sec. 2.3.2. Threshold θ in Sec. 2.3.1 was set to two. We used the Adam optimizer with Noam learning rate decay.
+The external LMs were trained using the text-only data, includ- ing an additional text corpus from LibriSpeech or Fisher. The LMs were two-layer LSTMs with 512 units. We applied byte-pair encod- ing subword tokenization with 5,000 token classes for LibriSpeech and 2000 for Switchboard.
+LLM =
+X i=0
+− log p(yi| ˜Y <i)
+This process is illustrated in Fig. 2(a). However, in ASR tasks, the decoder always expects CTC prompts. Therefore, it is reasonable to minimize the gap between LM training and ASR inference by creating pseudo audio prompts with the ground-truth embedding se- quence as in Fig. 2(b). For a subset of mini-batches B∗ LM, the CTC prompts in (1) are replaced by ˜Y I , as
+(6)
+For comparison, we evaluated the WERs of CTC [24] and RNN- T [25]. The baseline CTC used the same architecture as the afore- mentioned conformer encoder. RNN-T used a 15-block conformer encoder with a one-layer 256-unit LSTM for the prediction network. While the baseline EncDec and the proposed Decoder-only models were decoded in a label-synchronous manner, the CTC and RNN-T models used time-synchronous beam search with a beam size of 10, an LM-fusion weight of 0.4, and a length penalty of 1.0.
+L
+∗ LM =
+I
+X i=0
+− log p(yi| ˜Y I , ˜Y <i).
+The latter task is much easier because it copies the prompt sequence and outputs it directly. Therefore, we split batch BLM into batches with and without pseudo-CTC prompts to guarantee the token pre- diction ability based on (6), that is, BLM → {BLM, B∗
+LM}.
+(7)
+3.2. LibriSpeech 100h experiments
+First, we used the 100h clean subset of the LibriSpeech pair data and compared our proposed model under various conditions. When using the external text-only data for the text augmentation or LM training, the transcriptions of the 960h full training set were used. We trained the Baseline EncDec conformer, RNN-T, and the pro- posed decoder-only model using CTC prompts for 100 epochs. For
+
+
+Table 2. An example of transcription reﬁnement by the decoder-only architecture.
+Reference CTC Decoder-only
+the life of every man in the castle shall answer it if a hair of his head be signed show me his chamber the life of every man in the council shall answer it if a hair of his head be singinged show me his chamber the life of every man in the castle shall answer it if a hair of his head be signed show me his chamber
+Table 3. ASR results with LibriSpeech 960h paired data and external text results. The external LM was fused to all the models.
+Table 4. ASR results with Switchboard paired data and Fisher text corpus results. The external LM was fused to all the models.
+Models
+Baseline CTC [24] Baseline EncDec [21] Decoder-only w/ textAug
+WER
+test-clean 3.1 2.6 3.0
+test-other 7.0 6.2 6.6
+RTF
+0.30 0.54 0.29
+Models
+Baseline CTC [24] Baseline EncDec [21] Decoder-only w/ textAug
+WER Switchboard CallHome
+8.9 8.1 7.3
+15.5 14.8 13.3
+RTF
+0.28 0.42 0.28
+the Baseline EncDec and proposed Decoder-only models, we fused CTC and LM with weights of 0.4 and 0.6, respectively, and the beam size was 10. To evaluate the pure performance of decoder-only mod- els, we also trained the models with only the audio–text pair of 100h set, i.e., B = BASR, without any fusion. Furthermore, we measured the real-time factor (RTF) of the inference on the test-clean set using an 8 core 3.60 GHz Intel i9-9900K CPU.
+less optimal. Thus, using text augmentation, this study successfully outperforms the conventional encoder–decoder model with a smaller parameter size, lower RTF, and lower WERs by training the decoder- only model using same amount of data from scratch.
+3.3. LibriSpeech 960h experiments
+The results are listed in Table 1. First, the prompt compres- sion methods discussed in Sec. 2.2 were compared (P1–3). Follow- ing [15], we applied convolution layers to downsample the frame rate of the encoder to 80 ms (P1). Although they reported that a frame rate of 80 ms performed best in a multilingual evaluation, it did not perform well in our setup. [16] reported that averaging the frames of the same CTC predictions slightly outperformed re- moving blank frames for ﬁne-tuning in the ST tasks; however, they did not use it for the models trained from scratch. We also found that the averaging approach (P2) struggled in training for ASR tasks. Thus, we conﬁrmed that removing frames of blank predictions was the best choice for compressing the prompts (P3), and we used this method for the following experiments. However, with only audio– text pair data (P3), the decoder-only architecture could not outper- form the Baseline EncDec results (B4), as [16] reported that training the decoder-only model from scratch was slightly worse than the conventional encoder–decoder model.
+We also evaluated a full 960h pair set of LibriSpeech and its ex- ternal text-only corpus. We trained the models for 30 epochs and used the same beam size and fusion weights as in Sec. 3.2 for infer- ence. The results are listed in Table 3. The decoder-only model suc- cessfully reﬁned CTC transcription, particularly in the test-other set, from 7.0% to 6.6%. We sampled an utterance from the test-other set to show how the decoder reﬁnes CTC predictions in Table 2. How- ever, compared with the Baseline EncDec, our method did not reach its performance. We assume that the capacity of the decoder is rela- tively small because it is a 6-block transformer while a transformer LM generally has 12 blocks or more [26]. However, our proposed method still showed an advantage in the computational speed; 0.29 of RTF against 0.54.
+3.4. Switchboard and Fisher experiments
+Next, we trained models with proposed text augmentation (D1– 3). In contrast to pair-data-only training, text augmentation using an external text-only corpus (D1) signiﬁcantly reduced the WERs from 9.5% and 23.0% to 9.3% and 19.9% for the test-clean and test-other sets, respectively, compared to (P3). As discussed in Sec. 2.3, be- cause the structure of decoder is identical to autoregressive LMs, it is an advantage of the decoder-only architecture to enhance the model with LM training without any modiﬁcation. Compared to the Base- line EncDec fused with CTC and LM (B5), the proposed method with only CTC fusion (D2) achieved comparable WERs. The prompt compression contributed to speeding up the computation; it was less than half of the RTF of the Baseline EncDec (B5)1. The external LM is also effective and complementary to the text augmentation, as fusing both CTC and LM (D3) achieved the best performance; 7.0% and 17.5% for test-clean and test-other. It was also compa- rably fast with the Baseline CTC with LM fusion (B2), in which LM computation was costly in time-synchronous decoding. As in [15], we also evaluated the pre-training of the CTC and decoder with the paired data and unpaired text data, respectively, followed by ﬁne-tuning using the paired data (F1), as described in Sec. 2.3. However, the ﬁne-tuning approach was slightly worse than training from scratch (D3), presumably because the ﬁne-tuning approach was
+We evaluated the Switchboard models using Hub5’00 with the Switchboard and CallHome subsets. We fused CTC and LM with weights of 0.4 and 0.4, respectively, with a beam size of 10. Table 4 lists the results. We observed a similar tendency as in Section. 3.2; the proposed model successfully outperformed the Baseline EncDec model in both the test subsets, owing to effective text augmentation.
+4. CONCLUSION
+We proposed a decoder-only architecture for ASR tasks that effec- tively applies text augmentation using text-only additional data. Au- dio information was provided as CTC prompts, which mapped the output of the encoder module compressed by CTC predictions to the embedding space of the decoder. Although the model was trained us- ing an ASR task, the decoder was simultaneously trained for an LM task using augmented text data. We experimentally conﬁrmed that the proposed methods reﬁned the baseline CTC using the decoder and outperformed conventional RNN-T and encoder–decoder mod- els with approximately half the computational cost in LibriSpeech 100h and Switchboard setups.
+1The number of frames was reduced down to 14.55% on average.
+Future work will include scaling up the decoder to have more ca- pacity for LM while maintaining the advantage in inference speed. Extending the streaming approach can also be considered by exploit- ing its compactness and efﬁciency of the proposed approach.
+
+
+5. REFERENCES
+[1] Awni Hannun, Carl Case, Jared Casper, Bryan Catanzaro, Greg Diamos, Erich Elsen, Ryan Prenger, Sanjeev Satheesh, Shubho Sengupta, Adam Coates, et al., “Deep speech: Scaling up end- to-end speech recognition,” arXiv preprint arXiv:1412.5567, 2014.
+[2] Jan K. Chorowski, Dzmitry Bahdanau, Dmitriy Serdyuk, Kyunghyun Cho, and Yoshua Bengio, “Attention-based mod- els for speech recognition,” in Proc. of NIPS, 2015, pp. 577– 585.
+[3] Zhong Meng, Sarangarajan Parthasarathy, Eric Sun, Yashesh Gaur, Naoyuki Kanda, Liang Lu, Xie Chen, Rui Zhao, Jinyu Li, and Yifan Gong, “Internal language model estimation for domain-adaptive end-to-end speech recognition,” in 2021 IEEE Spoken Language Technology Workshop (SLT), 2021, pp. 243–250.
+[4] Albert Zeyer, Andr´e Merboldt, Wilfried Michel, Ralf Schl¨uter, and Hermann Ney, “Librispeech transducer model with inter- nal language model prior correction,” in Proc. of Interspeech, 2021, pp. 2052–2056.
+[5] Emiru Tsunoo, Yosuke Kashiwagi, Chaitanya Prasad Narisetty, and Shinji Watanabe, “Residual language model for end-to- end speech recognition,” in Proc. of Interspeech 2022, 2022, pp. 3899–3903.
+[6] Adithya Renduchintala, Shuoyang Ding, Matthew Wiesner, and Shinji Watanabe, “Multi-modal data augmentation for end- to-end asr,” Proc. of Interspeech 2018, pp. 2394–2398, 2018.
+[7] Haihua Xu, Yerbolat Khassanov, Zhiping Zeng, Eng Siong Chng, Chongjia Ni, Bin Ma, Haizhou Li, et al., “Independent language modeling architecture for end-to-end ASR,” in Proc. of ICASSP, 2020, pp. 7059–7063.
+[8] Peidong Wang, Tara N. Sainath, and Ron J. Weiss, “Multitask training with text data for end-to-end speech recognition,” in Proc. of Interspeech, 2021, pp. 2566–2570.
+[9] Zhehuai Chen, Yu Zhang, Andrew Rosenberg, Bhuvana Ram- abhadran, Pedro J. Moreno, Ankur Bapna, and Heiga Zen, “MAESTRO: Matched speech text representations through modality matching,” in Proc. of Interspeech, 2022, pp. 4093– 4097.
+[10] Tom Brown, Benjamin Mann, Nick Ryder, Melanie Sub- biah, Jared D Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, et al., “Lan- guage models are few-shot learners,” Proc. of NurIPS, vol. 33, pp. 1877–1901, 2020.
+[11] Aakanksha Chowdhery, Sharan Narang,
+Jacob Devlin, Maarten Bosma, Gaurav Mishra, Adam Roberts, Paul Barham, Hyung Won Chung, Charles Sutton, Sebastian Gehrmann, et al., “PaLM: Scaling language modeling with pathways,” arXiv preprint arXiv:2204.02311, 2022.
+[12] Kai-Wei Chang, Yu-Kai Wang, Hua Shen, Iu-thing Kang, Wei- Cheng Tseng, Shang-Wen Li, and Hung-yi Lee, “Speech- prompt v2: Prompt tuning for speech classiﬁcation tasks,” arXiv preprint arXiv:2303.00733, 2023.
+[13] Dong Zhang, Shimin Li, Xin Zhang, Jun Zhan, Pengyu Wang, Yaqian Zhou, and Xipeng Qiu, “SpeechGPT: Empowering large language models with intrinsic cross-modal conversa- tional abilities,” arXiv preprint arXiv:2305.11000, 2023.
+[14] Paul K Rubenstein, Chulayuth Asawaroengchai, Duc Dung Nguyen, Ankur Bapna, Zal´an Borsos, F´elix de Chaumont Quitry, Peter Chen, Dalia El Badawy, Wei Han, Eugene Kharitonov, et al., “AudioPaLM: A large language model that can speak and listen,” arXiv preprint arXiv:2306.12925, 2023.
+[15] Yassir Fathullah, Chunyang Wu, Egor Lakomkin, Junteng Jia, Yuan Shangguan, Ke Li, Jinxi Guo, Wenhan Xiong, Jay Ma- hadeokar, Ozlem Kalinli, et al., “Prompting large language arXiv preprint models with speech recognition abilities,” arXiv:2307.11795, 2023.
+[16] Jian Wu, Yashesh Gaur, Zhuo Chen, Long Zhou, Yimeng Zhu, Tianrui Wang, Jinyu Li, Shujie Liu, Bo Ren, Linquan Liu, et al., “On decoder-only architecture for speech-to- text and large language model integration,” arXiv preprint arXiv:2307.03917, 2023.
+[17] Siddhant Arora, Hayato Futami, Yosuke Kashiwagi, Emiru Tsunoo, Brian Yan, and Shinji Watanabe, “Integrating pre- trained ASR and LM to perform sequence generation for spo- ken language understanding,” in Proc. INTERSPEECH 2023, 2023, pp. 720–724.
+[18] Marco Gaido, Mauro Cettolo, Matteo Negri, and Marco Turchi, “CTC-based compression for direct speech transla- in Proceedings of the 16th Conference of the Euro- tion,” pean Chapter of the Association for Computational Linguis- tics: Main Volume, 2021, pp. 690–696.
+[19] Zhengkun Tian, Jiangyan Yi, Ye Bai, Jianhua Tao, Shuai Zhang, and Zhengqi Wen, “FSR: Accelerating the inference process of transducer-based models by applying fast-skip reg- ularization,” in Proc. of Interspeech, 2021, pp. 4034–4038.
+[20] Yongqiang Wang, Zhehuai Chen, Chengjian Zheng, Yu Zhang, Wei Han, and Parisa Haghani, “Accelerating RNN-T training and inference using CTC guidance,” in Proc. of ICASSP, 2023, pp. 1–5.
+[21] Pengcheng Guo, Florian Boyer, Xuankai Chang, Tomoki “Recent developments arXiv preprint
+Hayashi, Yosuke Higuchi, et al., on espnet toolkit boosted by conformer,” arXiv:2010.13956, 2020.
+[22] Shinji Watanabe, Takaaki Hori, Suyoun Kim, John R. Hershey, and Tomoki Hayashi, “Hybrid CTC/attention architecture for end-to-end speech recognition,” Journal of Selected Topics in Signal Processing, vol. 11, no. 8, pp. 1240–1253, 2017.
+[23] Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur, “LibriSpeech: an ASR corpus based on public domain audio books,” in Proc. of ICASSP, 2015, pp. 5206– 5210.
+[24] Alex Graves, Santiago Fern´andez, Faustino Gomez, and J¨urgen Schmidhuber, la- belling unsegmented sequence data with recurrent neural net- works,” in Proc. of 23rd International Conference on Machine Learning, 2006, pp. 369–376.
+“Connectionist
+temporal classiﬁcation:
+[25] Alex Graves, Abdel-Rahman Mohamed, and Geoffrey Hinton, “Speech recognition with deep recurrent neural networks,” in Proc. of ICASSP, 2013, pp. 6645–6649.
+[26] Kazuki Irie, Albert Zeyer, Ralf Schl¨uter, and Hermann Ney, “Language modeling with deep transformers,” in Proc. of In- terspeech, 2019, pp. 3905–3909.

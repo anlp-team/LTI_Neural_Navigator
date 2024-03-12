@@ -1,0 +1,241 @@
+3 2 0 2
+t c O 3 2
+] L C . s c [
+2 v 5 1 4 3 0 . 8 0 3 2 : v i X r a
+End-to-End Evaluation for Low-Latency Simultaneous Speech Translation
+Christian Huber1, Tu Anh Dinh1, Carlos Mullov1, Ngoc Quan Pham1, Thai Binh Nguyen1, Fabian Retkowski1, Stefan Constantin1, Enes Yavuz Ugan1, Danni Liu1, Zhaolin Li1, Sai Koneru1, Jan Niehues1 and Alexander Waibel1,2 1Karlsruhe Institute of Technology, Karlsruhe, Germany firstname.lastname@kit.edu 2Carnegie Mellon University, Pittsburgh PA, USA alexander.waibel@cmu.edu
+Abstract
+The challenge of low-latency speech transla- tion has recently draw significant interest in the research community as shown by several publications and shared tasks. Therefore, it is essential to evaluate these different approaches in realistic scenarios. However, currently only specific aspects of the systems are evaluated and often it is not possible to compare different approaches.
+In this work, we propose the first framework to perform and evaluate the various aspects of low-latency speech translation under realistic conditions. The evaluation is carried out in an end-to-end fashion. This includes the segmen- tation of the audio as well as the run-time of the different components.
+Secondly, we compare different approaches to low-latency speech translation using this frame- work. We evaluate models with the option to revise the output as well as methods with fixed output. Furthermore, we directly compare state- of-the-art cascaded as well as end-to-end sys- tems. Finally, the framework allows to automat- ically evaluate the translation quality as well as latency and also provides a web interface to show the low-latency model outputs to the user.
+1
+Introduction
+In many applications scenarios for speech transla- tion, the quality of the translations is not the only important metric, but it is also essential to provide the translation with a low latency. This is for exam- ple the case in translations of presentations or meet- ings. Therefore, we observe an increasing interest in the field of low-latency speech translations, as shown by numerous published techniques and the organization of a dedicated shared task as part of the International Conference on Spoken Language Translations (IWSLT) (Agrawal et al., 2023).
+Speech processingSpeech Translation System
+…
+Text processing
+WebsiteMediatorAPI
+Audio Client
+Figure 1: Framework overview
+However, the current evaluation only considers a limited number of aspects or techniques. In con- trast, for an overall evaluation of different archi- tectures (end-to-end and cascaded) and presenta- tion style (revision and fixed) a general evaluation framework is needed. This should also consider the computational latency as well as the ability to process several sessions in parallel.
+Motivated by this, we present a new framework to apply and evaluate low-latency, simultaneous speech translation. Thereby we focus on a frame- work that can evaluate the different approaches in as realistic conditions as possible. The system is able to simulate different load conditions as well as compare systems using different design choices. Finally, we also provide a web interface1 to present the low-latency model outputs to the user. The main contributions of our paper are:
+A framework2 for low-latency speech transla- tion with dynamic latency adjustment
+An evaluation setup that allows for assessing the quality and latency of a low-latency sce- nario in an end-to-end fashion
+In order to enable further progress in the field as well as a wide adoption of the technique a frame- work to evaluate different approaches is essential.
+1https://lecture-translator.kit.edu 2https://git.scc.kit.edu/isl/lt-middleware/
+ltpipeline
+
+
+A comprehensive evaluation of different trans- lation approaches and streaming algorithms
+In the next section, we describe the overall ar- chitecture of the framework. The two following sections explain the streaming algorithms for the speech and text processing components. After that, we illustrate how we evaluate our framework and then how the experimental setup looks like. In Sec- tion 7 we present the results. Then, we review the related work. At the end we describe the limitations and conclude our work.
+2 Dynamic Framework for low-latency
+speech translation
+Motivated by previous work (Cho et al., 2013), we use a central mediator that coordinates the inter- action of the different components (see Figure 1). The user sends data to an API component which then sends the data to the mediator. The media- tor forwards all arriving data to the corresponding component(s), e.g., the audio signal from the user to the speech processing component, the resulting transcripts to the text processing component and the output (through the API) to the user. In order to allow a flexible processing, for each session a graph dynamically defines how the data is sent to the dif- ferent components. We process different requests at each component using the existing streaming framework Kafka3.
+Each component consists of a middleware and a backend with the processing separated into three steps:
+1) Input processing: The middleware imple- ments the streaming algorithms and can be run on the CPU. It uses the state of the current ses- sion to generate requests to the backend. Other approaches (Niehues et al., 2018) repeatedly send requests to the backend for all input messages. This can result in increasing latency if the backend is not able to keep up in high-load situations. In or- der to minimize this, we enable the middleware to skip intermediate processing steps. This is done by combining multiple input messages by concatenat- ing audio or text. Several middleware workers can be run in parallel. We achieve the locality of the state by sticky queues, where a message from the same session is always sent to the same middleware worker.
+2) Backend request: The backend contains the hosted models. It processes the requests without 3https://kafka.apache.org
+[M1, M2, M3]S2S3 = ‘Hello my name is Christian’H3 = ‘Hello my name is Christian Huber’Model forward
+[M1, M2]S1S2 = ‘‘Hello my name is’S1 = common_prefix(H1, H0 = ‘’) = ‘’H2 = ‘Hello my name is Christian Koo’Model forward
+Decoder[M1]S0 = ‘’H1 = ‘Hello my name is Kris’Input [M] : Audio or TextStable output [S]Model forwardModel output [H]
+Encoder
+Figure 2: Stability detection
+additional state information, is flexible to run on any device and is shared between different sessions. Because of the division in a stateful middleware and a stateless backend, we are able to share the backend and use batching of the requests.
+3) Output processing: The output of a backend request is used to send information to the next com- ponent(s). Furthermore, the state of the correspond- ing session is updated.
+Our framework supports two modes for low- latency speech translation. First, a revision mode (Niehues et al., 2018) where the component (Auto- matic speech recognition (ASR) or machine trans- lation (MT)) can send stable and unstable outputs. Given more context at a later time step, the com- ponent can revise the unstable outputs. Second, a fixed mode (Liu et al., 2020a; Polák et al., 2022) where the component is only allowed to send stable output. For fixed mode (and the revision mode of the ASR component), the component needs to per- form a stability detection (see Sections 3 and 4 and Figure 2), i.e., determine which parts of the out- put should be considered stable. Note that for our streaming algorithms the backend models need to support prefix decoding, i.e., one can send a prefix which is then forced in the output.
+Our framework is easily extendable by deploying additional backend models for different languages, adding new streaming algorithms in the middle- ware or adding custom components (e.g., speaker diarization as a preprocessing step before the ASR) and including them in the session graph.
+3 Low-latency Speech Processing
+The speech processing component receives a stream of audio packets and sends chunks of text (transcript or translation) to the mediator. For this two steps are run:
+
+
+Input processing: First, a voice activity detec- tion generates a speech segment that can be ex- tended when new packets of audio arrive. For this we use WebRTC Voice Activity Detector (Wise- man, 2016). Each audio frame (30ms) is classified if it contains speech or not. Then a moving average is calculated. If it exceeds a certain threshold, a new segment is started. New audio is added to this segment until the moving average falls below a cer- tain threshold and the segment ends. Second, the backend model (ASR or speech translation (ST)) is run. If there exist speech segments that already ended, they are processed only once and the output is sent as stable text, other segments are constantly processed until they end.
+Stability detection and output processing: We use the method local agreement two (LA2) from Polák et al. (2022). The intuition is that if the prefix of the output stays the same when adding more audio, the prefix should be considered sta- ble. Let C denote the chunk size hyperparameter (LA2_chunk_size). The fixed mode works as fol- lows (see Figure 2): It waits until the segment con- tains (at least) C seconds of audio (denoted by M1) and then runs the model but does not output any stable text. Let’s denote this first model output by H1. After the segment contains (at least) C more seconds of audio (denoted by M2) the model is run again with all the audio and outputs H2. Then the component outputs the common prefix of H1 and H2 as stable output S2. After the segment again contains (at least) C more seconds of audio (de- noted by M3) the model is run again with all the audio. However, now S2 is forced as prefix in the ASR/ST model decoding. The model outputs H3 and the common prefix from H2 and H3 is the next stable output S3. This procedure is continued until the speech segment ends.
+Note that the ASR/ST model has a certain maxi- mum input size due to latency, memory and com- pute constraints. Therefore, if this limit is reached, the input audio to the model as well as the corre- sponding forced prefix is cut away.
+The revision mode differs from the fixed mode in that the last hypothesis except the common prefix is sent as unstable output. Furthermore, in the time period until the speech segment contains again C more seconds of audio, the currently given audio is run through the model and the hypothesis except the last stable output is sent as unstable output.
+4 Low-latency Text Processing
+The text processing component receives a stream of (potentially revisable) text messages and sends chunks of text (translation) to the mediator.
+Input processing: First, all input text that ar- rived is split into sentences by punctuation. Then, the backend model (MT) is run.
+Stability detection and output processing: All sentences containing only stable text are processed once and the output is sent as stable text. For the other sentences containing unstable text the behav- ior depends on the mode. If text is stable or not is given by the speech processing component.
+The revision mode works as follows: All sen- tences containing unstable text are processed by the backend model and the output text is sent as unstable text. A similar approach is not possible in the speech processing revision mode (see Section 3) since speech segments are not limited in size but the model input size is.
+For the fixed mode we use the method local agreement from Liu et al. (2020a). The processing is similar to the speech processing. The difference is that the backend model is run when at least one new word is given instead of at least C seconds of audio. In our preliminary experiments, up to at least five words but the results were basically identical since the input is extended by a few words most of the time. Furthermore, only the stable part of the sentences containing unstable text is used as input. This restriction is not necessary in the speech processing component since there is no unstable audio input.
+5 Evaluation Framework
+We evaluate our system in an end-to-end fashion. That is, given an input audio, we send it to the system and evaluate the final returned transcript and translation. We provide an evaluation framework4 that assess the system in different aspects and logs the results to categorized experiments on an UI board using MLflow (Zaharia et al., 2018). We consider different evaluation metrics as follows.
+BLEU: In order to assess the translation quality, we use case-sensitive BLEU score, calculated using sacreBLEU (Post, 2018). We extract the final stable translation, align it sentence-wise with the gold reference using mwerSegmenter (Matusov et al., 2005) before calculating the BLEU score.
+4https://git.scc.kit.edu/isl/lt-middleware/
+lt-evaluation
+
+
+tete
+tste1tststste2te3te4tr4
+Audio streaming time11312424tr1unstabletr2unstabletr3
+Messagearrivaltime
+teteunstablestabletrtrtrOriginal messages receivedSelecting first-unchangedmessages from the original.
+A A B HA D C EA D C F GA A B HA D C EA D C F G
+tste
+Figure 3: Example of collecting first-unchanged mes- sages from an unstable-to-stable message block. The first-unchanged messages are in green.
+WER: In order to assess the transcription qual- ity of the ASR component in the cascaded setting, we use the case-sensitive Word Error Rate (WER) calculated using JiWER5. Similar as before, we ex- tract the final stable transcription, align it sentence- wise with the gold reference using mwerSegmenter (Matusov et al., 2005) before calculating the WER. Latency: We evaluate the latency of the system in an end-to-end manner. Factors such as network latency influence our latency metrics. However, our experiments are conducted locally, thus such factors are constant and negligible.
+We define the end-to-end latency of the system as the average time (in seconds) it takes since an utterance is spoken until its first-unchanged trans- lation is returned by the system. Note that the first- unchanged translation is not necessarily already marked as “stable" by the system.
+For each message returned by the system, we have the stable/unstable flag along with three times- tamps, ts, te, tr. The timestamps ts and te are the start and end time of the audio segment that aligns to the message. The timestamp tr is when the mes- sage was received. We collect the first unchanged messages as follows. We split the received mes- sages into blocks of messages marked from “unsta- ble" to “stable". In each unstable-to-stable block, from the last stable message, we backtrack the pre- viously received unstable messages to find the first ones that has prefix-overlaps with the final stable message. The illustration is shown in Figure 3.
+Once we have collected the first-unchanged mes- sages, we can calculate the latency. We use the same definition of delay as Niehues et al. (2016), where the average delay of the ith message is:
+d(ti
+s, ti
+e, ti
+r) = ti
+r −
+s + ti ti e 2
+.
+5https://github.com/jitsi/jiwer
+A A B HA D C EA D C F G
+Audio streaming timeunstablestable
+Messagearrivaltimetr1unstabletr2unstabletr3tr4
+Figure 4: Example of flickers (denoted by red arrows) in an unstable-to-stable message block.
+Then we calculate the latency as the weighted average of the delays of all m first-unchanged mes- sages based on their length:
+D =
+(cid:80)m
+i=1 d(ti (cid:80)m
+e, ti s, ti i=1(ti
+r) ∗ (ti e − ti s)
+e − ti s)
+.
+Note that the timestamps ts and te in our la- tency formula are calculated by the used streaming algorithm. Therefore, we also tried another model- independent latency metric that only uses tr. This metric approximates the segment-message align- ment by assuming that each word output by the system has the duration of 0.3 second in the au- dio. Due to the strong assumption, this metric does not represent well the perceived latency. We only use this metric in order to verify our main model- dependent latency metric.
+We find that the model-independent latency met- ric and our model-dependent metric provide the same relative ranking of the systems. This indi- cates that the timestamps ts and te provided by the model itself are reliable to measure latency.
+Flickering rate: The flickering rate is the av- erage number of flickers per reference word. We count the number of flickers by looking at every pair of consecutive messages in a message block. If two words in the same position in the two messages differ, then it is counted as a flicker (see Figure 4). The flickering rate is calculated as the total number of flickers divided by the total number of words in the reference.
+6 Experimental setup
+6.1 Evaluation data
+We test our system using datasets from different language pairs. Test datasets includes:
+Test data from the IWSLT shared task (tst19, tst20) (Anastasopoulos et al., 2021, 2022), where the domain is TED talks.
+
+
+Test data tst19 tst20 LT CS LT nonCS mTEDx
+Lang. pair Hours en→de 4.82 en→de 4.09 de→en 6.39 de→en 2.66 es→en 2.07 it→en 2.16 en→X 0.95
+# Utterances 2279 1804 2454 1516 1012 999 468
+ACL dev *
+Table 1: Statistics of the test data. *Test data containing en audio with translations into de, ja, zh, ar, nl, fr, fa, pt, ru and tr.
+Cascaded ST
+Testset C W ↓ B ↑ 21.6 tst19 24.6 25.5 25.7 29.8 32.6 34.2 35.2
+.5 1 2 3 .5 1 2 3
+20.8 17.0 16.4 16.6 18.7 16.7 16.7 17.2
+ACL dev
+L ↓ 3.6 5.6 6.8 7.8 4.3 6.2 7.4 8.6
+E2E ST B ↑ 20.5 22.8 23.2 23.6 22.4 25.4 26.5 26.2
+L ↓ 2.1 2.6 3.9 5.0 2.1 2.7 4.0 5.3
+Table 2: Quality vs. latency (in fixed mode). C: LA2_chunk_size (s), W: WER, B: BLEU score, L: Latency (s) of the translation output.
+The test split of Multilingual TEDx Corpus (mTEDx) (Salesky et al., 2021), where the domain is TED talks.
+Lecture data (LT) which we collected inter- nally at our university. This test set include a CS variance which includes lectures on the Computer Science domain, and a nonCS vari- ance which includes lectures outside of the Computer Science domain.
+ACL development (ACL dev) set (Salesky et al., 2023), where the domain is ACL con- ference talks.
+The detailed statistics of the test data is shown in Table 1.
+6.2 Transcription and translation models
+The English ASR models are built based on pretrained WavLM (Chen et al., 2022) and BART (Lewis et al., 2019)6, while for Multilin- gual ASR we utilized the XLS-R models (Babu et al., 2021) for the encoder and the MBART- 50 model (Liu et al., 2020b) for the decoder fol- lowing (Pham et al., 2022). On the other hand, the translation models are based on the pretrained
+6With the recipe available at here.
+5
+8
+C=0.5
+Revision mode
+3
+4
+C=2
+30
+Fixed mode
+9Latency (s)
+32
+C=3
+C=1
+34
+7
+36BLEU score
+6
+Figure 5: caded model) C: LA2_chunk_size (s).
+Latency vs.
+the cas- in revision mode or fixed mode.
+quality (for
+DeltaLM (Ma et al., 2021). For the en→X direc- tion, the models are fine-tuned to optimize for ACL talks based on Liu et al. (2023). For other direc- tions, DeltaLM is fine-tuned on the combination of commonly available datasets7.
+Finally, for the end-to-end ST system, we used the language-agnostic model from Huber et al. (2022) that can decode en-de ST and de ASR.
+7 Results and Discussion
+7.1 Quality vs Latency trade-off
+In the first experiment, we assess the trade-off be- tween translation quality and latency by modifying the LA2_chunk_size parameter. The results are shown in Table 2. As can be seen, as we increase chunk size, the translation quality improves while the latency gets worse, both for cascaded ST and end-to-end ST. This is expected, since higher chunk size means longer input given to the model at each step, thus the output has better quality due to hav- ing more context, while the latency gets worse due to more waiting time for collecting the input.
+7.2 Revision mode vs fixed mode
+Second, we report the results of comparing the revision mode to the fixed mode with different LA2_chunk_size values when performing cas- caded translation on the en-de ACL dev set. As can be seen in Figure 5, in general, revision mode has better BLEU score yet worse latency than fixed mode. This is expected, since for the revision mode, when more input audio is available, the system can correct its previous output, thus ending up having better translation quality yet worse latency due to the additional re-translation overhead.
+7Paracrawl, UNPC, EUBookshop, MultiUN, EuroPat, TildeMODEL, DGT, Europarl, QED and NewsCommentary.
+
+
+C=0.5
+Cascaded ST
+C=2
+4
+3
+7Latency (s)
+30
+1
+C=1
+End-to-End ST
+25
+35BLEU score
+2
+C=3
+6
+5
+Figure 6: Latency vs. for C: LA2_chunk_size (s).
+quality (in revision mode) the cascaded ST or End-to-End ST model.
+7.3 Cascaded vs End-to-End
+Third, we report the results of comparing the cas- caded setting to the end-to-end setting when per- forming online translation with revision mode on the ACL dev set. As can be seen in Figure 6, in general, cascaded ST has better BLEU score yet worse latency than end-to-end ST. Cascaded ST has worse latency since it contains two components and each component has to do computation. However, we observe that, with a similar latency of ∼ 3.5 seconds, cascaded ST still obtains a better BLEU score. On the other hand, end-to-end ST has a bet- ter minimum latency that can be achieved (almost two seconds lower than the cascaded system).
+7.4 Load balancing
+In order to assess the system’s capability to balance loads, we conduct experiments on running multi- ple sessions simultaneously using the same hosted model, with and without scaling the system’s num- ber of middleware workers. For speech processing, we test parallel sessions on ACL dev en-de using the end-to-end ST model. For text processing, we test one cascaded ST session on ACL dev where the number of parallel sessions is the number of requested MT languages. In all experiments, we set LA2_chunk_size = 2. We report only the en-de results.
+The results are shown in Table 3. As expected, the latency gets worse as the number of parallel ses- sions increases. Using multiple middleware work- ers counteracts that to some extent by making sure that the backend model is always busy and not wait- ing for the next request. Furthermore, we see that when the number of parallel sessions increases, the flickering rate decreases. This is because during higher load, fewer requests are sent to the backend and we observe less flickering. Here our automatic load balancing can be seen in action.
+w s 1 1 2 5 1 2 5
+5
+Speech processing F ↓ L ↓ B ↑ 0.5 3.2 25.9 0.5 20.2 26.1 0.2 28.2 21.3 0.6 3.2 26.2 0.5 4.6 26.5 0.3 16.7 25.3
+Text processing L ↓ F ↓ B ↑ 0.5 6.7 34.9 0.4 8.4 34.6 0.2 28.1 34.8 0.5 6.1 35.1 0.5 8.0 33.6 0.2 15.9 34.5
+Table 3: Quality, latency and flickering rate when scaling the number of sessions (with one hosted model per number of middle- ware workers, s: number of parallel sessions, B: Qual- ity (BLEU score), L: Latency (s), F: Flickering rate. LA2_chunk_size is set to 2 seconds.
+language).
+w:
+8 Related work
+SimulEval (Ma et al., 2020) provides an evaluation framework for low-latency simultaneous speech translation with a decoupled client-server archi- tecture allowing to plug-in translation models and stability detection policies. As the main difference we leave the audio segmentation up to the model whereas Ma et al. (2020) rely on a pre-segmentation of the audio, we factor in the computational latency in addition to the model latency and explore the scaling behavior in multi-session scenarios, both for a more realistic deployment scenario. Similar to this work Franceschini et al. (2020) implement a low-latency speech translation pipeline, however, their architecture does not scale well to multiple sessions and is not well suited for end-to-end eval- uation.
+9 Limitations and Conclusion
+Since we run and evaluate the experiments in a realistic real-world scenario, it is difficult to exactly reproduce the results. The experiments are non- deterministic, e.g., because of network latencies. Furthermore, the results depend on the speed of the used hardware, especially the used hardware for the backend models. Additionally, we expect that each streaming algorithm implemented returns start and end timestamps. This may not be the case for all streaming algorithms one could want to compare. In conclusion, this paper presented a frame- work for running and evaluating low-latency speech translation under realistic conditions. The research opens up new possibilities for advancing low- latency translation systems and serves as a resource for researchers seeking to improve the latency and quality of real-time speech translation applications
+
+
+by being able to properly evaluate different models and streaming algorithms.
+Acknowledgements
+The projects on which this paper is based were funded by the Federal Ministry of Education and Research (BMBF) of Germany under the numbers 01IS18040A (OML) and 01EF1803B (RELATER).
+References
+Sweta Agrawal, Antonios Anastasopoulos, Luisa Bentivogli, Ondˇrej Bojar, Claudia Borg, Marine Carpuat, Roldano Cattoni, Mauro Cettolo, Mingda Chen, William Chen, Khalid Choukri, Alexandra Chronopoulou, Anna Currey, Thierry Declerck, Qian- qian Dong, Kevin Duh, Yannick Estève, Marcello Federico, Souhir Gahbiche, Barry Haddow, Benjamin Hsu, Phu Mon Htut, Hirofumi Inaguma, Dávid Ja- vorský, John Judge, Yasumasa Kano, Tom Ko, Rishu Kumar, Pengwei Li, Xutai Ma, Prashant Mathur, Evgeny Matusov, Paul McNamee, John P. McCrae, Kenton Murray, Maria Nadejde, Satoshi Nakamura, Matteo Negri, Ha Nguyen, Jan Niehues, Xing Niu, Atul Kr. Ojha, John E. Ortega, Proyag Pal, Juan Pino, Lonneke van der Plas, Peter Polák, Elijah Rippeth, Elizabeth Salesky, Jiatong Shi, Matthias Sperber, Se- bastian Stüker, Katsuhito Sudoh, Yun Tang, Brian Thompson, Kevin Tran, Marco Turchi, Alex Waibel, Mingxuan Wang, Shinji Watanabe, and Rodolfo Ze- vallos. 2023. FINDINGS OF THE IWSLT 2023 EVALUATION CAMPAIGN. In Proceedings of the 20th International Conference on Spoken Language Translation (IWSLT 2023), pages 1–61, Toronto, Canada (in-person and online). Association for Com- putational Linguistics.
+Antonios Anastasopoulos, Loïc Barrault, Luisa Ben- tivogli, Marcely Zanon Boito, Ondˇrej Bojar, Roldano Cattoni, Anna Currey, Georgiana Dinu, Kevin Duh, Maha Elbayad, Clara Emmanuel, Yannick Estève, Marcello Federico, Christian Federmann, Souhir Gahbiche, Hongyu Gong, Roman Grundkiewicz, Barry Haddow, Benjamin Hsu, Dávid Javorský, V˘era Kloudová, Surafel Lakew, Xutai Ma, Prashant Mathur, Paul McNamee, Kenton Murray, Maria Nˇadejde, Satoshi Nakamura, Matteo Negri, Jan Niehues, Xing Niu, John Ortega, Juan Pino, Eliz- abeth Salesky, Jiatong Shi, Matthias Sperber, Se- bastian Stüker, Katsuhito Sudoh, Marco Turchi, Yo- gesh Virkar, Alexander Waibel, Changhan Wang, and Shinji Watanabe. 2022. Findings of the IWSLT 2022 evaluation campaign. In Proceedings of the 19th International Conference on Spoken Language Translation (IWSLT 2022), pages 98–157, Dublin, Ireland (in-person and online). Association for Com- putational Linguistics.
+Antonios Anastasopoulos, Ondˇrej Bojar, Jacob Bremer- man, Roldano Cattoni, Maha Elbayad, Marcello Fed- erico, Xutai Ma, Satoshi Nakamura, Matteo Negri,
+Jan Niehues, Juan Pino, Elizabeth Salesky, Sebas- tian Stüker, Katsuhito Sudoh, Marco Turchi, Alexan- der Waibel, Changhan Wang, and Matthew Wiesner. 2021. FINDINGS OF THE IWSLT 2021 EVAL- UATION CAMPAIGN. In Proceedings of the 18th International Conference on Spoken Language Trans- lation (IWSLT 2021), pages 1–29, Bangkok, Thailand (online). Association for Computational Linguistics.
+Arun Babu, Changhan Wang, Andros Tjandra, Kushal Lakhotia, Qiantong Xu, Naman Goyal, Kritika Singh, Patrick von Platen, Yatharth Saraf, Juan Pino, et al. 2021. Xls-r: Self-supervised cross-lingual speech arXiv preprint representation learning at scale. arXiv:2111.09296.
+Sanyuan Chen, Chengyi Wang, Zhengyang Chen, Yu Wu, Shujie Liu, Zhuo Chen, Jinyu Li, Naoyuki Kanda, Takuya Yoshioka, Xiong Xiao, et al. 2022. Wavlm: Large-scale self-supervised pre-training for full stack speech processing. IEEE Journal of Se- lected Topics in Signal Processing, 16(6):1505–1518.
+Eunah Cho, Christian Fügen, Teresa Hermann, Kevin Kilgour, Mohammed Mediani, Christian Mohr, Jan Niehues, Kay Rottmann, Christian Saam, Sebastian Stüker, and Alex Waibel. 2013. A real-world system for simultaneous translation of German lectures. In Proc. Interspeech 2013, pages 3473–3477.
+Dario Franceschini, Chiara Canton, Ivan Simonini, Armin Schweinfurth, Adelheid Glott, Sebastian Stüker, Thai-Son Nguyen, Felix Schneider, Thanh-Le Ha, Alex Waibel, et al. 2020. Removing european language barriers with innovative machine translation technology. In Proceedings of the 1st International Workshop on Language Technology Platforms, pages 44–49.
+Christian Huber, Enes Yavuz Ugan, and Alexander Waibel. 2022. Code-switching without switching: Language agnostic end-to-end speech translation. arXiv preprint arXiv:2210.01512.
+Mike Lewis, Yinhan Liu, Naman Goyal, Marjan Ghazvininejad, Abdelrahman Mohamed, Omer Levy, Ves Stoyanov, and Luke Zettlemoyer. 2019. Bart: De- noising sequence-to-sequence pre-training for natural language generation, translation, and comprehension. arXiv preprint arXiv:1910.13461.
+Danni Liu, Thai Binh Nguyen, Sai Koneru, Enes Yavuz Ugan, Ngoc-Quan Pham, Tuan Nam Nguyen, Tu Anh Dinh, Carlos Mullov, Alexander Waibel, and Jan Niehues. 2023. KIT’s multilingual speech trans- lation system for IWSLT 2023. In Proceedings of the 20th International Conference on Spoken Lan- guage Translation (IWSLT 2023), pages 113–122, Toronto, Canada (in-person and online). Association for Computational Linguistics.
+Danni Liu, Gerasimos Spanakis, and Jan Niehues. 2020a. Low-Latency Sequence-to-Sequence Speech Recognition and Translation by Partial Hypothesis Selection. In Proc. Interspeech 2020, pages 3620– 3624.
+
+
+Yinhan Liu, Jiatao Gu, Naman Goyal, Xian Li, Sergey Edunov, Marjan Ghazvininejad, Mike Lewis, and Luke Zettlemoyer. 2020b. Multilingual denoising pre-training for neural machine translation. Transac- tions of the Association for Computational Linguis- tics, 8:726–742.
+Shuming Ma, Li Dong, Shaohan Huang, Dong- dong Zhang, Alexandre Muzio, Saksham Singhal, Hany Hassan Awadalla, Xia Song, and Furu Wei. 2021. Deltalm: Encoder-decoder pre-training for language generation and translation by augmenting pretrained multilingual encoders. arXiv preprint arXiv:2106.13736.
+Xutai Ma, Mohammad Javad Dousti, Changhan Wang, Jiatao Gu, and Juan Pino. 2020. SIMULEVAL: An evaluation toolkit for simultaneous translation. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations, pages 144–150, Online. Association for Computational Linguistics.
+Evgeny Matusov, Gregor Leusch, Oliver Bender, and Hermann Ney. 2005. Evaluating machine translation output with automatic sentence segmentation. In Pro- ceedings of the Second International Workshop on Spoken Language Translation, Pittsburgh, Pennsylva- nia, USA.
+Jan Niehues, Thai Son Nguyen, Eunah Cho, Thanh-Le Ha, Kevin Kilgour, Markus Müller, Matthias Sperber, Sebastian Stüker, and Alex Waibel. 2016. Dynamic transcription for low-latency speech translation. In Interspeech, pages 2513–2517.
+Jan Niehues, Ngoc-Quan Pham, Thanh-Le Ha, Matthias Sperber, and Alex Waibel. 2018. Low-Latency Neu- ral Speech Translation. In Proc. Interspeech 2018, pages 1293–1297.
+Ngoc-Quan Pham, Tuan Nam Nguyen, Thai-Binh Nguyen, Danni Liu, Carlos Mullov, Jan Niehues, and Alexander Waibel. 2022. Effective combination of pretrained models - KIT@IWSLT2022. In Proceed- ings of the 19th International Conference on Spoken Language Translation (IWSLT 2022), pages 190–197, Dublin, Ireland (in-person and online). Association for Computational Linguistics.
+Peter Polák, Ngoc-Quan Ngoc, Tuan-Nam Nguyen, Danni Liu, Carlos Mullov, Jan Niehues, Ondˇrej Bo- jar, and Alexander Waibel. 2022. Cuni-kit system for simultaneous speech translation task at iwslt 2022. arXiv preprint arXiv:2204.06028.
+Matt Post. 2018. A call for clarity in reporting BLEU scores. In Proceedings of the Third Conference on Machine Translation: Research Papers, pages 186– 191, Brussels, Belgium. Association for Computa- tional Linguistics.
+Elizabeth Salesky, Kareem Darwish, Mohamed Al- Badrashiny, Mona Diab, and Jan Niehues. 2023. Evaluating Multilingual Speech Translation Under
+Realistic Conditions with Resegmentation and Ter- minology. In Proceedings of the 20th International Conference on Spoken Language Translation (IWSLT 2023). Association for Computational Linguistics.
+Elizabeth Salesky, Matthew Wiesner, Jacob Bremerman, Roldano Cattoni, Matteo Negri, Marco Turchi, Dou- glas W Oard, and Matt Post. 2021. The multilingual tedx corpus for speech recognition and translation. arXiv preprint arXiv:2102.01757.
+John Wiseman. 2016. py-webrtcvad. https://github. com/wiseman/py-webrtcvad. Accessed on: 03-08- 2023.
+Matei A. Zaharia, Andrew Chen, Aaron Davidson, Ali Ghodsi, Sue Ann Hong, Andy Konwinski, Siddharth Murching, Tomas Nykodym, Paul Ogilvie, Mani Parkhe, Fen Xie, and Corey Zumar. 2018. Accel- erating the machine learning lifecycle with mlflow. IEEE Data Eng. Bull., 41:39–45.
+A Detailed results
+We report the overall performance of our system on different test data and language pairs with different settings at Table 4. In this experiment, we use the cascaded setting with LA2_chunk_size = 2. As can be seen, the BLEU scores drop around by one point when we move from offline to online setting (in fixed mode a little more), depending on the language directions.
+B Additional information
+A video demonstrating the system can be found here: Video link
+
+
+TED (en→de) LT (de→en) mTEDx (X→en) ACL dev (en→X)
+tst19 tst20 CS nonCS es it de ja zh ar nl fr fa pt ru tr
+Offline BLEU ↑ 27.2 29.8 25.2 28.5 31.0 31.5 36.5 39.6 45.3 28.3 42.7 43.7 21.8 45.2 13.5 20.1
+Online: Revision mode ∆BLEU ↑ Latency ↓ Flickering rate ↓ 0.5 5.4 0.5 5.1 0.6 5.6 0.6 7.1 0.4 7.5 0.5 12.5 0.5 6.6 0.1 8.4 0.1 8.0 0.5 6.8 0.5 6.4 0.5 5.9 0.7 6.8 0.4 6.0 0.5 6.5 0.5 6.6
+1.3 -1.1 -2.0 -0.2 -2.5 -4.2 -1.9 -1.6 -0.5 -0.8 -1.3 -0.4 -0.8 -1.2 -1.0 -0.9
+Online: Fixed mode ∆BLEU ↑ Latency ↓ 5.3 6.9 6.0 5.7 7.6 11.6 7.5 8.7 8.0 7.3 7.4 7.6 7.5 7.3 7.4 7.4
+1.7 -1.5 -2.4 -1.2 -2.6 -5.1 -2.0 -5.2 -4.6 -1.1 -2.5 -1.0 -1.8 -1.8 -1.2 -1.2
+Table 4: Overall performance of our cascaded system with LA2_chunk_size set to 2 seconds: Quality, latency and flickering rate. ∆BLEU: difference compared the corresponding offline setting.

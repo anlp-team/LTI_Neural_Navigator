@@ -1,0 +1,1044 @@
+3 2 0 2
+n a J
+6
+]
+G L . s c [
+1 v 4 5 6 2 0 . 1 0 3 2 : v i X r a
+DOES COMPRESSING ACTIVATIONS HELP MODEL PARALLEL TRAINING?
+Song Bian * 1 Dacheng Li * 2 Hongyi Wang 2 Eric P. Xing 2 3 4 Shivaram Venkataraman 1
+ABSTRACT Large-scale Transformer models are known for their exceptional performance in a range of tasks, but training them can be difﬁcult due to the requirement for communication-intensive model parallelism. One way to improve training speed is to compress the message size in communication. Previous approaches have primarily focused on compressing gradients in a data parallelism setting, but compression in a model-parallel setting is an understudied area. We have discovered that model parallelism has fundamentally different characteristics than data parallelism. In this work, we present the ﬁrst empirical study on the effectiveness of compression methods for model parallelism. We implement and evaluate three common classes of compression algorithms - pruning-based, learning-based, and quantization-based - using a popular Transformer training framework. We evaluate these methods across more than 160 settings and 8 popular datasets, taking into account different hyperparameters, hardware, and both ﬁne-tuning and pre-training stages. We also provide analysis when the model is scaled up. Finally, we provide insights for future development of model parallelism compression algorithms.
+1
+INTRODUCTION
+Transformer models have become the dominant model for many machine learning tasks (Devlin et al., 2018; Radford et al., 2018; Yang et al., 2019; Dosovitskiy et al., 2020; Gong et al., 2021; Sharir et al., 2021; Gong et al., 2021). However, state-of-the-art Transformer models have a large number of parameters, making it difﬁcult for a single GPU to hold the entire model. As a result, training large Transformer models often requires partitioning the model parameters among multiple GPUs, a technique known as model paral- lelism (Shoeybi et al., 2019; Rasley et al., 2020). Model parallelism strategies often introduce signiﬁcant commu- nication overhead, as demonstrated in Figure 1 (Li et al., 2022). For instance, the most commonly used tensor model parallelism strategy requires two all-reduce operations over a large tensor in each Transformer encoder block per iter- ation. This can greatly increase the overall computational cost of training the model (Shoeybi et al., 2019).
+35
+30
+TP=1, PP=4
+(32, 128)
+20
+TP=2, PP=2
+40Comm. Overhead (% of total time)
+10
+(32, 512)Hyper-parameters
+TP=4, PP=1
+(8, 128)
+0
+5
+25
+15
+Figure 1. Communication overhead of model parallelism with dif- ferent batch sizes and sequence lengths on BERTLarge using Py- torch 1.12, NCCL, fp16 and 4 GPUs. The x-axis is (batch size, sequence length)
+To address the issue of high communication overhead in model parallelism, one approach is to compress the mes- sages communicated among GPUs, such as activation val- ues. In the data-parallel setting, several prior works have explored compressing gradients to reduce the communica- tion cost of training (Seide et al., 2014; Bernstein et al., 2018; Dettmers, 2015; Lin et al., 2017; Wang et al., 2018b;
+Equal contribution 1Department of Computer Science, Uni- versity of Wisconsin-Madison 2Machine Learning Department, Carnegie Mellon University 3MBZUAI 4Petuum Inc.. Correspon- dence to: Song Bian <songbian@cs.wisc.edu>.
+Vogels et al., 2019). However, there has been limited ex- ploration of compression methods speciﬁcally designed for model parallelism. Furthermore, it is important to note that compression in model parallelism is fundamentally different from compression in data parallelism for two main reasons. Firstly, as shown in Figure 2, gradients tend to be low-rank, while activations do not. Therefore, low-rank gradient com- pression methods, which have been shown to provide state- of-the-art end-to-end speedup in communication-efﬁcient data-parallel training, may not directly apply to model paral- lelism (Vogels et al., 2019). Secondly, the performance ben- eﬁts of gradient compression methods can be signiﬁcantly affected by system optimizations in data parallelism (Agar- wal et al., 2022). However, model parallelism has a different
+
+
+Does compressing activations help model parallel training?
+Gradient
+0.8
+0.8
+0.0
+1.0Dimension Percentage
+0.0
+0.6
+0.2
+0.4
+Activation
+1.0Sigma Value Percentage
+0.4
+0.2
+0.6
+Figure 2. Low-Rank analysis: Curves are drawn by ordering the singular values of the SVD decomposition. The result shows that the gradient is low-rank but the activation is not. The activation is the output of the 12th transformer layer in BERTLarge model.
+For the pre-training stage (§4.4), only AE provides speedup (upto 16%) while preserving the model’s accuracy (similar GLUE score). Top-K marginally improves training time, but degrades the accuracy. Quantization slows down the training time, and degrades the accuracy.
+2. Training hyper-parameters affect the performance beneﬁts of compression methods. None of the compres- sion methods can improve performance when the batch size and sequence length are small because the cost of message encoding and decoding becomes relatively higher (as dis- cussed in section §4.6). In practice, we have found that the batch size and sequence length need to be at least 32 and 512, respectively, for the compression methods to pro- vide throughput gains. The same is true when ﬁne-tuning is performed on a machine with high-bandwidth NVLink con- nections between all GPUs (as described in section §4.2).
+set of system optimization techniques than data parallelism, so it is unclear how these optimizations would impact the performance of compression methods in model parallelism.
+In this paper, we present the ﬁrst systematic study of model parallelism compression for large Transformer models. We evaluate the impact of different compression methods in terms of both throughput and accuracy. We conduct ex- periments for both pre-training and ﬁne-tuning tasks. (De- vlin et al., 2018; Gururangan et al., 2020). In particular, we implement and evaluate popular gradient compression methods, e.g., Top-K and Random-K as well as a learning- based compression method, i.e., auto-encoders (Hinton & Zemel, 1993), which can not directly be applied to gradi- ent compression but is compatible with activation compres- sion. To assist researchers and practitioners training new Transformer-based models (Liu et al., 2019; Izsak et al., 2021), we study compression methods using different train- ing hyper-parameters and hardware setups. We also develop a performance model that can be conveniently used to under- stand how compression methods would affect throughput at larger scales. In total, we evaluate compression methods across over 160 different settings with various compression algorithms, training stages, hyper-parameters, and hardware, and over 8 datasets (Wang et al., 2018a). Our ﬁndings in- clude the following takeaways.
+3. Early model layers are more sensitive to compression. Our observations show that compressing the early layers or too many layers signiﬁcantly decreases the model’s accuracy (as discussed in section §4.5), which is consistent with the ﬁndings of previous research (Wang et al., 2021). In practice, we have found that compressing the ﬁnal 12 layers of a 24- layer Transformer model is an effective approach. Contributions. We make the following contributions:
+We conduct the ﬁrst empirical study on model paral- lelism compression methods for Transformer models, considering different compression methods, training stages, hyper-parameters, and hardware conﬁgurations.
+We implement several popular compression algorithms, including Top-K, Random-K, quantization, and auto- encoders (AEs), and integrate them into an existing distributed training system.
+We extensively evaluate these algorithms across over 160 different settings and eight popular datasets. Based on our experimental results, we provide several take- aways for future model parallelism compression stud- ies. We also analyze the speedup when the model size and cluster size are scaled up.
+2 BACKGROUND AND CHALLENGES
+Our takeaways. 1. Learning-based compression meth- ods are most suitable for model-parallelism. On the ﬁne- tuning stage(§4.2, §4.3), only auto-encoders (AEs) can pro- vide end-to-end speedup (upto 18%) while preserving the model’s accuracy (within ∼3 GLUE score (Wang et al., 2018a)). Top-K, Random-K, and quantization methods slow down training because their message encoding and de- coding overhead is larger than the communication time they reduce. Top-K and Random-K also hurt model’s accuracy.
+In this section, we ﬁrst introduce data parallelism and model parallelism (§2.1). Then we introduce the challenges in model parallelism compression (§2.2).
+2.1 Data Parallelism and Model Parallelism
+Data Parallelism (DP). DP divides the training examples among multiple workers (Li et al., 2014; Ho et al., 2013) and replicates the model at each worker. During each iteration,
+
+
+Does compressing activations help model parallel training?
+each worker calculates the model gradient based on its as- signed examples and then synchronizes the gradient with the other workers (Sergeev & Del Balso, 2018). However, DP requires each worker to compute and synchronize gradients for the entire model, which can become challenging as the model size increases. One issue is that the large gradients can create a communication bottleneck, and several previous studies have proposed gradient compression methods (Seide et al., 2014; Bernstein et al., 2018; Dettmers, 2015; Lin et al., 2017; Wang et al., 2018b) to address this. Addition- ally, the worker may not have enough memory to train with the entire model using even one example, in which case model parallelism may be necessary.
+Model Parallelism (MP). Model parallelism (MP) di- vides the model among multiple workers, allowing large models to be trained by only requiring each worker to main- tain a portion of the entire model in memory. There are two main paradigms for MP: inter-layer pipeline model paral- lelism (PP) and intra-layer tensor model parallelism (TP). PP divides the layers among workers, with each worker execut- ing the forward and backward computations in a pipelined fashion across different training examples (Narayanan et al., 2019; Li et al., 2021). For example, a mini-batch of training examples can be partitioned into smaller micro- batches (Huang et al., 2019), with the forward computation of the ﬁrst micro-batch taking place on one worker while the forward computation of the second micro-batch hap- pens on another worker in parallel. TP (Lu et al., 2017; Shazeer et al., 2018; Kim et al., 2016) divides the tensor computations among workers. In particular, we consider a specialized strategy developed for Transformer models that divides the two GEMM layers in the attention module column-wise and then row-wise, with the same partitioning applied to the MLP module (Shoeybi et al., 2019). However, TP still involves a communication bottleneck due to the need for two all-to-all collective operations in each layer, motivating the use of compression to reduce the communi- cation overhead of MP (Shoeybi et al., 2019). two all-to-all collective operations in each layer (Shoeybi et al., 2019). This bottleneck motivates our study to use compression for reducing the communication of model parallelism.
+2.2 Challenges in Model Parallelism Compression
+In data parallelism, synchronizing gradients in large models is a major bottleneck, and several gradient compression al- gorithms have been proposed (Seide et al., 2014; Bernstein et al., 2018; Dettmers, 2015; Lin et al., 2017; Wang et al., 2018b) to reduce the communication volume. These algo- rithms often rely on the observation that the gradient matrix is low-rank. In model parallelism, we have observed that communicating activations becomes the bottleneck. How- ever, we have identiﬁed three challenges when adapting
+gradient compression algorithms for use in model paral- lelism.
+First, the low-rank observation for gradient matrices does not hold for activation matrices, as shown in Figure 2. The sigma value percentage for activation matrices increases nearly linearly with the dimension percentage, indicating that the activation matrix is not low-rank. Therefore, ap- plying gradient compression techniques to activations is likely to result in a signiﬁcant loss of accuracy. Second, the performance of compression methods is heavily inﬂuenced by system optimizations (Li et al., 2020), and many gradi- ent compression methods do not lead to speed-ups for data parallelism (Zhang et al., 2017; Agarwal et al., 2022) due to competition for GPU resources between gradient encod- ing computation and backward computation. However, the impact of these optimizations on compression methods in model parallelism has not been studied. Third, model par- allelism introduces the possibility of using learning-based compression methods, such as autoencoders (AE) (Hinton & Zemel, 1993), which have not been examined in the gradient compression literature because they require gradient com- putations and raise new considerations. Given these three challenges, there is a need for a thorough study of the effects of different compression methods in model parallelism.
+3
+IMPLEMENTATION
+In this section, we ﬁrst introduce the compression algo- rithms we evaluate in this work (§ 3.1). Then, we discuss implementation details in Sections 3.2 and 3.3.
+3.1 Compression Algorithms
+In this work, we evaluate a range of popular compres- sion algorithms, including sparsiﬁcation-based approaches, learning-based approaches, and quantization-based ap- proaches (as illustrated in Figure 3). We use Top-K and Random-K as sparsiﬁcation-based approaches, as they have been well-studied in gradient compression (Stich et al., 2018). We also implement AEs, which compress messages using a small neural network (Hinton & Zemel, 1993). For quantization, we use the same scheme as in previous re- search (Wang et al., 2022), but compare its performance to other compression algorithms in the context of model paral- lelism, as the prior work only considered pipeline compres- sion over slow networks. Since the activation matrices for models are not low-rank (as shown in Figure 2), low-rank based compression algorithms (such as PowerSGD (Vo- gels et al., 2019)) are not suitable for model parallelism compression, and we do not evaluate any low-rank based compression algorithms in this work.
+
+
+Does compressing activations help model parallel training?
+3.2 Tensor Parallelism Compression
+We base our implementation on Megatron-LM (Shoeybi et al., 2019), a popular Transformer models training system that supports tensor and pipeline model parallelism. To integrate the compression algorithms into Megatron-LM, we make the following modiﬁcations. For AE, we compress the activation before the all-reduce step and invoke the all-reduce function as usual. The implementation of AE is shown here: for each layer, we have a learnable matrix w ∈ Rh×c, and the activation X ∈ Rb×s×h, where b is the batch size, s is the sequence length, h is the hidden size, and c < h is the compressed size. By using the matrix w, we output the compressed activation Xw ∈ Rb×s×c. Then, we use a similar technique(a decoder as opposed to an encoder) to decompress the compressed activation and propagate it to the next layer. However, since the Top-K, Random-K, and quantization can output two independent tensors with different types (e.g., for Top-K values and their indices), we cannot use torch.distributed.all-reduce to sum the tensors up directly. In light of this, we replace the all-reduce step with the all-gather function: gather-from-tensor-model-parallel-region, which is implemented by Megatron-LM. We use torch.topk function to select the k largest absolute values of the activation and random.sample function to randomly select k values from the activation. Finally, our implementation of quantization is based on code released by (Wang et al., 2022).
+3.3 Pipeline Parallelism Compression
+throughput and which compression method achieves the best throughput?
+What is the impact on the model’s accuracy?
+How different network bandwidths affect the best com- pression method?
+How do hyper-parameters such as the batch size and sequence length affect the beneﬁts of compression?
+We answer these questions in the context of two commonly used scenarios in language modeling: ﬁne-tuning on the GLUE benchmark (Wang et al., 2018a), and pre-training on the Wikipedia (Devlin et al., 2018) dataset and the BooksCorpus (Zhu et al., 2015) dataset.
+4.1 Experimental Setup
+In this section, we brieﬂy describe the hardware, model, and other experiment settings.
+System Conﬁguration. To measure the performance of compression algorithms over different hardware, our ex- periments are conducted on two different setups. Our ﬁrst setup uses AWS p3.8xlarge machines which have 4 Tesla V100 GPUs with all GPUs connected by NVLink. AWS p3.8xlarge instances have 10 Gbps network band- width across instances. Our second setup uses a local ma- chine which also has 4 Tesla V100 GPUs but does not have NVLink. All the GPUs are connected by a single PCIe bridge. The local server runs Ubuntu 18.04 LTS and the server has 125GB of memory.
+Megatron-LM can only send one tensor to the next pipeline stage per round, so we modify its communication functions to allow for the transmission of multiple tensors per round in order to integrate Top-K, Random-K, and quantization. Since we compress the activation in the forward step, us- ing compression also reduces the size of the gradient for activation and thus the communication cost in the backward step. However, this is not the case when using quantization to compress the activation for models. This is because, as previously noted (Wang et al., 2022), the Pytorch backward engine only supports gradients for ﬂoating point tensors, and therefore the size of the gradient is the same as the size of the decompressed activation. Our implementation also allows the integration of error-feedback compression algo- rithms by retaining the error information from the previous compression step.
+4 EXPERIMENTS
+Model. We use the BERTLARGE model provided by Megatron-LM (Shoeybi et al., 2019) which has 345M pa- rameters. We conﬁgure the model to have 24 layers with each layer having a hidden size of 1024 and 16 attention heads. We use fp16 training to train the BERTLARGE model.
+Experimental Settings. For ﬁne-tuning, we follow the previous work (Devlin et al., 2018; Liu et al., 2019), and use micro-batch size 32 and sequence length 512 by de- fault. We use one machine with 4 V100 GPUs and vary the tensor model-parallel size and the pipeline model- parallel size across the following three parallelism degrees: {(1, 4), (2, 2), (4, 1)}, where the ﬁrst number of the tuple represents the tensor model-parallel degree and the second number of the tuple stands for the pipeline model-parallel degree. To investigate the impact of hyper-parameters, we conduct experiments that vary the batch size from {8, 32}, and sequence length from {128, 512} on ﬁne-tuning.
+We next perform experiments using our implementation to answer the following questions:
+What is the impact of activation compression on system
+For pre-training, we use micro-batch size 128, global batch size 1024, and sequence length 128. To study the impact of the distributed settings, we use the following three different parallelism degrees: {(2, 8), (4, 4), (8, 2)}, where the ﬁrst
+
+
+Does compressing activations help model parallel training?
+Machine 1,2Machine 3,4
+Transformer Layer
+Transformer Layer
+Transformer Layer
+Machine 1Machine 2
+Activation
+Transformer Layer
+C
+C
+Activation
+C
+C
+Transformer Layer
+DC
+C
+DC
+DC
+g
+CTransformer Layer
+DC
+DC
+DC
+g
+Micro-batch
+Figure 3. Illustration of compression on a 6-Layer Transformer model with 4 machines. Machine 1 and Machine 2 maintain the ﬁrst three layers according to the TP strategy (pipeline stage 1). g stands for an all-reduce operation in the forward pass. A compression method C is used to reduce the message size for the all-reduce operation to reduce TP communication time. Correspondingly, a de-compression method DC is used after the communication. For instance, if AE are used, then C is an encoder, and DC is a decoder. Machine 3 and Machine 4 are responsible for the last three layers (pipeline stage 2). A compression method is used before Machine 1 sends the activation to Machine 3, and before Machine 2 sends the activation to Machine 4 to reduce PP communication time. The goal of this paper is to study the effect of different pairs of C and DC.
+number of the tuple represents the tensor model-parallel degree and the second number of the tuple represents the pipeline model-parallel degree.
+Notation
+A1
+Description
+AE with encoder output dimension 50
+We also evaluate compression algorithms with different parameters. For AE, we use different dimension after com- pression from {50, 100}. For Top-K and Random-K algo- rithms, we use two comparable settings: (1) Keep the same compression ratio as AE (i.e., we compress the activation around 10 and 20 times.) (2) Keep the same communica- tion cost as AE. Finally, we also tune the parameters for quantization and compress the activation to {2, 4, 8} bits.
+A2
+T1/R1
+T2/R2 T3/R3 T4/R4
+Q1 Q2
+AE with encoder output dimension 100
+Top/Rand-K: same comm. cost as A1
+Top/Rand-K: same comm. cost as A2 Top/Rand-K: same comp. ratio as A1 Top/Rand-K: same comp. ratio as A2
+Quantization: reduce the precision to 2 bits Quantization: reduce the precision to 4 bits
+By default, we perform experiments on BERTLarge model with 24 layers and compress the activation for the last 12 layers. For instance, when the pipeline model-parallel de- gree is 2 and tensor model-parallel degree is 2, we compress the activation between two pipeline stages and the communi- cation cost over tensor parallelism in the last 12 layers. We also vary the number of layers compressed in Section 4.5.
+TP
+Tensor model-parallelism degree
+PP
+Pipeline model-parallelism degree
+Table 1. Notation Table. For ease of notation, we use TP/PP to denote the degree of tensor/pipeline model parallelism. ‘comm’ and ‘comp’ are short for ‘communication’ and ‘compression’.
+4.2 Throughput Beneﬁts for Fine-Tuning
+17.8% when using learning-based compression methods on a machine without NVLink.
+Takeaway 1 Using non-learning-based compression tech- niques to compress activations only slightly improves system throughput (by 1% or less) due to the large overhead of these methods. However, we see end-to-end speedups of up to
+When running ﬁne-tune experiments on a p3.8xlarge in- stance on Amazon EC2, we cannot improve system through- put by using non-learning-based compression algorithms (Table 2). Comparing Tables 2 and 3, we can see that the net-
+
+
+Does compressing activations help model parallel training?
+Distributed Setting
+w/o
+A1
+A2
+T1
+T2
+T3
+T4
+TP=1, PP=4
+591.96
+591.36
+591.47
+594.81
+595.53
+599.65
+605.05
+TP=2, PP=2
+440.71
+437.98
+444.02
+465.73
+473.64
+493.16
+528.93
+TP=4, PP=1
+261.48
+270.22
+275.54
+314.37
+323.90
+356.57
+409.23
+Distributed Setting
+w/o
+R1
+R2
+R3
+R4
+Q1
+Q2
+TP=1, PP=4
+591.96
+749.56
+1,008.64
+1,824.36
+5,572.87
+595.29
+595.45
+TP=2, PP=2
+440.71
+3,377.59
+6,616.30
+17,117.01
+71,058.64
+489.27
+486.54
+TP=4, PP=1
+261.48
+3,254.01
+6,561.22
+16,990.88
+65,121.79
+347.68
+350.50
+Table 2. The average iteration time (ms) for ﬁne-tuning with various compression techniques by varying the distributed setting. The results are collected from the AWS p3.8xlarge machine with NVLink by using batch size 32, and sequence length 512. The best setting is bolded in the table. And the settings which see beneﬁts compared with the baseline, are underlined.
+With NVLink
+w/o
+A1
+A2
+4.3 Effect of Compression on Model Accuracy while
+Fine-tuning
+TP=1, PP=4
+TP=2, PP=2
+591.96
+440.71
+591.36
+437.98
+591.47
+444.02
+Takeaway 2 Among all evaluated compression algorithms, only AE and quantization preserve ﬁne-tuning accuracy.
+TP=4, PP=1
+261.48
+270.22
+275.54
+Without NVLink
+w/o
+A1
+A2
+TP=1, PP=4
+633.17
+620.10
+620.44
+TP=2, PP=2
+646.14
+586.65
+595.25
+TP=4, PP=1
+736.01
+624.62
+636.15
+Table 3. The average iteration time (ms) for ﬁne-tuning with/without NVLink. We compare time without compression and with AE on different distributed settings, with batch size 32, and sequence length 512. The best setting on each machine is bolded. And the settings, under which we can gain beneﬁts com- pared with the baseline, are underlined.
+From Table 5, we can see that, when using AE and quan- tization algorithm for compression, the accuracy loss is within 3% except for CoLA and RTE. In Figure 2, we have shown that the activation for models is not low-rank. There- fore, sparsiﬁcation-based compression algorithms (Top- K/Random-K) lose important information and do not pre- serve model accuracy. Given that there is signiﬁcant accu- racy difference for CoLA and RTE, we study the impact of varying the number and range of layers compressed for these two datasets in Section 4.5.
+4.4 Throughput Beneﬁts for Pre-training
+Takeaway 3 Only AE and Top-K algorithms improve throughput when performing distributed pre-training.
+work bandwidth across the GPUs can affect the performance beneﬁts from compression. In other words, we can improve system throughput by at most 17.8% when compressing activation for ﬁne-tuning tasks on a 4-GPU machine without NVLink. That’s because, without NVLink, the communica- tion time for model parallelism is much longer. Thus, while the message encoding and decoding time remain unchanged, compression methods can provide more throughput beneﬁts across lower bandwidth links.
+Furthermore, from Tables 2 and 3, we observe that AE out- performs other compression methods. In Table 4, we break- down the time taken by each algorithm and ﬁnd that Top-K, Random-K and quantization have large encoding/decoding overheads and thus cannot provide end-to-end throughput improvements. Although AE slightly increases the time taken by the backward step, the ∼ 2× reduction in commu- nication time and the limited encoding/decoding overhead lead to better overall throughput.
+First, we recap the experimental environment here. For pre- training, we use 4 p3.8xlarge instances on Amazon EC2 and each instance has 4 GPUs with NVLink. From Table 6, we can see that using Top-K and AE can speed up pre- training by 7% and 16% respectively. Among the three distributed settings, TP=4, PP=4 is the best setting for pre-training. That is because the communication cost of tensor parallelism is larger than that of pipeline parallelism and with TP=4, tensor parallel communication happens over faster NVLinks.
+Takeaway 4 Compressing activation for models can im- prove throughput for pre-training by 16%.
+From Table 7, we notice that using AE and Top-K can reduce the waiting time and pipeline communication time of pre-training. This is because the inter-node bandwidth (10Gbps) is smaller than the intra-node bandwidth (40GB/s
+
+
+Does compressing activations help model parallel training?
+Compression Algorithm
+Forward
+Backward Optimizer
+Waiting & Pipeline Comm.
+Total Time
+Tensor Enc.
+Tensor Dec.
+Tensor Comm.
+w/o
+276.34
+354.16
+5.80
+9.83
+646.14
+\
+\
+150.72
+A1
+213.83
+362.61
+6.16
+4.06
+586.65
+2.16
+3.12
+80.88
+A2
+219.01
+366.51
+5.67
+4.07
+595.25
+3.12
+4.56
+84.48
+T1
+298.93
+355.71
+6.79
+4.38
+665.81
+70.08
+13.68
+85.20
+T2
+305.47
+355.51
+6.36
+3.91
+671.24
+70.32
+16.80
+87.84
+T3
+331.70
+356.80
+5.78
+5.00
+699.27
+72.24
+27.36
+100.80
+T4
+376.72
+359.19
+5.89
+6.60
+748.41
+74.88
+45.36
+124.56
+R1
+2,408.68
+357.02
+6.10
+7.68
+2,779.49
+2,040.24
+15.84
+104.16
+R2 R3 R4
+4,696.99 12,603.79 46,968.21
+356.33 362.13 365.36
+6.28 6.81 7.61
+6.20 25.28 22.81
+5,065.80 12,998.01 47,363.98
+4,244.64 11,499.12 44,038.56
+19.44 29.76 47.52
+135.84 139.92 567.36
+Q1
+274.03
+354.56
+5.88
+7.98
+642.46
+20.64
+32.16
+91.68
+Q2
+282.64
+354.55
+5.58
+7.58
+650.36
+19.92
+30.24
+104.64
+Table 4. We breakdown the average iteration time (ms) for ﬁne-tuning with various compression techniques when using TP=2 and PP=2, batch size 32, and sequence length 512. The results are collected from the local machine without NVLink. The total time (ms) is divided into following parts: forward step, backward step, optimizer, and waiting & pipeline communication. The last three columns further breakdown the tensor encoder/decoder and communication times which are considered part of the forward step.
+Compression Algorithm
+MNLI-(m/mm)
+QQP
+SST-2 MRPC CoLA QNLI
+RTE
+STS-B
+Avg.
+w/o
+88.07/88.70
+92.02
+95.07
+88.46
+62.22
+93.39
+82.67
+89.16
+86.64
+A1
+85.42/85.43
+91.07
+92.09
+86.14
+54.18
+91.31
+70.04
+87.61
+82.59
+A2
+85.53/85.65
+91.24
+93.23
+85.86
+55.93
+91.01
+65.34
+87.76
+82.40
+T1
+32.05/32.18
+74.31
+83.60
+70.78
+0.00
+58.37
+51.99
+0.00
+44.81
+T2
+44.12/45.67
+39.68
+90.83
+78.09
+0.00
+84.42
+49.82
+62.70
+55.04
+T3
+36.12/36.08
+74.75
+90.25
+81.51
+0.00
+85.41
+54.15
+0.00
+50.92
+T4
+83.85/84.41
+56.39
+93.69
+83.65
+0.00
+90.54
+59.21
+86.02
+70.86
+Q1
+87.25/87.81
+91.71
+93.46
+87.01
+55.99
+61.38
+67.51
+88.02
+80.02
+Q2
+87.85/88.47
+91.93
+93.23
+87.42
+57.67
+93.01
+78.34
+87.43
+85.04
+Table 5. Fine-tuning results over GLUE dataset under the setting that the tensor model-parallel size is 2 and pipeline model-parallel size is 2. F1 scores are reported for QQP and MRPC, Matthews correlation coefﬁcients are reported for CoLA, and Spearman correlations are reported for STS-B, and accuracy scores are reported for the other tasks.
+with NVLink), so compression is effective at reducing the communication time between two pipeline stages. From Table 9, we can observe that, by using A2 to compress the activation over the last 12 layers, we can reduce the communication cost between two pipeline stages effectively.
+Takeaway 5 Among all evaluated methods, AE is the best strategy to compress activation over pre-training. It achieves higher pre-training throughput and preserves the model’s accuracy.
+pression), we can observe that using AE is able to keep the accuracy when compared to the uncompressed model. In addition, we observe that we can use the AE at the pre- training phase and remove it during the ﬁne-tuning phase. In other words, we only need to load the parameter of the BERTLarge model to do ﬁne-tuning, and the parameters of the AE can be ignored. Furthermore, Table 8 shows that pre- trained models suffer signiﬁcant accuracy loss when using Top-K for compression. Finally, quantization can preserve the model’s accuracy, but we cannot achieve end-to-end speedup by using quantization as strategy to compress ac-
+From Table 8, compared with the baseline (without com-
+
+
+Does compressing activations help model parallel training?
+Distributed Setting
+w/o
+A1
+A2
+T1
+T2
+T3
+T4
+TP=2, PP=8
+1,625.16
+1,550.18
+1,579.70
+1,508.34
+1,503.54
+1,593.37
+1,682.87
+TP=4, PP=4
+1,422.40
+1,242.97
+1,223.20
+1,360.37
+1,352.61
+1,410.47
+1,721.87
+TP=8, PP=2
+15,642.30
+14,577.29
+14,073.45
+14,308.12
+14,543.81
+18,919.92
+27,152.07
+Distributed Setting
+w/o
+R1
+R2
+R3
+R4
+Q1
+Q2
+TP=2, PP=8
+1,625.16
+10,308.03
+20,814.20
+55,925.28 >100,000
+1,759.27
+1,752.24
+TP=4, PP=4
+1,422.40
+15,433.12
+31,565.19
+87,421.46 >100,000
+2,435.03
+2,594.94
+TP=8, PP=2
+15,642.30
+32,522.47
+61,049.87 >100,000 >100,000
+16,414.57
+16,517.44
+Table 6. The average iteration time (ms) for pre-training with various compression techniques by varying the distributed setting. The results are collected from 4 AWS p3.8xlarge machines with NVLink by using micro-batch size 128, global batch size 1024, and sequence length 128. The best setting is bolded in the table. And the settings, under which we can gain beneﬁts compared with the baseline, are underlined.
+Compression Algorithm
+Forward
+Backward Optimizer
+Waiting & Pipeline Comm.
+Total Time
+Tensor Enc.
+Tensor Dec.
+Tensor Comm.
+w/o
+467.73
+419.26
+7.42
+527.99
+1,422.40
+\
+\
+91.08
+A1 A2
+546.95 459.26
+455.26 467.51
+7.29 9.64
+233.47 286.78
+1,242.97 1,223.20
+8.64 12.96
+16.20 20.52
+32.76 43.56
+T1
+712.22
+423.91
+7.21
+217.03
+1,360.37
+73.44
+140.4
+80.28
+T2
+671.19
+424.27
+7.35
+249.80
+1,352.61
+81.00
+170.64
+81.36
+T3
+813.03
+433.42
+7.35
+156.67
+1,410.47
+108.00
+268.92
+115.92
+T4
+1,068.38
+444.26
+6.75
+202.48
+1,721.87
+153.36
+427.68
+151.56
+R1 R2
+14,199.56 29,344.85
+421.40 427.18
+4.23 3.91
+807.93 1,789.25
+15,433.12 31,565.19
+13,185.72 27,975.24
+181.44 181.44
+193.68 187.20
+R3
+78,906.91
+444.88
+6.08
+3,707.37
+83,065.23
+73,847.16
+279.72
+649.44
+Q1
+803.63
+417.33
+8.61
+1,205.46
+2,435.03
+90.72
+304.56
+193.68
+Q2
+805.33
+417.74
+7.55
+1,364.32
+2,594.94
+85.32
+271.08
+111.60
+Table 7. We breakdown the average iteration time (ms) for pre-training with various compression techniques when using tensor model- parallel size 4, pipeline model-parallel size 4, micro batch size 128, global batch size 1024, and sequence length 128. The results are collected from 4 AWS p3.8xlarge machines with NVLink.
+Compression Algorithm
+MNLI-(m/mm)
+QQP
+SST-2 MRPC CoLA QNLI
+RTE
+STS-B
+Avg.
+w/o
+84.87/84.79
+91.25
+92.43
+86.84
+56.36
+92.26
+70.40
+86.83
+82.89
+A2
+83.77/84.32
+91.14
+91.63
+86.55
+58.61
+91.96
+71.48
+87.16
+82.96
+T2
+61.06/60.93
+80.74
+80.16
+63.83
+10.01
+59.55
+47.29
+0.37
+51.55
+Q2
+84.47/85.32
+91.36
+93.23
+85.10
+58.84
+91.69
+71.84
+86.39
+83.14
+Table 8. Fine-tuning results over GLUE dataset by using the checkpoint obtained by pre-training. F1 scores are reported for QQP and MRPC, Matthews correlation coefﬁcient is reported for CoLA, and Spearman correlations are reported for STS-B, and accuracy scores are reported for the other tasks.
+tivation over pre-training. In conclusion, it is not a good choice to compress the activation by using quantization or Top-K.
+4.5 Varying Compression Layers and Location
+Takeaway 6 When the number of compressed layers in- creases, the model accuracy decreases.
+From Figure 4(a), we can observe that the accuracy for RTE
+
+
+Does compressing activations help model parallel training?
+Pipeline Stages Comm. (w/o) Comm. (A2)
+ers harms the accuracy of the model.
+0 ↔ 1
+77.82
+76.13
+1 ↔ 2
+88.69
+13.19
+2 ↔ 3
+97.67
+14.09
+Table 9. The average communication time (ms) per iteration be- tween two pipeline stages. The ﬁrst column indicates the pipeline stage. And the second column shows the communication time per iteration without compression. Moreover, the third column presents the communication time with A2. We only compress the activation in the last 12 layers and thus the time for the ﬁrst pipeline stage is unchanged.
+CoLA
+RTE
+18Number of Layers Compressed
+12
+14
+6
+16
+80
+8
+w/o
+60
+10
+100Metrics (%)
+0
+40
+20
+We keep the number of layers compressed constant and vary the location where we apply compression (Figure 4(b)). The results indicate that compressing activations of the ﬁrst few layers of the model signiﬁcantly harms the model’s accuracy. This is because compressing activations generates error and the error in the early layers can be accumulated and propagated to later layers.
+4.6
+Impact of Model Hyper-parameters
+Takeaway 8 Using a smaller batch size or sequence length for ﬁne-tuning negates the throughput beneﬁts from com- pression because of the smaller communication cost.
+We vary the batch size from {8, 32} and sequence length from {128, 512}, and report the results in Table 11-14. We provide more detailed experimental results in Appendix A. We notice that when the communication cost over model par- allelism is small, the overhead of the compression methods can become the bottleneck. Therefore, we cannot improve system throughput when using compression algorithms with batch size 8 and sequence length 128.
+(a) Vary Number of Layers Compressed
+4.7 Performance Analysis
+7-18
+100Metrics (%)
+20
+RTE
+10-21
+40
+4-15
+w/oCompression Location
+13-24
+60
+1-12
+CoLA
+0
+80
+(b) Vary Compression Location
+Figure 4. Fine-tuning results over CoLA and RTE datasets by vary- ing the compression location and number of layers compressed. The above ﬁgure shows that model performance vs the number of layers compressed. The below ﬁgure shows that model per- formance versus the compression location. We use tensor model- parallel degree 2, pipeline model-parallel degree 2, batch size 32, and sequence length 512.
+In this section, we develop an analytical cost model to an- swer the question:
+What will happen if we scale up the model size and the cluster size?
+Given that prior works (Li et al., 2022) have analyzed the complexity of various model parallelism strategies, we only consider a ﬁxed strategy of using tensor model parallelism here. Concretely, we use tensor model parallelism in the same node, and pipeline model parallelism across the node, a suggested strategy according to (Narayanan et al., 2021). In particular, we build the performance analysis for real- world settings similar to (Narayanan et al., 2019) in two steps. First, we develop our own model on a single-node scenario, and we scale up the model size on a single node. Second, we increase the cluster size and, according to the model-parallelism strategy we choose, assign additional GPUs to pipeline parallelism, and use off-the-shelf pipeline parallelism cost models to predict the performance (Li et al., 2022; Zheng et al., 2022).
+and the matthews correlation coefﬁcient for CoLA decreases as we increase the number of layers compressed. This is because as we increase number of layers compressed, we lose more information in the activations leading to a loss in accuracy. From Figure 4(a), we observe that compressing activations of the last 8 layers is the best strategy to keep the accuracy loss within 3% for both datasets.
+Takeaway 7 Compressing the activation for the initial lay-
+Denote the vocabulary size as V , hidden size as h, sequence length as s, and batch size as B. From (Narayanan et al., 2021), we know that the number of ﬂoating points opera- tions (FLOPs) and all-reduce message size in a Transformer layer is 96Bsh2 + 16Bs2h, and Bsh respectively.
+If we do not use compression methods, the total time of a Transformer layer can be modeled as a sum of the all-reduce communication step and the computation time step. We note
+
+
+Does compressing activations help model parallel training?
+100
+bs128(pred)
+10000
+bs64(pred)
+0
+2500
+150
+12500Hidden size
+5000
+7500
+bs64
+bs128
+bs32(pred)
+bs16
+bs16(pred)
+50
+200Run-time (ms)
+bs32
+40
+7500
+20
+bs128(pred)
+12500Hidden size
+bs32(pred)
+bs16(pred)
+bs64
+bs64(pred)
+60Run-time (ms)
+bs128
+0
+bs32
+5000
+bs16
+10000
+2500
+bs32(pred)
+bs64(pred)
+5000
+bs64
+bs128
+bs16(pred)
+7500
+2
+3
+2500
+10000
+5Run-time (ms)
+bs128(pred)
+0
+1
+12500Hidden size
+bs32
+bs16
+4
+7500
+bs32(pred)
+bs128
+12500Hidden Size
+bs64(pred)
+bs128(pred)
+3
+2500
+2
+1
+4
+5Speedup
+bs32
+5000
+10000
+bs16
+bs64
+bs16(pred)
+(a) Tcomp
+(b) Tcomm
+(c) Toverhead
+(d) Speedup
+Figure 5. We vary the batch size and the hidden size to show that our prediction model is accurate compared with the real experimental results. The model we use here has only one transformer layer and the tensor model-parallel size is 4. In speciﬁc, Figure (a) shows the real and predicted computation time with the increase of the hidden size. Figure (b) presents the real and predicted communication time between tensor parallelism by varying the hidden size. As for the Figure (c), it presents the computation time of AE with the increase of hidden size. In the end, Figure (d) show the total speedup when we use AE to compress activations over tensor parallelism.
+that these two steps can hardly overlap because , the reason behind it is that the all-reduce communication depends on the previous computational results:
+T = Tcomp(96Bsh2 + 16Bs2h) + Tcomm(Bsh)
+(1)
+In AE, Toverhead is the encoder and Modeling Toverhead decoder computation time. It is a batched matrix multiplica- tion with input dimension B × s × h and h × e. Assuming e is kept constant, it can be modeled as Toverhead = γBsh. The ﬁtting result is shown in 5(c).
+Modeling Tcomp We model Tcomp as a linear function of FLOPs with the coefﬁcient α that corresponds to the peak performance of the GPU. In particular, we estimate α using ground truth wall clock time of the largest hidden size we can ﬁt, where the GPU is more likely to be of the peak utilization (Williams et al., 2009). During experiments, we found that ﬁtting α using time of smaller hidden sizes can result in a 30x higher prediction time when we scale up the hidden size because of low GPU utilization. Our prediction versus the ground truth time is plotted in Figure 5(a).
+Since each Transformer layer has identical conﬁgurations in popular Transformer models (Devlin et al., 2018; Radford et al., 2018), the overall speedup ratio is the same as we vary the number of layers. Thus, we can estimate the speedup of different hidden sizes of any number of Transformer layers using T TAE
+. We provide the ﬁtting result in Figure 5(d).
+Understanding the trend We consider the asymptotic behavior of large hidden size h:
+T TAE
+≈
+α(96Bsh2 + 16Bs2h) + βBsh α(96Bsh2 + 16Bs2h) + γBsh + c
+Modeling Tcomm we model Tcomm as a piece-wise func- tion of the message size (Agarwal et al., 2022). Formally,
+Thus, we can see that as hidden layer size increases, the beneﬁts from compression diminish.
+Tcomm(Bsh) =
+(cid:40) if Bsh < d c βBsh if Bsh ≥ d
+If the message size is smaller than a threshold d, then Tcomm(Bsh) is a constant c because the worker needs to launch one communication round (Li et al., 2020). Other- wise, the number of communication rounds is proportional to the message size. The ﬁtting result is in Figure 5(b).
+Using AE as the compression method and a ﬁxed encoder dimension e (we set e to 100 in this section), the total time of a single Transformer layer is:
+TAE = Tcomp(96Bsh2 + 16Bs2h) + Tcomm(Bse)
++ Toverhead
+Compared with the setting without compression, the compu- tation time remains unchanged. In addition, Tcomm(Bse) is roughly equal to c because Bse is usually smaller than the threshold d. In our experiments, the threshold d = 16 × 128 × 100 = 409600 and c ≈ 0.2.
+Scaling up the cluster size Next we analyze the speedup when scaling up the cluster size by combining the pipeline parallelism cost model developed in (Li et al., 2022; Zheng et al., 2022). Formally, the running time is modeled as a sum of per-micro-batch pipeline communication time, per- micro-batch of non-straggler pipeline execution time, and the per-mini-batch straggler pipeline execution time. To use the cost model, we denote the micro-batch size as m, the number of nodes n, the number of layers L, the pipeline communication time p or pAE.
+We use the default pipeline layer assignment strategy in (Shoeybi et al., 2019), which balances the number of transformer layers. Thus, every stage takes the same time in our scenario: L n TAE. We use the pipeline communi- cation model in (Jia et al., 2019; Li et al., 2022), p = Bsh w , pAE = Bse w , where w is the bandwidth. Thus the overall speedup can be written as:
+n T or L
+( m−1 n + 1) × LT + (n − 1) × Bsh n + 1) × LTAE + (n − 1) × Bse ( m−1
+w
+w
+(2)
+(3)
+
+
+Does compressing activations help model parallel training?
+From the Table 10, we see that we can maintain a ∼1.5x speedup as we scale the hidden size to 25600. This shows that if we increase the number of nodes when we increase in hidden size, AE compression retains its beneﬁts. However, it is possible to avoid the diminishing speedup by properly scaling up the number of nodes n, where the speedup will asymptotically converge to h e . In summary, compression in model parallelism has dimin- ishing returns if we only scale up the model on a ﬁxed cluster. To gain beneﬁts from compression methods, one needs to also properly manage other parameters in the cost model, e.g. also scaling up the number of nodes and use the pipeline parallelism.
+5 RELATED WORK
+In this section, we ﬁrst introduce work related to the de- velopment of large Transformer models. Then, we discuss strategies to train these models at scale. In the end, we discuss prior work that accelerates distributed ML models training by using compression techniques.
+Transformer Models. Transformer models were ﬁrst intro- duced by Vaswani et al. (2017) in the machine translation context. It has been shown to be effective in various other language understanding tasks such as text generation, text classiﬁcation and question answering (Devlin et al., 2018; Radford et al., 2018; Wang et al., 2018a; Rajpurkar et al., 2016). Recent research has also successfully applied Trans- former models to images (Dosovitskiy et al., 2020; Touvron et al., 2021), audio (Gong et al., 2021) and beyond (Sharir et al., 2021). An N -layers transformer model is composed of three major components: (1) An embedding layer that maps an input token to a hidden state, (2) A stack of N transformer layers, and (3) a prediction layer that maps the hidden state proceeded by transformer layers to the task output. A transformer layer is composed of an attention module (Bahdanau et al., 2014) and several matrix multipli- cations. Several optimizations have been proposed to speed up Transformer model training such as carefully managing the I/O (Dao et al., 2022) and reducing the complexity of the attention module (Wang et al., 2020). In this work, we speed up the Transformer model training in the distributed setting, where we reduce the communication between workers.
+parallelism developed in Megatron and data parallelism to train Transformer models at the scale of trillion parame- ters. (Li et al., 2022) considers a more sophisticated model parallelism strategy space for Transformer models and uses a cost model to automatically search for the optimal one. Our work is orthogonal to the direction of developing new parallel training strategies. In this work, we study how to compress communication on existing parallel strategies.
+Distributed training with Compression. Distributed ML model training requires frequent and heavy synchronization between workers. Several directions have been proposed to reduce the communication bottleneck by compressing the message size. One direction is developed on the data parallelism setting, where workers communicate model gra- dients (Wang et al., 2021; Agarwal et al., 2022) during backward propagation. Common techniques to reduce the gradient communication include low-rank updates (Wang et al., 2018b), sparsiﬁcation (Lin et al., 2017), and quanti- zation (Seide et al., 2014; Bernstein et al., 2018; Dettmers, 2015). A more recent direction ﬁnd that the activation pro- duced during the forward propagation in neural networks is large, and thus compressing them is beneﬁcial (Wang et al., 2022). In particular, they use quantization to compress the activation volume between pipeline parallelism workers. However, they focus on the geo-distributed setting where the network bandwidth is very low. In this paper, we study the effect of a rich set of popular compression techniques on tensor and pipeline parallelism, and in a typical cloud computing setting.
+6 CONCLUSION
+In this work, we studied the impact of compressing acti- vations for models trained using model parallelism. We implemented and integrated several popular compression algorithms into an existing distributed training framework (Megatron-LM) and evaluated their performance in terms of throughput and accuracy under various settings. Our re- sults show that learning-based compression algorithms are the most effective approach for compressing activations in model parallelism. We also developed a performance model to analyze the speedup when scaling up the model. Our ex- periments provide valuable insights for the development of improved activation compression algorithms in the future.
+Training Large Transformer models. Several parallelism strategies have been proposed to train Transformer mod- els. Megatron (Shoeybi et al., 2019) proposes tensor model parallelism, which parallelizes the computation in attention layers and in the following matrix multiplications. Deep- Speed (Rasley et al., 2020) uses a specialized form of pipeline parallelism (Huang et al., 2019; Narayanan et al., 2019) that treats a transformer layer as the smallest unit in pipeline stages. It further combines the tensor model
+Acknowledgments
+Shivaram Venkataraman is supported by the Ofﬁce of the Vice Chancellor for Research and Graduate Education at UW-Madison with funding from the Wisconsin Alumni Research Foundation. Eric Xing is supported by NSF IIS1563887, NSF CCF1629559, NSF IIS1617583, NGA HM04762010002, NSF IIS1955532, NSF CNS2008248, NSF IIS2123952, and NSF BCS2040381.
+
+
+Does compressing activations help model parallel training?
+hidden size
+number of layers
+number of nodes
+batch size
+speedup
+6144
+40
+1
+1024
+1.91×
+8192
+48
+2
+1536
+1.75×
+10240
+60
+4
+1792
+1.63×
+12288
+80
+8
+2304
+1.55×
+16384
+96
+16
+2176
+1.46×
+20480
+105
+35
+2528
+1.46×
+25600
+128
+64
+3072
+1.47×
+Table 10. Weak-scaling speedup for the Transformer models. The number of tensor model parallelism is 4, and the micro-batch size is 16. As for the change of the hidden size, the number of layers, and the batch size, we follow the setting of Table 1 in (Narayanan et al., 2021).
+REFERENCES
+Agarwal, S., Wang, H., Venkataraman, S., and Papailiopou- los, D. On the utility of gradient compression in dis- tributed training systems. Proceedings of Machine Learn- ing and Systems, 4:652–672, 2022.
+Bahdanau, D., Cho, K., and Bengio, Y. Neural machine translation by jointly learning to align and translate. arXiv preprint arXiv:1409.0473, 2014.
+Hinton, G. E. and Zemel, R. Autoencoders, minimum de- scription length and helmholtz free energy. Advances in neural information processing systems, 6, 1993.
+Ho, Q., Cipar, J., Cui, H., Lee, S., Kim, J. K., Gibbons, P. B., Gibson, G. A., Ganger, G., and Xing, E. P. More effective distributed ml via a stale synchronous parallel parameter server. In Advances in neural information processing systems, pp. 1223–1231, 2013.
+Bernstein, J., Wang, Y.-X., Azizzadenesheli, K., and Anand- kumar, A. signsgd: Compressed optimisation for non- convex problems. In International Conference on Ma- chine Learning, pp. 560–569. PMLR, 2018.
+Huang, Y., Cheng, Y., Bapna, A., Firat, O., Chen, D., Chen, M., Lee, H., Ngiam, J., Le, Q. V., Wu, Y., et al. Gpipe: Efﬁcient training of giant neural networks using pipeline parallelism. Advances in neural information processing systems, 32, 2019.
+Dao, T., Fu, D. Y., Ermon, S., Rudra, A., and R´e, C. Flashat- tention: Fast and memory-efﬁcient exact attention with io-awareness. arXiv preprint arXiv:2205.14135, 2022.
+Izsak, P., Berchansky, M., and Levy, O.
+train bert with an academic budget. arXiv:2104.07705, 2021.
+How to arXiv preprint
+Dettmers, T. 8-bit approximations for parallelism in deep
+learning. arXiv preprint arXiv:1511.04561, 2015.
+Devlin, J., Chang, M.-W., Lee, K., and Toutanova, K. Bert: Pre-training of deep bidirectional transformers for lan- guage understanding. arXiv preprint arXiv:1810.04805, 2018.
+Dosovitskiy, A., Beyer, L., Kolesnikov, A., Weissenborn, D., Zhai, X., Unterthiner, T., Dehghani, M., Minderer, M., Heigold, G., Gelly, S., et al. An image is worth 16x16 words: Transformers for image recognition at scale. arXiv preprint arXiv:2010.11929, 2020.
+Gong, Y., Chung, Y.-A., and Glass, J. Ast: Audio spec- trogram transformer. arXiv preprint arXiv:2104.01778, 2021.
+Gururangan, S., Marasovi´c, A., Swayamdipta, S., Lo, K., Beltagy, I., Downey, D., and Smith, N. A. Don’t stop pretraining: adapt language models to domains and tasks. arXiv preprint arXiv:2004.10964, 2020.
+Jia, Z., Zaharia, M., and Aiken, A. Beyond data and model parallelism for deep neural networks. Proceedings of Machine Learning and Systems, 1:1–13, 2019.
+Kim, J. K., Ho, Q., Lee, S., Zheng, X., Dai, W., Gibson, G. A., and Xing, E. P. Strads: A distributed framework for scheduled model parallel machine learning. In Proceed- ings of the Eleventh European Conference on Computer Systems, pp. 1–16, 2016.
+Li, D., Wang, H., Xing, E., and Zhang, H. Amp: Automati- cally ﬁnding model parallel strategies with heterogeneity awareness. arXiv preprint arXiv:2210.07297, 2022.
+Li, M., Andersen, D. G., Park, J. W., Smola, A. J., Ahmed, A., Josifovski, V., Long, J., Shekita, E. J., and Su, B.-Y. Scaling distributed machine learning with the parameter In 11th {USENIX} Symposium on Operating server. Systems Design and Implementation ({OSDI} 14), pp. 583–598, 2014.
+
+
+Does compressing activations help model parallel training?
+Li, S., Zhao, Y., Varma, R., Salpekar, O., Noordhuis, P., Li, T., Paszke, A., Smith, J., Vaughan, B., Damania, P., et al. Pytorch distributed: Experiences on accelerating data parallel training. arXiv preprint arXiv:2006.15704, 2020.
+Seide, F., Fu, H., Droppo, J., Li, G., and Yu, D. 1-bit stochas- tic gradient descent and its application to data-parallel distributed training of speech dnns. In Fifteenth annual conference of the international speech communication association. Citeseer, 2014.
+Li, Z., Zhuang, S., Guo, S., Zhuo, D., Zhang, H., Song, D., and Stoica, I. Terapipe: Token-level pipeline parallelism In Interna- for training large-scale language models. tional Conference on Machine Learning, pp. 6543–6552. PMLR, 2021.
+Lin, Y., Han, S., Mao, H., Wang, Y., and Dally, W. J. Deep gradient compression: Reducing the communica- tion bandwidth for distributed training. arXiv preprint arXiv:1712.01887, 2017.
+Liu, Y., Ott, M., Goyal, N., Du, J., Joshi, M., Chen, D., Levy, O., Lewis, M., Zettlemoyer, L., and Stoyanov, V. Roberta: A robustly optimized bert pretraining approach. arXiv preprint arXiv:1907.11692, 2019.
+Lu, W., Yan, G., Li, J., Gong, S., Han, Y., and Li, X. Flexﬂow: A ﬂexible dataﬂow accelerator architecture In 2017 IEEE In- for convolutional neural networks. ternational Symposium on High Performance Computer Architecture (HPCA), pp. 553–564. IEEE, 2017.
+Sergeev, A. and Del Balso, M. Horovod: fast and easy distributed deep learning in tensorﬂow. arXiv preprint arXiv:1802.05799, 2018.
+Sharir, G., Noy, A., and Zelnik-Manor, L. An image is worth 16x16 words, what is a video worth? arXiv preprint arXiv:2103.13915, 2021.
+Shazeer, N., Cheng, Y., Parmar, N., Tran, D., Vaswani, A., Koanantakool, P., Hawkins, P., Lee, H., Hong, M., Young, C., et al. Mesh-tensorﬂow: Deep learning for super- computers. Advances in neural information processing systems, 31, 2018.
+Shoeybi, M., Patwary, M., Puri, R., LeGresley, P., Casper, J., and Catanzaro, B. Megatron-lm: Training multi- billion parameter language models using model paral- lelism. arXiv preprint arXiv:1909.08053, 2019.
+Stich, S. U., Cordonnier, J.-B., and Jaggi, M. Sparsiﬁed sgd with memory. Advances in Neural Information Process- ing Systems, 31, 2018.
+Narayanan, D., Harlap, A., Phanishayee, A., Seshadri, V., Devanur, N. R., Ganger, G. R., Gibbons, P. B., and Za- haria, M. Pipedream: generalized pipeline parallelism for dnn training. In Proceedings of the 27th ACM Symposium on Operating Systems Principles, pp. 1–15, 2019.
+Touvron, H., Cord, M., Douze, M., Massa, F., Sablayrolles, A., and J´egou, H. Training data-efﬁcient image transform- ers & distillation through attention. In International Con- ference on Machine Learning, pp. 10347–10357. PMLR, 2021.
+Narayanan, D., Shoeybi, M., Casper, J., LeGresley, P., Pat- wary, M., Korthikanti, V., Vainbrand, D., Kashinkunti, P., Bernauer, J., Catanzaro, B., et al. Efﬁcient large-scale language model training on gpu clusters using megatron- lm. In Proceedings of the International Conference for High Performance Computing, Networking, Storage and Analysis, pp. 1–15, 2021.
+Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł., and Polosukhin, I. At- tention is all you need. Advances in neural information processing systems, 30, 2017.
+Vogels, T., Karimireddy, S. P., and Jaggi, M. Powersgd: Practical low-rank gradient compression for distributed optimization. Advances in Neural Information Processing Systems, 32, 2019.
+Radford, A., Narasimhan, K., Salimans, T., Sutskever, I., et al. Improving language understanding by generative pre-training. 2018.
+Rajpurkar, P., Zhang, J., Lopyrev, K., and Liang, P. Squad: 100,000+ questions for machine comprehension of text. arXiv preprint arXiv:1606.05250, 2016.
+Rasley, J., Rajbhandari, S., Ruwase, O., and He, Y. Deep- speed: System optimizations enable training deep learn- ing models with over 100 billion parameters. In Proceed- ings of the 26th ACM SIGKDD International Conference on Knowledge Discovery & Data Mining, pp. 3505–3506, 2020.
+Wang, A., Singh, A., Michael, J., Hill, F., Levy, O., and Bowman, S. R. Glue: A multi-task benchmark and anal- ysis platform for natural language understanding. arXiv preprint arXiv:1804.07461, 2018a.
+Wang, H., Sievert, S., Liu, S., Charles, Z., Papailiopoulos, D., and Wright, S. Atomo: Communication-efﬁcient learning via atomic sparsiﬁcation. Advances in Neural Information Processing Systems, 31, 2018b.
+Wang, H., Agarwal, S., and Papailiopoulos, D. Pufferﬁsh: communication-efﬁcient models at no extra cost. Pro- ceedings of Machine Learning and Systems, 3:365–386, 2021.
+
+
+Does compressing activations help model parallel training?
+Wang, J., Yuan, B., Rimanic, L., He, Y., Dao, T., Chen, B., Re, C., and Zhang, C. Fine-tuning language models over slow networks using activation compression with guarantees. arXiv preprint arXiv:2206.01299, 2022.
+Wang, S., Li, B. Z., Khabsa, M., Fang, H., and Ma, H. Linformer: Self-attention with linear complexity. arXiv preprint arXiv:2006.04768, 2020.
+Williams, S., Waterman, A., and Patterson, D. Rooﬂine: an insightful visual performance model for multicore architectures. Communications of the ACM, 52(4):65–76, 2009.
+Yang, Z., Dai, Z., Yang, Y., Carbonell, J., Salakhutdinov, R. R., and Le, Q. V. Xlnet: Generalized autoregressive pretraining for language understanding. Advances in neural information processing systems, 32, 2019.
+Zhang, H., Zheng, Z., Xu, S., Dai, W., Ho, Q., Liang, X., Hu, Z., Wei, J., Xie, P., and Xing, E. P. Poseidon: An efﬁcient communication architecture for distributed deep learning In 2017 USENIX Annual Technical on GPU clusters. Conference (USENIX ATC 17), pp. 181–193, 2017.
+Zheng, L., Li, Z., Zhang, H., Zhuang, Y., Chen, Z., Huang, Y., Wang, Y., Xu, Y., Zhuo, D., Gonzalez, J. E., et al. Alpa: Automating inter-and intra-operator parallelism for dis- tributed deep learning. arXiv preprint arXiv:2201.12023, 2022.
+Zhu, Y., Kiros, R., Zemel, R., Salakhutdinov, R., Urta- sun, R., Torralba, A., and Fidler, S. Aligning books and movies: Towards story-like visual explanations by watch- ing movies and reading books. In Proceedings of the IEEE international conference on computer vision, pp. 19–27, 2015.
+
+
+Does compressing activations help model parallel training?
+A MORE EXPERIMENTAL RESULTS
+We provide more experimental results in this section.
+Distributed Setting TP=1, PP=4 TP=2, PP=2 TP=4, PP=1 Distributed Setting TP=1, PP=4 TP=2, PP=2 TP=4, PP=1
+w/o 151.82 145.58 136.66 R1 206.89 844.66 820.37
+A1 154.62 157.49 155.43 R2 273.49 1,589.66 1,588.59
+A2 155.03 163.63 145.97 R3 449.70 3,915.32 3,915.52
+T1 155.78 175.67 170.04 R4 1,292.15 15,732.57 15,469.87
+T2 155.12 177.39 176.88 Q1 154.30 178.09 188.10
+T3 156.84 186.71 186.06 Q2 153.65 175.23 168.90
+T4 158.58 178.91 190.01 Q3 152.33 172.93 167.90
+Table 11. The total time (ms) for ﬁne-tuning with various compression techniques by varying the distributed setting. The results are collected from the AWS p3.8xlarge machine with NVLink by using batch size 32, and sequence length 128.
+Distributed Setting TP=1, PP=4 TP=2, PP=2 TP=4, PP=1 Distributed Setting TP=1, PP=4 TP=2, PP=2 TP=4, PP=1
+w/o 106.04 121.26 122.22 R1 124.39 314.51 329.33
+A1 113.67 142.41 142.33 R2 137.51 507.00 513.89
+A2 106.35 140.05 139.47 R3 187.59 998.51 1,007.65
+T1 109.58 152.91 171.24 R4 333.61 3,197.42 3,406.20
+T2 109.10 154.60 165.77 Q1 108.18 163.18 171.06
+T3 109.18 162.00 172.69 Q2 109.56 155.48 163.96
+T4 110.57 157.12 170.61 Q3 109.49 150.31 152.82
+Table 12. The total time (ms) for ﬁne-tuning with various compression techniques by varying the distributed setting. The results are collected from the AWS p3.8xlarge machine with NVLink by using batch size 8, and sequence length 128.
+Distributed Setting TP=1, PP=4 TP=2, PP=2 TP=4, PP=1 Distributed Setting TP=1, PP=4 TP=2, PP=2 TP=4, PP=1
+w/o 154.82 184.48 212.76 R1 185.83 684.28 722.87
+A1 152.50 175.29 201.39 R2 231.78 1,228.36 1,275.57
+A2 153.47 180.35 200.31 R3 368.95 2,900.86 2,973.04
+T1 155.56 206.56 234.16 R4 963.62 10,499.14 10,891.70
+T2 156.01 204.48 240.42 Q1 155.33 188.82 225.42
+T3 156.81 207.66 242.62 Q2 154.85 189.14 230.69
+T4 158.37 214.30 261.39 Q3 154.82 194.25 242.42
+Table 13. The total time (ms) for ﬁne-tuning with various compression techniques by varying the distributed setting. The results are collected from the local machine without NVLink by using batch size 32, and sequence length 128.
+Distributed Setting TP=1, PP=4 TP=2, PP=2 TP=4, PP=1 Distributed Setting TP=1, PP=4 TP=2, PP=2 TP=4, PP=1
+w/o 73.19 100.86 100.73 R1 82.45 235.02 238.28
+A1 72.94 107.73 107.90 R2 94.84 366.59 368.45
+A2 72.58 100.54 115.18 R3 123.78 769.47 733.03
+T1 75.98 113.59 129.31 R4 239.81 2,183.39 2,509.73
+T2 74.15 117.36 124.94 Q1 73.33 111.61 120.14
+T3 73.62 114.86 136.18 Q2 74.41 106.75 114.73
+T4 74.86 112.11 133.91 Q3 71.80 101.25 118.98
+Table 14. The total time (ms) for ﬁne-tuning with various compression techniques by varying the distributed setting. The results are collected from the local machine without NVLink by using batch size 8, and sequence length 128.
+
+
+Does compressing activations help model parallel training?
+Compression Algorithm w/o A1 A2 T1 T2 T3 T4 Q1 Q2
+MNLI-(m/mm) QQP
+87.87/88.02 85.30/85.33 85.25/85.19 34.38/34.01 40.10/38.97 68.76/69.23 84.24/85.23 86.85/87.58 87.46/88.02
+91.96 91.28 91.41 72.29 58.91 64.58 89.17 91.50 91.82
+SST-2 MRPC CoLA QNLI
+95.18 92.32 93.23 49.54 79.24 91.40 92.09 93.58 94.95
+87.71 84.58 86.72 70.38 66.49 80.93 81.68 86.96 87.48
+59.40 55.18 57.02 36.64 0.00 0.00 51.54 59.20 57.02
+92.99 90.87 90.92 59.89 80.40 67.34 91.71 92.24 93.36
+RTE
+76.90 59.93 64.26 53.43 45.49 66.43 63.54 59.57 68.95
+STS-B
+88.43 87.92 87.74 70.81 11.32 69.24 84.80 86.89 87.84
+Table 15. Fintune results over GLUE dataset under the setting using tensor parallelism size 2, pipeline parallelism size 2, batch size 32, and sequence length 128. F1 scores are reported for QQP and MRPC, Matthews correlation coefﬁcient is reported for CoLA, and Spearman correlations are reported for STS-B, and accuracy scores are reported for the other tasks.
+Compression Algorithm w/o A1 A2 T1 T2 T3 T4 Q1 Q2
+MNLI-(m/mm) QQP
+86.23/86.07 82.49/82.41 82.18/82.23 36.69/38.13 43.92/43.66 49.07/47.96 83.99/84.37 84.91/85.18 85.66/86.09
+91.22 89.93 90.45 66.85 73.63 72.02 35.78 90.54 90.99
+SST-2 MRPC CoLA QNLI
+91.74 91.85 90.52 55.32 51.26 83.57 68.30 92.43 91.74
+88.17 82.43 83.54 68.93 62.26 69.33 83.54 85.91 86.84
+59.02 43.56 0.00 0.00 0.00 12.04 47.33 53.25 53.92
+92.09 89.84 89.02 59.13 60.13 83.60 60.52 60.68 91.31
+RTE
+78.70 47.29 62.82 52.71 49.82 55.60 64.62 57.04 75.81
+STS-B
+88.40 87.03 87.66 1.97 0.00 84.96 86.72 87.91 88.19
+Table 16. Fintune results over GLUE dataset under the setting using tensor parallelism size 2, pipeline parallelism size 2, batch size 8, and sequence length 128. F1 scores are reported for QQP and MRPC, Matthews correlation coefﬁcient is reported for CoLA, and Spearman correlations are reported for STS-B, and accuracy scores are reported for the other tasks.

@@ -1,0 +1,737 @@
+3 2 0 2
+t c O 3 2
+] L C . s c [
+2 v 5 5 7 4 1 . 5 0 3 2 : v i X r a
+“Don’t Take This Out of Context!” On the Need for Contextual Models and Evaluations for Stylistic Rewriting
+Akhila Yerukola♡
+Xuhui Zhou♡
+Elizabeth Clark♢
+Maarten Sap♡♣
+♡Language Technologies Institute, Carnegie Mellon University ♢Google DeepMind ♣Allen Institute for AI # ayerukol@andrew.cmu.edu
+Abstract
+Most existing stylistic text rewriting methods and evaluation metrics operate on a sentence level, but ignoring the broader context of the text can lead to preferring generic, ambigu- In this paper, ous, and incoherent rewrites. we investigate integrating the preceding textual context into both the rewriting and evaluation stages of stylistic text rewriting, and introduce a new composite contextual evaluation metric CtxSimFit that combines similarity to the orig- inal sentence with contextual cohesiveness. We comparatively evaluate non-contextual and con- textual rewrites in formality, toxicity, and senti- ment transfer tasks. Our experiments show that humans significantly prefer contextual rewrites as more fitting and natural over non-contextual ones, yet existing sentence-level automatic met- rics (e.g., ROUGE, SBERT) correlate poorly with human preferences (ρ=0–0.3). In contrast, human preferences are much better reflected by both our novel CtxSimFit (ρ=0.7–0.9) as well as proposed context-infused versions of com- mon metrics (ρ=0.4–0.7). Overall, our findings highlight the importance of integrating context into the generation and especially the evalua- tion stages of stylistic text rewriting.
+Non-contextual RewriteIndeed, I concur. I am inundated with them.
+Or make it less toxic / change to positive sentiment
+Informal response: “I know, right? I'm drowning in them.”
+Contextual rewriteIndeed, I concur. The workload is quite overwhelming.
+Preceding Dialog: “I can't believe how much work we have to do.”
+Rewrite it as formal
+Figure 1: Example of using the preceding dialog utter- ance to help with stylistic rewriting: here, we transform an informal response into formal language. Incorporat- ing “workload” and “overwhelming” enhances the con- textual cohesiveness of the rewritten text, while solely using “inundated” results in a more generic rewrite.
+1
+Introduction
+Existing methods for stylistic text rewriting, i.e., adapting the text to a particular style while preserv- ing its originally intended meaning, often fail to ac- count for a statement’s context (e.g., Hu et al., 2017; Shen et al., 2017; Fu et al., 2018; Li et al., 2018; Lample et al., 2019; Madaan et al., 2020; Hallinan et al., 2023). As a result, these systems may change the speakers’ original communicative intents and generate contextually irrelevant and generic out- puts. For example, in Figure 1, a non-contextual model rewriting an informal response to a formal one simply replaces words with more formal syn- onyms, whereas a contextual rewriting model can use the broader conversational context to produce a more specific and natural formal rewrite.
+Similarly, preceding textual context has largely been overlooked in automatic evaluations for stylis- tic rewriting, with most work focusing on sentence- level metrics (e.g., Li et al., 2018; Reif et al., 2022). This lack of context at the modeling and evaluation stages hinders the creation of effective AI-assisted rewriting tools for users (e.g., for assistive writing tools; MacArthur, 2009; Clark et al., 2018).
+In this paper, we present a comprehensive analy- sis of the need for context in stylistic rewriting and its evaluation, on three different rewriting tasks (formality transfer, sentiment change, and text detoxification) and two types of textual con- texts (preceding turns in a conversation, preceding sentences in a document). To study these effects, we design a contextual human evaluation frame- work (§5) to comparatively evaluate non-contextual and contextual rewriting methods built on few-shot prompted large language models (§4).
+
+
+We show that human evaluators prefer contex- tual rewrites in terms of naturalness, style strength, and intended meaning preservation, across all three tasks. However, non-contextual automatic met- rics for lexical or semantic meaning preservation correlate poorly with these preferences (ρ=0–0.3; §6), despite being commonly used in previous style transfer work to measure meaning preservation (Mir et al., 2019; Madaan et al., 2020).
+To address the need for context in automatic eval- uations, we introduce CtxSimFit, a new composite metric that combines original sentence similarity and contextual cohesiveness to evaluate the quality of rewrites, taking into account the preceding con- text (§7). Additionally, we propose context-infused versions of commonly used automatic metrics for meaning preservation. Our results show that hu- man preferences are significantly correlated with these contextual metrics—especially CtxSimFit (ρ=0.7–0.9), much more than non-contextual ones. Our contributions are summarized as follows: (1) We investigate the need for context in text rewriting, showing that incorporating it, whether at the docu- ment or conversational level, leads to contextually coherent and relevant rewrites preferred by human annotators across style transfer tasks. (2) We con- duct a comprehensive analysis on the need for con- text in automatic evaluation, revealing that existing metrics don’t align with human preferences. (3) We propose a custom metric, CtxSimFit, along with context-infused versions of common auto- matic metrics, to bridge the gap between contextual understanding and automated metrics. Overall, our contributions provide a more nuanced understand- ing of the importance of context, which is criti- cal for development of more effective and reliable stylistic text rewriting techniques.
+2 Background & Related Work
+In this section, we discuss the increasing interest in incorporating context into NLP tasks and motivate the significance of context during the rephrasing and evaluation phases of stylistic text rewriting.
+Stylistic Text Rewriting Despite being intro- duced over ten years ago (Xu et al., 2012), cur- rent methods for stylistic rewriting (e.g. Shen et al., 2017; Xu et al., 2018b; Fu et al., 2018; Lample et al., 2019; Jin et al., 2022; Chawla and Yang, 2020; Yerukola et al., 2021; Dale et al., 2021; Lo- gacheva et al., 2022, etc.) still rely solely on paral- lel source-to-target sentence pairs, primarily due to
+a lack of datasets that include contextual informa- tion. While new models have emerged that do not require parallel data for training (Hu et al., 2017; Li et al., 2018; Ma et al., 2020; Hallinan et al., 2023), they also operate without contex- tual information. Building on some preliminary research that explored context in small custom- trained seq2seq rewriting models (Cheng et al., 2020; Atwell et al., 2022) and large language mod- els for exemplar-based conversation-level rewriting (Roy et al., 2023), we extend the investigation to large language models with defined style attributes like formality, toxicity, and sentiment. Importantly, we also explore the need for context in evaluations in addition to modeling, and propose a new suite of contextualized metrics for automatic evaluation.
+Evaluation of Stylistic Text Rewriting Evaluat- ing whether sentence rewriting preserves meaning while achieving the desired target style has proved challenging. Existing metrics and approaches can disentangle meaning and style (Mukherjee et al., 2022; Yu et al., 2021). However, determining what constitutes “meaning preservation” remains incon- sistent. Some works (Li et al., 2018; Sudhakar et al., 2019; Mir et al., 2019; Reif et al., 2022; Madaan et al., 2020) use metrics such as BLEU, ROUGE, and METEOR, which measure n-gram overlaps and lex- ical similarity as indicators of meaning preserva- tion respectively, while other studies (Wang et al., 2019; Reid and Zhong, 2021; Roy et al., 2023) adopt metrics like SBERT and BERTScore measur- ing semantic similarity of embeddings as proxies for meaning preservation. Further, the majority of work (Hu et al., 2022; Madaan et al., 2020; Li et al., 2018) does not provide annotators with any preced- ing context during human evaluations. Thus, more standardized and context-aware evaluation metrics are needed for text rewriting approaches.
+3 Task and Datasets
+To measure the importance of context in rewriting, we scope our investigations around three specific at- tribute controls: formality, sentiment, and toxicity, chosen because they necessitate varying degrees of meaning preservation and style intensity. We present statistics for each of the datasets used in our rewriting tasks in Table 1.
+3.1 Tasks & Datasets
+Changing Formality Formality transfer (Rao and Tetreault, 2018) aims to transform sentences
+
+
+Task
+Context Type
+Datasets
+# Instances
+Formality
+Conversation Document
+Reddit CNN DailyMail + Blog Authorship
+1000 1000
+Sentiment
+Conversation Document
+DailyDialog Yelp Reviews
+1000 1500
+Toxicity
+Conversation Conversation Conversation
+CCC MDMD ProsocialDialog
+1000 900 1000
+Table 1: Statistics of the collected datasets, presented by task and context type, considering both preceding sentences in a document and turns in a conversation.
+from informal or casual language into formal lan- guage, and vice versa. This requires making stylis- tic adjustments while ensuring that the original content and intention remain intact. We use a conversational dataset from Reddit1 and curated a document-based dataset from CNN Daily Mail (formal; Nallapati et al., 2016) and the Blog Au- thorship Corpus (informal; Schler et al., 2006).
+Rewriting Sentiment For sentiment transfer (Hu et al., 2017), our focus lies in converting sentences with positive sentiment to negative sentiment, and vice versa, as well as transforming neutral sen- tences to convey positive or negative sentiment. Here, both the content and intention are altered; however, the main subject entities remain consis- tent, although with a change in sentiment. We obtain a conversational dataset from the DailyDia- log (Li et al., 2017) dataset and a document-based dataset from Yelp reviews (Zhang et al., 2015).
+De-toxifying Text Here, our objective is to rewrite text in a manner that reduces toxicity, as introduced by Nogueira dos Santos et al. (2018). Rewriting may modify the original content, but the initial intent should be preserved and conveyed using less offensive language. In this task, we examine three conversational datasets: the Civil Comments in Context (CCC) dataset (Xenos et al., 2021), the Multi-Label Dialogue Malevolence De- tection (MDMD) dataset (Zhang et al., 2022), and the ProsocialDialog dataset (Kim et al., 2022).
+3.2 Data Preparation
+For conversational datasets (as depicted in the ex- ample in Figure 1), we focus on two-turns, repre- senting parent context and response for rewriting.
+1We use reddit-corpus-small from http://convokit.
+cornell.edu/documentation/subreddit.html
+Original Sentence/Utterance
+Original Sentence/Utterance
+Open sourced
+Original Sentence/Utterance
+Preceding Document/Dialogue
+Or
+GPT-NeoX
+Contextual rewrite
+Noncontextual rewrite
+GPT 3.5
+Contextual Eval
+Non-contextual Eval
+&
+Random Document/Dialogue
+Random contextual rewrite
+Figure 2: Overview of our approach: We examine three kinds of rewrites - contextual, non-contextual, and ran- dom contextual rewrites. GPT-3.5 and GPT-NeoX are utilized for rewriting via in-context learning. Evaluation methods consist of non-contextual evaluation, which does not consider context, and contextual evaluation, which incorporates context into the assessment process.
+For document-based datasets, we select three con- text sentences and one for rewriting.
+We label the context and response using pre- trained style classifiers: RoBERTa-Base formal- ity classifier,2 XLM-RoBERTa-Base sentiment classifier (Barbieri et al., 2022) and toxicity scores from PerspectiveAPI,3 HateBert (Tommaso- Caselli and JelenaMitrovic, 2021) and HateRoberta (Hartvigsen et al., 2022) . We select a stratified sam- ple that includes a wide range of style strengths. See Appendix A for datasets and classifiers details.
+4 Modeling Context in Rewriting
+In this section, we introduce our methodology for contextual stylistic rewriting utilizing large lan- guage models (LLMs) and in-context learning. We conduct a comparison of three types of rewrites: those generated with context, those generated with- out context, and those generated with a random context (as a counterfactual baseline). Figure 2 provides a visual representation of our approach.
+4.1 Contextual Rewriting
+To address the challenge of insufficient parallel data, as discussed in §2, we propose a contextual
+2https://huggingface.co/s-nlp/
+roberta-base-formality-ranker
+3https://perspectiveapi.com/
+
+
+Context
+Original Sentence
+Model
+Style
+Contextual Rewrite
+Non-contextual Rewrite
+(a) (cid:220) Best Bond movie ever! Shittiest Bond theme ever!!!
+(cid:215) Haven’t seen Spectre, have you? For the latter, not the former.
+GPT-3.5
+formal " informal
+(cid:215) Haven’t you seen Spectre? It may not have had the best theme song, but it’s definitely one of the best Bond movies!
+(cid:215) Haven’t you seen Spectre? Not you, but someone else.
+y t i l a m r o F
+(b)
+@ I am reading a book, 777 Mathematical Conversation Starters by John dePillis. Its an interesting book with lots of quotes, poems
+(cid:15) Herez some of them, and further I will keep updating this page with what I like.
+GPT-NeoX
+informal " formal
+(cid:15) Here are some of them, and in a later post I will keep updat- ing this page with my favourite quotes from the book.
+(cid:15) Here is some of the one and further I will update this page with what else I find interesting.
+(c)
+(cid:220) What exactly has Taylor Swift done that makes anyone want to "smack her?" This isn’t funny and doesn’t even make sense.
+(d) (cid:220) So if a zombie apocalypse occurred, what would you do
+(cid:215) For $835,000,000,000 I’d smack her though. For that much money I’d smack my grandmother.
+(cid:215) @USER fuck it I’m killing myself
+GPT-3.5
+GPT-3.5
+(cid:215) A financial incentive of $835 billion might lead me to consider striking Taylor Swift. With such an enormous amount at stake, I would even be inclined to strike my own grandmother. less toxic (cid:215) I’d rather not think about a zombie apocalypse.
+informal " formal
+(cid:215) For eight hundred and thirty- five billion dollars, I would be in- clined to commit the act of phys- ical assault with regards to my grandmother.
+(cid:215) I am feeling overwhelmed and hopeless, so I’ll die
+n o i t a c fi
+i x o t e D
+(e)
+(cid:220) It’s remarkable how the Bible has recorded historical events, isn’t it?
+(cid:215) You appear to be saying the Bible is a reliable source for history. It isn’t. And if you disagree, go to RSN where you will be shot down literally with fire.
+GPT-NeoX less toxic
+(cid:215) You seem to think that the Bible is an accurate source for history. While it may be a sacred collection of texts, it is not a re- liable source for historical facts. For further discussion, I suggest visiting the RSN forums.
+(cid:215) I disagree with the idea that the Bible is a reliable source for history. If you have other opin- ions, please go to RSN to be dis- heartened
+(f) (cid:220) my throat feels weird and dry
+i quit
+(cid:215) @USER oof. see, there are downsides to sucking dick .
+GPT-3.5
+less toxic (cid:215) @USER I hope you feel better
+soon.
+(cid:215) @USER, there are negative aspects to performing oral sex.
+(g) (cid:220) Shall I see you on Friday
+morning ?
+(cid:215) That’s not good for me at all. It’ll have to be another time .
+GPT-3.5
+negative " positive
+(cid:215) Friday morning doesn’t work for me, but let’s plan for another time.
+(cid:215) That’s great for me. Let’s plan for another time.
+t n e m
+i t n e S
+(h)
+@ Not only did Tim fix my car quickly and inexpensively, he actually came to pick it up himself so that I wouldn’t have to spend money on a tow truck!
+(cid:15) He’s also an extremely friendly, funny guy who puts you at ease immediately.
+GPT-NeoX
+positive " negative
+(cid:15) However, Tim’s not very friendly or humorous which might make you feel uneasy
+(cid:15) He is also a very rude, una- mused guy who makes you feel anxious.
+(i) (cid:220) Let me see . We should go to
+buy some fruit first .
+(cid:215) It is heavy and not convenient to take them to the top .
+GPT-3.5
+negative " positive
+(cid:215) Buying fruit is a great idea! It will be a nice, refreshing snack to have on our way up.
+(cid:215) It is light and very convenient to take them to the top.
+Table 2: Examples from our datasets and corresponding rewrites generated by GPT-3.5 and GPT-NeoX, for all three tasks: formality change, de-toxification, and sentiment transfer. @ = document context (truncated), (cid:15) = sentence to rewrite, (cid:15) = contextual rewrite, (cid:15) = non-contextual rewrite; (cid:220) = previous turn in conversation, (cid:215) = response to rewrite, (cid:215) = contextual rewrite of response, (cid:215) = non-contextual rewrite of response, "Style" header refers to the style conversion.
+rewriting model that utilizes the in-context learning capabilities of LLMs, inspired by approaches pre- sented in Reif et al. (2022) and Roy et al. (2023). We conduct few-shot prompting experiments with two LLMs: GPT-3.54 (Ouyang et al., 2022) and GPT NeoX5 (Black et al., 2022). Each example includes the preceding context, the original input with a specified style, and the rewrite in another style, factoring in the context. For GPT-3.5, we use 2 few-shot examples to obtain rewrites in the desired format, while for GPT-NeoX, we use 10 examples. See Appendix B for more details.
+4.2 Non-contextual Rewriting
+We are interested in comparing contextual rewrites with non-contextual rewrites that do not depend on prior context. To generate non-contextual rewrites,
+4We use text-davinci-003 5We use the 20B parameter model
+we employ LLMs to rewrite an original sentence from one style to another. Similar to contextual rewriting, we manually construct few-shot exam- ples that solely consist of the original sentence to be rewritten, an instructional prompt specifying the desired style, and an example rewrite, without any preceding context.
+4.3 Rewriting with a Random Context
+To demonstrate the importance of incorporating contextual information in the rewriting process, we employ a baseline method that generates rewrites using a random context. This approach serves two key purposes: first, it assesses the contextual sensi- tivity of automatic metrics; and second, it ensures that our contextual rewriting method effectively ac- counts for the given context. In our experiments, we randomly pick a context from our dataset in- stead of using the true preceding context.
+
+
+5 Contextual Human Evaluation
+Since in realistic rewriting scenarios, context will always be available and crucial to users who wish to rewrite their dialogue utterances or story sentences (Atwell et al., 2022), we start by conducting a con- textual human evaluation to gauge user preferences between non-contextual and contextual rewrites. This contextual human evaluation is a departure from most previous work which has predominantly not used context (§2).
+5.1 Experimental Setup
+We conduct a head-to-head human evaluation of non-contextual and contextual rewrites in the pres- ence of preceding textual context, following the setup in Kiritchenko and Mohammad (2017). Par- ticipants are given preceding context, pairs of rewritten sentences (non-contextual and contex- tual), and the desired style attribute. They are then asked to rank the rewrites with respect to:
+Naturalness: which rewrite do the annotators prefer / which one appears most natural
+Style Strength: which rewrite best achieves the required style, independent of meaning changes
+Event-level Similarity: which rewrite most ef- fectively retains the essential events, entities, and relations present in the original sentence, with- out considering the preceding context
+Intended Meaning: which rewrite most effec- tively preserves and conveys the original sen- tence’s overall message or intended meaning
+Overall Fit: which rewrite is overall most suit- able or relevant in relation to the given context
+We sample 100 examples for sentiment from DailyDialog,6 100 examples for formality,7 and 90 examples for toxicity8, focusing on those with the highest style strength in each category (e.g., 50 most formal and 50 most informal). We conduct significance testing for all three tasks. We recruited
+6We opted not to use Yelp reviews in our sampling due to difficulties encountered during pilot experiments. Annotators found it tough to select rewrites that retained meaning while effectively transferring sentiment, such as from positive to neg- ative. Generally, even contexts classified as “neutral” seemed positive when part of an overall positive review, complicating the annotators’ ability to agree on the rewrites’ effectiveness. 7equal number from both Reddit and CNN/DailyMail +
+Blog Authorship Corpus
+8equal number of examples from CCC, MDMD and Proso- cialDialog which were scored as highly toxic by all three toxicity classifiers - hateroberta, hatebert and Perspective API
+workers on Amazon Mechanical Turk (MTurk) and qualified them using a pre-qualification test for each task (See App C for qualification details).
+Agreement We employ three annotators to rank each pair of rewrites. Averaging across three tasks, our annotator agreement was Krippendorff’s α = 0.43 and Fleiss’s κ = 0.31. For dimension- specific annotator agreements, please refer to Ta- bles 7—9 in App C.1. We obtain the final human judgment preferences using majority voting of the three annotators.
+5.2 Human Evaluation Results
+Our results show that annotators prefer con- textual rewrites over non-contextual rewrites across all three tasks and context types (Figure 3). This effect is especially pronounced for formal- ity and toxicity (see (a)–(f) in Table 2).
+Contextual rewrites are more natural and fitting The success rate for contextual rewrites in toxicity and formality cases was approximately 50%, while that for non-contextual rewrites was close to 20% and 30%, respectively (p < 0.1).9 Regarding senti- ment, the success rate for contextual rewrites was around 35% as opposed to non-contextual rewrites with a success rate of about 30% (p > 0.1).
+Contextual rewrites better preserve the intended meaning Contextual rewrites better preserve the author’s intention, tone, and implied meaning more effectively (p < 0.1). In the detoxification task example (d) shown in Table 2, the user’s intended meaning is not about actually killing oneself but rather about avoiding the zombie apocalypse. The contextual rewrite captures this meaning more ef- fectively compared to the literal rephrasing pro- vided by non-contextual rewriting.
+Contextual rewrites struggle with preserving event-level similarity Examples (a), (f), and (i) in Table 2 demonstrate that contextual rewrites of- ten include extra entity/event details, while non- contextual rewrites align more closely with the original sentence at an n-gram level.10 Despite this, annotators still prefer contextual rewrites for their naturalness and fit, indicating that extra event
+9p < 0.1, CI=90% using a binomial test and splitting the ‘tie’ option evenly between contextual and non-contextual preferences.
+10Event-level similarity is the only dimension which shows no significant differences between contextual and non- contextual rewrites for all three tasks.
+
+
+Tie
+StyleStrength
+EventSimilarity
+Naturalness
+Contextual
+IntendedMeaning
+Non-Contextual
+Fit0.460.410.440.560.510.260.130.260.140.140.290.460.300.300.34
+Tie
+Non-Contextual
+EventSimilarity
+StyleStrength
+Naturalness
+IntendedMeaning
+Contextual
+Fit0.480.360.510.500.520.260.300.230.170.200.270.340.260.330.28
+Naturalness
+EventSimilarity
+Contextual
+Non-Contextual
+Fit0.450.380.400.360.390.160.170.220.310.250.390.450.390.330.36
+Tie
+IntendedMeaning
+StyleStrength
+(a) Formality
+(b) Toxicity
+(c) Sentiment
+Figure 3: Head-to-head human evaluation with context for all three tasks - formality change, detoxification, and sentiment transfer. Contextual rewrites are generally favored over non-contextual rewrites across all tasks, particularly in terms of style strength, preservation of intended meaning, naturalness, and overall coherence with the preceding context. The numbers on the bars represent the proportion of preferences for each respective category.
+details are acceptable as long as they fit appropri- ately within the context.
+Lavie, 2005) and word error rate (WER; Zechner and Waibel, 2000), for lexical similarity (Lexical).
+Sentiment Style Transfer Might be Ill-defined The trends in the sentiment style transfer task are less pronounced than in other tasks (p > 0.1 for all dimensions) and show lower agreement compared to toxicity and formality (see Table 9 in App C.1). Example (g) in Table 2 highlights the challenges in sentiment transfer due to the inherent need for meaning changes while preserving the original in- tent (especially for reviews which were written specifically to communicate sentiment; Yu et al., 2021). This complication leads to inconsistencies, resulting in annotators having difficulty reaching a consensus on meaning preservation, as evidenced by lower agreement rates (Table 9).
+Semantic Similarity To measure semantic simi- larity (Semantic), we use BERTScore (Zhang et al., 2019) and SBERT (Reimers and Gurevych, 2019), as employed in previous work. We also consider Smatch (Cai and Knight, 2013), which compares the similarity between two Abstract Meaning Rep- resentation (AMR) graphs, providing a distinctive, structured view on semantic relatedness not consid- ered in prior rewriting studies.
+Fluency To assess fluency, we employ a language model, specifically GPT-2 (Radford et al., 2019), and use perplexity (pplx) as the metric, in line with previous research (Holtzman et al., 2018; Xu et al., 2018a; Ma et al., 2020).
+6 Non-contextual Automatic Evaluation
+6.2 Non-Contextual Evaluation Results
+Overall, our contextual human evaluations reveal a general preference for contextual rewrites over non-contextual ones. Given that prior work pri- marily evaluated utterance-level rewrites in both human and automatic evaluations, it raises the ques- tion of how well non-contextual automatic metrics mirror human preferences. In this section, we in- vestigate commonly used metrics in previous work (Mir et al., 2019; Hu et al., 2022) for meaning preservation, style strength, and fluency.
+6.1 Metrics Considered
+We distinguish two types of “meaning preservation” metrics, namely, lexical and semantic similarity between a rewrite X and the original input I.
+Style Strength Following previous studies (Li et al., 2018; Madaan et al., 2020), we assess style strength of rewritten text by examining the proba- bilities of the target style s under our style classifier.
+Lexical Similarity We use word-overlap met- rics like ROUGE (Lin, 2004), METEOR (Banerjee and
+In our analysis, we evaluate the performance of both GPT-3 and NeoX models in producing non-contextual rewrites, contextual rewrites, and rewrites generated with a random preceding con- text. We present aggregate results of the perfor- mance in Table 3 across all tasks, datasets, and metrics. For detailed results on individual tasks and datasets, we refer the reader to Appendix D.
+Non-contextual rewrites are more similar in meaning to the original input sentence com- pared to contextual rewrites Utterance level lexical and semantic meaning preservation met- rics score non-contextual rewrites higher, across all three tasks and the two types of context (see Ta- bles 16–22 in Appendix D). Additionally, we find that our patterns are consistent for both GPT-3.5 and NeoX, though we note a marked decrease in performance from GPT-NeoX.
+This suggests that models that edit the original sentence more (i.e., preserve lexical and seman- tic similarity less) are better at achieving the de- sired style. For fluency measured by perplexity, we
+
+
+modelrewrite typeLexicalSemanticFluencyStyleROUMETWERBERT-SSBERTSmatchPPL GPT-3.5contextual0.180.381.660.900.590.4540.250.74non-contextual0.280.480.880.920.700.5747.690.70random-context0.160.342.040.890.500.42GPT-NeoXcontextual0.250.371.430.900.570.4455.310.52non-contextual0.410.560.780.930.740.6064.650.44random-context0.240.371.550.900.540.43
+Table 3: Non-contextual Automatic Evaluation Results: Non-contextual rewrites achieve higher scores in lexical and semantic similarity metrics whereas contextual rewrites demonstrate enhanced style strength and fluency. These results are obtained by averaging across all tasks and datasets. This heatmap displays the best-performing rewrite for each specific metric – darker orange indicates higher preference. For more details on individual tasks and datasets exhibiting similar trends, see App D.
+find that both approaches generate decently fluent rewrites regardless of context, as expected.11
+Non-contextual metrics do not correlate with human judgments We see in Figure 3 and Ta- ble 3, that the non-contextual automatic metrics paint an incomplete picture compared to human evaluations. We compute Spearman rank ρ correla- tion and Kendall’s τ for the dataset samples used during the contextual human evaluation §5.1. Non- contextual automatic metrics exhibit very weak, non-significant correlation with human judgments of overall fit (averaged across all tasks): ρ = 0.09, τ = 0.09 for lexical metrics (p > 0.05) and ρ = 0.23, τ = 0.22 for semantic metrics (p > 0.05). See Appendix D.1 for metric-specific correlation scores for overall fit and naturalness dimensions.
+original input sentence I before comparing it to the rewrite X: sim(C + I, X). The intuition behind this alteration is that the preceding textual context could capture more of the topical or semantic in- formation necessary to fully derive the speaker’s intended meaning.
+Contextual Lexical and Semantic Similarity For lexical similarity, we refer to these metrics as ROUGECtx, METEORCtx and WERCtx. For seman- tic similarity, we refer to them as BERTScoreCtx, SBERTCtx and SmatchCtx.
+Contextual Coherence and Cohesiveness In lin- guistics, coherence and cohesiveness are terms typ- ically used to denote the connectedness embedded or implied in spoken or written discourse.
+7 Contextual Automatic Evaluation
+As shown in the previous section, non-contextual automatic metrics, especially for meaning preserva- tion, are not sufficient to evaluate the performance of rewriting models. To address this, incorporating context into the evaluation process is necessary for better representing realistic downstream use cases. Drawing inspiration from reference-free metrics in dialog evaluation (Yeh et al., 2021; Zhao et al., 2017), which considers both the dialog context and generated responses to assess responses within the dialogue history, we propose including context into existing automatic evaluation metrics and further introduce CtxSimFit, a new contextual metric.
+7.1
+Infusing Automatic Metrics with Context
+Since context is crucial to derive intended meaning (Searle, 1975), we alter existing meaning similar- ity measures by prepending the context C to the
+11Lower perplexity generally indicates higher sentence qual- ity and grammaticality, but may not directly correlate with meaning preservation, style, or content relevance.
+(a) Coherence: Coherence is generally defined as the overall picture presented by all the sentences in a piece of writing, similar to the way puzzle pieces form the image on the box (Williams, 1990; Zienkowski et al., 2011). This definition is often operationalized by modeling the fit of a sentence given its preceding context, as demonstrated by prior work (See et al., 2019; Pang et al., 2020). Specifically, this involves measuring perplexity of the rewrite conditioned on the context using GPT-2 (Radford et al., 2019).
+(b) Cohesiveness: Cohesiveness refers to the semantic relationships between sentences, link- ing current elements with preceding or following ones through lexical and structural means, much like how two jigsaw puzzle pieces fit together (Williams, 1990; Zienkowski et al., 2011). Fol- lowing prior work that used this definition (Shi and Demberg, 2019; Abhishek et al., 2021; Nguyen, 2021), we measure cohesiveness using the prob- abilities from the Next Sentence Prediction (NSP) head of BERT (Devlin et al., 2018), which mea- sures if the rewrite follows and fits with its the
+
+
+modelrewrite typeLexicalSemanticCoherenceCohesivenessCustomROUᶜᵗˣMETᶜᵗˣWERᶜᵗˣBERT-SᶜᵗˣSBERTᶜᵗˣSmatchᶜᵗˣPPLᶜᵗˣNSPCtxSimFitGPT-3.5contextual0.150.240.890.880.590.3528.700.950.93non-contextual0.160.220.880.880.490.3242.940.890.91random-context0.100.181.060.870.390.2945.730.800.85GPT-NeoXcontextual0.190.220.870.880.530.3131.100.930.92non-contextual0.210.230.860.880.480.3049.810.900.91random-context0.130.170.980.860.390.2652.930.830.86
+Table 4: Contextual Automatic Evaluation Results: On average, across all tasks and datasets, contextual rewrites achieve higher scores than non-contextual rewrites when evaluated using context-infused automatic metrics and our CtxSimFit metric. This heatmap shows the best-performing rewrite for a particular metric – darker green indicates higher preference. For more details on individual tasks and datasets displaying similar trends, see App E.
+preceding context.
+7.2 Novel Composite Metric: CtxSimFit
+We introduce CtxSimFit, a simple metric that com- bines contextual cohesiveness and semantic sim- ilarity to assess the overall quality of a rewrite. CtxSimFit computes the weighted average of both the BERTScore between the original and rewritten sentences, and the probabilities from the BERT’s NSP head between the preceding context and the rewrite, thus determining how well the rewrite fits the preceding context and maintains semantic simi- larity.
+CtxSimFit = α ∗ BERTSCORE(S, X)
++ (1 − α) ∗ NSP(C, X)
+where α is a hyperparameter that provides users with control over their preference for balancing meaning preservation and contextual fit. Unless specified otherwise, we set α = 0.5.
+Contextual metrics correlate significantly with human judgments We find that contextual au- tomatic metrics correlate significantly with hu- man judgments of ‘overall fit’ (averaged across all tasks): ρ = 0.6, τ = 0.58 for lexical metrics (p < 0.05) and ρ = 0.56, τ = 0.57 for semantic metrics (p < 0.05). See Appendix E.1 for metric- wise correlation scores for both overall fit and nat- uralness human judgment dimensions.
+CtxSimFit correlates the best with human judgements Compared to contextual versions of existing metrics, CtxSimFit correlates very strongly with human judgements of ‘overall fit’ (averaged across all tasks): ρ = 0.85, τ = 0.82 (p < 0.01). We see similar trends for ‘naturalness’: ρ = 0.85, τ = 0.81 (p < 0.01). This suggests that combining meaning preservation and contextual co- hesiveness into a composite measure better mirrors human preferences than individual metrics alone.
+Contextual rewrites are scored higher on style strength compared to non-contextual rewrites
+7.3 Contextual Evaluation Results
+Similar to §6.2, we aggregate the results of both GPT-3.5 and NeoX across all tasks, datasets and metrics (see Table 4). For detailed results on in- dividual tasks and datasets, we refer the reader to Tables 23–29 in Appendix E.
+Contextual rewrites are preferred by nearly all of our contextual automatic metrics compared to non-contextual rewrites These results mir- ror human preferences on naturalness, fit and in- tended meaning preservation. As a reality check, contextual rewrites with random contexts perform the worst across all metrics, indicating that contex- tual models are indeed taking context into account. Further as expected, contextual rewrites also have better coherence compared to non-contextual ones.
+7.4 Sensitivity analysis for α in CtxSimFit
+In our experiments, we set α = 0.5 to equally weight contextual cohesiveness and semantic sim- ilarity. We further examine the impact of α in CtxSimFit, as detailed by Table 5.
+Our CtxSimFit significantly correlates with hu- man judgments of ‘overall fit’ for α values within the range of 0.2–0.6, with correlation and signifi- cance diminishing outside this range. The highest alignment with human judgments is achieved at α = 0.5. The longer range of 0.2–0.5 for α < 0.5 highlights the effect and importance of contextual cohesiveness in stylistic text rewriting.
+While a balanced approach (α = 0.5) offers the strongest alignment with human judgments for formality, sentiment and de-toxification tasks, the degree of emphasis on contextual cohesiveness and semantic similarity should be adjusted based on specific tasks and users’ priorities.
+
+
+Hyperparameter α in CtxSimFit
+Task
+Correlation ρ with ‘overall fit’
+Significance
+0.1
+0.2
+Formality Toxicity Sentiment
+Formality Toxicity Sentiment
+0.03 -.05 -0.04 0.66 0.65 0.54
+ns ns ns
+** ** **
+0.3
+Formality Toxicity Sentiment
+0.75 0.75 0.67
+*** *** ***
+0.4
+Formality Toxicity Sentiment
+0.71 0.67 0.60
+*** *** ***
+0.5
+Formality Toxicity Sentiment
+0.88 0.82 0.73
+*** *** ***
+0.6
+Formality Toxicity Sentiment
+0.57 0.53 0.42
+*** *** ***
+0.7
+Formality Toxicity Sentiment
+0.32 0.38 0.20
+** ns
+0.8
+Formality Toxicity Sentiment
+0.24 0.34 0.17
+* ns
+0.9
+Formality Toxicity Sentiment
+0.25 0.28 0.20
+ns * ns
+Table 5: Sensitivity of the α in CtxSimFit across all tasks. ρ indicates correlation of CtxSimFit with human judgments of ‘overall fit’. ns indicates not significant (p > 0.05), * is p < 0.05, ** is p < 0.01, *** p < 0.001
+8 Summary & Discussion of Findings
+Existing work on stylistic text rewriting has of- ten neglected the surrounding context of the sen- tence. In our study, we focus on incorporating the preceding textual context in documents and con- versations into both the modeling and evaluation stages of rewriting. We develop a contextual hu- man evaluation framework and compare its results to non-contextual automatic metrics, contextual- ized versions of these metrics, as well as to our new composite metric CtxSimFit.
+Context is crucial for rewriting Corroborating findings by Cheng et al. (2020) and Roy et al. (2023), contextual rewrites are significantly pre- ferred by human annotators in terms of naturalness, intended meaning preservation, and style strength. Additionally, we demonstrate that having the right context is crucial for contextual rewriting, as ev- idenced by the poor performance of contextual rewrites generated using a random context.
+Qualitative examination (Table 2) shows that contextual rewrites are better at disambiguating
+entities and better vocabulary usage (examples (a), (c)), retaining relevant details from context for a better flow (examples (b), (i)) and preserving the intended meanings (examples (d), (g)).
+Existing meaning preservation metrics do not align with human preferences for formality, sen- timent and toxicity transfer tasks Next, we demonstrate that common non-contextual auto- matic metrics for lexical and semantic similarity, i.e., often used as proxies for meaning preservation in prior work (Li et al., 2018; Sudhakar et al., 2019; Mir et al., 2019; Reif et al., 2022; Madaan et al., 2020; Wang et al., 2019; Reid and Zhong, 2021; Roy et al., 2023), do not align with human pref- erences concerning naturalness, fit, and intended meaning. Since the overarching meaning of a sentence largely depends on its context (Searle, 1975; Clark, 1997, 1996), non-contextual proxies for meaning preservation will always be in tension with any stylistic change to the sentence, making the trade-off hard to navigate (Mir et al., 2019; Hu et al., 2022). Therefore, we advocate for discontin- uing non-contextual meaning preservation metrics in stylistic rewriting tasks and for more research into better modeling of communicative intents or goals (Adolphs et al., 2022; Zhou et al., 2022).
+Contextual automatic metrics, especially CtxSimFit, better mirror human judgments to bridge the gap In our work, we attempt between non-contextual metrics and contextual human evaluations by integrating context into automated metrics (§7). Our proposed composite metric, CtxSimFit, balances meaning preserva- tion with contextual cohesiveness, providing a more comprehensive measure that better aligns with human judgments. While commonly-used automatic metrics enriched with context align with human preferences, our proposed CtxSimFit demonstrates a stronger correlation.
+Initial work in evaluating open-domain dialogue generation with context (Welleck et al., 2019; Pang et al., 2020) has been done, but we encourage fur- ther development of better contextualized metrics for stylistic rewriting evaluation. Improvements could include modeling themes, tones, sentence structures (Zhang et al., 2014; Khatri et al., 2018; Chen and Yang, 2020; Toubia et al., 2021; Shen et al., 2023), and social dynamics, and emotional states in conversations (Sap et al., 2017; Rashkin et al., 2018, 2019; Mostafazadeh et al., 2020).
+
+
+9 Limitations & Ethical Considerations
+Despite taking the first step towards incorporating context into stylistic rewriting and its evaluation frameworks, there are several limitations and ethi- cal concerns, which we list below.
+Limited Context Scope In this study, our pri- mary focus is on incorporating textual context, particularly from preceding sentences or previous turns in a conversation. Future work should ex- plore how to incorporate other forms of context into rewriting models and evaluations, such as dis- course structure (Welleck et al., 2019), external knowledge (Ghazvininejad et al., 2018), or richer social and power dynamics (Antoniak et al., 2023), emotional states (Zhou et al., 2023), and commu- nicative intent (Zhou et al., 2022), all of which can significantly contribute to understanding the text.
+Amount of Context In our experiments, we opted to investigate the context of three preced- ing sentences in a document and one preceding conversational turn, considering only a specific length. However, the amount of context at the mod- eling and evaluation stages could also change the results. We hypothesize that more context could improve rewriting methods, but it could potentially also negatively impact contextual meaning preser- vation metrics. Future work should explore these effects of varying lengths of context.
+Broad Definition of Meaning Preservation While we have tried to define meaning preserva- tion as the preservation of an event or entity-level details and intended overall meaning, this defini- tion remains broad and subjective (Searle, 1975; Adolphs et al., 2022; Zhou et al., 2022). In this work, we do not delve into more intricate dimen- sions of meaning preservation, such as spatial and temporal accuracy, or the retention of cultural con- text, including references, nuances, and dialects.
+Applicability to Smaller Models Our work re- lies on few-shot prompting of LLMs to incorporate textual context, given their demonstrated strong rewriting capabilities both with and without textual context usage (Brown et al., 2020). Other exist- ing generative models, such as those used for chit- chat and goal-oriented conversational agents, as well as pretrained language models, have struggled with effectively utilizing preceding textual context (Sankar et al., 2019; O’Connor and Andreas, 2021;
+Parthasarathi et al., 2021; Su et al., 2023). More- over, custom-made rewriting models from prior research often lack the modeling of context (Ma et al., 2020; Dale et al., 2021). We believe the our results still apply for smaller models, given some preliminary research (Cheng et al., 2020; Atwell et al., 2022) on an increased human preference for contextual rewrites from custom-trained seq2seq models. We encourage future work to thoroughly investigate strategies for effective modeling and evaluation of context in smaller models.
+Harms of Exposing Workers to Toxic Content In our work, we exposed human annotators to toxic content during the evaluation of the de-toxification task. Exposure to such offensive content can be harmful to the annotators (Liu et al., 2016). We aim to work towards developing evaluation strategies that can minimize the exposure of annotators to toxic content.
+Potentially Inconsistent Human Evaluations In our work, we also assume human judgments as the gold standard. Concurrent work has shown that human evaluation might not always be con- sistent (Clark et al., 2021; Karpinska et al., 2021); however human judgments continue to be the gold standard for evaluating open-ended text generation.
+Acknowledgements
+We would like to thank our workers on MTurk for their responses. We are also grateful to the anonymous reviewers for their helpful comments. Special thanks to Saadia Gabriel, Jocelyn Shen, Ashutosh Baheti, and the members of the CMU LTI COMEDY group for their feedback, and Ope- nAI for providing access to the GPT-3.5 API. This research was supported in part by the Meta Fun- damental AI Research Laboratories (FAIR) “Dyn- abench Data Collection and Benchmarking Plat- form” award “ContExTox: Context-Aware and Ex- plainable Toxicity Detection.”
+References
+Tushar Abhishek, Daksh Rawat, Manish Gupta, and Transformer models arXiv preprint
+Vasudeva Varma. 2021. for text coherence assessment. arXiv:2109.02176.
+Leonard Adolphs, Kurt Shuster, Jack Urbanek, Arthur Szlam, and Jason Weston. 2022. Reason first, then respond: Modular generation for knowledge-infused
+
+
+dialogue. In Findings of the Association for Com- putational Linguistics: EMNLP 2022, pages 7112– 7132.
+Maria Antoniak, Anjalie Field, Ji Min Mun, Melanie Walsh, Lauren F. Klein, and Maarten Sap. 2023. Riv- eter: Measuring power and social dynamics between entities. In ACL demonstrations.
+Katherine Atwell, Sabit Hassan, and Malihe Alikhani. 2022. Appdia: A discourse-aware transformer-based style transfer model for offensive social media con- versations. In Proceedings of the 29th International Conference on Computational Linguistics, pages 6063–6074.
+Satanjeev Banerjee and Alon Lavie. 2005. Meteor: An automatic metric for mt evaluation with improved cor- relation with human judgments. In Proceedings of the acl workshop on intrinsic and extrinsic evaluation measures for machine translation and/or summariza- tion, pages 65–72.
+Francesco Barbieri, Luis Espinosa Anke, and Jose Camacho-Collados. 2022. Xlm-t: Multilingual lan- guage models in twitter for sentiment analysis and beyond. In Proceedings of the Thirteenth Language Resources and Evaluation Conference, pages 258– 266.
+Sidney Black, Stella Biderman, Eric Hallahan, Quentin Anthony, Leo Gao, Laurence Golding, Horace He, Connor Leahy, Kyle McDonell, Jason Phang, et al. 2022. Gpt-neox-20b: An open-source autoregres- sive language model. In Proceedings of BigScience Episode\# 5–Workshop on Challenges & Perspec- tives in Creating Large Language Models, pages 95– 136.
+Tom Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared D Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, Sandhini Agarwal, Ariel Herbert-Voss, Gretchen Krueger, Tom Henighan, Rewon Child, Aditya Ramesh, Daniel Ziegler, Jeffrey Wu, Clemens Winter, Chris Hesse, Mark Chen, Eric Sigler, Ma- teusz Litwin, Scott Gray, Benjamin Chess, Jack Clark, Christopher Berner, Sam McCandlish, Alec Radford, Ilya Sutskever, and Dario Amodei. 2020. In Ad- Language models are few-shot learners. vances in Neural Information Processing Systems, volume 33, pages 1877–1901. Curran Associates, Inc.
+Shu Cai and Kevin Knight. 2013. Smatch: an evaluation metric for semantic feature structures. In Proceed- ings of the 51st Annual Meeting of the Association for Computational Linguistics (Volume 2: Short Papers), pages 748–752.
+Kunal Chawla and Diyi Yang. 2020. Semi-supervised formality style transfer using language model dis- criminator and mutual information maximization. In Findings of the Association for Computational Lin- guistics: EMNLP 2020, pages 2340–2354, Online. Association for Computational Linguistics.
+Jiaao Chen and Diyi Yang. 2020. Multi-view sequence- to-sequence models with conversational structure for abstractive dialogue summarization. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 4106– 4118.
+Yu Cheng, Zhe Gan, Yizhe Zhang, Oussama Elachqar, Dianqi Li, and Jingjing Liu. 2020. Contextual text style transfer. In Findings of the Association for Com- putational Linguistics: EMNLP 2020, pages 2915– 2924.
+Elizabeth Clark, Tal August, Sofia Serrano, Nikita Haduong, Suchin Gururangan, and Noah A Smith. 2021. All that’s ‘human’is not gold: Evaluating hu- man evaluation of generated text. In Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers), pages 7282–7296.
+Elizabeth Clark, Anne Spencer Ross, Chenhao Tan, Yangfeng Ji, and Noah A Smith. 2018. Creative writing with a machine in the loop: Case studies on slogans and stories. In 23rd International Conference on Intelligent User Interfaces, pages 329–340.
+Herbert H Clark. 1996. Using language. Cambridge
+university press.
+Herbert H Clark. 1997. Dogmas of understanding. Dis-
+course Processes, 23(3):567–598.
+David Dale, Anton Voronov, Daryna Dementieva, Var- vara Logacheva, Olga Kozlova, Nikita Semenov, and Alexander Panchenko. 2021. Text detoxification us- ing large pre-trained neural models. In Proceedings of the 2021 Conference on Empirical Methods in Nat- ural Language Processing, pages 7979–7996, Online and Punta Cana, Dominican Republic. Association for Computational Linguistics.
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. 2018. Bert: Pre-training of deep bidirectional transformers for language understand- ing. arXiv preprint arXiv:1810.04805.
+Zhenxin Fu, Xiaoye Tan, Nanyun Peng, Dongyan Zhao, and Rui Yan. 2018. Style transfer in text: Explo- ration and evaluation. In Proceedings of the AAAI Conference on Artificial Intelligence, volume 32.
+Marjan Ghazvininejad, Chris Brockett, Ming-Wei Chang, Bill Dolan, Jianfeng Gao, Wen-tau Yih, and Michel Galley. 2018. A knowledge-grounded neu- ral conversation model. In Proceedings of the AAAI Conference on Artificial Intelligence, volume 32.
+Skyler Hallinan, Alisa Liu, Yejin Choi, and Maarten Sap. 2023. Detoxifying text with marco: Controllable revision with experts and anti-experts. In ACL.
+Thomas Hartvigsen, Saadia Gabriel, Hamid Palangi, Maarten Sap, Dipankar Ray, and Ece Kamar. 2022. ToxiGen: A large-scale machine-generated dataset
+
+
+for adversarial and implicit hate speech detection. In Proceedings of the 60th Annual Meeting of the Association of Computational Linguistics.
+Ari Holtzman, Jan Buys, Maxwell Forbes, Antoine Bosselut, David Golub, and Yejin Choi. 2018. Learn- ing to write with cooperative discriminators. In Pro- ceedings of the 56th Annual Meeting of the Associa- tion for Computational Linguistics (Volume 1: Long Papers), pages 1638–1649.
+Zhiqiang Hu, Roy Ka-Wei Lee, Charu C Aggarwal, and Aston Zhang. 2022. Text style transfer: A review and experimental evaluation. ACM SIGKDD Explo- rations Newsletter, 24(1):14–45.
+Zhiting Hu, Zichao Yang, Xiaodan Liang, Ruslan Salakhutdinov, and Eric P Xing. 2017. Toward con- trolled generation of text. In International conference on machine learning, pages 1587–1596. PMLR.
+Di Jin, Zhijing Jin, Zhiting Hu, Olga Vechtomova, and Rada Mihalcea. 2022. Deep learning for text style transfer: A survey. Computational Linguistics, 48(1):155–205.
+Marzena Karpinska, Nader Akoury, and Mohit Iyyer. 2021. The perils of using mechanical turk to evaluate open-ended text generation. In Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing, pages 1265–1285.
+Chandra Khatri, Rahul Goel, Behnam Hedayatnia, Angeliki Metanillou, Anushree Venkatesh, Raefer Gabriel, and Arindam Mandal. 2018. Contextual In 2018 ieee topic modeling for dialog systems. spoken language technology workshop (slt), pages 892–899. IEEE.
+Hyunwoo Kim, Youngjae Yu, Liwei Jiang, Ximing Lu, Daniel Khashabi, Gunhee Kim, Yejin Choi, and Maarten Sap. 2022. Prosocialdialog: A prosocial backbone for conversational agents. In Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing, pages 4005–4029.
+Svetlana Kiritchenko and Saif Mohammad. 2017. Best- worst scaling more reliable than rating scales: A case study on sentiment intensity annotation. In Proceed- ings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 2: Short Papers), pages 465–470.
+Guillaume Lample, Sandeep Subramanian, Eric Smith, Ludovic Denoyer, Marc’Aurelio Ranzato, and Y-Lan Boureau. 2019. Multiple-attribute text rewriting. In International Conference on Learning Representa- tions.
+Juncen Li, Robin Jia, He He, and Percy Liang. 2018. Delete, retrieve, generate: a simple approach to senti- ment and style transfer. In Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long Papers), pages 1865–1874.
+Yanran Li, Hui Su, Xiaoyu Shen, Wenjie Li, Ziqiang Cao, and Shuzi Niu. 2017. Dailydialog: A manually labelled multi-turn dialogue dataset. In Proceedings of the Eighth International Joint Conference on Nat- ural Language Processing (Volume 1: Long Papers), pages 986–995.
+Chin-Yew Lin. 2004. Rouge: A package for automatic In Text summarization
+evaluation of summaries. branches out, pages 74–81.
+Chia-Wei Liu, Ryan Lowe, Iulian Vlad Serban, Mike Noseworthy, Laurent Charlin, and Joelle Pineau. 2016. How not to evaluate your dialogue system: An empirical study of unsupervised evaluation met- rics for dialogue response generation. In Proceedings of the 2016 Conference on Empirical Methods in Nat- ural Language Processing, pages 2122–2132.
+Varvara Logacheva, Daryna Dementieva, Sergey Ustyantsev, Daniil Moskovskiy, David Dale, Irina Krotova, Nikita Semenov, and Alexander Panchenko. 2022. Paradetox: Detoxification with parallel data. In Proceedings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages 6804–6818.
+Xinyao Ma, Maarten Sap, Hannah Rashkin, and Yejin Choi. 2020. Powertransformer: Unsupervised con- trollable revision for biased language correction. In EMNLP.
+Charles A MacArthur. 2009. Reflections on research on writing and technology for struggling writers. Learn- ing Disabilities Research & Practice, 24(2):93–103.
+Aman Madaan, Amrith Setlur, Tanmay Parekh, Barn- abás Poczós, Graham Neubig, Yiming Yang, Ruslan Salakhutdinov, Alan W Black, and Shrimai Prabhu- moye. 2020. Politeness transfer: A tag and generate approach. In Proceedings of the 58th Annual Meet- ing of the Association for Computational Linguistics, pages 1869–1881.
+Remi Mir, Bjarke Felbo, Nick Obradovich, and Iyad Rahwan. 2019. Evaluating style transfer for text. In Proceedings of the 2019 Conference of the North American Chapter of the Association for Computa- tional Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers), pages 495–504.
+Nasrin Mostafazadeh, Aditya Kalyanpur, Lori Moon, David Buchanan, Lauren Berkowitz, Or Biran, and Jennifer Chu-Carroll. 2020. Glucose: Generalized and contextualized story explanations. In Proceed- ings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 4569–4586.
+Sourabrata Mukherjee, Zdenˇek Kasner, and Ondˇrej Dušek. 2022. Balancing the style-content trade-off in sentiment transfer using polarity-aware denoising. In Text, Speech, and Dialogue, pages 172–186, Cham. Springer International Publishing.
+
+
+Ramesh Nallapati, Bowen Zhou, Cicero dos Santos, Çaglar Gulçehre, and Bing Xiang. 2016. Abstractive text summarization using sequence-to-sequence rnns and beyond. CoNLL 2016, page 280.
+An Nguyen. 2021.
+Language model evaluation arXiv preprint
+in open-ended text generation. arXiv:2108.03578.
+Cicero Nogueira dos Santos, Igor Melnyk, and Inkit Padhi. 2018. Fighting offensive language on social media with unsupervised text style transfer. In Pro- ceedings of the 56th Annual Meeting of the Associa- tion for Computational Linguistics (Volume 2: Short Papers), pages 189–194, Melbourne, Australia. As- sociation for Computational Linguistics.
+Long Ouyang, Jeffrey Wu, Xu Jiang, Diogo Almeida, Carroll Wainwright, Pamela Mishkin, Chong Zhang, Sandhini Agarwal, Katarina Slama, Alex Ray, et al. 2022. Training language models to follow instruc- tions with human feedback. Advances in Neural Information Processing Systems, 35:27730–27744.
+Joe O’Connor and Jacob Andreas. 2021. What context features can transformer language models use? In Proceedings of the 59th Annual Meeting of the Asso- ciation for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers), pages 851–864.
+Bo Pang, Erik Nijkamp, Wenjuan Han, Linqi Zhou, Yix- ian Liu, and Kewei Tu. 2020. Towards holistic and automatic evaluation of open-domain dialogue gener- ation. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, pages 3619–3629.
+Prasanna Parthasarathi, Joelle Pineau, and Sarath Chan- dar. 2021. Do encoder representations of generative dialogue models have sufficient summary of the in- In Proceedings of the formation about the task? 22nd Annual Meeting of the Special Interest Group on Discourse and Dialogue, pages 477–488.
+Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, Ilya Sutskever, et al. 2019. Language models are unsupervised multitask learners. OpenAI blog, 1(8):9.
+Sudha Rao and Joel Tetreault. 2018. Dear sir or madam, may I introduce the GYAFC dataset: Corpus, bench- marks and metrics for formality style transfer. In Proceedings of the 2018 Conference of the North American Chapter of the Association for Computa- tional Linguistics: Human Language Technologies, Volume 1 (Long Papers), pages 129–140, New Or- leans, Louisiana. Association for Computational Lin- guistics.
+Hannah Rashkin, Antoine Bosselut, Maarten Sap, Kevin Knight, and Yejin Choi. 2018. Modeling naive psy- chology of characters in simple commonsense stories. In ACL.
+Hannah Rashkin, Eric Michael Smith, Margaret Li, and Y-Lan Boureau. 2019. Towards empathetic open- domain conversation models: A new benchmark and In Proceedings of the 57th Annual Meet- dataset. ing of the Association for Computational Linguistics, pages 5370–5381.
+Machel Reid and Victor Zhong. 2021. Lewis: Leven- shtein editing for unsupervised text style transfer. In Findings of the Association for Computational Lin- guistics: ACL-IJCNLP 2021, pages 3932–3944.
+Emily Reif, Daphne Ippolito, Ann Yuan, Andy Coenen, Chris Callison-Burch, and Jason Wei. 2022. A recipe for arbitrary text style transfer with large language models. In Proceedings of the 60th Annual Meet- ing of the Association for Computational Linguistics (Volume 2: Short Papers), pages 837–848.
+Nils Reimers and Iryna Gurevych. 2019. Sentence-bert: Sentence embeddings using siamese bert-networks. In Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP), pages 3982–3992.
+Shamik Roy, Raphael Shu, Nikolaos Pappas, Elman Mansimov, Yi Zhang, Saab Mansour, and Dan Roth. 2023. Conversation style transfer using few-shot learning. arXiv preprint arXiv:2302.08362.
+Chinnadhurai Sankar, Sandeep Subramanian, Christo- pher Pal, Sarath Chandar, and Yoshua Bengio. 2019. Do neural dialog systems use the conversation his- tory effectively? an empirical study. In Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics, pages 32–37.
+Maarten Sap, Marcella Cindy Prasetio, Ari Holtzman, Hannah Rashkin, and Yejin Choi. 2017. Connotation frames of power and agency in modern films. In EMNLP.
+Jonathan Schler, Moshe Koppel, Shlomo Argamon, and James W Pennebaker. 2006. Effects of age and gen- der on blogging. In AAAI spring symposium: Compu- tational approaches to analyzing weblogs, volume 6, pages 199–205.
+John R Searle. 1975. A taxonomy of illocutionary acts.
+Abigail See, Aneesh Pappu, Rohun Saxena, Akhila Yerukola, and Christopher D Manning. 2019. Do massively pretrained language models make better In Proceedings of the 23rd Confer- storytellers? ence on Computational Natural Language Learning (CoNLL), pages 843–861.
+Jocelyn Shen, Maarten Sap, Pedro Colon-Hernandez, Hae Won Park, and Cynthia Breazeal. 2023. Model- ing empathic similarity in personal narratives.
+Tianxiao Shen, Tao Lei, Regina Barzilay, and Tommi Jaakkola. 2017. Style transfer from non-parallel text by cross-alignment. Advances in neural information processing systems, 30.
+
+
+Wei Shi and Vera Demberg. 2019. Next sentence pre- diction helps implicit discourse relation classification within and across domains. In Proceedings of the 2019 conference on empirical methods in natural language processing and the 9th international joint conference on natural language processing (EMNLP- IJCNLP), pages 5790–5796.
+Hsuan Su, Shachi H Kumar, Sahisnu Mazumder, Wenda Chen, Ramesh Manuvinakurike, Eda Okur, Saurav Sahay, Lama Nachman, Shang-Tse Chen, and Hung- yi Lee. 2023. Position matters! empirical study of order effect in knowledge-grounded dialogue. arXiv preprint arXiv:2302.05888.
+Akhilesh Sudhakar, Bhargav Upadhyay, and Arjun Ma- heswaran. 2019. “transforming” delete, retrieve, gen- erate approach for controlled text style transfer. In Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP), pages 3269–3279.
+ValerioBasile TommasoCaselli and MichaelGranitzer JelenaMitrovic. 2021. Hatebert: Retraining bert for abusive language detection in english. WOAH 2021, page 17.
+Olivier Toubia, Jonah Berger, and Jehoshua Eliashberg. 2021. How quantifying the shape of stories predicts their success. Proceedings of the National Academy of Sciences of the United States of America, 118(26).
+Yunli Wang, Yu Wu, Lili Mou, Zhoujun Li, and Wenhan Chao. 2019. Harnessing pre-trained neural networks with rules for formality style transfer. In Proceedings of the 2019 Conference on Empirical Methods in Nat- ural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP), pages 3573–3578.
+Sean Welleck, Jason Weston, Arthur Szlam, and Kyunghyun Cho. 2019. Dialogue natural language inference. In Proceedings of the 57th Annual Meet- ing of the Association for Computational Linguistics, pages 3731–3741.
+Joseph Williams. 1990. Toward clarity and grace.
+Chicago: The University of Chicago.
+Alexandros Xenos, John Pavlopoulos, and Ion Androut- sopoulos. 2021. Context sensitivity estimation in toxicity detection. In Proceedings of the 5th Work- shop on Online Abuse and Harms (WOAH 2021), pages 140–145.
+Jingjing Xu, Xuancheng Ren, Junyang Lin, and Xu Sun. 2018a. Diversity-promoting gan: A cross-entropy based generative adversarial network for diversified In Proceedings of the 2018 con- text generation. ference on empirical methods in natural language processing, pages 3940–3949.
+Jingjing Xu, Xu Sun, Qi Zeng, Xiaodong Zhang, Xu- ancheng Ren, Houfeng Wang, and Wenjie Li. 2018b.
+Unpaired sentiment-to-sentiment translation: A cy- cled reinforcement learning approach. In Proceed- ings of the 56th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages 979–988, Melbourne, Australia. Association for Computational Linguistics.
+Wei Xu, Alan Ritter, Bill Dolan, Ralph Grishman, and Colin Cherry. 2012. Paraphrasing for style. In Pro- ceedings of COLING 2012, pages 2899–2914, Mum- bai, India. The COLING 2012 Organizing Commit- tee.
+Yi-Ting Yeh, Maxine Eskenazi, and Shikib Mehri. 2021. A comprehensive assessment of dialog evaluation metrics. In The First Workshop on Evaluations and Assessments of Neural Conversation Systems, pages 15–33.
+Akhila Yerukola, Mason Bretan, and Hongxia Jin. 2021. Data augmentation for voice-assistant NLU using BERT-based interchangeable rephrase. In Proceed- ings of the 16th Conference of the European Chap- ter of the Association for Computational Linguistics: Main Volume.
+Ping Yu, Yang Zhao, Chunyuan Li, and Changyou Chen. 2021. Rethinking sentiment style transfer. In Find- ings of the Association for Computational Linguistics: EMNLP 2021, pages 1569–1582.
+Klaus Zechner and Alex Waibel. 2000. Minimizing word error rate in textual summaries of spoken lan- guage. In 1st Meeting of the North American Chapter of the Association for Computational Linguistics.
+Kai Zhang, Wei Wu, Haocheng Wu, Zhoujun Li, and Ming Zhou. 2014. Question retrieval with high qual- ity answers in community question answering. In Proceedings of the 23rd ACM international confer- ence on conference on information and knowledge management, pages 371–380.
+Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q Weinberger, and Yoav Artzi. 2019. Bertscore: Eval- uating text generation with bert. arXiv preprint arXiv:1904.09675.
+Xiang Zhang, Junbo Zhao, and Yann LeCun. 2015. Character-level convolutional networks for text classi- fication. Advances in neural information processing systems, 28.
+Yangjun Zhang, Pengjie Ren, Wentao Deng, Zhumin Chen, and Maarten Rijke. 2022. Improving multi- label malevolence detection in dialogues through multi-faceted label correlation enhancement. In Pro- ceedings of the 60th Annual Meeting of the Associa- tion for Computational Linguistics (Volume 1: Long Papers), pages 3543–3555.
+Tiancheng Zhao, Ran Zhao, and Maxine Eskenazi. 2017. Learning discourse-level diversity for neural dialog models using conditional variational autoencoders. In Proceedings of the 55th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pages 654–664.
+
+
+Pei Zhou, Hyundong Cho, Pegah Jandaghi, Dong-Ho Lee, Bill Yuchen Lin, Jay Pujara, and Xiang Ren. 2022. Reflect, not reflex: Inference-based common ground improves dialogue response quality. In Pro- ceedings of the 2022 Conference on Empirical Meth- ods in Natural Language Processing, pages 10450– 10468.
+Xuhui Zhou, Hao Zhu, Akhila Yerukola, Thomas David- son, Jena D. Hwang, Swabha Swayamdipta, and Maarten Sap. 2023. Cobra frames: Contextual rea- soning about effects and harms of offensive state- ments. In Findings of ACL.
+Jan Zienkowski, Jef Verschueren, and Jo Östman. 2011. Discursive pragmatics: A platform for the pragmatic study of discourse. In Disursive Pragmatics, pages 1–13. John Benjamins Publishing Company.
+
+
+A Tasks and Datasets
+Formality Data We obtain a conversational dataset from Reddit12 by sampling conversa- tional threads from subreddits such as r/news, r/askscience, and r/Economics (formal conversa- tions), as well as r/movies, r/fantasyfootball, and r/relationships (informal conversations). We fo- cus on two-turn Reddit threads: a parent/preceding context and the response to be rewritten. Next, we sample documents from CNN Daily Mail (formal documents; Nallapati et al., 2016) and the Blog Au- thorship Corpus (informal documents; Schler et al., 2006). We select four sentences from each data sample: three sentences as the preceding parent context, and the following sentence as the one to be rewritten. For each data sample, we label the context and response using a pre-trained formality classifier.13
+Sentiment Data We obtain a conversational dataset from the DailyDialog (Li et al., 2017) dataset, focusing on two-turn conversations: a par- ent/preceding context and the response to be rewrit- ten. Next, we sample entries from the Yelp reviews (Zhang et al., 2015) dataset. Analogous to the doc- ument dataset used in formality, we choose four sentences from each data sample: three as the pre- ceding parent context and the subsequent sentence as the one to be rewritten. For each data sample, we annotate the context and response using a senti- ment classifier.14 We partition the data to transform sentences from positive to negative sentiment and vice versa, as well as to convert neutral sentences to positive or negative sentiment.
+Toxicity Data We examine three conversational datasets: the Civil Comments in Context (CCC) dataset (Xenos et al., 2021), the Multi-Label Di- alogue Malevolence Detection (MDMD) dataset (Zhang et al., 2022), and the ProsocialDialog dataset (Kim et al., 2022). For each dataset, we select two turns from each conversational thread, representing the preceding parent context and the subsequent response as the sentence to be rewrit- ten. We use toxicity scores from PerspectiveAPI,15
+12We use reddit-corpus-small from http://convokit.
+cornell.edu/documentation/subreddit.html
+13https://huggingface.co/s-nlp/
+roberta-base-formality-ranker
+14https://huggingface.co/cardiffnlp/
+twitter-xlm-roberta-base-sentiment 15https://perspectiveapi.com/
+HateBert16 and HateRoberta17 to measure the toxi- city of the context and responses.
+B Modeling Context in Rewriting
+We perform few-shot prompting experiments with GPT-3.5 and GPT-NeoX. For GPT-3.5, we use 2 few-shot examples, while for GPT-NeoX, we use 10 few-shot examples. Each few-shot example was manually constructed with the preceding context, an original sentence to be rewritten, an instruction specifying the required style, and a sample rewrite. Figures 6 and 7 display the few-shot prompt exam- ples that we utilized for generating rewrites in the formality change task.
+B.1
+In-context learning sample Rewrites
+Table 6 shows some additional example rewrites from GPT-3.5 and GPT-NeoX for all tasks.
+C Contextual Human Evaluation
+Worker selection We involve annotators from USA and Canada on Amazon Mechanical Turk (MTurk), who voluntarily opt-in for each task. We recruit annotators for each style transfer task via a corresponding qualification task. In the qualifi- cation task, annotators must answer two questions per pair of rewrites: which rewrite has the strongest style strength (e.g., most formal), and which rewrite is the most natural given the preceding context. An- notators assess three pairs of handcrafted rewrites in each qualification task. Those who accurately answer at least five of the six questions (three for style and at least two for naturalness) are approved for the main task. Once approved, we pay them $0.27 USD per head-to-head comparison.
+C.1 Human Evaluation Results
+We present the agreement results of the human eval- uation studies of detoxification (Table 7), formality change (Table 8) and sentiment transfer (Table 9). Additionally, refer to Figures 4 and 5 for screen- shots of the human evaluation instructions provided to annotators and the actual task, respectively.
+inter-rater agreement StyleStrength EventMeaning
+IntendedMeaning Naturalness
+Krippendorff’s α
+0.2757
+0.3778
+0.4346
+0.2407
+Fleiss’ κ
+0.1926
+0.2906
+0.3003
+0.1907
+Table 7: Inter-rater agreement scores for human evalua- tion results of de-toxification task
+16https://huggingface.co/tomh/toxigen_hatebert 17https://huggingface.co/tomh/toxigen_roberta
+Fit
+0.6855
+0.5167
+
+
+inter-rater agreement StyleStrength EventMeaning
+IntendedMeaning Naturalness
+Krippendorff’s α
+0.6825
+0.3311
+0.428
+0.3551
+Fleiss’ κ
+0.552
+0.2504
+0.2667
+0.253
+Table 8: Inter-rater agreement scores for human evalua- tion results of formality transfer task
+inter-rater agreement StyleStrength EventMeaning
+IntendedMeaning Naturalness
+Krippendorff’s α
+0.1868
+0.2636
+0.4292
+0.3729
+Fleiss’ κ
+0.121
+0.1964
+0.3148
+0.3581
+Table 9: Inter-rater agreement scores for human evalua- tion results of sentiment change task
+D Non-contextual Automatic Evaluation
+We present the non-contextual automated evalu- ation results for each task-specific dataset. Fig- ures 16 and 17 illustrate the formality change re- sults for document-level and conversation-level datasets, respectively. Figures 18 and 19 display the sentiment transfer results for document-level and conversation-level datasets, respectively. Fig- ures 27, 21, and 22 depict the de-toxification results for conversational datasets. Notably, all of these fig- ures exhibit similar trends to the aggregate results across all tasks and datasets presented in Figure 3.
+D.1 Correlation with Human Judgments
+Effective evaluation metrics should yield judg- ments that correlate highly with human judgments, assuming that human evaluators represent a gold- standard. For the human judgments along the di- mensions of naturalness and fit, we map human preferences as follows: ‘contextual’ to 1, ‘tie’ to 0, and ‘non-contextual’ to −1. For the automatic metrics, we assign a score of 1 if a metric scores the contextual rewrite higher than the non-contextual rewrite, and −1 if the metric scores are lower for contextual rewrites.
+For a given automatic metric and human judg- ment dimension, we calculate the Spearman rank ρ correlation and Kendall’s τ for the dataset sam- ples used during the contextual human evaluation §5.1. The correlation scores, ranging from −1 to 1, are obtained by comparing the mapped automatic scores with the mapped human judgment scores. Higher values indicate a stronger correlation be- tween the scores obtained using the comparison metric and judgments made by human evaluators. Refer to Tables 10 – 12 for the correlation scores of non-contextual evaluation metrics with human judgments for each task.
+Fit
+0.4322
+0.3627
+Fit
+0.4581
+0.2434
+Lexical (ρ) Semantic (ρ) Lexical (τ ) Semantic (τ )
+Fit
+0.02
+0.14
+0.02
+0.14
+Naturalness
+0.03
+0.18
+0.03
+0.17
+Table 10: Detoxification task: Spearman rank and Kendall Correlation of non-contextual evaluation met- rics with human judgment
+Lexical (ρ) Semantic (ρ) Lexical (τ ) Semantic (τ )
+Fit
+0.18
+0.28
+0.17
+0.27
+Naturalness
+0.11
+0.26
+0.10
+0.24
+Table 11: Formality task: Spearman rank and Kendall Correlation of non-contextual evaluation metrics with human judgment
+Lexical (ρ) Semantic (ρ) Lexical (τ ) Semantic (τ )
+Fit
+0.11
+0.26
+0.10
+0.25
+Naturalness
+0.05
+0.13
+0.05
+0.12
+Table 12: Sentiment task: Spearman rank and Kendall Correlation of non-contextual evaluation metrics with human judgment
+Lexical (ρ) Semantic (ρ)
+CtxSimFit (ρ) Lexical (τ ) Semantic (τ )
+CtxSimFit (τ )
+Fit
+0.63
+0.56
+0.85
+0.61
+0.54
+0.82
+Naturalness
+0.59
+0.58
+0.88
+0.56
+0.55
+0.84
+Table 13: Detoxification task: Spearman rank and Kendall Correlation of contextual evaluation metrics with human judgment
+Lexical (ρ) Semantic (ρ)
+CtxSimFit (ρ) Lexical (τ ) Semantic (τ )
+CtxSimFit (τ )
+Fit
+0.74
+0.68
+0.93
+0.71
+0.65
+0.89
+Naturalness
+0.68
+0.69
+0.94
+0.65
+0.66
+0.90
+Table 14: Formality task: Spearman rank and Kendall Correlation of contextual evaluation metrics with human judgment
+Lexical (ρ) Semantic (ρ)
+CtxSimFit (ρ) Lexical (τ ) Semantic (τ )
+CtxSimFit (τ )
+Fit
+0.45
+0.45
+0.78
+0.42
+0.52
+0.74
+Naturalness
+0.44
+0.51
+0.73
+0.42
+0.48
+0.69
+Table 15: Sentiment task: Spearman rank and Kendall Correlation of contextual evaluation metrics with human judgment
+E Contextual Automatic Evaluation
+We present the contextual automated evaluation results for each task-specific dataset. Figures 23 and 24 illustrate the formality change results for document-level and conversation-level datasets, re- spectively. Figures 25 and 26 display the sen- timent transfer results for document-level and
+
+
+conversation-level datasets, respectively. Figures 27, 28, and 29 depict the de-toxification results for conversational datasets. All of these figures exhibit similar trends to the aggregate results across all tasks and datasets presented in Figure 3 and they align with the findings from our contextual human evaluation study.
+E.1 Correlation with Human Judgments
+Similar to §D.1, we measure the Spearman rank ρ correlation and Kendall’s τ correlation for the samples used during human evaluation in §5.1. Re- fer to Tables 13 – 15 for the correlation scores of non-contextual evaluation metrics with human judgments for each task.
+
+
+Figure 4: Screenshot of the instructions for human evaluation annotation
+
+
+Figure 5: Screenshot of the human evaluation annotation task
+
+
+Task
+Conversion
+Context
+Original Sentence
+Model
+Contextual Rewrite
+Non-contextual Rewrite
+(a) Formality
+Informal -> Formal
+@ I am reading a book, 777 Mathematical Conversation Starters by John dePillis. Its an interesting book with lots of quotes, poems
+(cid:15) Herez some of them, and further I will keep updating this page with what I like.
+GPT-3.5
+GPT-NeoX
+(cid:15) I plan to continue to up- date this page with further selections that I find partic- ularly intriguing from the book.
+(cid:15) Here are some of them, and in a later post I will keep updating this page with my favourite quotes from the book.
+(cid:15) Here are some of them, and I will continue to up- date this page with my preferences.
+(cid:15) Here is some of the one and further I will update this page with what else I find interesting.
+(b) Formality
+Semi-formal -> Informal
+(cid:220) I can never again take a site serious that gives the mess and ... just an awful game.
+(cid:215) I liked that game. It’s almost as if opinions are subjective.
+GPT-3.5
+GPT-NeoX
+(cid:215) I enjoyed Ni No Kuni 2, but it’s clear that other people didn’t - and that’s okay. Everyone’s got their own opinion!
+(cid:215) I liked that game, de- spite critical opinions to the contrary. The fact that people enjoyed it doesn’t make it any worse than anything else.
+(cid:215) I enjoyed that game. It seems opinions may in- deed vary among individu- als.
+(cid:215) I liked that game. It’s almost as if opinions are relative.
+(c) Detoxification
+Toxic -> Less Toxic
+(cid:220) Did Rolando just call me just to tell me shut up?
+(cid:215) @USER fuck yeah I did!! Shut up
+GPT-3.5 (cid:215) @USER Yes, I was ask-
+ing you to be quiet.
+GPT-NeoX (cid:215) user yes, please keep
+quiet
+(cid:215) I am very proud of my accomplishment! yeah
+(cid:215) yeah, I did! Shut up.
+(d) Detoxification
+Toxic -> Less Toxic
+(cid:220) "i am here 2 play games i am playin 1 wit u 10:50 to 2:42 baby i’m everywhare"
+(cid:215) It’s so amusing when the illiterate try to taunt.
+GPT-3.5
+GPT-NeoX
+(cid:215) I’m not sure I under- stand what you’re trying to say. Could you please rephrase?
+(cid:215) It’s amusing when someone attempts to insult or taunt me and they are clearly uneducated about language.
+(cid:215) It’s interesting to see how someone is illiterate tries to tease.
+(cid:215) It’s funny when the un- educated try to insult.
+(e) Sentiment
+Positive -> Negative
+@ I just want to echo what everyone else has already said about this mechanic... Not only did Tim fix my car quickly and inexpensively, he actually came to pick it up himself so that I wouldn’t have to spend money on a tow truck!
+(cid:15) He’s also an extremely friendly, funny guy who puts you at ease immediately.
+GPT-3.5
+GPT-NeoX
+(cid:15) Despite an efficient mechanic, Tim lacked the friendly and humorous demeanor expected of a service provider.
+being
+(cid:15) However, Tim’s not very friendly or humor- ous which might make you feel uneasy
+(cid:15) He’s an unfriendly and humorless person who makes you feel uneasy right away.
+(cid:15) He is also a very rude, unamused guy who makes you feel anxious.
+(f) Sentiment
+Negative -> Positive
+(cid:220) I had to move it so that I can get my bike through.
+(cid:215) How dare you be so inconsiderate ? That’s wrong.
+GPT-3.5
+(cid:215) It was very consider- ate of you to move it, so that you can get your bike through. That’s great.
+(cid:215) How kind of you to be so considerate! That’s right.
+GPT-NeoX
+(cid:215) I understand you needed to move it so you could get your bike through - thank you for being thoughtful!
+(cid:215) How can you be so con- siderate! That’s right.
+Table 6: Examples from our datasets and corresponding rewrites generated by GPT-3.5 and GPT-NeoX, showcasing all three tasks: formality change, de-toxification, and sentiment transfer. @ = document context, (cid:15) = sentence to rewrite, (cid:15) = contextual rewrite, (cid:15) = non-contextual rewrite; (cid:220) = previous turn in conversation, (cid:215) = response to rewrite, (cid:215) = contextual rewrite of response, (cid:215) = non-contextual rewrite of response
+
+
+modelrewrite typeLexicalSemanticFluencyStyleROUMETWERBERT-SSBERTSmatchPPL GPT-3.5contextual0.190.402.140.920.620.5138.370.59non-contextual0.280.490.910.940.730.6743.400.58random-context0.180.353.170.910.520.47GPT-NeoXcontextual0.260.421.880.910.600.4744.590.42non-contextual0.450.630.720.950.800.6744.800.35random-context0.210.361.900.910.600.41
+Table 16: Non-contextual Automatic Evaluation Results on Formality: Document-level context from CNN/DailyMail + Blog Authorship Corpus
+modelrewrite typeLexicalSemanticFluencyStyleROUMETWERBERT-SSBERTSmatchPPL GPT-3.5contextual0.160.382.670.900.670.4533.780.68non-contextual0.220.411.230.910.720.5340.060.67random-context0.150.323.720.890.580.43GPT-NeoXcontextual0.240.411.970.900.650.4452.450.45non-contextual0.360.550.980.920.780.5457.120.37random-context0.270.402.700.900.600.44
+Table 17: Non-contextual Automatic Evaluation Results on Formality: Conversational context comprised of Reddit threads
+modelrewrite typeLexicalSemanticFluencyStyleROUMETWERBERT-SSBERTSmatchPPL GPT-3.5contextual0.180.361.570.900.590.4042.210.74non-contextual0.400.610.640.940.800.6358.380.64random-context0.140.301.740.890.490.36GPT-NeoXcontextual0.270.431.430.910.560.4157.640.49non-contextual0.450.600.670.940.740.6273.020.49random-context0.290.441.370.910.560.42
+Table 18: Non-contextual Automatic Evaluation Results on Sentiment: Document-level context comprised of Yelp Reviews
+modelrewrite typeLexicalSemanticFluencyStyleROUMETWERBERT-SSBERTSmatchPPL GPT-3.5contextual0.300.541.030.910.630.5336.310.69non-contextual0.450.670.650.930.750.6842.820.64random-context0.300.521.070.910.590.53GPT-NeoXcontextual0.160.301.660.870.430.2242.390.35non-contextual0.330.480.810.900.590.5064.090.25random-context0.180.331.630.880.430.30
+Table 19: Non-contextual Automatic Evaluation Results on Sentiment: Conversational context from DailyDialog dataset
+modelrewrite typeLexicalSemanticFluencyStyleStyleStyleROUMETWERBERT-SSBERTSmatchPPL HateRobertaHateBertPerspectiveGPT-3.5contextual0.200.360.940.900.640.4537.920.010.410.06non-contextual0.240.410.800.910.720.5140.980.010.470.07random-context0.170.320.970.890.570.43GPT-NeoXcontextual0.320.400.780.900.600.4663.040.070.610.13non-contextual0.440.520.610.920.710.5767.470.100.690.15random-context0.320.400.770.900.580.47
+Table 20: Non-contextual Automatic Evaluation Results on Toxicity: Conversational context from CCC dataset
+
+
+modelrewrite typeLexicalSemanticFluencyStyleStyleStyleROUMETWERBERT-SSBERTSmatchPPL HateRobertaHateBertPerspectiveGPT-3.5contextual0.110.321.180.870.510.4375.480.040.310.11non-contextual0.120.340.990.880.560.4778.230.050.340.12random-context0.080.281.240.860.420.40GPT-NeoXcontextual0.180.281.290.870.450.3980.100.390.620.35non-contextual0.320.490.910.900.670.54106.660.520.740.46random-context0.150.251.410.860.390.36
+Table 21: Non-contextual Automatic Evaluation Results on Toxicity: Conversational context from MDMD dataset
+modelrewrite typeLexicalSemanticFluencyStyleStyleStyleROUMETWERBERT-SSBERTSmatchPPL HateRobertaHateBertPerspectiveGPT-3.5contextual0.050.211.690.880.380.2922.800.030.250.06non-contextual0.110.290.970.910.520.4133.000.140.400.09random-context0.050.191.610.880.250.29GPT-NeoXcontextual0.250.401.120.910.530.4432.860.370.630.26non-contextual0.430.590.660.940.720.6337.900.640.790.38random-context0.250.401.060.910.480.44
+Table 22: Non-contextual Automatic Evaluation Results on Toxicity: Conversational context from ProsocialDialog dataset
+modelrewrite typeLexicalSemanticCoherenceCohesivenessCustomROUᶜᵗˣMETᶜᵗˣWERᶜᵗˣBERT-SᶜᵗˣSBERTᶜᵗˣSmatchᶜᵗˣPPLᶜᵗˣNSPCtxSimFitGPT-3.5contextual0.160.230.890.900.610.3822.050.940.93non-contextual0.150.200.870.890.500.3332.790.870.91random-context0.100.161.060.870.380.2934.240.690.80GPT-NeoXcontextual0.250.280.830.900.620.3720.510.970.94non-contextual0.230.240.840.890.520.3332.150.940.94random-context0.160.190.920.870.420.2939.180.820.87
+Table 23: Contextual Automatic Evaluation Results on Formality: Document-level context from CNN/DailyMail + Blog Authorship Corpus
+modelrewrite typeLexicalSemanticCoherenceCohesivenessCustomROUᶜᵗˣMETᶜᵗˣWERᶜᵗˣBERT-SᶜᵗˣSBERTᶜᵗˣSmatchᶜᵗˣPPLᶜᵗˣNSPCtxSimFitGPT-3.5contextual0.140.270.910.890.660.3728.820.880.89non-contextual0.140.240.950.880.560.3641.020.820.87random-context0.110.201.580.870.470.3246.790.730.81GPT-NeoXcontextual0.210.290.880.890.640.3634.740.900.90non-contextual0.230.290.880.880.580.3652.450.860.89random-context0.170.221.290.870.460.3153.980.800.85
+Table 24: Contextual Automatic Evaluation Results on Formality: Conversational context comprised of Reddit threads
+modelrewrite typeLexicalSemanticCoherenceCohesivenessCustomROUᶜᵗˣMETᶜᵗˣWERᶜᵗˣBERT-SᶜᵗˣSBERTᶜᵗˣSmatchᶜᵗˣPPLᶜᵗˣNSPCtxSimFitGPT-3.5contextual0.110.170.920.880.530.2425.530.980.94non-contextual0.160.170.870.880.480.2441.180.930.94random-context0.070.120.930.860.380.1944.130.820.86GPT-NeoXcontextual0.130.160.900.870.470.2333.050.960.93non-contextual0.170.180.870.880.440.2248.590.930.93random-context0.120.150.910.870.410.2053.440.910.91
+Table 25: Contextual Automatic Evaluation Results on Sentiment: Document-level context comprised of Yelp Reviews
+
+
+modelrewrite typeLexicalSemanticCoherenceCohesivenessCustomROUᶜᵗˣMETᶜᵗˣWERᶜᵗˣBERT-SᶜᵗˣSBERTᶜᵗˣSmatchᶜᵗˣPPLᶜᵗˣNSPCtxSimFitGPT-3.5contextual0.250.360.840.890.620.4333.880.970.94non-contextual0.280.350.810.890.540.4150.600.920.93random-context0.200.300.890.880.450.3854.100.870.89GPT-NeoXcontextual0.170.260.970.860.460.3432.450.880.88non-contextual0.200.240.870.870.420.2160.310.860.88random-context0.120.211.040.850.340.2141.690.790.83
+Table 26: Contextual Automatic Evaluation Results on Sentiment: Conversational context from DailyDialog dataset
+modelrewrite typeLexicalSemanticCoherenceCohesivenessCustomROUᶜᵗˣMETᶜᵗˣWERᶜᵗˣBERT-SᶜᵗˣSBERTᶜᵗˣSmatchᶜᵗˣPPLᶜᵗˣNSPCtxSimFitGPT-3.5contextual0.160.240.860.880.610.3628.450.950.93non-contextual0.170.250.850.880.570.3537.400.910.91random-context0.120.200.900.870.470.3138.960.890.89GPT-NeoXcontextual0.240.250.820.880.540.3437.410.960.93non-contextual0.290.290.770.890.540.3251.560.920.92random-context0.210.230.840.870.440.3252.240.890.90
+Table 27: Contextual Automatic Evaluation Results on Toxicity: Conversational context from CCC dataset
+modelrewrite typeLexicalSemanticCoherenceCohesivenessCustomROUᶜᵗˣMETᶜᵗˣWERᶜᵗˣBERT-SᶜᵗˣSBERTᶜᵗˣSmatchᶜᵗˣPPLᶜᵗˣNSPCtxSimFitGPT-3.5contextual0.100.220.910.860.500.3449.500.960.92non-contextual0.080.190.920.860.400.3170.910.860.87random-context0.060.160.960.840.290.2971.090.820.84GPT-NeoXcontextual0.200.250.850.870.520.3540.790.930.90non-contextual0.190.260.870.870.470.3690.640.890.90random-context0.090.150.970.850.300.2692.210.760.81
+Table 28: Contextual Automatic Evaluation Results on Toxicity: Conversational context from MDMD dataset
+modelrewrite typeLexicalSemanticCoherenceCohesivenessCustomROUᶜᵗˣMETᶜᵗˣWERᶜᵗˣBERT-SᶜᵗˣSBERTᶜᵗˣSmatchᶜᵗˣPPLᶜᵗˣNSPCtxSimFitGPT-3.5contextual0.090.180.900.890.540.2914.890.980.93non-contextual0.060.120.930.880.360.2129.750.890.90random-context0.030.110.950.860.210.2232.580.840.86GPT-NeoXcontextual0.190.230.850.890.520.3218.980.940.93non-contextual0.200.220.850.890.440.3034.420.880.91random-context0.120.170.900.880.330.2636.320.840.88
+Table 29: Contextual Automatic Evaluation Results on Toxicity: Conversational context from ProsocialDialog dataset
+
+
+Figure 6: Formality: 10-shot prompting examples for GPT-NeoX
+
+
+Figure 7: Formality: 2-shot prompting examples for GPT-3.5

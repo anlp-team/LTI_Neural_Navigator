@@ -1,0 +1,927 @@
+3 2 0 2
+r p A 3
+]
+V C . s c [
+1 v 0 9 6 0 0 . 4 0 3 2 : v i X r a
+3D Semantic Segmentation in the Wild: Learning Generalized Models for Adverse-Condition Point Clouds
+Aoran Xiao1, Jiaxing Huang1, Weihao Xuan2, Ruijie Ren3, Kangcheng Liu1 Dayan Guan4, Abdulmotaleb El Saddik4,6, Shijian Lu1,†, Eric Xing4,5 1Nanyang Technological University 2Waseda University 3Technical University of Denmark 4Mohamed bin Zayed University of Artificial Intelligence 5Carnegie Mellon University 6University of Ottawa
+(a) A LiDAR scan captured in a snowy day(b) Point-level annotations
+Figure 1. We introduce SemanticSTF, an adverse-weather LiDAR point cloud dataset with dense point-level annotations that can be exploited for the study of point cloud semantic segmentation under all-weather conditions (including fog, snow, and rain). The graph on the left shows one scan sample captured on a snowy day, and the one on the right shows the corresponding point-level annotations.
+Abstract
+1. Introduction
+Robust point cloud parsing under all-weather condi- tions is crucial to level-5 autonomy in autonomous driving. However, how to learn a universal 3D semantic segmen- tation (3DSS) model is largely neglected as most existing benchmarks are dominated by point clouds captured under normal weather. We introduce SemanticSTF, an adverse- weather point cloud dataset that provides dense point-level annotations and allows to study 3DSS under various ad- verse weather conditions. We study all-weather 3DSS mod- eling under two setups: 1) domain adaptive 3DSS that adapts from normal-weather data to adverse-weather data; 2) domain generalizable 3DSS that learns all-weather 3DSS models from normal-weather data. Our studies reveal the challenge while existing 3DSS methods encounter adverse- weather data, showing the great value of SemanticSTF in steering the future endeavor along this very meaningful re- search direction. In addition, we design a domain random- ization technique that alternatively randomizes the geome- try styles of point clouds and aggregates their embeddings, ultimately leading to a generalizable model that can im- prove 3DSS under various adverse weather effectively. The SemanticSTF and related codes are available at https: //github.com/xiaoaoran/SemanticSTF.
+3D LiDAR point clouds play an essential role in se- mantic scene understanding in various applications such as self-driving vehicles and autonomous drones. With the re- cent advance of LiDAR sensors, several LiDAR point cloud datasets [2, 11, 51] such as SemanticKITTI [2] have been proposed which greatly advanced the research in 3D se- mantic segmentation (3DSS) [19, 43, 64] for the task of point cloud parsing. As of today, most existing point cloud datasets for outdoor scenes are dominated by point clouds captured under normal weather. However, 3D vision ap- plications such as autonomous driving require reliable 3D perception under all-weather conditions including various adverse weather such as fog, snow, and rain. How to learn a weather-tolerant 3DSS model is largely neglected due to the absence of related benchmark datasets.
+Although several studies [3, 34] attempt to include ad- verse weather conditions in point cloud datasets, such as the STF dataset [3] that consists of LiDAR point clouds cap- tured under various adverse weather, these efforts focus on object detection benchmarks and do not provide any point- wise annotations which are critical in various tasks such as 3D semantic and instance segmentation. To address this gap, we introduce SemanticSTF, an adverse-weather point cloud dataset that extends the STF Detection Benchmark by providing point-wise annotations of 21 semantic categories, as illustrated in Fig. 1. Similar to STF, SemanticSTF cap-
+† Corresponding author
+1
+
+
+tures four typical adverse weather conditions that are fre- quently encountered in autonomous driving including dense fog, light fog, snow, and rain.
+SemanticSTF provides a great benchmark for the study of 3DSS and robust point cloud parsing under adverse weather conditions. Beyond serving as a well-suited test bed for examining existing fully-supervised 3DSS meth- ods that handle adverse-weather point cloud data, Semantic- STF can be further exploited to study two valuable weather- tolerant 3DSS scenarios: 1) domain adaptive 3DSS that adapts from normal-weather data to adverse-weather data, and 2) domain generalizable 3DSS that learns all-weather 3DSS models from normal-weather data. Our studies reveal the challenges faced by existing 3DSS methods while pro- cessing adverse-weather point cloud data, highlighting the significant value of SemanticSTF in guiding future research efforts along this meaningful research direction.
+In addition, we design PointDR, a new baseline frame- work for the future study and benchmarking of all-weather 3DSS. Our objective is to learn robust 3D representations that can reliably represent points of the same category across different weather conditions while remaining dis- criminative across categories. However, robust all-weather 3DSS poses two major challenges: 1) LiDAR point clouds are typically sparse, incomplete, and subject to substantial geometric variations and semantic ambiguity. These chal- lenges are further exacerbated under adverse weather con- ditions, with many missing points and geometric distortions due to fog, snow cover, etc. 2) More noises are introduced under adverse weather due to snow flicks, rain droplets, etc. PointDR addresses the challenges with two iterative oper- ations: 1) Geometry style randomization that expands the geometry distribution of point clouds under various spatial augmentations; 2) Embedding aggregation that introduces contrastive learning to aggregate the encoded embeddings of the randomly augmented point clouds. Despite its sim- plicity, extensive experiments over point clouds of different adverse weather conditions show that PointDR achieves su- perior 3DSS generalization performance.
+The contribution of this work can be summarized in three major aspects. First, we introduce SemanticSTF, a large- scale adverse-weather point cloud benchmark that provides high-quality point-wise annotations of 21 semantic cate- gories. Second, we design PointDR, a point cloud do- main randomization baseline that can be exploited for future study and benchmarking of 3DSS under all-weather condi- tions. Third, leveraging SemanticSTF, we benchmark exist- ing 3DSS methods over two challenging tasks on domain adaptive 3DSS and domain generalized 3DSS. The bench- marking efforts lay a solid foundation for future research on this highly meaningful problem.
+2
+2. Related Works
+3D semantic segmentation aims to assign point-wise se- mantic labels for point clouds. It has been developed rapidly over the past few years, largely through the devel- opment of various deep neural networks (DNNs) such as standard convolutional network for projection-based meth- ods [9, 30, 48, 52, 61], multi-layer perceptron (MLP)-based networks [19, 35, 35], 3D voxel convolution-based net- works [7, 64], or hybrid networks [6, 27, 43, 53, 59]. While existing 3DSS networks are mainly evaluated over normal weather point clouds, their performance for adverse weather point clouds is far under-investigated. The proposed Se- manticSTF closes the gap and provides a solid ground for the study and evaluation of all-weather 3DSS. By enabling investigations into various new research directions, Seman- ticSTF represents a valuable tool for advancing the field. Vision recognition under adverse conditions. Scene un- derstanding under adverse conditions has recently attracted increasing attention due to the strict safety demand in var- ious outdoor navigation and perception tasks. In 2D vi- sion, several large-scale datasets have been proposed to investigate perceptions tasks in adverse visual conditions including localization [29], detection [58], and segmenta- tion [37]. On the other hand, learning 3D point clouds of adverse conditions is far under-explored due to the absence of comprehensive dataset benchmarks. The recently pro- posed datasets such as STF [3] and CADC [34] contain LiDAR point clouds captured under adverse weather con- ditions. However, these studies focus on the object detec- tion task [15, 16] with bounding-box annotations, without providing any point-wise annotations. Our introduced Se- manticSTF is the first large-scale dataset that consists of Li- DAR point clouds in adverse weather conditions with high- quality dense annotations, to the best of our knowledge. Domain generalization [4,31] aims to learn a generalizable model from single or multiple related but distinct source do- mains where target data is inaccessible during model learn- It has been widely studied in 2D computer vision ing. tasks [1, 21, 26, 63] while few studies explore it in point cloud learning. Recently, [25] studies domain generaliza- tion for 3D object detection by deforming point clouds via vector fields. Differently, this work is the first attempt that explores domain generalization for 3DSS. Unsupervised domain adaptation is a method of transfer- ring knowledge learned from a labeled source domain to a target domain by leveraging the unlabeled target data. It has been widely studied in 2D image learning [12,14,20,22–24] and 3D point clouds [15, 16, 28, 40, 54, 55, 60]. Recently, domain adaptive 3D LiDAR segmentation has drawn in- creasing attention due to the challenge in point-wise an- notation. Different UDA approaches have been designed to mitigate discrepancies across LiDAR point clouds of different domains. For example, [48, 62] project point
+
+
+clouds into depth images and leverage 2D UDA techniques while [38, 50, 51, 57] directly work in the 3D space. How- ever, these methods either work for synthetic-to-real UDA scenarios [48, 51] or normal-to-normal point cloud adap- tation [57], ignoring normal-to-adverse adaptation which is highly practical in real applications. Our SemanticSTF dataset fills up this blank and will inspire more development of new algorithms for normal-to-adverse adaptation.
+3. The SemanticSTF Dataset
+3.1. Background
+LiDAR sensors send out laser pulses and measure their flight time based on the echoes it receives from targets. The travel distance as derived from the time-of-flight and the registered angular information (between the LiDAR sensors and the targets) can be combined to compute the 3D coordi- nates of target surface which form point clouds that capture the 3D shape of the targets. However, the active LiDAR pulse system can be easily affected by the scattering media such as particles of rain droplets and snow [10, 18, 33, 36], leading to shifts of measured distances, variation of echo intensity, point missing, etc. Hence, point clouds captured under adverse weather usually have clear distribution dis- crepancy as compared with those collected under normal weather as illustrated in Fig. 1. However, existing 3DSS benchmarks are dominated by normal-weather point clouds which are insufficient for the study of universal 3DSS un- der all-weather conditions. To this end, we propose Seman- ticSTF, a point-wise annotated large-scale adverse-weather dataset that can be explored for the study of 3DSS and point cloud parsing under various adverse weather conditions.
+3.2. Data Selection and Split
+We collect SemanticSTF by leveraging the STF bench- mark [3], a multi-modal adverse-weather dataset that was jointly collected in Germany, Sweden, Denmark, and Fin- land. The data in STF have multiple modalities including LiDAR point clouds and they are collected under various adverse weather conditions such as snow and fog. How- ever, STF provides bounding-box annotations only for the In SemanticSTF, we manu- study of 3D detection tasks. ally selected 2,076 scans captured by a Velodyne HDL64 S3D LiDAR sensor from STF that cover various adverse weather conditions including 694 snowy, 637 dense-foggy, 631 light-foggy, and 114 rainy (all rainy LiDAR scans in STF). During the selection, we pay special attention to the geographical diversity of the point clouds aiming for min- imizing data redundancy. We ignore the factor of day- time/nighttime since LiDAR sensors are robust to lighting conditions. We split SemanticSTF into three parts including 1,326 full 3D scans for training, 250 for validating, and 500 for testing. All three splits have approximately the same
+3
+proportion of LiDAR scans of different adverse weathers.
+3.3. Data Annotation
+Point-wise annotation of LiDAR point clouds is an ex- tremely laborious task due to several factors, such as 3D view changes, inconsistency between point cloud display and human visual perception, sweeping occlusion, point sparsity, etc. However, point-wise annotating of adverse- weather point clouds is even more challenging due to two new factors. First, the perceived distance shifts under ad- verse weather often lead to various geometry distortions in the collected points which make them different from those collected under normal weather. This presents significant challenges for annotators who must recognize various ob- jects and assign a semantic label to each point. Second, LiDAR point clouds collected under adverse weather often contain a significant portion of invalid regions that consist of indiscernible semantic contents (e.g., thick snow cover) that make it difficult to identify the ground type. The exis- tence of such invalid regions makes point-wise annotation even more challenging.
+We designed a customized labeling pipeline to handle the annotation challenges while performing point-wise an- notation of point clouds in SemanticSTF. Specifically, we first provide labeling instructions and demo annotations and train a team of professional annotators to provide point- wise annotations of a set of selected STF LiDAR scans. To achieve reliable high-quality annotations, the annotators leverage the corresponding 2D camera images and Google Street views as extra references while identifying the cate- gory of each point in this initial annotation process. After that, the annotators cross-check their initial annotations for identifying and correcting labeling errors. At the final stage, we engaged professional third parties who provide another round of annotation inspection and correction.
+Annotation of SemanticSTF is a highly laborious and time-consuming task. For instance, while labeling down- town areas with the most complex scenery, it took an anno- tator an average of 4.3 hours to label a single LiDAR scan. Labeling a scan captured in a relatively simpler scenery, such as a highway, also takes an average of 1.6 hours. In ad- dition, an additional 30-60 minutes are required per scan for verification and correction by professional third parties. In total, annotating the entire SemanticSTF dataset takes over 6,600 man-hours.
+While annotating SemanticSTF, we adopted the same set of semantic classes as in the widely-studied semantic seg- mentation benchmark, SemanticKITTI [2]. Specifically, we annotate the 19 evaluation classes of SemanticKITTI, which encompass most traffic-related objects in autonomous driv- ing scenes. Additionally, following [37], we label points with indiscernible semantic contents caused by adverse weather (e.g. ground covered by snowdrifts) as invalid. Fur-
+
+
+bicyclisttraffic sign
+10!
+10#
+10"
+roadsidewalkparkingother-groundbuildingfencevegetationtrunkterraincarbicycletruckpersonpoleinvalidflatconstructionnaturevehiclehumanobject
+motorcycleother vehiclemotorcyclist
+Figure 2. Number of annotated points per class in SemanticSTF.
+thermore, we label points that do not belong to the 20 cat- egories or are indistinguishable as ignored, which are not utilized in either training or evaluations. Detailed descrip- tions of each class can be found in the appendix.
+3.4. Data Statistics
+SemanticSTF consists of point-wise annotations of 21 semantic categories, and Fig. 2 shows the detailed statistics of the point-wise annotations. It can be seen that classes road, sidewalk, building, vegetation, and terrain appear most frequently whereas classes motor, motorcyclist, and bicyclist have clearly lower occurrence frequency. Such class imbalance is largely attributed to the various object sizes and unbalanced distribution of object categories in transportation scenes, and it is also very common in many existing benchmarks. Overall, the statistics and distribu- tion of different object categories are similar to that of other 2D and 3D semantic segmentation benchmarks such as Cityscapes [8], ACDC [37], and SemanticKITTI [2].
+To the best of our knowledge, SemanticSTF is the first large-scale adverse-weather 3DSS benchmark that provides high-quality point-wise annotations. Table 1 compares it with several existing point cloud datasets that have been widely adopted for the study of 3D detection and semantic segmentation. We can observe that existing datasets are ei- ther collected under normal weather conditions or collected for object detection studies with bounding-box annotations only. 3DSS benchmark under adverse weather is largely blank, mainly due to the great challenge in point-wise an- notations of adverse-weather point clouds as described in previous subsections. From this sense, SemanticSTF fills up this blank by providing a large-scale benchmark and test bed which will be very useful to future research in universal 3DSS under all weather conditions.
+3.5. Data illustration
+Fig. 3 provides examples of point cloud scans captured under adverse weather conditions in SemanticSTF (in row 1) as well as the corresponding annotations (in row 2). Compared with normal-weather point clouds, point clouds captured under adverse weather exhibit four distinct prop- erties: 1) Snow coverage and snowflakes under snowy weather introduce many white points (labeled as “invalid”) as illustrated in Fig. 3(a). The thick snow coverage may lead to object deformation as well; Rainy conditions may cause specular reflection of laser signals from water on the ground
+4
+Dataset #Cls Type Annotation Fog Rain Snow ✗ real bounding box ✗ ✗ real bounding box ✗ real bounding box ✗ ✗ real bounding box ✓ ✓ ✗ ✗ real ✗ ✗ real ✗ ✗ real ✗ ✗ SynLiDAR [51] 32 synth. ✓ ✓ real
+8 nuScenes [5] 23 4 Waymo [41] 5 STF [3] SemanticKITTI [2] 25 nuScenes-LiDARSeg [11] 32 Waymo-LiDARSeg [41] 21
+KITTI [13]
+point-wise point-wise point-wise point-wise point-wise
+SemanticSTF (ours) 21
+Table 1. Comparison of SemanticSTF against existing outdoor LiDAR benchmarks. #Cls means the class number.
+and produce many noise points as shown in Fig.3(b); 3) Dense fog may greatly reduce the working range of LiDAR sensors, leading to small spatial distribution of the collected LiDAR points as illustrated in Fig. 3(c); 4) Point clouds un- der light fog have similar characteristics as normal-weather point clouds as illustrated in Fig. 3(d). The distinct prop- erties of point clouds under different adverse weather intro- duce different types of domain shift from normal-weather point clouds which complicate 3DSS greatly as discussed in Section 5. They also verify the importance of develop- ing universal 3DSS models that can perform well under all weather conditions.
+4. Point Cloud Domain Randomization
+Leveraging SemanticSTF, we explore domain general- ization (DG) for semantic segmentation of LiDAR point clouds under all weather conditions. Specifically, we de- sign PointDR, a domain randomization technique that helps to train a generalizable segmentation model from normal- weather point clouds that can work well for adverse-weather point clouds in SemanticSTF.
+4.1. Problem Definition
+Given labeled point clouds of a source domain S = {Sk = {xk, yk}}K k=1 where x represents a LiDAR point cloud scan and y denotes its point-wise semantic annota- tions, the goal of domain generalization is to learn a seg- mentation model F by using the source-domain data only that can perform well on point clouds from an unseen tar- get domain T . We consider a 3D point cloud segmentation model F that consists of a feature extractor E and a clas- sifier G. Note under the setup of domain generalization, target data will not be accessed in training as they could be hard and even impossible to acquire at the training stage.
+4.2. Point Cloud Domain Randomization
+Inspired by domain randomization studies in 2D com- puter vision research [44, 45], we explore how to employ domain randomization for learning domain generalizable models for point Specifically, we design PointDR, a point
+✗ ✗ ✗ ✓ ✗ ✗ ✗ ✗ ✓
+
+
+truck
+car
+road
+person
+trunk
+motorcycle
+building
+motorcyclist
+other-vehicle
+vegetation
+terrain
+fence
+traffic-sign
+parking
+(a)Snow(b)Rain(c)Dense fog(d)Light fog
+sidewalk
+pole
+bicycle
+other-ground
+unlabeled
+invalid
+bicyclist
+Figure 3. Examples of LiDAR point cloud scans captured under different adverse weather including snow, rain, dense fog, and light fog (the first row) and corresponding dense annotations in SemanticSTF (the second row).
+𝑓𝑓𝑠𝑠
+Gradient stop
+Input 𝑥𝑥
+Pointembedding
+Feature extractor 𝐸𝐸
+𝒜𝒜𝑆𝑆
+Memory bank ℬ
+Projector 𝒫𝒫
+Classifier 𝐺𝐺
+𝐿𝐿𝑐𝑐𝑐𝑐
+𝐿𝐿𝑐𝑐𝑐𝑐
+Momentum update
+Geometry style randomizationEmbedding aggregation
+𝒜𝒜𝑊𝑊
+Figure 4. The framework of our point cloud randomization method (PointDR): Geometry style randomization creates different point cloud views with various spatial perturbations while embedding aggregation encourages the feature extractor to aggregate random- ized point embeddings to learn perturbation-invariant representa- tions, ultimately leading to a generalizable segmentation model.
+invariant representations. We adopt contrastive learn- ing [17] as illustrated in Fig. 4. Given the randomized point clouds xw and xs, we first feed them into the feature extrac- tor E and a projector P (a two-layer MLP) which outputs normalized point feature embeddings f w and f s, respec- w C ∈ RD×C (D: feature dimen- tively (f = P(E(x))). f sion; C: number of semantic classes) is then derived by class-wise averaging the feature embeddings f w in a batch, which is stored in a memory bank B ∈ RD×C that has no backpropagation and is momentum updated by iterations w (i.e., B ← m × B + (1 − m) × f C with a momentum coeffi- cient m). Finally, we employ each point feature embedding f s i of the strong-view f s as query and feature embeddings in B as keys for contrastive learning, where the key sharing the same semantic class as the query is positive key B+ and the rest are negative keys. The contrastive loss is defined as
+cloud randomization technique that consists of two com- plementary designs including geometry style randomization and embedding aggregation as illustrated in Fig. 4. Geometry style randomization aims to enrich the geome- try styles and expand the distribution of training point cloud data. Given a point-cloud scan x as input, we apply weak and strong spatial augmentation to obtain two copies of x including a weak-view xw = AW (x) and a strong-view xs = AS(x). For the augmentation schemes of AW , we follow existing supervised learning methods [43] and adopt the simple random rotation and random scaling. While for the augmentation schemes of AS, we further adopt random dropout, random flipping, random noise perturbation, and random jittering on top of AW to obtain a more diverse and complex copy of the input point cloud scan x. Embedding aggregation aims to aggregate encoded em- beddings of randomized point clouds for learning domain-
+Lct =
+1 N
+N (cid:88)
+i=1
+− log
+exp (f s j=1 exp (f s
+i B+/τ )
+(cid:80)C
+i Bj/τ )
+where τ is a temperature hyper-parameter [49]. Note there is no back-propagation for the “ignore” class in optimizing the contrastive loss.
+Contrastive learning pulls point feature embeddings of the same classes closer while pushing away point feature embeddings of different classes. Therefore, optimizing the proposed contrastive loss will aggregate randomized point cloud features and learn perturbation-invariant representa- tions, ultimately leading to a robust and generalizable seg- mentation model. The momentum-updated memory bank provides feature prototypes of each semantic class for more robust and stable contrastive learning.
+Combining the supervised cross-entropy loss Lce for weakly-augmented point clouds in Eq. 1, the overall train-
+5
+(1)
+
+
+Methods
+r a c
+e l c . i b
+e l c . t
+m
+k c u r t
+. v - h t o
+. s r e p
+t s l c . i b
+t s l c . t
+m
+d a o r
+. i k r a p
+.
+w e d i s
+. g - h t o
+. d l i u b
+e c n e f
+. t e g e v
+k n u r t
+. a r r e t
+e l o p
+. f a r t
+g o f -
+D
+g o f - L
+n i a R
+w o n S
+mIoU
+Oracle
+89.4 42.1 0.0 59.9 61.2 69.6 39.0 0.0 82.2 21.5 58.2 45.6 86.1 63.6 80.2 52.0 77.6 50.1 61.7 51.9 54.6 57.9 53.7 54.7
+SemanticKITTI→SemanticSTF
+55.9 0.0 0.2 1.9 10.9 10.3 6.0 0.0 61.2 10.9 32.0 0.0 67.9 41.6 49.8 27.9 40.8 29.6 17.5 29.5 26.0 28.4 21.4 24.4 Baseline 62.1 0.0 15.5 3.0 11.5 5.4 2.0 0.0 58.4 12.8 26.7 1.1 72.1 43.6 52.9 34.2 43.5 28.4 15.5 29.3 25.6 29.4 24.8 25.7 Dropout [39] 74.4 0.0 0.0 23.3 0.6 19.7 0.0 0.0 60.3 10.8 33.9 0.7 72.0 45.2 58.7 17.5 42.4 22.1 9.7 26.3 27.8 30.0 24.5 25.9 Perturbation 57.8 1.8 3.8 16.7 3.7 26.5 0.0 2.0 65.7 2.9 32.5 0.3 71.0 48.7 53.8 20.5 45.4 25.9 15.8 29.7 25.0 28.6 25.6 26.0 PolarMix [50] 63.6 0.0 2.6 0.1 11.4 28.1 0.0 0.0 67.0 14.1 37.9 0.3 67.3 41.2 57.1 27.4 47.9 28.2 16.2 30.4 28.1 32.8 25.2 26.9 MMD [26] 65.9 0.0 0.0 17.7 0.4 8.4 0.0 0.0 59.6 12.0 35.0 1.6 74.0 47.5 60.7 15.8 48.9 26.1 27.5 28.9 27.6 30.1 24.6 26.4 PCL [56] PointDR (Ours) 67.3 0.0 4.5 19.6 9.0 18.8 2.7 0.0 62.6 12.9 38.1 0.6 73.3 43.8 56.4 32.2 45.7 28.7 27.4 31.3 29.7 31.9 26.2 28.6
+SynLiDAR→SemanticSTF
+27.1 3.0 0.6 15.8 0.1 25.2 1.8 5.6 23.9 0.3 14.6 0.6 36.3 19.9 37.9 17.9 41.8 9.5 2.3 16.9 17.2 17.2 11.9 15.0 Baseline 28.0 3.0 1.4 9.6 0.0 17.1 0.8 0.7 34.2 6.8 19.1 0.1 35.5 19.1 42.3 17.6 36.0 14.0 2.8 15.3 16.6 20.4 14.0 15.2 Dropout [39] 27.1 2.3 2.3 16.0 0.1 23.7 1.2 4.0 27.0 3.6 16.2 0.8 29.2 16.7 35.3 22.7 38.3 17.9 5.1 16.3 16.7 19.3 13.4 15.2 Perturbation 39.2 1.1 1.2 8.3 1.5 17.8 0.8 0.7 23.3 1.3 17.5 0.4 45.2 24.8 46.2 20.1 38.7 7.6 1.9 16.1 15.5 19.2 15.6 15.7 PolarMix [50] 25.5 2.3 2.1 13.2 0.7 22.1 1.4 7.5 30.8 0.4 17.6 0.2 30.9 19.7 37.6 19.3 43.5 9.9 2.6 17.3 16.3 20.0 12.7 15.1 MMD [26] 30.9 0.8 1.4 10.0 0.4 23.3 4.0 7.9 28.5 1.3 17.7 1.2 39.4 18.5 40.0 16.0 38.6 12.1 2.3 17.8 16.7 19.3 14.1 15.5 PCL [56] PointDR (Ours) 37.8 2.5 2.4 23.6 0.1 26.3 2.2 3.3 27.9 7.7 17.5 0.5 47.6 25.3 45.7 21.0 37.5 17.9 5.5 19.5 19.9 21.1 16.9 18.5
+Table 2. Experiments on domain generalization with SemanticKITTI [2] or SynLiDAR [51] as source and SemanticSTF as target.
+ing objective of PointDR can be formulated by:
+LPointDR = Lce + λctLct
+5. Evaluation of Semantic Segmentation
+SemanticSTF can be adopted for benchmarking different learning setups and network architectures on point cloud segmentation. We perform experiments over two typical learning setups including domain generalization and unsu- pervised domain adaptation. In addition, we evaluate sev- eral state-of-the-art point-cloud segmentation networks to examine their generalization capabilities.
+5.1. Domain Generalization
+We first study domain generalizable point cloud segmen- tation. For DG, we can only access an annotated source domain during training and the trained model is expected to generalize well to unseen target domains. Leveraging SemanticSTF, we build two DG benchmarks and examine how PointDR helps learn a universal 3DSS model that can work under different weather conditions.
+The first benchmark is SemanticKITTI [2] → Seman- ticSTF where SemanticKITTI is a large-scale real-world 3DSS dataset collected under normal weather conditions. This benchmark serves as a solid testing ground for eval- uating domain generalization performance from normal to adverse weather conditions. The second benchmark is Syn- LiDAR [51] → SemanticSTF where SynLiDAR is a large- scale synthetic 3DSS dataset. The motivation of this bench- mark is that learning a universal 3DSS model from synthetic point clouds that can work well across adverse weather is of high research and application value considering the
+(2)
+challenges in point cloud collection and annotation. Note this benchmark is more challenging as the domain discrep- ancy comes from both normal-to-adverse weather distribu- tion shift and synthetic-to-real distribution shift. Setup. We use all 19 evaluating classes of SemanticKITTI in both domain generalization benchmarks. The category of invalid in SemanticSTF is mapped to the ignored since SemanticKITTI and SynLiDAR do not cover this cate- gory. We adopt MinkowskiNet [7] (with TorchSparse li- brary [43]) as the backbone model, which is a sparse convo- lutional network that provides state-of-the-art performance with decent efficiency. We adopt the evaluation metrics of Intersection over the Union (IoU) for each segmentation class and the mean IoU (mIoU) over all classes. All ex- periments are run over a single NVIDIA 2080Ti (11GB). More implementation details are provided in the appendix. Baseline Methods. Since domain generalizable 3DSS is far under-explored, there is little existing baseline that can be directly adopted for benchmarking. We thus select two closely related approaches as baseline to evaluate the pro- posed PointDR. The first approach is data augmentation and we select three related augmentation methods includ- ing Dropout [39] that randomly drops out points to simulate LiDAR points missing in adverse weather, Noise perturba- tion that adds random points in the 3D space to simulate noise points as introduced by particles like falling snow, and PolarMix [50] that mixes point clouds of different sources for augmentation. The second approach is to adapt 2D do- main generalization methods for 3DSS. We select two 2D domain generalization methods including the widely stud- ied MMD [26] and the recently proposed PCL [56]. Results. Table 2 shows experimental results over the valida-
+6
+
+
+Method
+Lce
+Lct
+B
+mIoU
+Baseline PointDR-CT PointDR
+✓ ✓ ✓
+✓ ✓
+✓
+24.4 27.4 28.6
+Table 3. Ablation study of PointDR over domain generalized seg- mentation task SemanticKITTI→SemanticSTF.
+tion set of SemanticSTF. For both benchmarks, the Baseline is a source-only model that is trained by using the training data of SemanticKITTI or SynLiDAR. We can see that the Baseline achieves very low mIoU while evaluated over the validation set of SemanticSTF, indicating the large domain discrepancy between point clouds of normal and adverse weather conditions. In addition, all three data augmentation methods improve the model generalization consistently but the performance gains are limited especially for the chal- lenging benchmark SynLiDAR→ SemanticSTF. The two 2D generalization methods both help SemanticKITTI → SemanticSTF clearly but show very limited improvement over SynLiDAR → SemanticSTF. The proposed PointDR achieves the best generalization consistently across both benchmarks, demonstrating its superior capability to learn perturbation-invariant point cloud representations and ef- fectiveness while handling all-weather 3DSS tasks.
+We also evaluate the compared domain generalization methods over each individual adverse weather condition as shown in Table 2. It can be observed that the three data augmentation methods work for data captured in rainy and snowy weather only. The 2D generalization method MMD shows clear effectiveness for point clouds under dense fog and rain while PCL works for point clouds under rainy and snowy weather instead. We conjecture that the performance variations are largely attributed to the different properties of point clouds captured under different weather conditions. For example, more points are missing in rain while object points often deform due to the covered snow (more illus- trations are provided in the appendix). Such data variations lead to different domain discrepancies across weather which further leads to different performances of the compared methods. As PointDR learns perturbation-tolerant represen- tations, it works effectively across different adverse weather conditions. We also provide qualitative results, please refer to the appendix for details. Ablation study. We study different PointDR designs to examine how they contribute to the overall generalization performance. As Table 3 shows, we report three models over the benchmark “SemanticKITTI → SemanticSTF”: 1) Baseline that is trained with Lce. 2) PointDR-CT that is jointly trained with Lce and Lct without using the mem- ory bank B. 3) The complete PointDR that is trained with Lce, Lct and the memory bank B. We evaluate the three models over the validation set of SemanticSTF and Table 3
+7
+shows experimental results. We can see that the Base- line performs poorly at 24.4% due to clear domain dis- crepancy between point clouds of normal weather and ad- verse weather. Leveraging the proposed contrastive loss, Lct achieves clearly better performance at 27.4%, indicat- ing that learning perturbation-invariance is helpful for uni- versal LiDAR segmentation of all-weather conditions. On top of that, introducing the momentum-updated memory bank B further improves the segmentation performance at 28.6%. This is because the feature embeddings in B serve as the class prototypes which help the optimization of the segmentation network, finally leading to more robust repre- sentations of 3DSS that perform better over adverse weather point clouds.
+5.2. Domain Adaptation
+We also study SemanticSTF over a domain adaptive point cloud segmentation benchmark SemanticKITTI → SemanticSTF. Specifically, we select four representative UDA methods including ADDA [46], entropy minimiza- tion (Ent-Min) [47], self-training [65], and CoSMix [38] for adaptation from the source SemanticKITTI [2] to- ward the target SemanticSTF. Following the state-of-the- art [38, 50, 51] on synthetic-to-real adaptation, we adopt MinkowskiNet [7] as the segmentation backbone for all compared methods. Table 4 shows experimental results over the validation set of SemanticSTF. We can see that all UDA methods outperform the Source-only consistently un- der the normal-to-adverse adaptation setup. At the other end, the performance gains are still quite limited, showing the great improvement space along domain adaptive 3DSS from normal to adverse weather conditions.
+In addition, we examined the adaptability of the four UDA methods in relation to each individual adverse weather condition. Specifically, we trained each of the four methods for adaptation from SemanticKITTI to SemanticSTF data for each adverse weather condition. Table 5 shows the ex- perimental results over the validation set of SemanticSTF. We can see all four methods outperform the Source-only method under Dense-fog and Light-fog, demonstrating their effectiveness in mitigating domain discrepancies. However, for rain and Snow, only CoSMix achieved marginal perfor- mance gains while the other three UDA methods achieved limited performance improvements. We conjecture that snow and rain introduce large deformations on object sur- faces or much noise, making adaptation from normal to ad- verse weather more challenging. CoSMix works in the in- put space by directly mixing source and target points, allow- ing it to perform better under heavy snow and rain which have larger domain gaps. However, all methods achieved relatively low segmentation performance, indicating the sig- nificance of our research and the large room for improve- ment in our constructed benchmarks.
+
+
+Methods
+r a c
+e l c . i b
+e l c . t
+m
+k c u r t
+. v - h t o
+. s r e p
+t s l c . i b
+t s l c . t
+m
+d a o r
+. i k r a p
+.
+w e d i s
+. g - h t o
+. d l i u b
+e c n e f
+. t e g e v
+k n u r t
+. a r r e t
+e l o p
+. f a r t
+mIoU
+Oracle
+89.4 42.1
+0.0
+59.9 61.2 69.6 39.0
+0.0
+82.2 21.5 58.2 45.6 86.1 63.6 80.2 52.0 77.6 50.1 61.7
+54.7
+64.8 Source-only 65.6 ADDA [46] Ent-Min [47] 69.2 Self-training [65] 71.5 65.0 CoSMix [38]
+0.0 0.0 0.0 0.0 1.7
+13.8 0.0 21.0 0.0 10.1 31.0 10.3 33.1 22.1 25.2
+1.8 1.3 5.3 7.4 7.7
+5.0 2.8 2.8 5.9 33.2
+2.1 1.3 2.6 1.3 0.0
+34.0 7.5 0.0 62.7 16.7 64.7 35.4 1.2 65.9 35.7 2.6 0.0 36.6 65.1 0.0 6.5 64.7 11.5 31.1 0.0
+0.0 0.0 0.0 0.0 0.9
+66.7 36.2 53.9 31.3 44.3 24.0 14.2 66.5 41.8 57.2 32.6 42.2 23.3 26.4 72.5 42.8 52.4 32.5 44.7 24.7 21.1 67.8 41.3 51.7 32.9 42.9 25.1 25.0 62.5 37.8 44.6 30.5 41.1 30.9 28.6
+24.3 26.3 27.2 27.6 28.4
+Table 4. Comparison of state-of-the-art domain adaptation methods on SemanticKITTI→SemanticSTF adaptation. SemanticKITTI serves as the source domain and the entire SemanticSTF including all four weather conditions serves as the target domain.
+Method
+Dense-fog
+Light-fog
+Rain
+Snow
+3DSS Model
+D-fog
+L-fog
+Rain
+Snow
+All
+Source-Only ADDA [46] Ent-Min [47] Self-training [65] CoSMix [38]
+26.9 31.5 31.4 31.8 31.6
+25.2 27.9 28.6 29.3 30.3
+27.7 27.4 30.3 27.9 33.1
+23.5 23.4 24.9 25.1 32.9
+RandLA-Net [19] SalsaNext [9] SPVCNN [43] SPVNAS [43] Cylinder3D [64]
+26.5 16.0 30.4 25.5 14.8
+26.0 9.6 22.8 18.3 7.4
+25.1 7.8 21.7 17.0 5.7
+22.7 3.5 18.3 13.0 4.0
+25.3 9.1 22.4 18.0 7.3
+Table 5. Comparison of state-of-the-art domain adaptation meth- ods on SemanticKITTI→SemanticSTF adaptation for individual adverse weather conditions. We train a separate model for each weather-specific subset of SemanticSTF and evaluate the trained model on the weather condition it has been trained for.
+Table 6. Performance of state-of-the-art 3DSS models that are pre-trained over SemanticKITTI and tested on validation set of SemanticSTF for individual weather conditions and jointly for all weather conditions.
+5.3. Network Models vs All-Weather 3DSS
+We also study how different 3DSS network architec- tures generalize when they are trained with normal-weather point clouds and evaluated over SemanticSTF. Specifically, we select five representative 3DSS networks [9, 19, 43, 64] that have been widely adopted in 3D LiDAR segmen- tation studies. In the experiments, each selected net- work is first pre-trained with SemanticKITTI [2] and then evaluated over the validation set of SemanticSTF. We di- rectly use the officially released code and the pre-trained weights for evaluation. Table 6 shows experimental results. We can observe that the five pre-trained models perform very differently though they all achieve superior segmenta- tion over SemanticKITTI. Specifically, RandLA-Net [19], SPVCNN [43], and SPVNAS [43] perform clearly better than SalsaNext [9] and Cylinder3D [64]. In addition, none of the five pre-trained models perform well, verifying the clear domain discrepancy between point clouds of normal and adverse weather conditions. The experiments further indicate the great value of SemanticSTF in the future explo- ration of robust point cloud parsing under all weather con- In addition, the supervised performance of these ditions. 3DSS networks over SemanticSTF is provided in the ap- pendix.
+6. Conclusion and Outlook
+This paper presents SemanticSTF, a large-scale dataset and benchmark suite for semantic segmentation of LiDAR
+point clouds under adverse weather conditions. Semantic- STF provides high-quality point-level annotations for point clouds captured under adverse weather including dense fog, light fog, snow and rain. Extensive studies have been con- ducted to examine how state-of-the-art 3DSS methods per- form over SemanticSTF, demonstrating its significance in directing future research on domain adaptive and domain generalizable 3DSS under all-weather conditions.
+We also design PointDR, a domain randomization tech- nique that aims to use normal-weather point clouds to train a domain generalizable 3DSS model that can work well over adverse-weather point clouds. PointDR consists of two novel designs including geometry style randomization and embedding aggregation which jointly learn perturbation- invariant representations that generalize well to various new point-cloud domains. Extensive experiments show that PointDR achieves superior point cloud segmentation per- formance as compared with the state-of-the-art.
+Acknowledgement
+This study is funded BY the Ministry of Education Singapore, under the Tier-1 scheme with project number RG18/22. It is also supported under the RIE2020 In- dustry Alignment Fund – Industry Collaboration Projects (IAF-ICP) Funding Initiative, as well as cash and in-kind contribution from Singapore Telecommunications Limited (Singtel), through Singtel Cognitive and Artificial Intelli- gence Lab for Enterprises (SCALE@NTU).
+8
+
+
+References
+[1] Yogesh Balaji, Swami Sankaranarayanan, and Rama Chel- lappa. Metareg: Towards domain generalization using meta- regularization. Advances in neural information processing systems, 31, 2018. 2
+[2] Jens Behley, Martin Garbade, Andres Milioto, Jan Quen- zel, Sven Behnke, Cyrill Stachniss, and Jurgen Gall. Se- mantickitti: A dataset for semantic scene understanding of lidar sequences. In Proceedings of the IEEE/CVF Interna- tional Conference on Computer Vision, pages 9297–9307, 2019. 1, 3, 4, 6, 7, 8, 16
+[3] Mario Bijelic, Tobias Gruber, Fahim Mannan, Florian Kraus, Werner Ritter, Klaus Dietmayer, and Felix Heide. See- ing through fog without seeing fog: Deep multimodal sen- In Proceedings of sor fusion in unseen adverse weather. the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 11682–11692, 2020. 1, 2, 3, 4
+[4] Gilles Blanchard, Gyemin Lee, and Clayton Scott. Gener- alizing from several related classification tasks to a new un- labeled sample. Advances in neural information processing systems, 24, 2011. 2
+[5] Holger Caesar, Varun Bankiti, Alex H Lang, Sourabh Vora, Venice Erin Liong, Qiang Xu, Anush Krishnan, Yu Pan, Gi- ancarlo Baldan, and Oscar Beijbom. nuscenes: A multi- In Proceedings of modal dataset for autonomous driving. the IEEE/CVF conference on computer vision and pattern recognition, pages 11621–11631, 2020. 4
+[6] Ran Cheng, Ryan Razani, Ehsan Taghavi, Enxu Li, and Bingbing Liu. 2-s3net: Attentive feature fusion with adap- tive feature selection for sparse semantic segmentation net- work. In Proceedings of the IEEE/CVF conference on com- puter vision and pattern recognition, pages 12547–12556, 2021. 2
+[7] Christopher Choy, JunYoung Gwak, and Silvio Savarese. 4d spatio-temporal convnets: Minkowski convolutional neu- ral networks. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 3075– 3084, 2019. 2, 6, 7, 12, 14, 15
+[8] Marius Cordts, Mohamed Omran, Sebastian Ramos, Timo Rehfeld, Markus Enzweiler, Rodrigo Benenson, Uwe Franke, Stefan Roth, and Bernt Schiele. The cityscapes dataset for semantic urban scene understanding. In Proceed- ings of the IEEE conference on computer vision and pattern recognition, pages 3213–3223, 2016. 4
+[9] Tiago Cortinhal, George Tzelepis, and Eren Erdal Aksoy. Salsanext: Fast, uncertainty-aware semantic segmentation of In International Symposium on Visual lidar point clouds. Computing, pages 207–222. Springer, 2020. 2, 8, 15 [10] A Filgueira, H Gonz´alez-Jorge, Susana Lag¨uela, L D´ıaz- Vilari˜no, and Pedro Arias. Quantifying the influence of rain in lidar performance. Measurement, 95:143–148, 2017. 3
+[11] Whye Kit Fong, Rohit Mohan, Juana Valeria Hurtado, Lub- ing Zhou, Holger Caesar, Oscar Beijbom, and Abhinav Val- ada. Panoptic nuscenes: A large-scale benchmark for lidar panoptic segmentation and tracking. IEEE Robotics and Au- tomation Letters, 7(2):3795–3802, 2022. 1, 4
+9
+[12] Yaroslav Ganin and Victor Lempitsky. Unsupervised domain adaptation by backpropagation. In International conference on machine learning, pages 1180–1189. PMLR, 2015. 2 [13] Andreas Geiger, Philip Lenz, Christoph Stiller, and Raquel Urtasun. Vision meets robotics: The kitti dataset. The Inter- national Journal of Robotics Research, 32(11):1231–1237, 2013. 4
+[14] Dayan Guan, Jiaxing Huang, Aoran Xiao, and Shijian Lu. Domain adaptive video segmentation via temporal consis- tency regularization. In Proceedings of the IEEE/CVF Inter- national Conference on Computer Vision, pages 8053–8064, 2021. 2
+[15] Martin Hahner, Christos Sakaridis, Mario Bijelic, Felix Heide, Fisher Yu, Dengxin Dai, and Luc Van Gool. Lidar snowfall simulation for robust 3d object detection. In Pro- ceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 16364–16374, 2022. 2 [16] Martin Hahner, Christos Sakaridis, Dengxin Dai, and Luc Van Gool. Fog simulation on real lidar point clouds for 3d object detection in adverse weather. In Proceedings of the IEEE/CVF International Conference on Computer Vision, pages 15283–15292, 2021. 2
+[17] Kaiming He, Haoqi Fan, Yuxin Wu, Saining Xie, and Ross Girshick. Momentum contrast for unsupervised visual rep- resentation learning. In Proceedings of the IEEE/CVF con- ference on computer vision and pattern recognition, pages 9729–9738, 2020. 5, 12
+[18] Robin Heinzler, Philipp Schindler,
+J¨urgen Seekircher, Werner Ritter, and Wilhelm Stork. Weather influence In 2019 and classification with automotive lidar sensors. IEEE intelligent vehicles symposium (IV), pages 1527–1534. IEEE, 2019. 3
+[19] Qingyong Hu, Bo Yang, Linhai Xie, Stefano Rosa, Yulan Guo, Zhihua Wang, Niki Trigoni, and Andrew Markham. Randla-net: Efficient semantic segmentation of large-scale point clouds. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 11108– 11117, 2020. 1, 2, 8, 15
+[20] Jiaxing Huang, Dayan Guan, Aoran Xiao, and Shijian Lu. Cross-view regularization for domain adaptive panoptic seg- In Proceedings of the IEEE/CVF Conference mentation. on Computer Vision and Pattern Recognition, pages 10133– 10144, 2021. 2
+[21] Jiaxing Huang, Dayan Guan, Aoran Xiao, and Shijian Lu. Fsdr: Frequency space domain randomization for domain generalization. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 6891– 6902, 2021. 2
+[22] Jiaxing Huang, Dayan Guan, Aoran Xiao, and Shijian Lu. Model adaptation: Historical contrastive learning for unsu- pervised domain adaptation without source data. Advances in Neural Information Processing Systems, 34:3635–3649, 2021. 2
+[23] Jiaxing Huang, Dayan Guan, Aoran Xiao, Shijian Lu, and Ling Shao. Category contrast for unsupervised domain adap- tation in visual tasks. In Proceedings of the IEEE/CVF Con- ference on Computer Vision and Pattern Recognition, pages 1203–1214, 2022. 2
+
+
+[24] Guoliang Kang, Lu Jiang, Yi Yang, and Alexander G Haupt- mann. Contrastive adaptation network for unsupervised do- In Proceedings of the IEEE/CVF con- main adaptation. ference on computer vision and pattern recognition, pages 4893–4902, 2019. 2
+[25] Alexander Lehner, Stefano Gasperini, Alvaro Marcos- Ramiro, Michael Schmidt, Mohammad-Ali Nikouei Mahani, Nassir Navab, Benjamin Busam, and Federico Tombari. 3d- vfield: Adversarial augmentation of point clouds for domain In Proceedings of generalization in 3d object detection. the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 17295–17304, 2022. 2
+[26] Haoliang Li, Sinno Jialin Pan, Shiqi Wang, and Alex C Kot. Domain generalization with adversarial feature learning. In Proceedings of the IEEE conference on computer vision and pattern recognition, pages 5400–5409, 2018. 2, 6, 13, 14 [27] Zhijian Liu, Haotian Tang, Yujun Lin, and Song Han. Point- voxel cnn for efficient 3d deep learning. Advances in Neural Information Processing Systems, 32, 2019. 2
+[28] Zhipeng Luo, Zhongang Cai, Changqing Zhou, Gongjie Zhang, Haiyu Zhao, Shuai Yi, Shijian Lu, Hongsheng Li, Shanghang Zhang, and Ziwei Liu. Unsupervised do- main adaptive 3d detection with multi-level consistency. In Proceedings of the IEEE/CVF International Conference on Computer Vision, pages 8866–8875, 2021. 2
+[29] Will Maddern, Geoffrey Pascoe, Chris Linegar, and Paul Newman. 1 year, 1000 km: The oxford robotcar dataset. The International Journal of Robotics Research, 36(1):3–15, 2017. 2
+[30] Andres Milioto, Ignacio Vizzo, Jens Behley, and Cyrill Stachniss. Rangenet++: Fast and accurate lidar semantic In 2019 IEEE/RSJ international conference segmentation. on intelligent robots and systems (IROS), pages 4213–4220. IEEE, 2019. 2
+[31] Krikamol Muandet, David Balduzzi,
+and Bernhard Sch¨olkopf. fea- ture representation. In International Conference on Machine Learning, pages 10–18. PMLR, 2013. 2
+Domain generalization via invariant
+[32] Adam Paszke, Sam Gross, Francisco Massa, Adam Lerer, James Bradbury, Gregory Chanan, Trevor Killeen, Zeming Lin, Natalia Gimelshein, Luca Antiga, et al. Pytorch: An im- perative style, high-performance deep learning library. Ad- vances in neural information processing systems, 32, 2019. 14
+[33] Thierry Peynot, James Underwood, and Steven Scheding. Towards reliable perception for unmanned ground vehicles in challenging conditions. In 2009 IEEE/RSJ International Conference on Intelligent Robots and Systems, pages 1170– 1176. IEEE, 2009. 3
+[34] Matthew Pitropov, Danson Evan Garcia, Jason Rebello, Michael Smart, Carlos Wang, Krzysztof Czarnecki, and Steven Waslander. Canadian adverse driving conditions dataset. The International Journal of Robotics Research, 40(4-5):681–690, 2021. 1, 2
+[35] Charles R Qi, Hao Su, Kaichun Mo, and Leonidas J Guibas. Pointnet: Deep learning on point sets for 3d classification In Proceedings of the IEEE conference and segmentation.
+10
+on computer vision and pattern recognition, pages 652–660, 2017. 2
+[36] Julian Ryde and Nick Hillier. Performance of laser and radar ranging devices in adverse environmental conditions. Jour- nal of Field Robotics, 26(9):712–727, 2009. 3
+[37] Christos Sakaridis, Dengxin Dai, and Luc Van Gool. Acdc: The adverse conditions dataset with correspondences for se- mantic driving scene understanding. In Proceedings of the IEEE/CVF International Conference on Computer Vision, pages 10765–10775, 2021. 2, 3, 4, 16
+[38] Cristiano Saltori, Fabio Galasso, Giuseppe Fiameni, Nicu Sebe, Elisa Ricci, and Fabio Poiesi. Cosmix: Compositional semantic mix for domain adaptation in 3d lidar segmenta- tion. ECCV, 2022. 3, 7, 8, 14, 15
+[39] Nitish Srivastava, Geoffrey Hinton, Alex Krizhevsky, Ilya Sutskever, and Ruslan Salakhutdinov. Dropout: a simple way to prevent neural networks from overfitting. The journal of machine learning research, 15(1):1929–1958, 2014. 6, 13, 14
+[40] Peng Su, Kun Wang, Xingyu Zeng, Shixiang Tang, Dapeng Chen, Di Qiu, and Xiaogang Wang. Adapting object detec- In Computer tors with conditional domain normalization. Vision–ECCV 2020: 16th European Conference, Glasgow, UK, August 23–28, 2020, Proceedings, Part XI 16, pages 403–419. Springer, 2020. 2
+[41] Pei Sun, Henrik Kretzschmar, Xerxes Dotiwalla, Aurelien Chouard, Vijaysai Patnaik, Paul Tsui, James Guo, Yin Zhou, Yuning Chai, Benjamin Caine, et al. Scalability in perception for autonomous driving: Waymo open dataset. In Proceed- ings of the IEEE/CVF conference on computer vision and pattern recognition, pages 2446–2454, 2020. 4
+[42] Haotian Tang, Zhijian Liu, Xiuyu Li, Yujun Lin, and Song Han. TorchSparse: Efficient Point Cloud Inference Engine. In Conference on Machine Learning and Systems (MLSys), 2022. 12, 14
+[43] Haotian Tang, Zhijian Liu, Shengyu Zhao, Yujun Lin, Ji Lin, Hanrui Wang, and Song Han. Searching efficient 3d architec- tures with sparse point-voxel convolution. In European con- ference on computer vision, pages 685–702. Springer, 2020. 1, 2, 5, 6, 8, 12, 15
+[44] Josh Tobin, Rachel Fong, Alex Ray, Jonas Schneider, Woj- ciech Zaremba, and Pieter Abbeel. Domain randomization for transferring deep neural networks from simulation to the real world. In 2017 IEEE/RSJ international conference on intelligent robots and systems (IROS), pages 23–30. IEEE, 2017. 4
+[45] Jonathan Tremblay, Aayush Prakash, David Acuna, Mark Brophy, Varun Jampani, Cem Anil, Thang To, Eric Camer- acci, Shaad Boochoon, and Stan Birchfield. Training deep networks with synthetic data: Bridging the reality gap by domain randomization. In Proceedings of the IEEE confer- ence on computer vision and pattern recognition workshops, pages 969–977, 2018. 4
+[46] Eric Tzeng, Judy Hoffman, Kate Saenko, and Trevor Darrell. Adversarial discriminative domain adaptation. In Proceed- ings of the IEEE conference on computer vision and pattern recognition, pages 7167–7176, 2017. 7, 8, 14, 15
+
+
+[47] Tuan-Hung Vu, Himalaya Jain, Maxime Bucher, Matthieu Cord, and Patrick P´erez. Advent: Adversarial entropy min- imization for domain adaptation in semantic segmentation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 2517–2526, 2019. 7, 8, 14, 15
+[48] Bichen Wu, Xuanyu Zhou, Sicheng Zhao, Xiangyu Yue, and Kurt Keutzer. Squeezesegv2: Improved model structure and unsupervised domain adaptation for road-object segmenta- tion from a lidar point cloud. In 2019 International Confer- ence on Robotics and Automation (ICRA), pages 4376–4382. IEEE, 2019. 2, 3
+[49] Zhirong Wu, Yuanjun Xiong, Stella X Yu, and Dahua Lin. Unsupervised feature learning via non-parametric instance In Proceedings of the IEEE conference on discrimination. computer vision and pattern recognition, pages 3733–3742, 2018. 5, 12
+[50] Aoran Xiao, Jiaxing Huang, Dayan Guan, Kaiwen Cui, Shi- jian Lu, and Ling Shao. Polarmix: A general data augmen- tation technique for lidar point clouds. NeurIPS, 2022. 3, 6, 7, 12, 13, 14
+[51] Aoran Xiao, Jiaxing Huang, Dayan Guan, Fangneng Zhan, and Shijian Lu. Transfer learning from synthetic to real lidar In Proceedings of point cloud for semantic segmentation. the AAAI Conference on Artificial Intelligence, volume 36, pages 2795–2803, 2022. 1, 3, 4, 6, 7, 14
+[52] Aoran Xiao, Xiaofei Yang, Shijian Lu, Dayan Guan, and Ji- axing Huang. Fps-net: A convolutional fusion network for large-scale lidar point cloud segmentation. ISPRS Journal of Photogrammetry and Remote Sensing, 176:237–249, 2021. 2
+[53] Jianyun Xu, Ruixiang Zhang, Jian Dou, Yushi Zhu, Jie Sun, and Shiliang Pu. Rpvnet: A deep and efficient range-point- voxel fusion network for lidar point cloud segmentation. In Proceedings of the IEEE/CVF International Conference on Computer Vision, pages 16024–16033, 2021. 2
+[54] Qiangeng Xu, Yin Zhou, Weiyue Wang, Charles R Qi, and Dragomir Anguelov. Spg: Unsupervised domain adaptation for 3d object detection via semantic point generation. In Proceedings of the IEEE/CVF International Conference on Computer Vision, pages 15446–15456, 2021. 2
+[55] Jihan Yang, Shaoshuai Shi, Zhe Wang, Hongsheng Li, and Xiaojuan Qi. St3d: Self-training for unsupervised do- main adaptation on 3d object detection. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, pages 10368–10378, 2021. 2
+[56] Xufeng Yao, Yang Bai, Xinyun Zhang, Yuechen Zhang, Qi Sun, Ran Chen, Ruiyu Li, and Bei Yu. Pcl: Proxy-based contrastive learning for domain generalization. In Proceed- ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 7097–7107, 2022. 6, 13, 14 [57] Li Yi, Boqing Gong, and Thomas Funkhouser. Com- plete & label: A domain adaptation approach to seman- In Proceedings of tic segmentation of lidar point clouds. the IEEE/CVF conference on computer vision and pattern recognition, pages 15363–15373, 2021. 3
+[58] Fisher Yu, Haofeng Chen, Xin Wang, Wenqi Xian, Yingying Chen, Fangchen Liu, Vashisht Madhavan, and Trevor Dar-
+11
+rell. Bdd100k: A diverse driving dataset for heterogeneous In Proceedings of the IEEE/CVF con- multitask learning. ference on computer vision and pattern recognition, pages 2636–2645, 2020. 2
+[59] Feihu Zhang, Jin Fang, Benjamin Wah, and Philip Torr. In Deep fusionnet for point cloud semantic segmentation. European Conference on Computer Vision, pages 644–663. Springer, 2020. 2
+[60] Weichen Zhang, Wen Li, and Dong Xu. Srdan: Scale- aware and range-aware domain adaptation network for cross- dataset 3d object detection. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 6769–6779, 2021. 2
+[61] Yang Zhang, Zixiang Zhou, Philip David, Xiangyu Yue, Ze- rong Xi, Boqing Gong, and Hassan Foroosh. Polarnet: An improved grid representation for online lidar point clouds se- mantic segmentation. In Proceedings of the IEEE/CVF Con- ference on Computer Vision and Pattern Recognition, pages 9601–9610, 2020. 2
+[62] Sicheng Zhao, Yezhen Wang, Bo Li, Bichen Wu, Yang Gao, Pengfei Xu, Trevor Darrell, and Kurt Keutzer. epointda: An end-to-end simulation-to-real domain adaptation framework In Proceedings of the for lidar point cloud segmentation. AAAI Conference on Artificial Intelligence, volume 35, pages 3500–3509, 2021. 2
+[63] Kaiyang Zhou, Ziwei Liu, Yu Qiao, Tao Xiang, and Chen Change Loy. Domain generalization: A survey. IEEE Transactions on Pattern Analysis and Machine Intelligence, 2022. 2
+[64] Xinge Zhu, Hui Zhou, Tai Wang, Fangzhou Hong, Yuexin Ma, Wei Li, Hongsheng Li, and Dahua Lin. Cylindrical and asymmetrical 3d convolution networks for lidar seg- mentation. In Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, pages 9939–9948, 2021. 1, 2, 8, 15
+[65] Yang Zou, Zhiding Yu, Xiaofeng Liu, BVK Kumar, and In Jinsong Wang. Confidence regularized self-training. Proceedings of the IEEE/CVF International Conference on Computer Vision, pages 5982–5991, 2019. 7, 8, 14, 15
+
+
+We provide more experiment details of domain adaptation and domain generalization in Section A and Section B, respec-
+tively, supervised learning on adverse conditions in Section C and additional details on SemanticSTF dataset in Section D.
+A. Domain generalization
+A.1. Implementation details
+We provide the detailed training configurations for semantic segmentation of LiDAR point clouds that have been adopted as described in Sec. 5.1 of the submitted paper. Specifically, we implement the backbone model MinkowskiNet [7] with the TorchSparse library [42]. For training, we use SGD optimizer. The learning rate, momentum and weight decays are set as 0.24, 0.9, and 1.4e − 4, respectively. τ in Eq. 1 in the paper is set as 0.07 [17, 49] and λct in Eq. 2 is set as 0.1. The momentum coefficient m is set at 0.99. We train 50 epochs with one NVIDIA 2080Ti with 11GB GPU memory and set the batch size at 4. The augmentations of training data in the source-domain are implemented as follows: For rotation, LiDAR points are rotated with the range of [0, 360◦] along Z axis. For scale, the coordinates of LiDAR points are randomly scaled within [0.95, 1.05]. For drop-out, we randomly drop-out 0-20% points of input LiDAR scans with a probability of 0.5. As for noise perturbation, 0 − 2, 000 random points are added into the 3D space of each LiDAR scan with a probability of 0.5. When using flipping, we randomly flip coordinates of LiDAR point clouds along x or y axis with a probability of 0.5. As for jittering, random coordinate shifts with a range of [−0.05, 0.05] meters are added into LiDAR points with a probability of 0.5.
+In training the oracle model, we employ the SGD optimizer with the hyperparameters including initial learning rate at 0.1, momentum at 0.9, weight decay at 1.0e − 4, and dampening at 0.1. We train the segmentation model with 500 epochs using a single NVIDIA 2080Ti with 11GB GPU memory. The batch size is set as 4. We use Poly learning rate policy with power= 0.9. As for data augmentations, we follow [43] and adoptes random rotation ([−π, π]) and scaling ([0.95, 1.05]); We also adopts PolarMix [50] with following parameter settings: Rotation angles along the Z-axis, denoted as Ω, are randomly scaled within normal distributions with a mean of µ = 0 and standard deviation of σ = 2 3 π. We keep the original instance classes for rotate-pasting in PolarMix.
+A.2. Evaluation of individual adverse weather conditions
+We noticed that for certain individual adverse weather conditions, some class has no data captured in the validation set of SemanticSTF. Specifically, there are no points of bicycle and motorcycle in the validation set of dense fog; no points of bicyclist and motorcyclist in the validation set of snow, and no bicycle and motorcyclist in the validation set of rain. This is reasonable as the LiDAR data of SemanticSTF is collected in European countries including Germany, Sweden, Denmark, and Finland where motorcycles are not widely used for the reason of environmental protection. In addition, people usually do not ride bicycles or motorcycles in adverse weather conditions. As a result, classes motor, motorcyclist, and bicyclist have extremely lower occurrence frequency, leading to an absence of these classes in the validation set of SemanticSTF under relevant weather conditions. Tables 7, 8, 9, and 10 present corresponding class-level IoU performance for each adverse weather in Table 3 of the submitted paper.
+A.3. Ablation study
+Data augmentation. We study how data augmentation techniques affect generalized semantic segmentation of point clouds (3DSS) and compare them with the proposed PointDR. As Table 11 shows, we report seven models over the benchmark “SemanticKITTI→SemanticSTF”: 1) The Baseline is a source-only model that is trained by using the training data of Se- manticKITTI; 2) The drop-out, noise perturbation, flipping, and jittering are segmentation models with different augmen- tation techniques over input data; All is the model that combines of all these augmentation techniques; 3) Our proposed PointDR. We can see that implementing each of these augmentation techniques improves the generalization capability of the segmentation model clearly and consistently. However, the combination of them all did not yield the best segmentation performance, largely because the combination brings too many distortions to the input point clouds. On the contrary, the pro- posed PointDR achieves the best segmentation performance, indicating its superior ability to learn universal representations for all-weather 3DSS. Parameter analysis. We examine the parameter λcl in Eq. 2 in the paper that balances the cross entropy loss and the contrastive loss. As Table 12 shows, optimizing the proposed contrastive loss is able to improve segmentation performance consistently while different λcl produce quite different mIoUs. The best mIoU is obtained when λcl = 0.10.
+Table 13 below shows segmentation performance with different momentum values (m) used for updating the memory bank B. It performs reasonably well when m is 0.98 or 0.99, showing that a slowly progressing memory bank is beneficial.
+12
+
+
+Methods
+r a c
+e l c . i b
+e l c . t
+m
+k c u r t
+. v - h t o
+. s r e p
+t s l c . i b
+t s l c . t
+m
+d a o r
+. i k r a p
+.
+w e d i s
+. g - h t o
+. d l i u b
+e c n e f
+. t e g e v
+k n u r t
+. a r r e t
+SemanticKITTI→SemanticSTF(dense fog)
+Baseline Dropout [39] Perturbation PolarMix [50] MMD [26] PCL [56] PointDR (Ours)
+74.7 67.5 68.6 52.3 75.5 64.3 69.2
+- - - - - -
+- - - - - -
+7.8 1.9 8.8 17.2 0.3 11.7 7.1
+0.0 0.0 0.0 0.0 0.0 0.0 0.0
+6.4 8.9 6.0 3.6 4.2 0.6 2.4
+8.9 2.8 0.0 0.0 0.0 0.0 6.7 SynLiDAR→SemanticSTF(dense fog)
+0.0 0.0 0.0 19.3 0.0 0.0 0.0
+72.2 70.9 66.6 75.2 75.4 72.4 73.5
+0.6 5.6 14.8 0.0 11.2 3.8 8.5
+33.8 29.0 24.3 28.7 33.6 31.3 33.6
+0.0 0.8 0.1 0.6 0.5 0.8 0.2
+59.6 64.6 52.2 62.4 64.8 63.1 65.6
+48.7 44.0 43.5 49.5 51.7 46.5 47.6
+56.9 60.0 60.1 60.5 64.7 65.7 63.6
+27.4 31.6 19.4 29.0 26.1 19.4 31.0
+56.4 60.6 54.1 55.4 62.3 64.3 60.7
+25.7 2.4 38.3 1.0 30.0 5.2 27.7 1.7 30.6 2.5 29.0 1.1 31.9 5.7 Table 7. Class-wise IoU on domain generalization with SemanticKITTI or SynLiDAR as the source and validation set of dense fog in SemanticSTF as the target. ’-’ represents no samples captured in dense fog in the validation set of SemanticSTF.
+Baseline Dropout [39] Perturbation PolarMix [50] MMD [26] PCL [56] PointDR (Ours)
+21.6 12.7 13.3 15.8 26.5 22.9 42.5
+- - - - - -
+- - - - - -
+6.4 7.7 10.4 10.6 12.7 20.1 16.6
+0.0 0.0 0.0 0.0 0.0 0.0 0.0
+3.7 1.9 4.3 1.5 2.7 2.2 2.4
+2.9 0.4 2.8 1.7 4.0 6.2 3.2
+18.9 2.5 19.1 3.5 22.3 28.3 12.2
+0.0 0.1 0.7 0.0 0.0 0.0 0.2
+7.7 10.2 8.8 9.9 9.4 9.2 9.0
+1.0 0.3 1.2 0.3 0.0 2.6 0.8
+41.2 37.3 30.5 46.2 31.6 37.9 42.8
+22.5 21.8 17.5 28.9 21.7 22.9 27.1
+52.3 57.4 48.9 59.2 52.6 54.5 59.8
+15.4 13.1 18.4 13.5 13.9 11.4 18.3
+55.5 44.5 50.3 49.5 54.3 45.9 44.0
+Methods
+r a c
+e l c . i b
+e l c . t
+m
+k c u r t
+. v - h t o
+. s r e p
+t s l c . i b
+t s l c . t
+m
+d a o r
+. i k r a p
+.
+w e d i s
+. g - h t o
+. d l i u b
+e c n e f
+. t e g e v
+k n u r t
+. a r r e t
+SemanticKITTI→SemanticSTF(light fog)
+Baseline Dropout [39] Perturbation PolarMix [50] MMD [26] PCL [56] PointDR (Ours)
+60.0 63.2 76.6 42.6 63.6 66.3 65.9
+0.0 0.0 0.0 0.2 0.0 0.0 0.0
+0.0 0.0 0.0 0.0 0.0 0.0 0.0
+1.3 3.2 38.2 29.4 0.1 26.7 29.7
+10.9 10.2 0.0 3.3 13.3 0.2 4.4
+12.3 5.5 21.9 17.0 25.9 8.7 11.4
+0.0 0.0 0.0 0.0 0.0 0.0 0.9
+0.0 0.0 0.0 0.2 0.0 0.0 0.0
+68.6 63.8 66.6 69.8 73.9 67.8 70.9
+4.5 4.9 8.8 0.7 5.6 5.0 8.8
+36.0 29.4 34.6 33.1 42.8 36.7 43.3
+0.0 0.1 0.1 0.1 0.1 0.4 0.0
+61.5 62.5 62.4 56.2 64.1 64.3 66.5
+53.1 53.1 56.1 56.3 55.3 58.0 55.1
+55.6 58.6 63.2 54.9 61.9 66.1 61.3
+38.0 42.5 25.3 24.7 36.6 21.2 43.0
+44.7 46.6 46.2 44.8 50.7 53.1 49.1
+SynLiDAR→SemanticSTF(light fog)
+1.3 3.7 4.5 1.5 1.8 2.2 5.7 Table 8. Class-wise IoU on domain generalization with SemanticKITTI or SynLiDAR as the source and validation set of light fog in SemanticSTF as the target.
+Baseline Dropout [39] Perturbation PolarMix [50] MMD [26] PCL [56] PointDR (Ours)
+32.0 22.5 31.1 27.3 31.0 31.7 44.7
+4.2 3.0 1.9 0.3 2.1 0.7 1.7
+0.5 0.9 1.6 0.4 0.5 0.8 1.0
+27.3 16.0 21.5 8.9 16.0 10.1 33.9
+0.2 0.1 0.0 1.4 0.0 0.1 0.3
+14.0 10.0 12.5 8.2 10.5 10.2 12.9
+6.2 5.2 2.6 1.2 1.7 21.6 4.7
+0.0 0.2 0.0 0.0 0.0 0.0 0.0
+31.0 40.3 33.2 29.0 37.7 33.9 36.0
+0.0 1.3 1.6 0.2 0.3 0.6 0.9
+12.6 18.1 14.3 15.5 16.3 16.1 15.8
+0.9 0.0 1.1 0.7 0.6 0.1 0.7
+38.7 38.9 34.3 39.9 29.2 37.8 44.4
+24.8 22.1 20.1 27.4 24.9 22.2 30.3
+51.5 57.6 48.7 57.3 51.8 52.5 60.0
+26.7 23.5 29.8 28.8 29.6 23.8 28.3
+46.4 38.5 42.0 40.9 47.8 42.6 42.4
+Methods
+r a c
+e l c . i b
+e l c . t
+m
+k c u r t
+. v - h t o
+. s r e p
+t s l c . i b
+t s l c . t
+m
+d a o r
+. i k r a p
+.
+w e d i s
+. g - h t o
+. d i u b
+e c n e f
+. t e g e v
+k n u r t
+. a r r e t
+SemanticKITTI→SemanticSTF(rain)
+Baseline Dropout [39] Perturbation PolarMix [50] MMD [26] PCL [56] PointDR (Ours)
+72.4 81.3 83.9 56.7 83.9 84.2 78.0
+0.0 0.0 0.0 4.0 0.0 0.0 0.0
+- - - - - -
+0.0 0.0 2.4 9.1 0.0 0.0 0.0
+16.3 21.2 0.0 1.5 8.9 0.1 13.8
+6.9 5.6 20.9 29.8 31.6 4.3 20.0
+58.1 44.8 54.7 50.2 60.2 55.5 60.0 SynLiDAR→SemanticSTF(rain)
+0.0 0.0 0.0 0.0 0.0 0.0 0.0
+- - - - - -
+71.6 62.2 73.2 68.2 77.9 68.1 72.1
+12.7 11.8 12.6 10.9 17.9 10.9 14.7
+0.0 0.6 7.0 0.5 0.3 4.6 1.2
+70.0 76.8 71.7 73.2 69.6 74.7 76.1
+33.0 44.7 43.2 47.2 39.3 43.9 36.9
+51.8 56.0 58.3 48.3 58.4 59.6 58.0
+9.9 16.3 5.9 17.8 14.1 5.8 18.3
+24.2 23.3 29.4 22.3 32.5 27.3 24.7
+32.0 7.7 47.3 8.6 37.1 10.4 31.4 4.7 43.7 8.1 41.4 6.3 35.8 11.8 Table 9. Class-wise IoU on domain generalization with SemanticKITTI or SynLiDAR as the source and validation set of rain in Seman- ticSTF as the target. ’-’ represents no samples captured in rain in the validation set of SemanticSTF.
+Baseline Dropout [39] Perturbation PolarMix [50] MMD [26] PCL [56] PointDR (Ours)
+45.8 47.0 57.5 59.6 49.5 51.3 42.2
+4.5 7.6 5.3 1.5 4.8 0.9 3.3
+- - - - - -
+6.8 7.7 18.2 6.0 20.0 4.3 21.9
+0.4 0.0 0.0 5.2 4.7 2.1 0.0
+38.9 34.0 36.3 24.6 37.6 35.6 30.4
+0.0 0.0 0.1 1.0 0.0 0.0 1.7
+- - - - - -
+0.0 6.9 1.5 0.1 0.0 0.0 3.2
+24.3 34.6 26.9 30.4 32.4 32.0 31.9
+0.0 0.0 0.3 0.0 0.0 0.0 0.0
+43.0 39.8 34.9 55.5 42.1 54.8 54.0
+8.0 11.5 10.4 12.2 11.3 9.7 14.4
+33.8 37.5 32.6 44.6 34.4 37.1 40.7
+11.3 13.8 12.2 13.1 12.3 11.4 12.5
+23.9 29.6 20.5 25.0 25.1 24.2 31.9
+13
+e l o p
+27.2 28.1 16.3 20.8 23.0 18.5 24.4
+9.3 10.1 16.3 4.4 8.9 8.5 15.4
+e l o p
+29.2 27.8 22.4 24.1 29.2 25.5 29.1
+8.5 13.8 16.7 5.8 8.3 11.3 15.1
+e l o p
+33.3 32.8 29.4 32.3 34.0 34.2 36.1
+11.5 21.6 23.2 11.0 13.4 16.6 23.6
+. f a r t
+21.1 21.3 11.5 30.7 23.0 28.9 38.8
+. f a r t
+18.2 14.3 6.5 16.6 9.9 24.6 24.3
+. f a r t
+22.9 22.2 16.9 14.1 30.0 38.8 32.5
+
+
+Methods
+r a c
+e l c . i b
+e l c . t
+m
+k c u r t
+. v - h t o
+. s r e p
+t s l c . i b
+t s l c . t
+m
+d a o r
+. i k r a p
+.
+w e d i s
+. g - h t o
+. d l i u b
+e c n e f
+. t e g e v
+k n u r t
+. a r r e t
+SemanticKITTI→SemanticSTF(snow)
+Baseline Dropout [39] Perturbation PolarMix [50] MMD [26] PCL [56] PointDR (Ours)
+49.5 58.5 73.6 66.5 59.4 64.0 66.2
+0.0 0.0 0.0 3.4 0.0 0.0 0.0
+0.3 30.5 0.0 9.3 4.7 0.0 10.4
+0.5 5.4 5.5 3.5 0.0 8.2 0.0
+11.6 13.2 1.1 5.8 14.7 0.7 16.7
+10.8 5.2 19.8 32.4 30.5 9.2 21.3
+23.9 20.4 34.4 30.1 32.8 31.6 33.0 SynLiDAR→SemanticSTF(snow)
+- - - - - -
+- - - - - -
+42.1 41.9 45.7 55.3 50.8 38.9 43.0
+14.9 18.0 10.9 3.6 16.9 15.2 15.2
+0.0 2.5 0.1 0.1 0.2 2.3 1.7
+71.5 76.4 80.6 77.8 68.4 79.6 76.8
+26.7 30.5 32.8 36.1 24.4 35.1 30.3
+29.3 31.8 45.2 34.2 36.6 41.3 36.1
+24.0 32.7 12.8 12.6 24.1 11.2 27.6
+17.8 19.8 20.0 25.1 24.1 23.1 22.2
+12.9 1.9 20.9 2.6 15.4 4.1 11.7 1.7 20.1 2.4 19.1 3.0 13.8 3.4 Table 10. Class-wise IoU on domain generalization with SemanticKITTI or SynLiDAR as the source and validation set of snow in SemanticSTF as the target. ’-’ represents no samples captured in snow in the validation set of SemanticSTF.
+Baseline Dropout [39] Perturbation PolarMix [50] MMD [26] PCL [56] PointDR (Ours)
+24.6 35.9 27.1 53.4 20.8 30.7 34.2
+2.7 2.8 2.4 2.3 2.7 1.1 4.0
+1.5 3.7 6.8 4.1 6.0 4.4 7.4
+2.4 3.0 6.8 6.0 4.8 6.2 7.5
+0.0 0.0 0.2 1.2 0.2 0.3 0.1
+32.2 21.9 31.0 27.9 31.3 34.6 36.2
+- - - - - -
+- - - - - -
+0.4 10.0 4.8 1.9 0.5 1.7 12.0
+18.3 22.8 19.7 21.5 21.0 22.0 22.7
+0.0 0.0 0.0 0.3 0.1 0.3 0.0
+33.3 33.2 26.3 45.2 29.6 37.8 48.8
+13.8 14.8 12.4 20.8 12.2 12.6 19.9
+15.7 17.1 14.0 21.7 15.0 16.4 19.9
+14.9 16.8 22.0 18.8 16.6 14.2 18.9
+18.1 16.5 16.4 16.5 21.8 19.9 17.0
+Method
+Baseline
+drop-out
+perturbation
+flipping
+jittering
+All
+PointDR
+mIoU
+24.4
+25.7
+25.9
+25.2
+26.9
+26.1
+28.6
+Table 11. Comparison of data augmentation techniques and the proposed PointDR. PointDR performs clearly the best over domain generalized segmentation task SemanticKITTI→SemanticSTF.
+λcl mIoU
+0.0
+24.4
+0.05
+28.2
+0.10
+28.6
+0.15
+27.3
+1.0
+25.1
+Table 12. Performance of PointDR models with different contrastive loss weight λcl in Eq. 2 in the paper.
+However, when m is too large (at 0.999), the memory bank updates too slowly to capture the latest and representative feature embeddings, which fails to serve as the class-wise proxy and ultimately leads to a clear segmentation performance drop.
+m
+0.98
+0.99
+0.999
+mIoU
+28.1
+28.6
+26.1
+Table 13. Performance of PointDR models with different momentum updated weight m for the memory bank B.
+B. Domain adaptation
+B.1. Implementation details
+In Tables 4 and 5 of the submitted paper, we examine state-of-the-art UDA methods over the proposed normal-to-adverse UDA scenario. Specifically, we selected typical UDA methods from the popular synthetic-to-real UDA benchmark [38, 51] as the baseline methods as described in Section 5.2 of the paper. We adopt MinkowskiNet [7] as the segmentation model as in synthetic-to-real UDA. When implementing ADDA [46], entropy minimization [47], and self-training [65], we follow the same implementation and training configurations as the synthetic-to-real UDA [51] and leverage TorchSparse library [42]] (with version 1.1.0) based on PyTorch [32] library. While for CoSMix [38], we use the officially released codes based on MinkowskiEngine with default training parameters for the adaptation. We report mIoU of the covered classes for individual adverse weather conditions in Table 5.
+B.2. Detailed class-level results
+In Tables 14, 15, 16, and 17 below, we present the class-level IoU performance for the UDA methods that are examined
+in the setting of adaptation to individual conditions in Table 5 of the paper.
+14
+e l o p
+30.8 28.2 24.4 29.8 30.0 30.1 30.0
+10.1 15.7 19.0 10.5 11.3 14.7 20.7
+. f a r t
+10.1 7.0 9.5 10.1 11.4 26.8 14.1
+
+
+Methods
+r a c
+e l c . i b
+e l c . t
+m
+k c u r t
+. v - h t o
+. s r e p
+t s l c . i b
+t s l c . t
+m
+d a o r
+. i k r a p
+.
+w e d i s
+. g - h t o
+. d l i u b
+e c n e f
+. t e g e v
+k n u r t
+. a r r e t
+68.0 68.0 74.8 70.9 74.2 Table 14. Comparison of state-of-the-art domain adaptation methods on SemanticKITTI→SemanticSTF adaptation for dense fog. ’-’ represents no samples captured in dense fog in the validation set of SemanticSTF.
+Source-only ADDA [46] Ent-Min [47] Self-training [65] CoSMix [38]
+56.4 63.4 68.0 68.2 76.5
+- - - -
+- - - -
+10.1 14.3 4.9 24.4 27.0
+0.0 0.0 0.0 0.0 0.0
+0.6 2.1 1.9 5.4 4.7
+15.4 8.0 7.6 4.8 0.0
+0.0 38.7 0.0 0.0 0.0
+0.6 0.1 0.0 0.3 0.5
+22.8 25.6 39.4 31.3 29.9
+0.0 0.0 0.0 0.0 1.8
+63.6 60.6 68.8 65.9 62.1
+36.6 45.4 50.5 46.7 48.0
+62.8 64.8 61.0 59.2 62.6
+29.4 30.4 28.3 31.6 37.3
+53.5 52.6 63.3 55.4 59.6
+Methods
+r a c
+e l c . i b
+e l c . t
+m
+k c u r t
+. v - h t o
+. s r e p
+t s l c . i b
+t s l c . t
+m
+d a o r
+. i k r a p
+.
+w e d i s
+. g - h t o
+. d l i u b
+e c n e f
+. t e g e v
+k n u r t
+. a r r e t
+Source-only ADDA [46] Ent-Min [47] Self-training [65] CoSMix [38]
+68.3 69.4 73.4 73.2 70.3 Table 15. Comparison of state-of-the-art domain adaptation methods on SemanticKITTI→SemanticSTF adaptation for light fog.
+55.1 61.4 67.1 69.3 74.9
+0.0 0.0 0.0 0.0 0.4
+0.0 0.0 0.0 0.0 1.3
+16.3 40.0 46.7 47.5 19.3
+4.3 10.8 12.0 19.4 1.6
+0.7 1.4 0.0 0.9 26.1
+0.8 2.3 0.0 0.1 0.0
+0.0 0.0 0.0 0.0 0.0
+5.3 2.5 0.2 0.8 10.0
+33.2 36.3 38.8 40.7 35.0
+0.0 0.0 0.0 0.0 1.1
+66.0 62.0 67.1 67.4 67.1
+44.1 52.0 56.6 56.5 54.7
+62.0 60.4 56.7 58.5 64.1
+40.3 43.2 38.2 41.3 46.4
+48.2 48.9 46.8 47.1 49.4
+Methods
+r a c
+e l c . i b
+e l c . t
+m
+k c u r t
+. v - h t o
+. s r e p
+t s l c . i b
+t s l c . t
+m
+d a o r
+. i k r a p
+.
+w e d i s
+. g - h t o
+. d l i u b
+e c n e f
+. t e g e v
+k n u r t
+. a r r e t
+72.9 71.9 80.3 72.9 64.7 Table 16. Comparison of state-of-the-art domain adaptation methods on SemanticKITTI→SemanticSTF adaptation for rain. ’-’ represents no samples captured in rain in the validation set of SemanticSTF.
+Source-only ADDA [46] Ent-Min [47] Self-training [65] CoSMix [38]
+69.4 71.8 78.4 69.4 83.6
+0.0 0.0 0.0 0.0 0.1
+- - - -
+0.1 0.1 0.4 0.1 2.1
+0.1 0.7 2.9 0.1 11.8
+12.1 3.8 0.1 12.1 47.9
+0.0 0.0 0.0 0.0 0.0
+- - - -
+9.7 9.2 10.1 9.7 10.9
+54.5 51.5 57.9 54.5 51.1
+0.0 0.0 0.0 0.0 2.5
+73.7 67.8 78.0 73.7 72.6
+31.2 35.6 47.1 31.2 47.2
+55.2 53.6 53.8 55.2 59.8
+16.2 17.8 13.0 16.2 25.7
+21.4 25.7 24.1 21.4 20.9
+Methods
+r a c
+e l c . i b
+e l c . t
+m
+k c u r t
+. v - h t o
+. s r e p
+t s l c . i b
+t s l c . t
+m
+d a o r
+. i k r a p
+.
+w e d i s
+. g - h t o
+. d l i u b
+e c n e f
+. t e g e v
+k n u r t
+. a r r e t
+49.8 9.6 55.3 11.0 53.6 8.8 53.9 16.0 70.1 35.6 Table 17. Comparison of state-of-the-art domain adaptation methods on SemanticKITTI→SemanticSTF adaptation for snow. ’-’ represents no samples captured in snow in the validation set of SemanticSTF.
+Source-only ADDA [46] Ent-Min [47] Self-training [65] CoSMix [38]
+70.7 69.3 73.8 73.9 79.2
+0.0 0.0 0.0 0.0 1.3
+0.0 0.0 15.4 6.1 0.0
+15.4 14.0 19.8 16.9 0.6
+1.6 0.8 1.4 5.2 14.2
+5.1 2.9 2.9 7.7 38.9
+- - - -
+- - - -
+8.9 1.3 1.6 6.2 15.1
+36.6 35.7 32.9 34.3 54.1
+0.0 0.0 0.0 0.0 6.3
+67.1 67.2 73.4 69.3 74.6
+26.3 26.7 28.5 27.7 44.1
+30.7 37.5 34.1 33.7 58.3
+28.1 30.1 28.8 29.8 20.5
+22.1 21.2 21.7 19.5 20.4
+r a
+Methods c
+e l c . i b
+e l c . t
+m
+k c u r t
+. v - h t o
+. s r e p
+t s l c . i b
+t s l c . t
+m
+d a o r
+. i k r a p
+.
+w e d i s
+. g - h t o
+. d l i u b
+e c n e f
+. t e g e v
+k n u r t
+. a r r e t
+e l o p
+. f a r t
+RandLA-Net [19] 75.2 0.0 0.0 25.8 0.0 47.3 0.0 0.0 73.3 7.8 48.7 57.5 68.2 48.3 61.5 27.3 49.5 39.7 27.5 56.5 SalsaNext [9] 77.3 31.2 0.0 47.5 30.5 64.2 26.6 5.0 76.3 18.2 55.2 64.9 79.2 50.4 56.8 27.8 55.8 36.8 36.7 62.2 MinkowskiNet [7] 87.4 42.5 0.0 51.2 40.3 73.6 29.1 0.0 79.5 15.0 57.7 63.4 78.6 56.8 64.4 40.4 53.3 47.6 47.6 67.7 SPVCNN [43] 87.1 45.5 0.0 53.1 42.7 74.1 21.9 0.0 78.9 16.3 57.9 57.0 78.6 56.5 65.6 40.9 50.3 49.4 45.9 66.4 Cylinder3D [64] 77.7 31.7 2.7 43.4 23.8 67.8 18.4 0.0 78.5 10.0 51.8 48.7 81.2 56.0 63.4 38.3 52.1 48.0 43.0 63.9
+Table 18. Comparison of state-of-the-art 3DSS methods (trained in a supervised manner) over the test set of SemanticSTF.
+C. Supervised learning on adverse conditions
+We use SemanticSTF to train five state-of-the-art 3DSS models in a supervised manner and report their segmentation performance in Table 18. Specifically, we use their officially released codes and default training configurations for model training. We can see that these state-of-the-art models achieve much lower segmentation performance over SemanticSTF as compared with their performance over SemanticKITTI. The results indicate that SemanticSTF is a more challenging benchmark for supervised methods due to the diverse data distribution and hard geometric domains. In addition, comparing Table 18 and Table 6 of the submitted paper, we notice that the rankings of the supervised and the pre-trained 3DSS models are not well aligned, indicating that the ability of supervised representation learning may not be highly correlated with the generalization ability. We also notice that the state-of-the-art network Cylinder3D [64] achieves much lower segmentation performance over SemanticSTF as compared with its performance over SemanticKITTI. This could be due to two major
+15
+e l o p
+. f a r t
+17.7 20.4 22.7 22.5 23.4
+19.5 41.9 43.2 43.7 28.8
+e l o p
+. f a r t
+23.4 22.7 25.0 26.6 25.4
+10.3 16.9 15.7 19.8 28.7
+e l o p
+. f a r t
+33.9 32.0 35.8 33.9 27.2
+18.8 24.2 33.8 18.8 35.2
+e l o p
+. f a r t
+26.8 25.4 26.6 26.9 26.9
+d i l a v n i
+mIoU
+35.7 45.1 49.8 49.4 45.0
+
+
+factors: 1) The design of Cylinder3D is sensitive to complicated and noisy geometries of point clouds as introduced by various adverse weather conditions; 2) Cylinder3D is sensitive to training parameters and the default training configurations for SemanticKITTI does not work well for SemanticSTF. The results further demonstrate the importance of studying universal 3DSS as well as the value of the proposed SemanticSTF dataset in steering the future endeavour along this very meaningful research direction.
+D. Additional Details on SemanticSTF Dataset
+D.1. Annotation
+In this section, we explain the implementation of our point cloud labeling in more detail. We leveraged a professional labeling program that has multiple annotating tools such as a brush, a polygon tool, a bounding volume tool, as well as different filtering methods for hiding labeled points or selected labels. Corresponding 2D images are displayed to assist labelling. The program also supports cross-checking and correction as illustrated in the main paper. Fig. 5 shows the interface of our point cloud annotation program.
+Figure 5. The interface of point cloud labeling program for annotating SemanticSTF.
+D.2. Semantic class definition
+In the process of labeling such challenging data, we had to decide which classes we wanted to annotate at some point in time. In general, we followed the class definitions of the SemanticKITTI dataset [2] and ACDC [37] dataset, but did some simplifications and adjustments for the data source used. The annotated classes with their respective definitions are listed in Table 19 below.
+16
+
+
+cat. class
+definition
+road
+Drivable areas where cars could drive on including main road, bike lanes, and crossed areas on the street. Road curb is excluded.
+sidewalk
+Paths along sides of the road, used for pedestrians and bicycles, but cars are not allowed to drive on. Also include private driveways.
+t a fl
+parking
+Areas for parking and are clearly different from sidewalk and road. If unclear then other-ground or sidewalk can be selected. Garages are labeled as building instead of parking.
+other-ground Ground that excludes sidewalk, terrain, road, and parking. It includes (paved/plastered) traffic islands that are not meant for walking.
+n building o i t c u r t s n o c
+fence
+All building parts including walls, doors, windows, stairs, and garages, etc.
+Separators including wood or metal fences, small walls and crash barriers.
+car
+Different types of cars, including cars, jeeps, SUVs, and vans.
+e l c i h e v
+truck
+bicycle
+Trucks, vans with a body that is separate from the driver cabin, pickup trucks, as well as their attached trailers.
+Including different types of bicycles, without any riders or pedestrians nearby.
+motorcycle
+Including different types of motorcycles, without any riders or pedestrians nearby.
+other-vehicle Other types of vehicles that do not belong to previously defined vehicle classes, such as various trailers, excavators, forklifts, and fallbacks.
+e r u t a n
+vegetation
+trunk
+Including bushes, shrubs, foliage, treetop except for trunks, and other clearly identifiable vegetation.
+The tree trunk is labeled as trunk separately from the treetop.
+terrain
+Mainly include grass and soil.
+n a m u h
+person
+bicyclist
+Humans that are standing, walking, sitting, or in any other pose, but not driving any vehicle. Trolley cases, strollers, and pets nearby are excluded.
+Humans driving a bicycle or standing in close range to a bicycle (within arm reach).
+motorcyclist Humans driving a motorcycle or standing in close range to a motorcycle (within arm reach).
+t pole
+c e j b o
+traffic sign
+Lamp posts, the poles of traffic signs and traffic lights.
+Traffic signs excluding their mounting.
+invalid
+Indiscernible semantic contents caused by adverse weather, such as points of thick snow cover, falling snow or rain droplets, and the splash from the rear of the moving vehicles when driving on the road of snow or water.
+Table 19. Definitions of semantic classes in SemanticSTF.
+17

@@ -1,0 +1,331 @@
+3 2 0 2
+r a
+M 8 2
+] L C . s c [
+1 v 3 7 1 6 1 . 3 0 3 2 : v i X r a
+Towards Countering Essentialism through Social Bias Reasoning
+Scots are drunkards
+(LOTS) Lots of people can be stupid.
+I speak English, I don’t speak libt*rd
+liberals are stupid
+(TOL) All groups of people deserve tolerance.
+👍
+ESSENTIALIST BELIEFS
+(ALT) Conservatives can also be stupid.
+In Scotland, a 7-course meal is a bottle of whisky and a 6-pack of beer.
+(DIR-IND) The following liberals are not stupid: usain bolt, sherlock holmes, and feminists.
+Actually, this is a generalization about liberals.
+👍
+(DIR-GRP) The following liberals are not stupid: liberal progressives, liberal artists, and feminist females.
+Sarah-Jane Leslie3 Maarten Sap2,4
+Emily Allaway1,2 Nina Taneja1
+1Columbia University, USA 2Allen Institute for Artiﬁcial Intelligence, USA 3Princeton University, USA 4Carnegie Mellon University eallaway@cs.columbia.edu
+Abstract
+Essentialist beliefs (i.e., believing that mem- bers of the same group are fundamentally alike) play a central role in social stereotypes and can lead to harm when left unchallenged. In our work, we conduct exploratory studies into the task of countering essentialist beliefs (e.g., “liberals are stupid”). Drawing on prior work from psychology and NLP, we construct ﬁve types of counterstatements and conduct human studies on the effectiveness of these dif- ferent strategies. Our studies also investigate the role in choosing a counterstatement of the level of explicitness with which an essential- ist belief is conveyed. We ﬁnd that statements that broaden the scope of a stereotype (e.g., to other groups, as in “conservatives can also be stupid”) are the most popular countering strat- egy. We conclude with a discussion of chal- lenges and open questions for future work in this area (e.g., improving factuality, studying community-speciﬁc variation) and we empha- size the importance of work at the intersection of NLP and psychology.
+Figure 1: Two prejudiced statements with their es- sentialist implications (top), along with our ﬁve types of counterstatements automatically generated with our method. According to our results, a preferred strategy is highlighting that an implication applies to more than the targeted group (LOTS or ALTS).
+1
+Introduction
+Essentialism, i.e., the belief that members of the same group are fundamentally alike, plays a cru- cial role in how prejudices and biases about social and demographic groups are formed and expressed (Leslie, 2014). For example, the statement “I speak English, I don’t speak libt*rd” implies the belief that all “liberals are stupid.” If left unchallenged, statements with such essentializing implications can cause harm by perpetuating and reifying stereo- typical beliefs about social groups (Greenwald and Banaji, 1995; Steele, 2011; Prentice and Miller, 2007; Rhodes et al., 2012; Leshin et al., 2021).
+In this work, we investigate the task of com- bating essentialist statements and beliefs through psychologically and linguistically informed coun- terstatement generation. We examine these essen- tialist beliefs through the lens of generics (Rhodes
+et al., 2012), i.e., beliefs that attribute a quality to a target group without explicit quantiﬁcation (“liber- als are stupid”; Abelson and Kanouse, 1966; Carl- son and Pelletier, 1995). In the context of toxic or hateful language, these generic beliefs can be both expressed directly or conveyed through subtle implications (Gelman, 2003; Sap et al., 2020).
+Automatically countering essentialism is chal- lenging because it requires deep psychological rea- soning about the linguistic implications of state- ments – for example, changing people’s beliefs about stereotypes only through counterexamples is difﬁcult (Kunda and Oleson, 1995). Therefore, we examine ﬁve different strategies for combat- ing essentializing stereotypes, combining insights from psychology (Foster-Hanson et al., 2016, 2019; Wodak et al., 2015) and NLP (Allaway et al., 2023). We craft ﬁve types of statements (see Fig 1): broad- ening the scope of a stereotype by generalizing
+
+
+to “all people” or an alternative group (LOTS and ALT), providing direct counter-evidence through speciﬁc individuals or groups (DIR-IND and DIR- GRP), and simply calling out the generalization In contrast to prior studies on counter- (TOL). ing hate-speech which use uncontrolled end-to-end generation approaches (Qian et al., 2019; Zhu and Bhat, 2021; Chung et al., 2020, e.g.,), we gener- ate counterstatements by reasoning directly about the targeted group, attributed quality, and linguistic expression of a stereotype.
+Since our work provides a preliminary explo- ration of this task, we conduct online studies in three settings where counterstatements are paired with human-written implications from the Social Bias Frames Inference Corpus (SBIC) (Sap et al., 2020). In these settings, we explore variation in counterstatement effectiveness when the beliefs are conveyed either implicitly, explicitly without con- text, or as an explicit inference from provided con- text. We ﬁnd that challenging a stereotype by ap- plying it broadly (e.g., to “lots of people”; LOTS and ALTS; Figure 1) is generally the most preferred strategy. In contrast, statements containing direct counter-evidence (e.g., DIR-IND and DIR-GRP; Figure 1) are the least popular. Additionally, we observe that the most favored strategy varies de- pending on whether the stereotype is explicitly pre- sented to annotators (e.g., providing the essentialist belief in Figure 1) or only conveyed implicitly (e.g., only providing the ﬁrst statement in Figure 1). For example, direct counter-evidence is more popular when the stereotype is explicitly provided. Our re- sults highlight the complexity of countering essen- tialist beliefs and the importance of further investi- gation at the intersection of NLP and psychology.
+2 Automatically Countering
+Essentialism
+We operationalize our counterstatement genera- tion by focusing on the expression of stereotypes through generics (§2.1). Inspired by work in psy- chology and philosophy, we construct ﬁve types of counterstatements to a stereotype (§2.2).
+2.1 Stereotypes as Generics
+Many negative stereotypes are expressed as gener- ics; they generalize a dangerous or harmful quality (e.g., being a drunkard) to an entire group (e.g., Scots) based on the behavior of only a few indi- viduals. Leslie (2008, 2017) termed such generics
+striking and argued that such generalizations are based upon an assumption that all members of the group in question (e.g., Scots) are disposed to pos- sess the dangerous or harmful quality. We argue that many stereotypes can also be interpreted as asserting a quasi-unique association between the group and quality. For example, “Scots are drunk- ards” also implies that Scots are distinctly more likely than other groups (e.g., the English) to ex- hibit drunkenness. In our work, we assume that all stereotypes under consideration are generics and have both interpretations.
+Since generics are unquantiﬁed, they naturally allow for exceptions (i.e., counterexamples to the generic). While these exceptions may provide a relevant source of counter-statements for a stereo- type, some evidence from psychology suggests that people are adept at maintaining their stereotyped beliefs in the face of such speciﬁc exceptions (e.g., Kunda and Oleson, 1995). Therefore, we experi- ment with a variety of different counter-statements.
+2.2 Generating Counter-Speech
+To generate counter-speech to stereotypes, we pro- duce ﬁve types of outputs in three broad categories (see Table 1). Since the stereotypes we consider are expressed as generics (e.g., “Scots are drunkards”), they can be separated into three components: a group (e.g., Scots), a relation (e.g., are), and a qual- ity (e.g., “drunkards”), which we use to construct the counter-speech. Additionally, we prepend the sentence “Actually, this is a generalization about GROUP” to each type of statement we generate, in order to contextualize the statements as counter- speech.
+Direct Exceptions (DIR) Direct exceptions present subgroups or individuals that do not have the quality speciﬁed in the generic, and thereby counter the striking or extrapolating implications of the stereotype. For example, for “Scots are drunkards”, the extrapolating implication is that “All Scots are drunkards”; thus, direct exceptions would be either individual Scots (e.g., Ewan Mc- Gregor1) or sub-groups of Scots (e.g., Scottish ba- bies) who are not drunkards. We follow Allaway et al. (2023) who propose that these exceptions can be constructed with the following template: GROUP(x) + not relation + QUALITY.
+(DIR)
+1https://fherehab.com/learning/
+celebrities-who-dont-drink
+
+
+TEXT: RT @Vbomb20: Got these hoes on my dick like brad pitt GENERIC: Women are sex objects. Actually this is a generalization about women. +
+(DIR-GRP) The following women are not sex objects: businesswomen, female atheletes, and female movie stars. (DIR-IND) The following women are not sex objects: ellen degeneres, sarah palin, and rachel maddow. (ALT) Men can also be sex objects. (LOTS) Lots of people can be sex objects. (TOL) All groups of people deserve tolerance. TEXT: What’s black and doesn’t work? Half of London Actually, this is a generalization about black people. +
+GENERIC: Black people don’t work
+(DIR-GRP) The following black people work: black businessmen, famous black people, and black movie stars. (DIR-IND) The following black people work: barack obama, misty copeland, and usain bolt. (ALT) White folks may also not work. (LOTS) Lots of people don’t work. (TOL) All groups of people deserve tolerance. TEXT: How do you kill a thousand ﬂies in one hit? Slap an Ethiopian in the face. Actually, this is a generalization about ethiopian people. +
+GENERIC: Ethiopian people are dirty.
+(DIR-GRP) The following ethiopian people are not dirty: male atheletes, female movie stars,
+and people who practice judaism.
+(DIR-IND) The following ethiopian people are not dirty: kenyan marathon runners, michael jackson,
+and ryan reynolds. TEXT: A muslim enters a building.. With 500 passengers and a plane Actually, this is a generalization about muslims. +
+GENERIC: Muslims are terrorists.
+(DIR-GRP) The following muslims are not terrorists: male muslim businessmen, muslims businessmen,
+and male muslim movie stars.
+(DIR-IND) The following muslims are not terrorists: adult muslim men, all muslims, and malala yousafzai.
+. . .
+Table 1: Automatically generated counterstatements (§2.2) from our system. The bottom two examples illustrate challenges with factuality in the DIR counterstatements.
+We say that GROUP(x) is satisﬁed if x is either a speciﬁc member of the group or a subgroup. We generate subtypes (i.e., subgroups and speciﬁc group members) using GPT-3 (Brown et al., 2020). In particular, we prompt GPT-3 with a list of sub- types for an example group not in our data and query the model to produce subtypes for GROUP as the prompts completion. We choose as our example group “men” (see Appendix A.1 for prompts). We then construct exceptions following template DIR using each generated subtype. In order to select the most truthful and relevant subtypes, we apply a truth discriminator from Allaway et al. (2023) to each exception, and rank the subtypes by the prob- ability of being true and relevant. We construct the ﬁnal statements by combining the top three ranked subgroups into a single exception ((DIR-GRP) in Table 1) and combining the top three individuals into a single exception ((DIR-IND) in Table 1).
+be drunkards”). Allaway et al. (2023) propose that these exceptions follow the template:
+(cid:28)GROUP(x) + relation + QUALITY.
+(ALT) where (cid:28)GROUP indicates a contextually relevant alternative group. For example, if GROUP = SCOTS, then a contextually relevant alternative would be (cid:28)GROUP = AMERICANS. In our work, we deﬁne the relevant alternative group (cid:28)GROUP to be the perceived oppressing group. For exam- ple, if the generic is “women are vain”, then “men” would be the relevant alternative group (cid:28)WOMEN (i.e., the oppressing group). To avoid generating stereotypes about the oppressing group, we convert the relation into a hedged form (see Appendix A). For example, if the relation is “are”, the hedged form of the relation would be “can be”.
+Broadening Exceptions (ALTS) Broadening ex- ceptions challenge the quasi-unique implication of the generic by attributing the quality in question to a different social group (e.g., “Americans can also
+Broadening Universals (LOTS) In addition to broadening exceptions, we generate broadening universals, which maximize the scope of the quality so that it includes people in general, rather than any speciﬁc social group. That is, we generate
+
+
+Lots
+Tol
+17
+Dir-Ind
+4
+6
+5
+5
+20
+3
+3
+3
+26
+21
+42
+28
+36
+37
+34
+31AVGpoststereopost + stereo0255075100
+35
+Dir-Grp
+Alt
+2
+40
+Tol
+39
+10
+25AVGpoststereopost + stereo0255075100
+Alt
+5
+5
+20
+6
+27
+24
+Dir-Grp
+37
+21
+27
+30
+34
+28
+4
+11
+10
+Lots
+26
+9
+Dir-Ind
+(a) First choice.
+(b) Second choice.
+Figure 2: Percentage of annotators that selected each counterstatement type (§2) across all three settings.
+statements following:
+Lots of people + relation + QUALITY.
+(LOTS)
+For example, “Lots of people are drunkards" is a broadening universal for the stereotype “Scots are drunkards”. See (LOTS) in Table 1. Similarly to the statements following template ALT, we also hedge the relation in template LOTS.
+Tolerance (TOL) Finally, we include the de- nouncing statement, “All groups of people deserve tolerance”, since denouncing is a common strat- egy in countering hate-speech (e.g., Mathew et al., 2019; Qian et al., 2019; Ziegele et al., 2018). This form of counter-speech does not depend on the de- tails of the generic in question and so is the same for all stereotypes. See (TOL) in Table 1.
+3 Online Study
+on Amazon Mechanical Turk to play the role of an online content moderator or fact-checker whose job is to provide counterstatements to expressed stereo- types. Each annotator is provided with a statement and a set of machine-generated counterstatements and asked to select their ﬁrst and second choices. We also include an attention check to monitor an- notation quality, and collect information on how much annotators agree with the provided statement and annotator demographic information. See full instructions in Appendix B.
+Our three human studies vary the statements pro- vided to annotators: (1) post – an original text t from SBF, (2) stereo – the stereotype s implied by a text t, or (3) post + stereo – both t and s. Note that for each pair (t, s) the counterstatements are always derived from s, regardless of whether annotators are provided s directly.
+As a preliminary investigation into the task of generating counterstatements to combat essential- ism, we use posts with gold-annotated implications (§3.1) to conduct an online experiment with crowd- workers (§3.2).
+3.1 Essentialism Data
+We use annotations provided in the SBIC (Sap et al., 2020) to obtain pairs (t, s) where t is a text and s is a stereotype implied by t (i.e., an essentialist implication that can be drawn from t). The s in SBF are human written and so to ensure the statements we consider are clear implications of the text t, we use only instances where at least two out of the three human annotators wrote the same stereotype verbatim. This results in a set of 227 pairs, covering 25 unique groups, where each si can be clearly inferred from ti.
+4 Empirical Results
+Our results show clear differences in how often certain types of counterstatements are preferred over others to combat essentialism (Figure 2). We see that overall, the LOTS counterstatements are the most popular for both ﬁrst and second choice. In addition, when considering broadening statements grouped together (LOTS and ALT), there is a clear preference for such statements, compared to both the TOL and the direct exceptions. Despite the lack of content in the TOL statements, these are the second most popular as the ﬁrst choice. Note, we choose not to conduct statistical tests because our goal is not to ﬁnd the single most effective countering strategy but rather to study a range of strategies.
+3.2 Study Setup
+In order to investigate the effectiveness of different counter statements (§2), we conduct three different human studies. In each study, we ask annotators
+Of the generics-exceptions-based counterstate- ments, the direct exceptions DIR are consistently the least preferred. We hypothesize that this is im- pacted by the high portion of incorrect statements among the DIR type (Figure 3), as well as the sub- jective nature of many stereotypes (e.g., in Table 1,
+
+
+9
+5
+5
+15
+1
+22
+12
+0
+29
+0
+23
+17
+8
+8
+8
+Figure 3: Percentage of counterstatements marked as incorrect for each setting. Counterstatements are the same across settings, variation is due to annotators.
+being a ‘sex object’ is subjective). When consid- ering only the statements not marked as incorrect by annotators, we do not observe a change in rel- ative popularity. Therefore, future investigation is needed to understand the role of correct individuals in counterstatements.
+In contrast, the broadening exceptions ALT rank second as the second-choice and only 7% are marked as incorrect. We also note that in set- tings where the stereotype is provided explicitly (stereo and stereo+post) the proportion of LOTS was higher (and TOL lower) for the ﬁrst choice, and for the second choice the proportion of ALT increased markedly. From this we observe that the effectiveness of a countering strategy may depend on the explicitness of the demonstrated bias. For example, generalizing the stereotype (LOTS) may be less effective when the stereotype is not explic- itly identiﬁed (post setting).
+Finally, we observe that when annotators agree with a statement, their preference for LOTS state- ments increases while the preference for DIR coun- terstatements decreases (Fig. 4a). Annotator prefer- ence for TOL also decreases. We also note that annotators more often endorse a belief when it is stated explicitly, rather than implied by a text (Fig. 4b) These results underscore the importance both of directly identifying an essentialist belief from an implication and of reasoning about the im- plications of the stereotype when countering real- world essentialist beliefs (i.e., from individuals who endorse the belief).
+5 Discussion and Conclusion
+Through our online studies, we ﬁnd that broadening statements are the most preferred type of counter- statement, while statements with direct counter- evidence are consistently least preferred. In ad- dition, we observe variation across our three set- tings. Below, we discuss how are ﬁndings related to work in psychology (§5.1) and content moderation
+52
+Alt
+33
+6
+21
+Dir-Grp
+21
+37
+Lots
+21DisagreeNeutral/Agree0255075100
+Tol
+3
+Dir-Ind
+4
+3
+(a) Percent of annotators that selected each counterstatement type as their ﬁrst choice.
+4
+80
+9
+20
+89
+96
+11
+91
+(b) Percent of annotators who agreed with the statement.
+Figure 4: Self-reported annotator agreement with the provided statement(s).
+(§5.2), and ﬁnally, outline challenges, limitations, and future directions (§5.3).
+5.1 Stereotypes and Psychology
+Generic language, with its quasi-unique implica- tions, readily conveys essentialist beliefs. Indeed, psychological research shows that generic language is a powerful mechanism by which social essential- ist beliefs are transmitted between people, and even across generations (Rhodes et al., 2012; Leshin et al., 2021). Such implications can have a pro- found impact on children — e.g., girls as young as 6 years old have absorbed the stereotype that males are more likely than females to be “really, really smart” (Bian et al., 2017). In order to challenge such essentialist beliefs, we argue that it is impor- tant to consider the complexities of generics and associated inferences.
+Through reasoning directly about the implica- tions of generics, we construct counterstatements that directly challenge essentialist implications. In particular, our results highlight the value of broad- ening statements (LOTS and ALT), which counter the implication that a particular negative quality is distinctive of a particular group (e.g., “Only women are vain”). This ﬁnding is consistent with recent work in psychology, in particular (Foster- Hanson et al., 2019). These statements thereby challenge the cognitive value of the stereotype as an information-processing short-cut (Devine, 1989), since the wide applicability of the stereotyped qual-
+
+
+ity may result in many incorrect inferences (e.g., assuming someone is not vain because they are not a woman).
+Furthermore, our results corroborate ﬁndings from psychology that individuals who do not ﬁt a stereotype are not viewed as invalidating that stereotype, since they are categorized as spe- cial (e.g., Kunda and Oleson, 1995). In particular, the consistently low preference for direct exception statements comports with that ﬁnding (DIR-IND and DIR-GRP). Although providing facts (e.g., ex- ceptional individuals) has been previously studied as a strategy to counter hate-speech (e.g., Chung et al., 2019; Mathew et al., 2019), our work speciﬁ- cally isolates the type of facts (i.e., direct counter- evidence versus broadening statements) as a vari- able for investigation. As such, we can observe that providing broadening facts is much more effective than counter-evidence. This further highlights the importance of reasoning about the speciﬁc implica- tions of a text to counter essentialist beliefs.
+5.2 Essentialism, Counter Hate-Speech, and
+Content Moderation
+Although countering essentialism is similar in spirit to countering hate-speech and content moderation, common strategies in the latter are often inappli- cable to countering essentialist beliefs. In content moderation, discursive actions such as answering clarifying questions or providing additional details are common (Ziegele et al., 2018). However, since essentialist beliefs are often conveyed implicitly (e.g., see statements in Figure 1), discursive actions aimed at a text may not actually address its essen- tialist implications. For example, the additional detail “libt∗rd is not a real language” does not actually counter the implication that liberals are stupid in Fig 1. Similarly, while humor, expressing afﬁliation with the targeted group (e.g., “us Scots only having a wee cuppa tea”), and pointing out hypocrisy or contradictions (e.g., “it needs to in- volve food to be a meal”) are common when coun- tering hate-speech (Chung et al., 2019; Mathew et al., 2019), they also do not address the essen- tialist beliefs implicit in a text (e.g., that Scots are drunkards, Figure 1). As such, we argue that it is important to investigate effective ways to counter essentialist implications, as distinct from general counter-speech and content moderation.
+1
+82
+96
+0
+0
+80
+13
+0
+5
+15
+4
+4
+(a) Racial demographics.
+0
+63
+28
+36
+0
+0
+72
+37
+64
+(b) Gender demographics.
+Figure 5: Self-reported annotator demographics (per- centage) across settings.
+5.3 Limitations, Challenges, and Future
+Directions
+Along with promising preliminary ﬁndings, our re- sults highlighted several limitations and challenges that should be tackled in future work.
+Human-annotated implications Since this work constitutes preliminary investigation on the promise of using NLP tools for combating essentialism, we used a corpus of statements paired with gold human-annotated implications. However, such annotations will not always be available. Future work should examine whether our ﬁndings would hold with machine-generated implications (e.g., using the neural model from Sap et al., 2020), on various types of source domains and overtness levels (e.g., the corpus of implicit toxicity from Hartvigsen et al., 2022). Furthermore, future research could investigate how the quality and speciﬁcity of the implications affects the counterstatement generation and effectiveness.
+Targeted group and annotator identity Our studies are conducted on Amazon Mechanical Turk which can be lacking in diversity among annota- tors. For example, the majority of annotators in our study were white (Fig 5a) or male (Fig 5b). In contrast, targeted groups are often not white or male (see Table 2). Since an annotator’s identity and beliefs may impact their perceptions of how effective a counterstatement is (as they do with per- ceptions of toxicity; Sap et al., 2022), homogeneity in the annotator population limits our results. Addi- tionally, how deeply rooted an essentialist belief is for an annotator may impact what they consider ef-
+
+
+Group Black folks Women Muslim folks Jewish folks Asian folks Gay men Latino/Latina folks Liberals Feminists African folks Mentally disabled folks Indian folks Lesbian women Immigrants Ethiopian folks American folks Mexican folks Physically disabled folks Folks with mental illness/disorder Japanese folks Polish folks Arabic folks Italian folks Christian folks Native American/First Nation folks
+Nb Examples 66 60 18 16 15 7 6 5 4 3 3 3 3 3 3 2 2 1 1 1 1 1 1 1 1
+Table 2: Counts for number of examples per group. There are 227 examples total across 25 unique groups.
+fective counterstatements. Our results, which show large variation in annotator preference depending on whether they endorse a statement, corroborate these ﬁndings. Therefore, future work should in- vestigate more diverse annotator pools or matching annotators to targeted groups, as well as examining how annotator’s familiarity with essentialist beliefs and identities affect their judgements.
+Furthermore, prior work in countering hate- speech has show that effective strategies can vary widely depending on the target group (Mathew et al., 2019; Chung et al., 2019). In our work, we consider results aggregated across all groups. However, community-speciﬁc investigations are an important future step towards developing effective counter-statements.
+Accuracy of generated exceptions The selec- tion of speciﬁc individuals for direct exceptions presents an ongoing challenge, based on the high number of DIR-IND marked incorrect. Since lan- guage models often encode biases and stereotypes derived from training corpora (Sheng et al., 2019), they may have difﬁculty producing relevant individ- uals who are not prototypical (i.e., they do not have a particular stereotype). We illustrate incorrect indi- viduals and subgroups in the bottom two examples
+of Table 1. Additionally, as mentioned in §4, many stereotypes are subjective (e.g., “women are vain”). Therefore, individuals who are counterexamples to the stereotype may be judged differently by differ- ent people (e.g., our system proposes that “taylor swift, sarah palin, and scarlett johansson” are not vain). Producing accurate and relevant direct excep- tions to a stereotype is important for understanding the role of such examples to counter essentialist beliefs.
+Our results and discussion highlight the complex- ity of countering essentialist beliefs. We propose that future work should improve the factuality of counterstatements, particularly of direct counter- evidence, and consider both variation in respon- dent demographics and community-speciﬁc needs. Therefore, we argue that working at the intersec- tion of NLP and psychology is crucial for further investigations in this area.
+6 Societal and Ethical Considerations
+Annotation Considerations Prior work has highlighted the potential harms to workers who are subjected to offensive statements (Roberts, 2017; Steiger et al., 2021). To mitigate these, we en- courage annotators to reach out to the authors with concerns and questions or to the Crisis Text Line.2 Additionally, our study design was approved by our ethics review board (IRB) and workers earned a median wage of $10/h.
+Risks of Generation Since our system automat- ically generates counterstatements, there is poten- tial for misuse in several ways. First, our system can automatically and quickly produce millions of counterstatements could therefore be used in a distributed-denial-of-service attack. Second, by generating counterstatements to stereotypes in text the original text remains available and so it may still cause harm (Ullmann and Tomalin, 2019) and perpetuate essentialist beliefs. Additionally, the au- tomatic construction of counterstatements has the potential to produce false statements and further harmful generalizations (e.g., generalize a harmful stereotype to another marginalized group). Consid- ering these factors, it is important to jointly develop regulation alongside AI technology to limit harms and misuse in deployment (Crawford, 2021; Reich et al., 2021).
+2https://www.crisistextline.org/
+
+
+Acknowledgements
+We would like to thank the Beaker Team at AI2 for the compute infrastructure, and the anonymous reviewers for their suggestions. This work is sup- ported in part by the National Science Foundation Graduate Research Fellowship under Grant No. DGE-1644869. The views and conclusions con- tained herein are those of the authors and should not be interpreted as necessarily representing the ofﬁcial policies, either expressed or implied, of the NSF or the U.S. Government. The U.S. Gov- ernment is authorized to reproduce and distribute reprints for governmental purposes notwithstand- ing any copyright annotation therein.
+References
+Robert P Abelson and David E Kanouse. 1966. Subjec- tive acceptance of verbal generalizations. In Cogni- tive consistency, pages 171–197. Elsevier.
+Emily Allaway, Jena D Hwang, Chandra Bhagavatula, Kathleen McKeown, Doug Downey, and Yejin Choi. 2023. Penguins don’t ﬂy: Reasoning about generics through instantiations and exceptions. In EACL.
+Anonymous. 2020. Paper title anonymized to preserve
+double-blindness.
+Lin Bian, Sarah-Jane Leslie, and Andrei Cimpian. 2017. Gender stereotypes about intellectual ability emerge early and inﬂuence children’s interests. Sci- ence, 355(6323):389–391.
+Tom B Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, et al. 2020. Language models are few-shot learners. arXiv preprint arXiv:2005.14165.
+Gregory N Carlson and Francis Jeffry Pelletier. 1995. The generic book. University of Chicago Press.
+Yi-Ling Chung, Elizaveta Kuzmenko, Serra Sinem Tekiroglu, and Marco Guerini. 2019. CONAN - COunter NArratives through nichesourcing: a mul- tilingual dataset of responses to ﬁght online hate In Proceedings of the 57th Annual Meet- speech. ing of the Association for Computational Linguistics, Florence, Italy. Association for Computational Lin- guistics.
+Yi-Ling Chung, Serra Sinem Tekiro˘glu, and Marco Guerini. 2020. Italian counter narrative generation to ﬁght online hate speech. In CLiC-it.
+Kate Crawford. 2021. Atlas of AI. Yale University
+Press.
+Patricia G. Devine. 1989. Stereotypes and prejudice: Their automatic and controlled components. Jour- nal of Personality and Social Psychology, 56:5–18.
+Emily Foster-Hanson, Sarah-Jane Leslie, and Marjorie Rhodes. 2016. How does generic language elicit es- sentialist beliefs. In Proceedings of the 38th annual conference of the Cognitive Science Society, pages 1541–1546.
+Emily Foster-Hanson, Sarah-Jane Leslie, and Marjorie Rhodes. 2019. Speaking of kinds: How correcting generic statements can shape children’s concepts.
+Susan A Gelman. 2003. The essential child: Origins of essentialism in everyday thought. Oxford Cognitive Development.
+Anthony G Greenwald and Mahzarin R Banaji. 1995. Implicit social cognition: attitudes, self-esteem, and stereotypes. Psychological review, 102(1):4.
+Thomas Hartvigsen, Saadia Gabriel, Hamid Palangi, Maarten Sap, Dipankar Ray, and Ece Kamar. 2022. Toxigen: Controlling language models to generate implied and adversarial toxicity. In ACL.
+Ziva Kunda and Kathryn C Oleson. 1995. Maintain- ing stereotypes in the face of disconﬁrmation: con- structing grounds for subtyping deviants. Journal of personality and social psychology, 68(4):565.
+Rachel A Leshin, Sarah-Jane Leslie, and Marjorie Rhodes. 2021. Does it matter how we speak about social kinds? a large, preregistered, online exper- imental study of how language shapes the devel- opment of essentialist beliefs. Child development, 92(4):e531–e547.
+Sarah-Jane Leslie. 2008. Generics: Cognition and ac-
+quisition. Philosophical Review, 117(1):1–47.
+Sarah-Jane Leslie. 2014. Carving up the social world with generics. Oxford studies in experimental phi- losophy, 1.
+Sarah-Jane Leslie. 2017. The original sin of cognition: Fear, prejudice, and generalization. The Journal of Philosophy, 114(8):393–421.
+Binny Mathew, Punyajoy Saha, Hardik Tharad, Sub- ham Rajgaria, Prajwal Singhania, Suman Kalyan Maity, Pawan Goyal, and Animesh Mukherjee. 2019. Thou shalt not hate: Countering online hate speech. In Proceedings of the international AAAI conference on web and social media, volume 13, pages 369– 380.
+Deborah A Prentice and Dale T Miller. 2007. Psycho- logical essentialism of human categories. Current directions in psychological science, 16(4):202–206.
+Jing Qian, Anna Bethke, Yinyin Liu, Elizabeth Beld- ing, and William Yang Wang. 2019. A bench- mark dataset for learning to intervene in online hate speech. In EMNLP, pages 4755–4764.
+Rob Reich, Mehran Sahami, and Jeremy M Weinstein. 2021. System error: Where big tech went wrong and how we can reboot. Hodder & Stoughton.
+
+
+Marjorie Rhodes, Sarah-Jane Leslie, and Christina M Tworek. 2012. Cultural transmission of social es- sentialism. Proceedings of the National Academy of Sciences, 109(34):13526–13531.
+Sarah T Roberts. 2017. Social media’s silent ﬁlter. The
+Atlantic.
+Maarten Sap, Saadia Gabriel, Lianhui Qin, Dan Juraf- sky, Noah A Smith, and Yejin Choi. 2020. Social bias frames: Reasoning about social and power im- plications of language. In ACL.
+Maarten Sap, Swabha Swayamdipta, Laura Vianna, Xuhui Zhou, Yejin Choi, and Noah A. Smith. 2022. Annotators with attitudes: How annotator beliefs and identities bias toxic language detection. In NAACL.
+Emily Sheng, Kai-Wei Chang, Prem Natarajan, and Nanyun Peng. 2019. The woman worked as a babysitter: On biases in language generation. In Pro- ceedings of the 2019 Conference on Empirical Meth- ods in Natural Language Processing and the 9th In- ternational Joint Conference on Natural Language Processing (EMNLP-IJCNLP), pages 3407–3412.
+Claude M Steele. 2011. Whistling Vivaldi: How stereo- types affect us and what we can do. WW Norton & Company.
+Miriah Steiger, Timir J Bharucha, Sukrit Venkatagiri, Martin J Riedl, and Matthew Lease. 2021. The psy- chological Well-Being of content moderators: The emotional labor of commercial moderation and av- enues for improving support. In CHI, number Arti- cle 341 in CHI ’21.
+Stefanie Ullmann and Marcus Tomalin. 2019. Quaran- tining online hate speech: technical and ethical per- spectives. Ethics Inf. Technol.
+Daniel Wodak, Sarah-Jane Leslie,
+and Marjorie Rhodes. 2015. What a loaded generalization: Gener- Philosophy Compass, ics and social cognition. 10(9):625–635.
+Wanzheng Zhu and S. Bhat. 2021. Generate, prune, select: A pipeline for counterspeech generation against online hate speech. In FINDINGS.
+Marc Ziegele, Pablo Jost, Marike Bormann, and Do- Journalistic counter- minique Heinbach. 2018. voices in comment sections: Patterns, determinants, and potential consequences of interactive modera- tion of uncivil user comments.
+A Data Processing
+To construct the hedged counterstatments, if the main verb is ‘is’ or ‘are’ we convert it to ‘can also be’. For example ‘men are vain’ becomes ‘men can also be vain’. If the main verb is ‘should’ we convert it to ‘should also’. Otherwise, we insert
+‘may also’ before the quality. For example, ‘men think they know everything’ becomes ‘men may also think they know everything’.
+We also note that the group names in Table 2 have been normalized. We will include both the normalized and unnormalized names in the re- leased data.
+A.1 GPT-3 Generation
+We access GPT-3 using the API from OpenAI3. To obtain subtypes from GPT-3 we use the ‘davinci’ model and top-p sampling with p = 0.9, temper- ature 0.8 and maximum length 100 tokens. The presence and frequency penalties are both 0. We kept the top 5 generations from GPT-3. We ﬁlter out generations that are the same as the queried group. The prompts are shown in Table 3. We randomized the order of the 5 examples in each prompt for every group.
+B Human Studies
+For our user studies, we recruit annotators from Amazon Mechanical Turk who were qualiﬁed for a toxicity explanation task from our previous work (Anonymous, 2020).4 Racial and gender break- downs of our annotator pool are in Figure 5. Anno- tators were paid $0.27 per task. For each instance in each of the three settings we have 3 annotators. This study was approved by our institution’s ethics board (IRB).
+We show the detailed task instructions in Fig- ure 6. An example of the task setup is shown in Figure 7. Before choosing the most convincing counter statements, annotators have the option to mark each statement as incorrect or ungrammatical (Figure 7b). Note that before asking annotators to select their second choice, we include an attention check (in Figure 7c). The attention check was ran- domly set in each HIT. Annotations where the at- tention check incorrect were discarded. As a result, we removed 3 annotations from the post setting, 5 from the stereo setting, and 4 from post+stereo.
+For each annotation, we also collected de- mographic information (Figure 8). The demo- graphic information is associated only with an an- nonymized annotator ID. Additionally, before anno- tators select counter-statements, we ask annotators
+3https://beta.openai.com/docs/
+introduction
+4Anonymized to preserve double-blindness of reviewing,
+will be de-anonymized upon public release.
+
+
+Counterstatement Type Prompt DIR-GRP
+Consider the following groups of men: 1. male students 2. male authors 3. male atheletes 4. businessmen 5. male movie stars ## ## Consider the following groups of GROUP: Consider the following groups of men: 1. Barack Obama 2. Sherlock Holmes 3. Usain Bolt 4. Ryan Reynolds 5. Stephan Hawking ## ## Consider the following groups of GROUP:
+DIR-IND
+(cid:27)(cid:18)(cid:20)(cid:20)(cid:18)(cid:21)(cid:21)(cid:15)(cid:3)(cid:23)(cid:29)(cid:19)(cid:22)(cid:3)(cid:51)(cid:48)(cid:75)(cid:87)(cid:87)(cid:83)(cid:86)(cid:29)(cid:18)(cid:18)(cid:75)(cid:82)(cid:80)(cid:72)(cid:86)(cid:17)(cid:70)(cid:86)(cid:17)(cid:90)(cid:68)(cid:86)(cid:75)(cid:76)(cid:81)(cid:74)(cid:87)(cid:82)(cid:81)(cid:17)(cid:72)(cid:71)(cid:88)(cid:18)(cid:97)(cid:80)(cid:86)(cid:68)(cid:83)(cid:18)(cid:71)(cid:72)(cid:69)(cid:88)(cid:74)(cid:18)(cid:81)(cid:72)(cid:88)(cid:85)(cid:68)(cid:79)(cid:16)(cid:71)(cid:72)(cid:87)(cid:82)(cid:91)(cid:18)(cid:86)(cid:87)(cid:68)(cid:87)(cid:72)(cid:80)(cid:72)(cid:81)(cid:87)(cid:14)(cid:86)(cid:87)(cid:72)(cid:85)(cid:72)(cid:82)(cid:87)(cid:92)(cid:83)(cid:72)(cid:16)(cid:24)(cid:82)(cid:83)(cid:87)(cid:76)(cid:82)(cid:81)(cid:86)(cid:17)(cid:75)(cid:87)(cid:80)(cid:79)(cid:75)(cid:87)(cid:87)(cid:83)(cid:86)(cid:29)(cid:18)(cid:18)(cid:75)(cid:82)(cid:80)(cid:72)(cid:86)(cid:17)(cid:70)(cid:86)(cid:17)(cid:90)(cid:68)(cid:86)(cid:75)(cid:76)(cid:81)(cid:74)(cid:87)(cid:82)(cid:81)(cid:17)(cid:72)(cid:71)(cid:88)(cid:18)(cid:97)(cid:80)(cid:86)(cid:68)(cid:83)(cid:18)(cid:71)(cid:72)(cid:69)(cid:88)(cid:74)(cid:18)(cid:81)(cid:72)(cid:88)(cid:85)(cid:68)(cid:79)(cid:16)(cid:71)(cid:72)(cid:87)(cid:82)(cid:91)(cid:18)(cid:86)(cid:87)(cid:68)(cid:87)(cid:72)(cid:80)(cid:72)(cid:81)(cid:87)(cid:14)(cid:86)(cid:87)(cid:72)(cid:85)(cid:72)(cid:82)(cid:87)(cid:92)(cid:83)(cid:72)(cid:16)(cid:24)(cid:82)(cid:83)(cid:87)(cid:76)(cid:82)(cid:81)(cid:86)(cid:17)(cid:75)(cid:87)(cid:80)(cid:79)(cid:21)(cid:18)(cid:22)
+Table 3: Prompts for generating subtypes for GROUP from GPT3 (e.g., GROUP=women).
+(cid:51)(cid:79)(cid:68)(cid:92)(cid:3)(cid:87)(cid:75)(cid:72)(cid:3)(cid:85)(cid:82)(cid:79)(cid:72)(cid:3)(cid:82)(cid:73)(cid:3)(cid:68)(cid:81)(cid:3)(cid:82)(cid:81)(cid:79)(cid:76)(cid:81)(cid:72)(cid:3)(cid:73)(cid:68)(cid:70)(cid:87)(cid:16)(cid:70)(cid:75)(cid:72)(cid:70)(cid:78)(cid:72)(cid:85)(cid:3)(cid:68)(cid:81)(cid:71)(cid:3)(cid:70)(cid:82)(cid:81)(cid:87)(cid:72)(cid:81)(cid:87)(cid:3)(cid:80)(cid:82)(cid:71)(cid:72)(cid:85)(cid:68)(cid:87)(cid:82)(cid:85)(cid:15)(cid:3)(cid:69)(cid:92)(cid:3)(cid:71)(cid:72)(cid:87)(cid:72)(cid:85)(cid:80)(cid:76)(cid:81)(cid:76)(cid:81)(cid:74)(cid:3)(cid:90)(cid:75)(cid:76)(cid:70)(cid:75)(cid:3)(cid:70)(cid:82)(cid:88)(cid:81)(cid:87)(cid:72)(cid:85)(cid:3)(cid:86)(cid:87)(cid:68)(cid:87)(cid:72)(cid:80)(cid:72)(cid:81)(cid:87)(cid:3)(cid:76)(cid:86)(cid:3)(cid:69)(cid:72)(cid:86)(cid:87)(cid:3)(cid:87)(cid:82)(cid:71)(cid:76)(cid:86)(cid:83)(cid:85)(cid:82)(cid:89)(cid:72)(cid:3)(cid:82)(cid:85)(cid:3)(cid:68)(cid:85)(cid:74)(cid:88)(cid:72)(cid:3)(cid:68)(cid:74)(cid:68)(cid:76)(cid:81)(cid:86)(cid:87)(cid:3)(cid:68)(cid:3)(cid:86)(cid:87)(cid:68)(cid:87)(cid:72)(cid:80)(cid:72)(cid:81)(cid:87)(cid:3)(cid:90)(cid:75)(cid:76)(cid:70)(cid:75)(cid:3)(cid:76)(cid:80)(cid:83)(cid:79)(cid:76)(cid:72)(cid:86)(cid:3)(cid:68)(cid:3)(cid:86)(cid:87)(cid:72)(cid:85)(cid:72)(cid:82)(cid:87)(cid:92)(cid:83)(cid:72)(cid:3)(cid:68)(cid:69)(cid:82)(cid:88)(cid:87)(cid:3)(cid:83)(cid:72)(cid:82)(cid:83)(cid:79)(cid:72)(cid:3)(cid:11)(cid:87)(cid:75)(cid:76)(cid:86)(cid:3)(cid:86)(cid:75)(cid:82)(cid:88)(cid:79)(cid:71)(cid:3)(cid:87)(cid:68)(cid:78)(cid:72)(cid:3)(cid:79)(cid:72)(cid:86)(cid:86)(cid:3)(cid:87)(cid:75)(cid:68)(cid:81)(cid:3)(cid:22)(cid:80)(cid:76)(cid:81)(cid:88)(cid:87)(cid:72)(cid:86)(cid:12)(cid:17)(cid:3)(cid:49)(cid:82)(cid:87)(cid:72)(cid:29)(cid:3)(cid:87)(cid:75)(cid:76)(cid:86)(cid:3)(cid:76)(cid:86)(cid:3)(cid:68)(cid:3)(cid:83)(cid:76)(cid:79)(cid:82)(cid:87)(cid:3)(cid:87)(cid:68)(cid:86)(cid:78)(cid:15)(cid:3)(cid:80)(cid:82)(cid:85)(cid:72)(cid:3)(cid:43)(cid:44)(cid:55)(cid:86)(cid:3)(cid:90)(cid:76)(cid:79)(cid:79)(cid:3)(cid:69)(cid:72)(cid:3)(cid:68)(cid:89)(cid:68)(cid:76)(cid:79)(cid:68)(cid:69)(cid:79)(cid:72)(cid:3)(cid:76)(cid:81)(cid:3)(cid:87)(cid:75)(cid:72)(cid:3)(cid:73)(cid:88)(cid:87)(cid:88)(cid:85)(cid:72)(cid:17)(cid:3)(cid:51)(cid:79)(cid:72)(cid:68)(cid:86)(cid:72)(cid:3)(cid:83)(cid:85)(cid:82)(cid:89)(cid:76)(cid:71)(cid:72)(cid:3)(cid:88)(cid:86)(cid:3)(cid:90)(cid:76)(cid:87)(cid:75)(cid:3)(cid:73)(cid:72)(cid:72)(cid:71)(cid:69)(cid:68)(cid:70)(cid:78)(cid:3)(cid:68)(cid:87)(cid:87)(cid:75)(cid:72)(cid:3)(cid:72)(cid:81)(cid:71)(cid:3)(cid:82)(cid:73)(cid:3)(cid:87)(cid:75)(cid:72)(cid:3)(cid:43)(cid:44)(cid:55)(cid:17)(cid:3)(cid:40)(cid:80)(cid:83)(cid:79)(cid:82)(cid:92)(cid:72)(cid:72)(cid:86)(cid:3)(cid:82)(cid:85)(cid:3)(cid:86)(cid:87)(cid:88)(cid:71)(cid:72)(cid:81)(cid:87)(cid:86)(cid:3)(cid:82)(cid:73)(cid:3)(cid:87)(cid:75)(cid:72)(cid:3)(cid:56)(cid:81)(cid:76)(cid:89)(cid:72)(cid:85)(cid:86)(cid:76)(cid:87)(cid:92)(cid:3)(cid:82)(cid:73)(cid:3)(cid:58)(cid:68)(cid:86)(cid:75)(cid:76)(cid:81)(cid:74)(cid:87)(cid:82)(cid:81)(cid:3)(cid:70)(cid:68)(cid:81)(cid:81)(cid:82)(cid:87)(cid:3)(cid:83)(cid:68)(cid:85)(cid:87)(cid:76)(cid:70)(cid:76)(cid:83)(cid:68)(cid:87)(cid:72)(cid:3)(cid:76)(cid:81)(cid:3)(cid:87)(cid:75)(cid:76)(cid:86)(cid:3)(cid:43)(cid:44)(cid:55)(cid:17)
+(cid:54)(cid:75)(cid:82)(cid:85)(cid:87)(cid:3)(cid:76)(cid:81)(cid:86)(cid:87)(cid:85)(cid:88)(cid:70)(cid:87)(cid:76)(cid:82)(cid:81)(cid:86)
+(cid:27)(cid:18)(cid:20)(cid:20)(cid:18)(cid:21)(cid:21)(cid:15)(cid:3)(cid:23)(cid:29)(cid:19)(cid:22)(cid:3)(cid:51)(cid:48)(cid:75)(cid:87)(cid:87)(cid:83)(cid:86)(cid:29)(cid:18)(cid:18)(cid:75)(cid:82)(cid:80)(cid:72)(cid:86)(cid:17)(cid:70)(cid:86)(cid:17)(cid:90)(cid:68)(cid:86)(cid:75)(cid:76)(cid:81)(cid:74)(cid:87)(cid:82)(cid:81)(cid:17)(cid:72)(cid:71)(cid:88)(cid:18)(cid:97)(cid:80)(cid:86)(cid:68)(cid:83)(cid:18)(cid:71)(cid:72)(cid:69)(cid:88)(cid:74)(cid:18)(cid:81)(cid:72)(cid:88)(cid:85)(cid:68)(cid:79)(cid:16)(cid:71)(cid:72)(cid:87)(cid:82)(cid:91)(cid:18)(cid:86)(cid:87)(cid:68)(cid:87)(cid:72)(cid:80)(cid:72)(cid:81)(cid:87)(cid:14)(cid:86)(cid:87)(cid:72)(cid:85)(cid:72)(cid:82)(cid:87)(cid:92)(cid:83)(cid:72)(cid:16)(cid:24)(cid:82)(cid:83)(cid:87)(cid:76)(cid:82)(cid:81)(cid:86)(cid:17)(cid:75)(cid:87)(cid:80)(cid:79)(cid:75)(cid:87)(cid:87)(cid:83)(cid:86)(cid:29)(cid:18)(cid:18)(cid:75)(cid:82)(cid:80)(cid:72)(cid:86)(cid:17)(cid:70)(cid:86)(cid:17)(cid:90)(cid:68)(cid:86)(cid:75)(cid:76)(cid:81)(cid:74)(cid:87)(cid:82)(cid:81)(cid:17)(cid:72)(cid:71)(cid:88)(cid:18)(cid:97)(cid:80)(cid:86)(cid:68)(cid:83)(cid:18)(cid:71)(cid:72)(cid:69)(cid:88)(cid:74)(cid:18)(cid:81)(cid:72)(cid:88)(cid:85)(cid:68)(cid:79)(cid:16)(cid:71)(cid:72)(cid:87)(cid:82)(cid:91)(cid:18)(cid:86)(cid:87)(cid:68)(cid:87)(cid:72)(cid:80)(cid:72)(cid:81)(cid:87)(cid:14)(cid:86)(cid:87)(cid:72)(cid:85)(cid:72)(cid:82)(cid:87)(cid:92)(cid:83)(cid:72)(cid:16)(cid:24)(cid:82)(cid:83)(cid:87)(cid:76)(cid:82)(cid:81)(cid:86)(cid:17)(cid:75)(cid:87)(cid:80)(cid:79)(cid:20)(cid:18)(cid:22)
+(cid:27)(cid:18)(cid:20)(cid:20)(cid:18)(cid:21)(cid:21)(cid:15)(cid:3)(cid:23)(cid:29)(cid:19)(cid:22)(cid:3)(cid:51)(cid:48)(cid:75)(cid:87)(cid:87)(cid:83)(cid:86)(cid:29)(cid:18)(cid:18)(cid:75)(cid:82)(cid:80)(cid:72)(cid:86)(cid:17)(cid:70)(cid:86)(cid:17)(cid:90)(cid:68)(cid:86)(cid:75)(cid:76)(cid:81)(cid:74)(cid:87)(cid:82)(cid:81)(cid:17)(cid:72)(cid:71)(cid:88)(cid:18)(cid:97)(cid:80)(cid:86)(cid:68)(cid:83)(cid:18)(cid:71)(cid:72)(cid:69)(cid:88)(cid:74)(cid:18)(cid:81)(cid:72)(cid:88)(cid:85)(cid:68)(cid:79)(cid:16)(cid:71)(cid:72)(cid:87)(cid:82)(cid:91)(cid:18)(cid:86)(cid:87)(cid:68)(cid:87)(cid:72)(cid:80)(cid:72)(cid:81)(cid:87)(cid:14)(cid:86)(cid:87)(cid:72)(cid:85)(cid:72)(cid:82)(cid:87)(cid:92)(cid:83)(cid:72)(cid:16)(cid:24)(cid:82)(cid:83)(cid:87)(cid:76)(cid:82)(cid:81)(cid:86)(cid:17)(cid:75)(cid:87)(cid:80)(cid:79)(cid:75)(cid:87)(cid:87)(cid:83)(cid:86)(cid:29)(cid:18)(cid:18)(cid:75)(cid:82)(cid:80)(cid:72)(cid:86)(cid:17)(cid:70)(cid:86)(cid:17)(cid:90)(cid:68)(cid:86)(cid:75)(cid:76)(cid:81)(cid:74)(cid:87)(cid:82)(cid:81)(cid:17)(cid:72)(cid:71)(cid:88)(cid:18)(cid:97)(cid:80)(cid:86)(cid:68)(cid:83)(cid:18)(cid:71)(cid:72)(cid:69)(cid:88)(cid:74)(cid:18)(cid:81)(cid:72)(cid:88)(cid:85)(cid:68)(cid:79)(cid:16)(cid:71)(cid:72)(cid:87)(cid:82)(cid:91)(cid:18)(cid:86)(cid:87)(cid:68)(cid:87)(cid:72)(cid:80)(cid:72)(cid:81)(cid:87)(cid:14)(cid:86)(cid:87)(cid:72)(cid:85)(cid:72)(cid:82)(cid:87)(cid:92)(cid:83)(cid:72)(cid:16)(cid:24)(cid:82)(cid:83)(cid:87)(cid:76)(cid:82)(cid:81)(cid:86)(cid:17)(cid:75)(cid:87)(cid:80)(cid:79)(cid:20)(cid:18)(cid:22)
+(cid:54)(cid:75)(cid:82)(cid:85)(cid:87)(cid:3)(cid:76)(cid:81)(cid:86)(cid:87)(cid:85)(cid:88)(cid:70)(cid:87)(cid:76)(cid:82)(cid:81)(cid:86)
+(cid:51)(cid:79)(cid:68)(cid:92)(cid:3)(cid:87)(cid:75)(cid:72)(cid:3)(cid:85)(cid:82)(cid:79)(cid:72)(cid:3)(cid:82)(cid:73)(cid:3)(cid:68)(cid:81)(cid:3)(cid:82)(cid:81)(cid:79)(cid:76)(cid:81)(cid:72)(cid:3)(cid:73)(cid:68)(cid:70)(cid:87)(cid:16)(cid:70)(cid:75)(cid:72)(cid:70)(cid:78)(cid:72)(cid:85)(cid:3)(cid:68)(cid:81)(cid:71)(cid:3)(cid:70)(cid:82)(cid:81)(cid:87)(cid:72)(cid:81)(cid:87)(cid:3)(cid:80)(cid:82)(cid:71)(cid:72)(cid:85)(cid:68)(cid:87)(cid:82)(cid:85)(cid:15)(cid:3)(cid:69)(cid:92)(cid:3)(cid:71)(cid:72)(cid:87)(cid:72)(cid:85)(cid:80)(cid:76)(cid:81)(cid:76)(cid:81)(cid:74)(cid:3)(cid:90)(cid:75)(cid:76)(cid:70)(cid:75)(cid:3)(cid:70)(cid:82)(cid:88)(cid:81)(cid:87)(cid:72)(cid:85)(cid:3)(cid:86)(cid:87)(cid:68)(cid:87)(cid:72)(cid:80)(cid:72)(cid:81)(cid:87)(cid:3)(cid:76)(cid:86)(cid:3)(cid:69)(cid:72)(cid:86)(cid:87)(cid:3)(cid:87)(cid:82)(cid:71)(cid:76)(cid:86)(cid:83)(cid:85)(cid:82)(cid:89)(cid:72)(cid:3)(cid:82)(cid:85)(cid:3)(cid:68)(cid:85)(cid:74)(cid:88)(cid:72)(cid:3)(cid:68)(cid:74)(cid:68)(cid:76)(cid:81)(cid:86)(cid:87)(cid:3)(cid:68)(cid:3)(cid:86)(cid:87)(cid:68)(cid:87)(cid:72)(cid:80)(cid:72)(cid:81)(cid:87)(cid:3)(cid:90)(cid:75)(cid:76)(cid:70)(cid:75)(cid:3)(cid:76)(cid:80)(cid:83)(cid:79)(cid:76)(cid:72)(cid:86)(cid:3)(cid:68)(cid:3)(cid:86)(cid:87)(cid:72)(cid:85)(cid:72)(cid:82)(cid:87)(cid:92)(cid:83)(cid:72)(cid:3)(cid:68)(cid:69)(cid:82)(cid:88)(cid:87)(cid:3)(cid:83)(cid:72)(cid:82)(cid:83)(cid:79)(cid:72)(cid:3)(cid:11)(cid:87)(cid:75)(cid:76)(cid:86)(cid:3)(cid:86)(cid:75)(cid:82)(cid:88)(cid:79)(cid:71)(cid:3)(cid:87)(cid:68)(cid:78)(cid:72)(cid:3)(cid:79)(cid:72)(cid:86)(cid:86)(cid:3)(cid:87)(cid:75)(cid:68)(cid:81)(cid:3)(cid:22)(cid:80)(cid:76)(cid:81)(cid:88)(cid:87)(cid:72)(cid:86)(cid:12)(cid:17)(cid:3)(cid:49)(cid:82)(cid:87)(cid:72)(cid:29)(cid:3)(cid:87)(cid:75)(cid:76)(cid:86)(cid:3)(cid:76)(cid:86)(cid:3)(cid:68)(cid:3)(cid:83)(cid:76)(cid:79)(cid:82)(cid:87)(cid:3)(cid:87)(cid:68)(cid:86)(cid:78)(cid:15)(cid:3)(cid:80)(cid:82)(cid:85)(cid:72)(cid:3)(cid:43)(cid:44)(cid:55)(cid:86)(cid:3)(cid:90)(cid:76)(cid:79)(cid:79)(cid:3)(cid:69)(cid:72)(cid:3)(cid:68)(cid:89)(cid:68)(cid:76)(cid:79)(cid:68)(cid:69)(cid:79)(cid:72)(cid:3)(cid:76)(cid:81)(cid:3)(cid:87)(cid:75)(cid:72)(cid:3)(cid:73)(cid:88)(cid:87)(cid:88)(cid:85)(cid:72)(cid:17)(cid:3)(cid:51)(cid:79)(cid:72)(cid:68)(cid:86)(cid:72)(cid:3)(cid:83)(cid:85)(cid:82)(cid:89)(cid:76)(cid:71)(cid:72)(cid:3)(cid:88)(cid:86)(cid:3)(cid:90)(cid:76)(cid:87)(cid:75)(cid:3)(cid:73)(cid:72)(cid:72)(cid:71)(cid:69)(cid:68)(cid:70)(cid:78)(cid:3)(cid:68)(cid:87)(cid:87)(cid:75)(cid:72)(cid:3)(cid:72)(cid:81)(cid:71)(cid:3)(cid:82)(cid:73)(cid:3)(cid:87)(cid:75)(cid:72)(cid:3)(cid:43)(cid:44)(cid:55)(cid:17)(cid:3)(cid:40)(cid:80)(cid:83)(cid:79)(cid:82)(cid:92)(cid:72)(cid:72)(cid:86)(cid:3)(cid:82)(cid:85)(cid:3)(cid:86)(cid:87)(cid:88)(cid:71)(cid:72)(cid:81)(cid:87)(cid:86)(cid:3)(cid:82)(cid:73)(cid:3)(cid:87)(cid:75)(cid:72)(cid:3)(cid:56)(cid:81)(cid:76)(cid:89)(cid:72)(cid:85)(cid:86)(cid:76)(cid:87)(cid:92)(cid:3)(cid:82)(cid:73)(cid:3)(cid:58)(cid:68)(cid:86)(cid:75)(cid:76)(cid:81)(cid:74)(cid:87)(cid:82)(cid:81)(cid:3)(cid:70)(cid:68)(cid:81)(cid:81)(cid:82)(cid:87)(cid:3)(cid:83)(cid:68)(cid:85)(cid:87)(cid:76)(cid:70)(cid:76)(cid:83)(cid:68)(cid:87)(cid:72)(cid:3)(cid:76)(cid:81)(cid:3)(cid:87)(cid:75)(cid:76)(cid:86)(cid:3)(cid:43)(cid:44)(cid:55)(cid:17)
+(a) Input presentation for post+stereo setting. The statement was removed for the stereo setting and the stereotype was removed in the post setting.
+(b) Example presentation. All ﬁve types of counter statements are listed in the same manner.
+(cid:27)(cid:18)(cid:20)(cid:20)(cid:18)(cid:21)(cid:21)(cid:15)(cid:3)(cid:23)(cid:29)(cid:19)(cid:22)(cid:3)(cid:51)(cid:48)(cid:75)(cid:87)(cid:87)(cid:83)(cid:86)(cid:29)(cid:18)(cid:18)(cid:75)(cid:82)(cid:80)(cid:72)(cid:86)(cid:17)(cid:70)(cid:86)(cid:17)(cid:90)(cid:68)(cid:86)(cid:75)(cid:76)(cid:81)(cid:74)(cid:87)(cid:82)(cid:81)(cid:17)(cid:72)(cid:71)(cid:88)(cid:18)(cid:97)(cid:80)(cid:86)(cid:68)(cid:83)(cid:18)(cid:71)(cid:72)(cid:69)(cid:88)(cid:74)(cid:18)(cid:81)(cid:72)(cid:88)(cid:85)(cid:68)(cid:79)(cid:16)(cid:71)(cid:72)(cid:87)(cid:82)(cid:91)(cid:18)(cid:86)(cid:87)(cid:68)(cid:87)(cid:72)(cid:80)(cid:72)(cid:81)(cid:87)(cid:14)(cid:86)(cid:87)(cid:72)(cid:85)(cid:72)(cid:82)(cid:87)(cid:92)(cid:83)(cid:72)(cid:16)(cid:24)(cid:82)(cid:83)(cid:87)(cid:76)(cid:82)(cid:81)(cid:86)(cid:17)(cid:75)(cid:87)(cid:80)(cid:79)(cid:75)(cid:87)(cid:87)(cid:83)(cid:86)(cid:29)(cid:18)(cid:18)(cid:75)(cid:82)(cid:80)(cid:72)(cid:86)(cid:17)(cid:70)(cid:86)(cid:17)(cid:90)(cid:68)(cid:86)(cid:75)(cid:76)(cid:81)(cid:74)(cid:87)(cid:82)(cid:81)(cid:17)(cid:72)(cid:71)(cid:88)(cid:18)(cid:97)(cid:80)(cid:86)(cid:68)(cid:83)(cid:18)(cid:71)(cid:72)(cid:69)(cid:88)(cid:74)(cid:18)(cid:81)(cid:72)(cid:88)(cid:85)(cid:68)(cid:79)(cid:16)(cid:71)(cid:72)(cid:87)(cid:82)(cid:91)(cid:18)(cid:86)(cid:87)(cid:68)(cid:87)(cid:72)(cid:80)(cid:72)(cid:81)(cid:87)(cid:14)(cid:86)(cid:87)(cid:72)(cid:85)(cid:72)(cid:82)(cid:87)(cid:92)(cid:83)(cid:72)(cid:16)(cid:24)(cid:82)(cid:83)(cid:87)(cid:76)(cid:82)(cid:81)(cid:86)(cid:17)(cid:75)(cid:87)(cid:80)(cid:79)(cid:21)(cid:18)(cid:22)
+Figure 6: Detailed annotation instructions for human studies.
+(c) Annotation questions and attention check.
+Figure 7: Details of the annotation task for human stud- ies.
+
+
+(cid:27)(cid:18)(cid:20)(cid:20)(cid:18)(cid:21)(cid:21)(cid:15)(cid:3)(cid:23)(cid:29)(cid:19)(cid:22)(cid:3)(cid:51)(cid:48)(cid:75)(cid:87)(cid:87)(cid:83)(cid:86)(cid:29)(cid:18)(cid:18)(cid:75)(cid:82)(cid:80)(cid:72)(cid:86)(cid:17)(cid:70)(cid:86)(cid:17)(cid:90)(cid:68)(cid:86)(cid:75)(cid:76)(cid:81)(cid:74)(cid:87)(cid:82)(cid:81)(cid:17)(cid:72)(cid:71)(cid:88)(cid:18)(cid:97)(cid:80)(cid:86)(cid:68)(cid:83)(cid:18)(cid:71)(cid:72)(cid:69)(cid:88)(cid:74)(cid:18)(cid:81)(cid:72)(cid:88)(cid:85)(cid:68)(cid:79)(cid:16)(cid:71)(cid:72)(cid:87)(cid:82)(cid:91)(cid:18)(cid:86)(cid:87)(cid:68)(cid:87)(cid:72)(cid:80)(cid:72)(cid:81)(cid:87)(cid:14)(cid:86)(cid:87)(cid:72)(cid:85)(cid:72)(cid:82)(cid:87)(cid:92)(cid:83)(cid:72)(cid:16)(cid:24)(cid:82)(cid:83)(cid:87)(cid:76)(cid:82)(cid:81)(cid:86)(cid:17)(cid:75)(cid:87)(cid:80)(cid:79)(cid:75)(cid:87)(cid:87)(cid:83)(cid:86)(cid:29)(cid:18)(cid:18)(cid:75)(cid:82)(cid:80)(cid:72)(cid:86)(cid:17)(cid:70)(cid:86)(cid:17)(cid:90)(cid:68)(cid:86)(cid:75)(cid:76)(cid:81)(cid:74)(cid:87)(cid:82)(cid:81)(cid:17)(cid:72)(cid:71)(cid:88)(cid:18)(cid:97)(cid:80)(cid:86)(cid:68)(cid:83)(cid:18)(cid:71)(cid:72)(cid:69)(cid:88)(cid:74)(cid:18)(cid:81)(cid:72)(cid:88)(cid:85)(cid:68)(cid:79)(cid:16)(cid:71)(cid:72)(cid:87)(cid:82)(cid:91)(cid:18)(cid:86)(cid:87)(cid:68)(cid:87)(cid:72)(cid:80)(cid:72)(cid:81)(cid:87)(cid:14)(cid:86)(cid:87)(cid:72)(cid:85)(cid:72)(cid:82)(cid:87)(cid:92)(cid:83)(cid:72)(cid:16)(cid:24)(cid:82)(cid:83)(cid:87)(cid:76)(cid:82)(cid:81)(cid:86)(cid:17)(cid:75)(cid:87)(cid:80)(cid:79)(cid:21)(cid:18)(cid:22)
+Figure 8: Demographic questionnaire in human stud- ies.
+Figure 9: Questions about stereotype belief of annota- tors.
+to indicate their own belief in or agreement with the provided statement and stereotype (Figure 9).

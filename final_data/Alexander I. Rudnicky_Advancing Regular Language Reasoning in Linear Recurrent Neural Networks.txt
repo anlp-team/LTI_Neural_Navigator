@@ -1,0 +1,176 @@
+3 2 0 2
+p e S 4 1
+] L C . s c [
+1 v 2 1 4 7 0 . 9 0 3 2 : v i X r a
+Advancing Regular Language Reasoning in Linear Recurrent Neural Networks Ting-Han Fan∗ Independent Researcher tinghanf@alumni.princeton.edu
+Ta-Chung Chi∗ Carnegie Mellon University tachungc@andrew.cmu.edu
+Alexander I. Rudnicky Carnegie Mellon University air@cs.cmu.edu
+Abstract
+In recent studies, linear recurrent neural net- works (LRNNs) have achieved Transformer- level performance in natural language modeling and long-range modeling while offering rapid parallel training and constant inference costs. With the resurged interest in LRNNs, we study whether they can learn the hidden rules in train- ing sequences, such as the grammatical struc- tures of regular language. We theoretically ana- lyze some existing LRNNs and discover their limitations on regular language. Motivated by the analysis, we propose a new LRNN equipped with a block-diagonal and input-dependent tran- sition matrix. Experiments suggest that the proposed model is the only LRNN that can per- form length extrapolation on regular language tasks such as Sum, Even Pair, and Modular Arithmetic.
+1
+Introduction
+There is a recent surge of using linear recurrent neural networks (RNNs) (Gu et al., 2022; Peng et al., 2023; Orvieto et al., 2023) as alternatives to the de-facto Transformer architecture (Vaswani et al., 2017; Radford et al., 2019) that is ingrained in the field of natural language processing. LRNNs depart from the inter-timestep non-linearity design principle of classic RNNs (Elman, 1990; Jordan, 1997; Hochreiter and Schmidhuber, 1997; Cho et al., 2014) while at the same time: 1. achieve Transformer-level performance on the task of natu- ral language modeling (Fu et al., 2023; Poli et al., 2023) and even better performance on synthetic long range modeling tasks (Gu et al., 2022; Gupta et al., 2022; Orvieto et al., 2023; Hasani et al., 2023; Smith et al., 2023). 2. have the added benefits of fast parallelizable training (Martin and Cundy, 2018) and constant inference cost.
+In spite of the remarkable empirical performance on natural language, there has been no research on
+LRNNs’ ability to model regular language. Regular language is a type of language that strictly follows certain rules like grammar.1 This is very different from natural language as human language is full of ambiguities. The successful modeling of a regular language is important since it implies a model’s ability to learn the underlying rules of the data. For example, if the training data are arithmetic opera- tions such as 1 + 2 × 3, the model should learn the rules of a+b, a×b, and that × has a higher priority than +. Learning unambiguous rules behind the data is a critical step toward sequence modeling with regulated output.
+In this paper, we aim to determine if existing LRNNs are competent to learn the correct grammar of regular language by testing their language trans- duction capability under the extrapolation setting. Concretely, a model is trained only to predict the desired outputs on a set of short sequences of length Ltr. It then needs to predict the correct outputs for longer testing sequences of length Lex ≫ Ltr.
+We theoretically show that some of the recently proposed LRNNs lack the expressiveness to en- code certain arithmetic operations used in the tasks of regular language. In light of this observation, we propose a new LRNN equipped with a block- diagonal and input-dependent transition matrix. The two modifications of our proposed LRNN al- low the model to learn and follow the grammar of the regular language. Experiments show that the proposed model is the only LRNN architecture that can extrapolate on regular language tasks such as Sum, Even Pair, and Modular Arithmetic.
+2 Limitations of Prior Work
+In this section, we show that most LRNNs are un- able to represent arithmetic operations, posing a serious issue under the extrapolation setting where
+∗
+Equal contribution
+1Formally speaking, the rules are defined/recognized by
+the underlying finite state machine.
+
+
+the model has to learn the underlying language to combat the length distributional shift.
+2.1 Linear RNN
+In this paper, we consider a general family of LRNNs as follows.
+xk = Akxk−1 + Buk yk = h(xk).
+(1)
+Ak is a matrix that defines the recurrence relation. Ak may or may not depend on the input uk. When it is input-independent, Ak is reduced to A; other- wise, Ak = g(uk) for some function g. The first line encodes a linear recurrence on the state xk. The second line is an output yk that depends on xk. To control the model’s expressiveness, the function h may or may not be a linear operation. Since the existing LRNNs differ in their linear recurrence relations (Eq. (2), (3), and (4)), we mainly focus on the linear recurrence of each model in this paper.
+2.2
+Input-independent LRNN
+To begin with, state-space models (in discrete-time format) follow the standard LRNN recurrence.
+xk = Axk−1 + Buk
+(2)
+Eq. (2) encapsulates the recurrence relation of the S4 models (Gu et al., 2022; Gupta et al., 2022), S5 model (Smith et al., 2023), and Linear Recurrent Unit (Orvieto et al., 2023). For example, A is in the family of HiPPO matrix (Gu et al., 2023) in S4 or a complex diagonal matrix in Linear Recurrent Unit. We show in Proposition 1 that such input- independent A matrix cannot represent subtraction.
+Proposition 1. An input-independent LRNN is in- consistent in representing subtraction.
+Proof. Denote u0, u−, and u1 as the input vector w.r.t. input character 0, -, and 1. Denote z as the initial state vector. The sequences "0-1" and "1-0" are represented as
+x0−1 = A3z + A2u0 + Au− + u1, x1−0 = A3z + A2u1 + Au− + u0,
+for "0-1"
+for "1-0"
+Because 0 − 1 ̸= 1 − 0, by forcing x0−1 ̸= x1−0, we have
+A2u0 + Au− + u1 ̸= A2u1 + Au− + u0.
+On the other hand, let x0− = A2z + Au0 + u− be the vector representation for "0-". The sequences "0-0-1" and "0-1-0" are represented as
+x0−0−1 = A3x0− + A2u0 + Au− + u1 x0−1−0 = A3x0− + A2u1 + Au− + u0.
+Notice x0−0−1 is for "0-0-1" while x0−1−0 for "0- 1-0". Enforcing x0−0−1 = x0−1−0, we have
+A2u0 + Au− + u1 = A2u1 + Au− + u0,
+which is a contradiction.
+2.3
+Input-dependent Diagonal LRNN
+To reduce the computational complexity of LRNNs, there has been interest in applying diagonal lin- ear recurrence (Gupta et al., 2022; Smith et al., 2023; Orvieto et al., 2023). In particular, prior work adopts input-independent diagonal recurrence and is unable to represent subtraction as shown in §2.2. As a result, one may wonder if generalizing the model to diagonal input-dependent RNNs can solve the problem, as defined in Eq. (3).
+xk = diag(vk)xk−1 + Buk,
+where vk = f (uk) is a vector that depends on uk. To answer this question, we show that an input- dependent diagonal LRNN cannot represent sub- traction in proposition 2.
+Proposition 2. An input-dependent diagonal linear RNN is inconsistent in representing subtraction.
+The proof is essentially a generalization of Propo- sition 1 and is deferred to Appendix A.1.
+2.4
+Implication
+Note the failure in representation implies the ex- trapolation error is large, but the model may still perform well if the testing length is no greater than the training length. We will evaluate this in §4.
+3 Proposed Method
+3.1 Motivation from Liquid-S4
+The recently proposed liquid-S4 (Hasani et al., 2023) can be seen as a generalization of Eq. (2) and (3), as its transition matrix is composed of an input-independent block matrix and an input- dependent diagonal matrix with the following re- currence.
+xk = Axk−1 + (Buk) ⊙ xk−1 + Buk = (A + diag(Buk))xk−1 + Buk,
+(3)
+(4)
+
+
+where ⊙ denotes the Hadamard product and diag(w) constructs a diagonal matrix from w.
+Although our experiments in §4.3 show that Liquid-S4 cannot extrapolate on regular language tasks, to our best knowledge, it is still the first to use input-dependent block matrices A + diag(Buk). In §3.2, we will introduce a construction of input- dependent block matrices that can potentially model regular language tasks with sufficient nu- merical stability.
+3.2 Block-diagonal Input-dependent LRNN
+As shown in §2, in the world of LRNNs, neither the input-independent recurrence nor input-dependent diagonal recurrence can accurately represent arith- metic operations. To balance between representa- tion ability and computational efficiency, we pro- pose an input-dependent block-diagonal LRNN as
+xk = Akxk−1 + Buk,
+where Ak = g(uk) is a block diagonal matrix that depends on uk but not on the previous timesteps. g is an arbitrary function with the output being the size of Ak.
+Eq. (5) is numerically unstable because the prod- uct (cid:81)k i=1 Ai could produce large numbers. The solution is to impose additional constraints on the blocks of Ak in Eq (5):
+(cid:16)
+(cid:17)
+k , ..., A(h) A(1) v(i,b) k
+Ak = diag
+k
+(cid:105)
+(cid:104)
+A(i)
+v(i,1) k
+k = ∥v(i,j) k
+. . .
+∥p ≤ 1,
+i ∈ [1, ..., h],
+∈ Rbh×bh
+∈ Rb×b
+j ∈ [1, ..., b],
+where ∥ · ∥p denotes the vector p-norm and v(i,j) is a column vector that depends on uk. For any vector v, we can derive another vector v′ to satisfy p-norm constraint through v′ = v/ max(1, ∥v∥p). Because ∥v∥p ≥ ∥v∥q if p ≤ q, a smaller p im- poses a stronger constraint on the columns of A(i) k . In other words, we can stabilize Eq. (5) by selecting a sufficiently small p.
+Take p = 1 as an example. Every block A(i) k is a matrix that none of its column norms is greater than 1 in ∥ · ∥1. This implies A(i) k is the same kind of matrix. Specifically, let v(1), ..., v(b) be the columns of A(i) k . We have
+k+1A(i)
+k+1A(i)
+(cid:2)∥v(1)∥1 ≤ 1⊤ (cid:12) (cid:12)A(i) (cid:12)
+. . . (cid:12) (cid:12) (cid:12)
+k+1
+(cid:3) = 1⊤ (cid:12) (cid:12)A(i) (cid:12) (cid:12) (cid:12)A(i) (cid:12) ≤ 1⊤. (cid:12) (cid:12)
+k+1A(i)
+∥v(b)∥1 (cid:12) ≤ 1⊤ (cid:12) (cid:12) (cid:12)
+k
+(cid:12) (cid:12)A(i) (cid:12)
+k
+k
+(cid:12) (cid:12) (cid:12)
+k
+(5)
+(6)
+(7)
+Note that 1 is a column vector of all ones. | · | and ≤ are element-wise absolute value and inequality operations. The last two inequalities follow from that A(i) k ’s column norms are no greater than 1 in ∥ · ∥1.
+k+1 and A(i)
+Eq. (7) demonstrates that p = 1 can stabilize the proposed block-diagonal recurrence, Eq. (5). How- ever, a small p restricts a model’s expressiveness. In §4.3, we will show that p = 1.2 is small enough to yield good empirical performance.
+4 Experiments
+4.1 Regular Language Tasks
+Regular language is the type of formal lan- guage recognized by a Finite State Automata (FSA) (Chomsky, 1956). An FSA is described by a 5-tuple (Q, Σ, δ, q0, F ). Q is a finite non-empty set of states. Σ is a finite non-empty set of symbols. q0 ∈ Q is an initial state. δ : Q × Σ → Q is a tran- sition function; F ⊆ Q is a set of final states. As noted in Deletang et al. (2023), language transduc- tion can be more useful than language recognition in practice. Language transduction maps from one string to another while language recognition classi- fies whether a string obeys a rule.
+In this work, we follow the regular language transduction tasks in Deletang et al. (2023). We are particularly interested in Sum(5), EvenPair(5), ModArith(5). For Sum(M), the input is a string {si}n−1 i=0 of numbers in [0, ..., M − 1]. The output is the sum of them under modulo M: (cid:80)n−1 i=0 si mod M . For example, when M = 5, the input "0324" corresponds to the output "4" because 0 + 3 + 2 + 4 mod 5 = 4. Notably, Sum(2) is the famous PARITY problem that evaluates whether there is an odd number of 1’s in a bit string. Thus, Sum(M) is a generalization of PARITY and shares the same characteristic: If one error occurs during the summation, the output will be wrong.
+In EvenPair(M), the input is a string {si}n−1 i=0 of numbers in [0, ..., M − 1]. The output is 1 if sn−1 = s0 and 0 otherwise. For example, when M = 5, the input "0320" corresponds to the output "1" because the first entry equals the last entry. Since EvenPair(M) only cares about the first and last entries, the model should learn to remember the first entry and forget the entries i ∈ [1, .., n−2]. In ModArith(M), the input is a string {si}n−1 i=0 of odd length (i.e., n is odd). The even entries (i ∈ [0, 2, ...]) are numbers in [0, ..., M −1]; The odd en- tries (i ∈ [1, 3, ...]) are symbols in {+, −, ×}. The
+
+
+output is the answer of the mathematical expression under modulo M. For example, when M = 5, the input "1+2-3×4" corresponds to the output "1" be- cause 1 + 2 − 3 × 4 mod 5 = −9 mod 5 = 1. ModArith(M) is much more complicated than Sum(M) and EvenPair(M) because the model should learn to prioritize multiplication over ad- dition and subtraction.
+4.2 Length Extrapolation
+In our pilot experiments, we discovered that all models can achieve near-perfect same-length test- ing accuracy; i.e., testing with Lex = Ltr. We hypothesize that this is because a huge enough model (e.g., enlarging the embedding dimension) can memorize all training sequences. Memorizing the training sequences does not mean the model can do well during testing, especially when the testing sequences are longer than the training ones. To evaluate whether a model learns the underlying rules of the language without simply memorizing the training data, we first train it on sequences of length Ltr generated by an FSA; It is then evaluated on sequences of length Lex > Ltr generated by the same FSA.
+Table 1 summarizes the extrapolation setting. We mostly follow the requirements in Deletang et al. (2023), where the training and extrapola- tion lengths are 40 and 500. The lengths for ModArith(5) are 39 and 499 because this task re- quires odd-length inputs.
+Sum(5) EvenPair(5) ModArith(5)
+Ltr Lex
+40 500
+40 500
+39 499
+Table 1: Our Training and Extrapolation Settings. Ltr and Lex represent the training and extrapolation sequence lengths, respectively.
+4.3 Experimental Results
+We implemented LRNNs such as S4 (Gu et al., 2022), S4D (Gupta et al., 2022), and Liquid-S4 (Hasani et al., 2023) using their released codebases as baseline methods. For the proposed method, we set p = 1.2 in Eq. (6) and train the block-diagonal input-dependent LRNN with (b, h) = (8, 8). Be- cause ModArith is more complicated than Sum and EvenPair, ModArith uses 3 layers while the others take 1 layer. Each layer is a full pass of LRNN as Eq. (1).
+To accelerate the computational speed, all LRNNs in Table 2 are implemented with the paral- lel scan algorithm (Martin and Cundy, 2018). The computational cost of our model is O(b2h log(T )) where b, h and T are block size, number of blocks, and sequence length, respectively. Because the embedding dimension is held fixed as bh, the com- plexity scales linearly w.r.t the block size.
+Table 2 compares the extrapolation ability of our model with other LRNN baselines on regular lan- guage tasks. As we can see, the proposed model, Eq. (5) and (6), is the only LRNN that can extrapo- late on regular language.
+S4 and S4D cannot extrapolate on ModArith. This is expected as Prop. 1 shows that S4 and S4D cannot represent subtraction due to their input- independent transition matrices. As for Liquid-S4, although it uses input-dependent block matrices (discussed in §3.1), it still cannot extrapolate on regular language. We believe this can be explained by its low expressiveness (Eq. (4)) compared to the proposed model (Eq. (5) and (6)). Overall, we can see that the combination of input dependency and sufficient expressiveness plays an important role in terms of regular language modeling.
+Ours S4 S4D Liquid-S4 Sum(5) 1.00 0.27 0.27 EvenPair(5) 0.99 0.81 0.82 ModArith(5) 1.00 0.27 0.27
+0.27 0.72 0.27
+Table 2: Extrapolation on Regular Language Tasks. Each reported number is an average of five random trials. Each random trial returns the best testing accuracy over 40,000 gradient updates.
+5 Conclusion
+In this work, we explore linear RNNs in the realm of regular language modeling. We discover that existing LRNN models cannot represent subtrac- tion and in turn propose a new LRNN equipped with a block-diagonal and input-dependent transi- tion matrix. Our experiments confirm the proposed model’s ability to model regular language tasks like Sum, Even Pair, and Modular Arithmetic under the challenging length extrapolation setting.
+References
+Kyunghyun Cho, Bart van Merriënboer, Caglar Gul- cehre, Dzmitry Bahdanau, Fethi Bougares, Holger
+
+
+Schwenk, and Yoshua Bengio. 2014. Learning phrase representations using RNN encoder–decoder for statistical machine translation. In Proceedings of the 2014 Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 1724– 1734, Doha, Qatar. Association for Computational Linguistics.
+Noam Chomsky. 1956. Three models for the description of language. IRE Transactions on information theory, 2(3):113–124.
+Gregoire Deletang, Anian Ruoss, Jordi Grau-Moya, Tim Genewein, Li Kevin Wenliang, Elliot Catt, Chris Cundy, Marcus Hutter, Shane Legg, Joel Veness, and Pedro A Ortega. 2023. Neural networks and the chomsky hierarchy. In The Eleventh International Conference on Learning Representations.
+Jeffrey L Elman. 1990. Finding structure in time. Cog-
+nitive science, 14(2):179–211.
+Daniel Y Fu, Tri Dao, Khaled Kamal Saab, Armin W Thomas, Atri Rudra, and Christopher Re. 2023. Hun- gry hungry hippos: Towards language modeling with state space models. In The Eleventh International Conference on Learning Representations.
+Albert Gu, Karan Goel, and Christopher Re. 2022. Ef- ficiently modeling long sequences with structured state spaces. In International Conference on Learn- ing Representations.
+Albert Gu, Isys Johnson, Aman Timalsina, Atri Rudra, and Christopher Re. 2023. How to train your HIPPO: State space models with generalized orthogonal basis projections. In International Conference on Learning Representations.
+Ankit Gupta, Albert Gu, and Jonathan Berant. 2022. Diagonal state spaces are as effective as structured In Advances in Neural Information state spaces. Processing Systems.
+Ramin Hasani, Mathias Lechner, Tsun-Hsuan Wang, Makram Chahine, Alexander Amini, and Daniela Rus. 2023. Liquid structural state-space models. In The Eleventh International Conference on Learning Representations.
+Sepp Hochreiter and Jürgen Schmidhuber. 1997. Long short-term memory. Neural computation, 9(8):1735– 1780.
+Michael I Jordan. 1997. Serial order: A parallel dis- tributed processing approach. In Advances in psy- chology, volume 121, pages 471–495. Elsevier.
+Eric Martin and Chris Cundy. 2018. Parallelizing linear recurrent neural nets over sequence length. In Inter- national Conference on Learning Representations.
+Antonio Orvieto, Samuel L Smith, Albert Gu, Anushan Fernando, Caglar Gulcehre, Razvan Pascanu, and Soham De. 2023. Resurrecting recurrent neural net- In Proceedings of the works for long sequences.
+40th International Conference on Machine Learning, volume 202 of Proceedings of Machine Learning Research, pages 26670–26698. PMLR.
+Bo Peng, Eric Alcaide, Quentin Anthony, Alon Al- balak, Samuel Arcadinho, Huanqi Cao, Xin Cheng, Michael Chung, Matteo Grella, Kranthi Kiran GV, et al. 2023. Rwkv: Reinventing rnns for the trans- former era. arXiv preprint arXiv:2305.13048.
+Michael Poli, Stefano Massaroli, Eric Nguyen, Daniel Y Fu, Tri Dao, Stephen Baccus, Yoshua Bengio, Ste- fano Ermon, and Christopher Re. 2023. Hyena hierar- chy: Towards larger convolutional language models.
+Alec Radford, Jeff Wu, Rewon Child, David Luan, Dario Amodei, and Ilya Sutskever. 2019. Language models are unsupervised multitask learners.
+Jimmy T.H. Smith, Andrew Warrington, and Scott Lin- derman. 2023. Simplified state space layers for se- quence modeling. In The Eleventh International Con- ference on Learning Representations.
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. 2017. Attention is all you need. Advances in neural information processing systems, 30.
+A Additional Proofs
+A.1 Proof of Proposition 2
+Denote (A0, u0), (A−, u−), and (A1, u1) as the pair of (transition matrix, input vector) w.r.t. input character 0, -, and 1. Note that A0, A−, and A1 are diagonal matrices by assumption.
+Denote z as the initial state vector. The se-
+quences "0-1" and "1-0" are represented as
+x0−1 = A1A−A0z + A1A−u0 + A1u− + u1 x1−0 = A0A−A1z + A0A−u1 + A0u− + u0.
+Note x0−1 is for "0-1" while x1−0 for "1-0". Be- cause A’s are diagonal, we know A1A−A0 = A0A−A1. Because 0 − 1 ̸= 1 − 0, by enforcing x0−1 ̸= x1−0, we have
+A1A−u0 + A1u− + u1 ̸= A0A−u1 + A0u− + u0. (8) On the other hand, let x0− = A−A0z+A−u0 +u− be the vector representation for "0-". Consider two other sequences: "0-0-1" and "0-1-0". Their vector representations are
+x0−0−1 = A1A−A0x0− + A1A−u0 + A1u− + u1 x0−1−0 = A0A−A1x0− + A0A−u1 + A0u− + u0.
+Note x0−0−1 is for "0-0-1" while x0−1−0 for "0-1-0". Similarly, because A’s are diagonal and
+
+
+0 − 0 − 1 = 0 − 1 − 0, by enforcing x0−0−1 = x0−1−0, we have
+A1A−u0 + A1u− + u1 = A0A−u1 + A0u− + u0. (9) Because Eq. (8) contradicts with Eq. (9), the two relations x0−1 ̸= x1−0 and x0−0−1 = x0−1−0 can- not co-exist. We hence conclude that an input- dependent diagonal linear RNN is inconsistent in representing subtraction.

@@ -1,0 +1,195 @@
+3 2 0 2
+n u J
+2
+] S A . s s e e [
+1 v 7 4 2 1 0 . 6 0 3 2 : v i X r a
+TENSOR DECOMPOSITION FOR MINIMIZATION OF E2E SLU MODEL TOWARD ON-DEVICE PROCESSING
+Yosuke Kashiwagi1, Siddhant Arora2, Hayato Futami1, Jessica Huynh2, Shih-Lun Wu2, Yifan Peng2, Brian Yan2, Emiru Tsunoo1, Shinji Watanabe2
+1 Sony Group Corporation, Japan, 2 Carnegie Mellon University, USA yosuke.kashiwagi@sony.com
+Abstract
+high accuracy in the SLU task [17, 22].
+Spoken Language Understanding (SLU) is a critical speech recognition application and is often deployed on edge devices. Consequently, on-device processing plays a significant role in the practical implementation of SLU. This paper focuses on the end-to-end (E2E) SLU model due to its small latency prop- erty, unlike a cascade system, and aims to minimize the com- putational cost. We reduce the model size by applying tensor decomposition to the Conformer and E-Branchformer architec- tures used in our E2E SLU models. We propose to apply singu- lar value decomposition to linear layers and the Tucker decom- position to convolution layers, respectively. We also compare COMP/PARFAC decomposition and Tensor-Train decomposi- tion to the Tucker decomposition. Since the E2E model is rep- resented by a single neural network, our tensor decomposition can flexibly control the number of parameters without changing feature dimensions. On the STOP dataset, we achieved 70.9% exact match accuracy under the tight constraint of only 15 mil- lion parameters. Index Terms: spoken language understanding, E2E, on-device, sequential distillation, tensor decomposition, STOP
+Tensor decomposition techniques are widely used for model miniaturization [23]. Although various tensor decompo- sition techniques have been proposed, we mainly explore SVD, and Tucker decomposition [24] to target on-device fast process- ing. They enable inference without reconstructing the original parameter tensors from the factored tensors. Decomposition with smaller ranks can then be used to reduce computational complexity, enabling a reduction in the number of parameters and faster computation [25]. The paper demonstrates effective combinations of model compression techniques for Conformer and E-Branchformer, specifically through the use of tensor de- compositions such as Tucker decomposition. This is because these models have convolution layers with higher-order tensors as parameters, making them more efficiently compressed us- ing these techniques. By defining the model compression ra- tio, we show that the model size can be flexibly changed by determining the rank of the decomposition from this ratio. Fur- thermore, we evaluate CANDECOMP/PARAFAC (CP) decom- position [26] and Tensor-Train decomposition [27] when used instead of the Tucker decomposition.
+1. Introduction
+2. Tensor decomposition
+Spoken language understanding (SLU) is one of the essential applications of speech recognition. SLU is used in voice in- terfaces such as smart speakers, and improving its accuracy is required for usability [1–5]. On the other hand, these voice in- terfaces often work on edge devices due to latency and privacy issues. Such on-device processing requires smaller models to preserve power consumption. Therefore, miniaturization of the SLU model for on-device processing is a critical issue for voice interfaces [6–15].
+For example, Radfar et al. reduce parameters by sharing the audio encoder and estimate slot tags, values, and intents [2, 6]. Also, Le et al. model NLU efficiently based on RNN-T us- ing embedded features of both the encoder and the predictor of RNN-T [7]. In addition, Tyagi et al. propose early decision- making using the BranchyNet scheme to address the latency and computational complexity issues [9]. Although these are prac- tical approaches, many are based on the traditional, relatively simple E2E model structure. On the other hand, recent E2E models have been used with more complex structures by com- bining convolution and self-attention operations such as Con- former [16] and E-Branchformer [17,18]. Therefore, in addition to using singular value decomposition (SVD) [19–21] for two- dimensional matrices in the self-attention network, convolution network having high-order tensors requires tensor decomposi- tion techniques. We specifically target the Conformer and E- Branchformer-based E2E SLU model, which has demonstrated
+2.1. Singular value decomposition
+The SVD-based parameter reduction technique is stable and widely used [19–21]. The SVD is applied to the weight ma- trix W ∈ RI×J with low-rank bases as:
+W = U SV ,
+where S is a diagonal matrix. The matrix size of each U , S and V is I × R, R × R and R × J, respectively. The parameter size can be controlled by changing R. Since S is a square matrix, U S or SV can be pre-composed to reduce the parameters. In our model, we composed SV . Thus, the final number of de- composed parameters can be reduced into IR + RJ. Therefore, the parameter compression ratio γsvd can be described as:
+γsvd =
+IR + RJ IJ
+.
+2.2. Tucker decomposition
+Tucker decomposition [24] is known to be effective for apply- ing high-order tensors. Here we discuss the case of 1d convo- lution, which has a 3-dimensional parameter tensor. The pa- rameter tensor of the convolution W ∈ RI×J×K can be de- composed into a core tensor C ∈ RR×S×T and factor matrices U 1 ∈ RI×R, U 2 ∈ RJ×S and U 3 ∈ RK×T using Tucker
+(1)
+(2)
+
+
+Algorithm 1 Size halving for Tucker decomposition Require: ˆγtucker > 0.0 1: R ← I, S ← J, T ← K 2: γtucker ← ∞ 3: while γtucker > ˆγtucker do 4: R ← R/2, S ← S/2, T ← T /2 5: 6: 7: 8: 9: 10: 11: 12: 13: 14: 15: end while
+if R < 1 then R ← 1
+end if if S < 1 then S ← 1
+end if if T < 1 then T ← 1
+end if γtucker ← RST +IR+JS+KT
+IJK
+decomposition as:
+W =
+(cid:88)
+Cr,s,t × U 1
+r ⊗ U 2
+s ⊗ U 3 t ,
+r,s,t
+where ⊗ describes a Kronecker product. The parameter com- pression ratio γtucker can be described as:
+γtucker =
+RST + IR + JS + KT IJK
+.
+2.3. CP decomposition CP decomposition [26] decomposes tensor W ∈ RI×J×K into a weight vector λ ∈ RR and factor matrices U 1 ∈ RI×R, U 2 ∈ RJ×R and U 3 ∈ RK×R as:
+W =
+(cid:88)
+λr × U 1
+r ⊗ U 2
+r ⊗ U 3 r .
+r
+The parameter compression ratio γcp can be described as:
+γcp =
+R(1 + I + J + K) IJK
+.
+The CP decomposition is the special case where the core tensor of the Tucker decomposition has only diagonal component val- ues and the same rank for each dimension in eq. (3). Therefore, it allows for more parameter reduction but is less expressive than the Tucker decomposition. Furthermore, the rank of the CP decomposition is restricted to the smallest dimension. Since the kernel size of the convolution layer is often small compared to the number of channels, the rank is often limited to the ker- nel size. Therefore, CP decomposition is difficult to adjust with flexible parameter sizes.
+2.4. Tensor-Train decomposition
+Tensor-Train [27] is another decomposition method for high- order tensor. The original tensor W ∈ RI×J×K is decom- 1,i,r ∈ R1×I×R, posed into a product of 3-order tensors G1 s,k,1 ∈ RS×K×1 by the Tensor-Train G2 decomposition as:
+r,j,s ∈ RR×J×S and G3
+Wi,j,k =
+(cid:88)
+G1
+1,i,r × G2
+r,j,s × G3
+s,k,1.
+r,s
+(3)
+(4)
+(5)
+(6)
+Figure 1: Training procedure.
+The parameter compression ratio γtt can be described as:
+γtt =
+IR + RJS + SK IJK
+.
+Tensor-Train decomposition provides flexible parameter reduc- tion, as it involves N − 1 hyperparameters corresponding to the rank of N -th order tensors. However, unlike Tucker decompo- sition, it cannot accelerate inference because the original tensor must be reconstructed during inference.
+3. Decomposed E2E SLU model
+3.1. Training overview
+We investigate the tensor decomposition techniques in E2E SLU models with higher-order tensors as parameters. E2E SLU is a task that estimates semantic label sequences Y directly from input speech feature sequences X. Fig.1 describes the overview of the training procedure of our model. We use two- step sequential distillation to train a small model. Recent SOTA models use self-supervised learning techniques, which have a large number of parameters (over 300M) [28]. However, on- device processing requires a smaller model, typically around 30M or less. Therefore, We do not apply tensor decomposi- tion directly to the large model because the teacher model is too large to minimize within small parameters with sufficient rank. We train small model through a middle-size model to achieve the target size with a compression ratio near 0.3. As shown in the blue boxes in Fig.1, the training procedure has 5 steps. 1. A large teacher model is trained with ground truth labels. We use the E2E Conformer model with Hubert-based feature extractor1 [28], which has achieved the best performance in prior study [29].
+2. The training data is decoded using the trained teacher model to generate teacher labels.
+3. The middle model is trained with both the distilled and ground truth labels. The middle model is used as the seed model to miniaturize the final small model using the decom- position, so its structural type is the same as the final small model.
+4. Tensor decomposition and SVD techniques are applied to the middle model to reduce the parameters. We set the target size to 15M or 30M as in a previous study [7].
+5. Finally, the decomposed model is finetuned with distillation to generate the small model.
+5. Finally, the decomposed model is finetuned with distillation to generate the small model.
+1https://dl.fbaipublicfiles.com/hubert/hubert large ll60k.pt
+(8)
+
+
+Table 1: Experimental results on STOP dataset within 15M parameters using Tucker decomposition.
+Compression ratio encoder / decoder
+Distillation
+# Epochs
+# Parameters Valid/Test EM
+E2E
+Deliberation SLU [7]
+Conformer
+E-Branchformer
+Teacher Scratch Middle Small Scratch Middle Small Small
+0.300 / 0.295
+0.250 / 0.300 0.250 / 0.300
+✓ ✓ ✓ ✓ ✓ ✓ ✓
+50 50 50 50 50 50 200
+< 15M 431M 14M 47M 15M 15M 53M 15M 15M
+—– / 67.9 68.8 / 69.4 34.7 / 34.8 62.6 / 62.5 65.0 / 65.4 60.9 / 61.4 68.6 / 69.0 69.6 / 70.1 70.4 / 70.9
+Table 2: Experimental results on STOP dataset within 30M parameters using Tucker decomposition.
+Compression ratio encoder / decoder
+Distillation
+# Epochs
+# Parameters Valid/Test EM
+E2E
+Deliberation SLU [7]
+Conformer
+E-Branchformer
+Teacher Scratch Middle Small Scratch Middle Small
+0.650 / 0.650
+0.550 / 0.600
+✓ ✓ ✓ ✓ ✓ ✓
+50 50 50 50 50 50
+< 30M —– / 73.87 68.8 / 69.4 45.3 / 45.7 62.6 / 62.5 65.4 / 65.7 66.4 / 66.8 68.6 / 69.0 71.0 / 71.4
+431M 29M 47M 30M 30M 53M 30M
+The middle model and small model have Conformer or E- Branchformer encoders. Conformer and E-Branchformer in- clude convolution layers that have 3rd or 4th-order tensor pa- rameters. Thus, they can be efficiently compressed by tensor decomposition techniques such as Tucker decomposition.
+The number of nodes in the middle of the SVD and the size of the core tensor of the Tucker decomposition are determined from the given compression ratio (eq. (2)). In the case of SVD, the number of middle nodes R can be calculated as follows:
+3.2. Sequential distillation
+R = γsvd
+IJ I + J
+.
+Sequential distillation is used to downsize sequential models such as encoder-decoder models [30]. Frame-by-frame distil- lation is performed by the KL-divergence minimization crite- rion using softmax outputs with temperature hyperparameters. In contrast, sequential distillation uses the labels obtained by in- ference of the teacher model as target labels for student model training. It is also reported to be more effective when extended to N-best from 1-best [31]. However, in our setting, when ex- tended to 5-best, the performance is slightly degraded. Instead, our system uses sequential distillation, which combines the 1- best obtained by the teacher model and ground truth labels.
+3.3. Determination of rank from compression ratio
+On the other hand, since the core tensor shape cannot be uniquely determined from the given compression ratio (eq. (4)), the rank of the Tucker decomposition is calculated by iteratively halving all dimensions until the current ratio is under the given one as in Algorithm 1. In line 4, all dimensions are halved, and each time the compression ratio is recalculated in line 14. Lines 5–13 compensate so that each dimension is not less than 1.
+For comparison, the Tucker decomposition is replaced by CP and Tensor-Train decomposition. CP decomposition, sim- ilar to SVD, can uniquely determine rank from compression ratio (eq. (6)). However, Tensor-Train decomposition cannot be uniquely determined from the given compression ratio (eq. (8)). Therefore, the dimension is iteratively reduced, as Tucker decomposition.
+In our model, the Tucker decomposition is mainly used to re- duce the parameters of the convolution layer. The reasons for adopting the Tucker decomposition are that it is expected to be able to represent the convolution weight tensor with fewer pa- rameters than CP decomposition and that it contributes not only to parameter reduction but also to speed up [25]. The tucker decomposition can be inferred without reconstructing the orig- inal tensor by swapping the order of computation as in SVD. This technique is very compatible with on-device processing. On the other hand, Tensor-Train decomposition cannot acceler- ate inference because the original tensor must be reconstructed during inference.
+4. Experimental evaluation
+4.1. Experimental settings
+We evaluated our system on the STOP dataset [29]. STOP dataset consists of over 200,000 audio files from over 800 speakers and text and semantic parses. They are divided into train, valid, and test sets. Evaluation criteria were performed by exact match accuracy (EM), which is the percentage of perfect match of the label sequences.
+The rank of the decompositions is determined by the spec- ified compression ratio. We apply SVD to the linear layers and Tucker decomposition to the convolution layers in the models.
+The teacher model was based on the Conformer model. The model used a HuBERT-based feature extractor and convolution layers to reduce the input feature length. The encoder had 12 attention blocks, each with 512 dimensions with 8 heads. The
+(9)
+
+
+decoder had 6 attention blocks, and each block also had 512 dimensions with 8 heads. The number of parameters of the teacher model was 431M. The Conformer-based middle model had 47M parameters. Its encoder had 10 attention blocks, and each block had 384 dimensions with 6 attention heads. The decoder had 3 blocks with the same dimensions and attention heads. On the other hand, the E-Branchformer-based middle model had 53M parameters. Its encoder had 10 attention blocks, each with 384 dimensions with 6 heads. The decoder had 3 blocks with the same dimensions and heads.
+For the training of the middle and small models, we used speed perturbation. The teacher and ground truth labels were both used with speed perturbation for the distillation. On the other hand, the validation data consisted of ground truth text, even in the sequential distillation. The input feature was log mel-filter bank having 80 bins. Furthermore, we used SpecAug- ment technique [32]. After that, we applied utterance-level mean normalization. The target semantic parse labels were di- vided using the byte-pair encoding (BPE) model with 500 to- kens. Adam optimization with warmup scheduling was used in our training. Finally, we used an averaged model of the top 10 accuracy checkpoints.
+4.2. Comparison of Conformer and E-Branchformer
+Table 1 shows the experimental results of our system on the STOP dataset with 15M parameter limitation. In this exper- iment, we used tucker decomposition (Sec 2.2) to reduce the convolution parameters. For tensor decomposition, we set the compression ratio of the encoder and decoder as 0.3 and 0.295, respectively, in Conformer. In the case of the E-Branchformer, the compression ratios were set to 0.25 and 0.3 for the encoder and decoder. By using tensor decompositions from the middle Conformer, the small Conformer achieved 65.4 EM. Further- more, the E-Branchformer encoder significantly improved the performance. Our system, E-Branchformer-based E2E SLU, achieved 70.1% EM for the test set with a parameter count of 15M, which was better than the previous study [7]. This result was a higher performance than the teacher model (69.4%). This was due to that the teacher model was based on a Conformer encoder and ground truth labels were also used for sequential distillation. Furthermore, under this condition, it appeared that the small model had not fully converged, so we continued train- ing it for an additional 200 epochs. As a result, the accuracy was increased to 70.9%.
+In addition we made comparisons with 30M parameters. Table 2 shows the experimental results of our system on the STOP dataset with 30M parameter limitation. In this limitation, we set the compression ratios of the encoder and decoder as 0.65 and 0.65 in Conformer. In the E-Branchformer, the encoder and decoder compression ratios were set as 0.55 and 0.6, respec- tively. The performance of the E-Branchformer was higher than Conformer but lower than the deliberation model [7]. The com- parison with 15M indicates that the E2E model is more advan- tageous when constructing the smaller model. Our E2E model does not explicitly separate ASR and NLU, so unlike [7], we can reduce the parameters in a balanced manner so that SLU performance remains high.
+4.3. Comparison of different compression ratios
+Consequently, we investigated the performance changes with various compression ratios. Figure 2 shows the EM with vary- ing compression ratio in E-Branchformer with Tucker decom- position. We used the same compression ratio for both encoder
+Figure 2: EM of our system varying compression ratio with Tucker decomposition.
+Table 3: Experimental results (token accuracy and EM) on STOP dataset within 15M changing decomposition type.
+Tucker decomposition (Sec. 2.2) CP decomposition (Sec. 2.3) Tensor-Train decomposition (Sec. 2.4)
+TAcc. 91.8 34.8 90.7
+EM 70.1 0.1 70.2
+and decoder in this experiment. According to the figure, The EM drops sharply when the compression ratio falls under 0.3. Therefore, it is important to set an appropriate compression ra- tio when applying tensor decomposition.
+4.4. Comparison of different tensor decompositions
+We further examined the performance with different tensor de- composition techniques. In addition to the Tucker decompo- sition used in our system, we applied CP decomposition and Tensor-Train decomposition to the convolution layer. Table 3 shows the performance on the STOP dataset. In this experi- ment, the compression ratio was set to 0.25 and 0.3 for the en- coder and decoder, respectively, targeting 15M. CP decomposi- tion improved the training accuracy from the initial parameters, but it reached a saturation point at small epochs. This was be- cause the CP decomposition decomposed all dimensions with the same rank, which led to an excessive loss of expressiveness. In contrast, the Tensor-Train decomposition performed signifi- cantly well, as did the Tucker decomposition. EM was slightly better for the Tensor-Train decomposition, but we observed a large difference in token accuracy.
+5. Conclusion
+In this paper, we describe our investigation of the minimization of the E-Branchformer for on-device E2E SLU. We applied se- quential distillation and tensor decomposition techniques to the E-Branchformer. Compared to the Conformer-based model, E- Branchformer with Tucker decomposition achieved higher per- formance in both 15M and 30M limitations. In addition, it ob- tained better performance than the deliberation model in 15M limitation. The experiment with different compression ratios showed that compression around 0.3 points was efficient for E-Branchformer. Our comparison of the Tucker decomposi- tion with the CP decomposition and Tensor-Train decomposi- tion showed that the Tucker decomposition was a relatively ef- ficient decomposition. Finally, our system, E-Branchformer- based decomposed E2E SLU model, achieved 70.9% EM with 15M parameter limitation on STOP data.
+
+
+6. References [1] Dmitriy Serdyuk, Yongqiang Wang, Christian Fuegen, Anuj Ku- mar, Baiyang Liu, and Yoshua Bengio, “Towards end-to-end spo- ken language understanding,” in 2018 IEEE International Con- ference on Acoustics, Speech and Signal Processing (ICASSP). IEEE, 2018, pp. 5754–5758. [2] Martin Radfar, Athanasios Mouchtaris, and Siegfried Kunzmann, “End-to-end neural transformer based spoken language under- standing,” Proc. Interspeech 2020, pp. 866–870, 2020.
+[3] Jingjing Dong, Jiayi Fu, Peng Zhou, Hao Li, and Xiaorui Wang, “Improving spoken language understanding with cross-modal contrastive learning,” Proc. Interspeech 2022, pp. 2693–2697, 2022.
+[4] Ye Wang, Baishun Ling, Yanmeng Wang, Junhao Xue, Shaojun Wang, and Jing Xiao, “Adversarial knowledge distillation for ro- bust spoken language understanding,” Proc. Interspeech 2022, pp. 2708–2712, 2022.
+[5] Siddhant Arora, Siddharth Dalmia, Xuankai Chang, Brian Yan, Alan Black, and Shinji Watanabe, “Two-pass low latency end-to- end spoken language understanding,” Proc. Interspeech 2022, pp. 3478–3482, 2022.
+[6] Martin Radfar, Athanasios Mouchtaris, Siegfried Kunzmann, and “FANS: Fusing ASR and NLU for on-device
+Ariya Rastrow, SLU,” in Interspeech 2021, 2021.
+[7] Duc Le, Akshat Shrivastava, Paden D. Tomasello, Suyoun Kim, Aleksandr Livshits, Ozlem Kalinli, and Michael L. Seltzer, “De- liberation model for on-device spoken language understanding,” in Interspeech 2022, 2022, pp. 3468–3472.
+[8] Alaa Saade, Joseph Dureau, David Leroy, Francesco Caltagirone, Alice Coucke, Adrien Ball, Cl´ement Doumouro, Thibaut Lavril, Alexandre Caulier, Th´eodore Bluche, et al., “Spoken language understanding on the edge,” in 2019 Fifth Workshop on Energy Efficient Machine Learning and Cognitive Computing-NeurIPS Edition (EMC2-NIPS). IEEE, 2019, pp. 57–61.
+[9] Akshit Tyagi, Varun Sharma, Rahul Gupta, Lynn Samson, Nan Zhuang, Zihang Wang, and Bill Campbell, “Fast intent classifi- cation for spoken language understanding systems,” in ICASSP 2020-2020 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP). IEEE, 2020, pp. 8119–8123.
+[10] Thierry Desot, Franc¸ois Portet, and Michel Vacher, “End-to-end spoken language understanding: Performance analyses of a voice command task in a low resource setting,” Computer Speech & Language, vol. 75, pp. 101369, 2022.
+[11] Akshat Gupta, “On building spoken language understanding sys- tems for low resourced languages,” in Proceedings of the 19th SIGMORPHON Workshop on Computational Research in Phonet- ics, Phonology, and Morphology, Seattle, Washington, July 2022, pp. 1–11, Association for Computational Linguistics.
+[12] Pu Wang et al.,
+“Bottleneck low-rank transformers for low- resource spoken language understanding,” Proceedings Inter- speech 2022, 2022.
+[13] Anderson R Avila, Khalil Bibi, Rui Heng Yang, Xinlin Li, Chao Xing, and Xiao Chen, “Low-bit shift network for end-to-end spo- ken language understanding,” Proc. Interspeech 2022, pp. 2698– 2702, 2022.
+[14] Yingying Gao, Junlan Feng, Chao Deng, and Shilei Zhang, “Meta auxiliary learning for low-resource spoken language understand- ing,” Proc. Interspeech 2022, pp. 2703–2707, 2022.
+[15] Marco Dinarelli, Marco Naguib, and Franc¸ois Portet, “Toward low-cost end-to-end spoken language understanding,” Proc. In- terspeech 2022, pp. 2728–2732, 2022.
+[16] Anmol Gulati, James Qin, Chung-Cheng Chiu, Niki Parmar, Yu Zhang, Jiahui Yu, Wei Han, Shibo Wang, Zhengdong Zhang, Yonghui Wu, et al., “Conformer: Convolution-augmented trans- former for speech recognition,” Proc. Interspeech 2020, pp. 5036– 5040, 2020.
+[17] Yifan Peng, Siddharth Dalmia, Ian Lane, and Shinji Watanabe, “Branchformer: Parallel mlp-attention architectures to capture lo- cal and global context for speech recognition and understanding,” in International Conference on Machine Learning. PMLR, 2022, pp. 17627–17643.
+[18] Kwangyoun Kim, Felix Wu, Yifan Peng, Jing Pan, Prashant Srid- har, Kyu J Han, and Shinji Watanabe, “E-Branchformer: Branch- former with enhanced merging for speech recognition,” in 2022 IEEE Spoken Language Technology Workshop (SLT). IEEE, 2023, pp. 84–91.
+[19] Jeffrey Josanne Michael, Nagendra Kumar Goel, Jonas Robert- “Comparison of svd and fac- arXiv preprint
+son, Shravan Mishra, et al., torized tdnn approaches for speech to text,” arXiv:2110.07027, 2021.
+[20] Yuekai Zhang, Sining Sun, and Long Ma, “Tiny transducer: A highly-efficient speech recognition model on edge devices,” in ICASSP 2021-2021 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP). IEEE, 2021, pp. 6024– 6028.
+[21] Emily L Denton, Wojciech Zaremba, Joan Bruna, Yann LeCun, and Rob Fergus, “Exploiting linear structure within convolutional networks for efficient evaluation,” Advances in neural information processing systems, vol. 27, 2014.
+[22] Siddhant Arora, Siddharth Dalmia, Pavel Denisov, Xuankai Chang, Yushi Ueda, Yifan Peng, Yuekai Zhang, Sujay Kumar, Karthik Ganesan, Brian Yan, et al., “Espnet-slu: Advancing spo- ken language understanding through espnet,” in ICASSP 2022- 2022 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP). IEEE, 2022, pp. 7167–7171.
+[23] Andros Tjandra, Sakriani Sakti, and Satoshi Nakamura, “Com- pressing recurrent neural network with tensor train,” in 2017 In- ternational Joint Conference on Neural Networks (IJCNN). IEEE, 2017, pp. 4451–4458.
+[24] Ledyard R Tucker, “Some mathematical notes on three-mode fac-
+tor analysis,” Psychometrika, vol. 31, no. 3, pp. 279–311, 1966.
+[25] Yong-Deok Kim, Eunhyeok Park, Sungjoo Yoo, Taelim Choi, “Compression of deep convolu- Lu Yang, and Dongjun Shin, tional neural networks for fast and low power mobile applica- tions,” arXiv preprint arXiv:1511.06530, 2015.
+[26] Richard A Harshman et al., “Foundations of the parafac proce- dure: Models and conditions for an ”explanatory” multimodal factor analysis,” UCLA working papers in phonetics, 1970.
+[27] Ivan V Oseledets, “Tensor-Train decomposition,” SIAM Journal on Scientific Computing, vol. 33, no. 5, pp. 2295–2317, 2011.
+[28] Wei-Ning Hsu, Benjamin Bolte, Yao-Hung Hubert Tsai, Kushal Lakhotia, Ruslan Salakhutdinov, and Abdelrahman Mohamed, “HuBERT: Self-supervised speech representation learning by masked prediction of hidden units,” IEEE/ACM Transactions on Audio, Speech, and Language Processing, vol. 29, pp. 3451–3460, 2021.
+[29] Paden Tomasello, Akshat Shrivastava, Daniel Lazar, Po-Chun Hsu, Duc Le, Adithya Sagar, Ali Elkahky, Jade Copet, Wei-Ning Hsu, Yossi Adi, et al., “STOP: A dataset for spoken task oriented semantic parsing,” in 2022 IEEE Spoken Language Technology Workshop (SLT). IEEE, 2023, pp. 991–998.
+[30] Yoon Kim and Alexander M Rush, “Sequence-level knowledge distillation,” in Proceedings of the 2016 Conference on Empirical Methods in Natural Language Processing, 2016, pp. 1317–1327.
+[31] Raden Mu’az Mun’im, Nakamasa Inoue, and Koichi Shinoda, “Sequence-level knowledge distillation for model compression of attention-based sequence-to-sequence speech recognition,” in ICASSP 2019-2019 IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP). IEEE, 2019, pp. 6151– 6155.
+[32] Daniel S Park, William Chan, Yu Zhang, Chung-Cheng Chiu, Bar- ret Zoph, Ekin D Cubuk, and Quoc V Le, “SpecAugment: A sim- ple data augmentation method for automatic speech recognition,” Proc. Interspeech 2019, pp. 2613–2617, 2019.

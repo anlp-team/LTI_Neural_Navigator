@@ -1,0 +1,661 @@
+3 2 0 2
+v o N 8
+] E S . s c [
+4 v 7 6 8 7 0 . 2 0 3 2 : v i X r a
+Preprint. Under review.
+LEARNING PERFORMANCE-IMPROVING CODE EDITS
+Alexander Shypula1∗, Aman Madaan2∗, Yimeng Zeng1, Uri Alon2†, Jacob Gardner1, Milad Hashemi3, Graham Neubig2, Parthasarathy Ranganathan3, Osbert Bastani1, Amir Yazdanbakhsh4
+1University of Pennsylvania, 2Carnegie Mellon University, 3Google, 4Google DeepMind,
+ABSTRACT
+With the waning of Moore’s law, optimizing program performance has become a major focus of software research. However, high-level optimizations such as API and algorithm changes remain elusive due to the difficulty of understanding the semantics of code. Si- multaneously, pretrained large language models (LLMs) have demonstrated strong capa- bilities at solving a wide range of programming tasks. To that end, we introduce a frame- work for adapting LLMs to high-level program optimization. First, we curate a dataset of performance-improving edits made by human programmers of over 77 K competitive C++ programming submission pairs, accompanied by extensive unit tests. A major challenge is the significant variability of measuring performance on commodity hardware, which can lead to spurious “improvements”. To isolate and reliably evaluate the impact of pro- gram optimizations, we design an environment based on the gem5 full system simulator, the de facto simulator used in academia and industry. Next, we propose a broad range of adaptation strategies for code optimization; for prompting, these include retrieval-based few-shot prompting and chain-of-thought, and for finetuning, these include performance- conditioned generation and synthetic data augmentation based on self-play. A combi- nation of these techniques achieves an average speedup of 5.65× on CodeLlama-13B and 6.86× on GPT-3.5, surpassing the best human performance (4.06×). We find our proposed performance-conditioned generation is particularly effective at improving performance as well as increasing the fraction of optimized programs.1
+1
+INTRODUCTION
+Despite the impressive progress of optimizing compilers and other tools for performance engineering (Aho et al., 2007), programmers are still largely responsible for high-level performance considerations such as algorithms and API choices. Recent work has demonstrated the promise of deep learning for automating performance optimization (Garg et al., 2022; Mankowitz et al., 2023). However, these techniques are either narrow or difficult to build on due to the lack of open datasets and lack of reliable performance measure- ment techniques, which has stymied research in this direction. Recently, pre-trained large language models (LLMs) have demonstrated impressive performance at a wide range of programming tasks (Chen et al., 2021b; Fried et al., 2022; Xu et al., 2022; Nijkamp et al., 2022). Yet, the effectiveness of large, pre-trained LLMs for program optimization remains an open research question. We study whether such LLMs can be adapted for performance optimization. To this end, we introduce a novel benchmark for performance opti-
+∗Equal contribution. †Now at Google DeepMind 1The project website can be found at www.pie4perf.com
+1
+
+
+Preprint. Under review.
+Figure 1: An example of a program that solves the problem of “compute the sum of the numbers from 1 to N”. The program on the left runs in O (N ), whereas the program on the right runs in constant time. The goal of PIE is to enable LLMs to perform these kinds of program optimizations.
+mization that addresses the key challenge of replicable performance measurement, and perform an extensive evaluation of a wide range of adaptation techniques based on it.
+First, we construct a dataset of Performance-Improving Edits (PIE). We collect C++ programs written to solve competitive programming problems, where we track a single programmer’s submissions as they evolve over time, filtering for sequences of edits that correspond to performance improvements.
+Next, a major challenge is the significant variability of measuring performance on real hardware due to server workload and configuration issues. Indeed, we find that benchmarking on real hardware can lead to large, phantom performance “improvements” due only to random chance. To address this challenge, we evaluate performance using the gem5 CPU simulator (Binkert et al., 2011), the gold standard CPU simulator in academia and industry, and models state-of-the-art general-purpose processors. This evaluation strategy is entirely deterministic, ensuring both reliability and reproducibility.
+Based on this benchmark, we evaluate a variety of techniques for adapting pre-trained code LLMs for per- formance optimization. First, we consider baseline prompting approaches, including techniques such as chain-of-thought (Wei et al., 2022b) (CoT). We find that LLMs are limited in the challenging task of code optimization. Without data-driven methods that leverage PIE, our strongest baseline COT only warrants 1.61× average speedups vs. 4.06× human reference. Next we consider a retrieval-based prompting ap- proach where retrieval is used to select examples most similar to the current one (Liu et al., 2021; Poesia et al., 2021). Lastly, we consider several finetuning strategies: these include using synthetic data generated via self-play (Haluptzok et al., 2022), where synthetic training examples are generated by an LLM without the need for direct human examples, as well as performance-conditioned generation, where we condition generation on the performance of the generated program.
+We find that data-driven methods using PIE, like retrieval-based few-shot prompting and fine-tuning, are highly effective at achieving strong optimization abilities in LLMs. When allowing a model to take 8 samples and filtering for correctness and execution time, our fine-tuned performance-conditioned version of CODELLAMA 13B can achieve an average speedup of 5.65× on our test set, and a fine-tuned version of GPT-3.5 augmented with synthetic data via self-play achieves an average speedup of 6.86×, whereas the fastest human solutions we found achieve an average speedup of 4.06×. In summary, our contributions are:
+We introduce a new code dataset of more than 77 K C++ program pairs, named PIE, with execution time annotations collected from the gem5 simulator. PIE enables reproducible evaluation of LLMs for program optimization and reliable performance annotations for training.
+2
+
+
+Preprint. Under review.
+Enabled by our benchmark, we evaluate different prompting and fine-tuning approaches for adapting pre- trained LLMs to optimize programs. Our results indicate that pre-trained code LLMs are limited in their ability to optimize code without a dataset like PIE. • We develop three effective strategies for adapting LLMs for code optimization: retrieval-based prompting, performance-conditioning, and self-play. Overall, our best model, GPT-3.5 augmented with synthetic data obtained from self-play, achieves an average speedup of 6.86×, and optimizes 87.68% of the test set by at least 10%. Related work. Beyond the approaches described above, machine learning has been applied to improve performance by refactoring code (Mens & Tourwé, 2004; Agnihotri & Chug, 2020), identify compiler trans- formations (Bacon et al., 1994; Talaashrafi, 2022), perform parameter search (Hamadi & Hamadi, 2013; Huang et al., 2019; Kaufman et al., 2021), auto-vectorize code (Nuzman et al., 2006; Mendis et al., 2019), optimize GPU code (Liou et al., 2020; Cummins et al., 2021), and automatically select algorithms (Kotthoff, 2016; Kerschke et al., 2019). and room at the top (Leiserson et al., 2020; Sherry & Thompson, 2021). Deep- PERF (Garg et al., 2022) uses a transformer-based model fine-tuned to generate performance improvement patches for C# applications. Additionally, Chen et al. (2022) uses a discrete variational auto-encoder, each latent representation maps to a different category of code edits, and canonicalized code representations to au- tomatically suggest performance improvements, Shypula et al. (2021) trains seq2seq models from scratch on optimization data to superoptimize assembly programs after compilation, Shi et al. (2019) trains tree-LSTM from scratch with RL to superoptimize halide IR, and MAGPIE (Blot & Petke, 2022) uses genetic algo- rithms for tasks including optimization. AlphaCode (Li et al., 2021) leverages language models to generate solutions to competitive programming problems in natural language, but it does not attempt to improve the performance of existing solutions. In contrast, we focus on adapting pre-trained LLMs (Chen et al., 2021b; Nijkamp et al., 2022; Tunstall et al., 2022; Xu et al., 2022; Fried et al., 2022) to performance optimization.
+2 PERFORMANCE IMPROVING EDITS (PIE) DATASET
+We construct a dataset targeted at adapting code LLMs to performance optimization, focusing on optimizing program execution time. Our dataset is constructed based on performance-improving edits (PIE) made by human programmers in a range of competitive programming tasks from CodeNet (Puri et al., 2021). Given a problem, programmers typically write an initial solution and iteratively improve it. Let Yu = [yu 2 , ...] be a chronologically sorted series of programs, written by user u for problem x. From Yu, we remove programs that were not accepted by the automated system, eliminating incorrect programs (fail one or more unit tests) or take more than the allowed time to run, resulting in a trajectory of programs Y∗ = [y∗ For each trajectory Y∗, we construct pairs P = (y1, y2), (y1, y3), (y2, y3) . . ., and keep only pairs for which (time(yi)−time(y>i)) > 10% where time (y) is the measured latency of program y (i.e., the relative time time(yi) improvement is more than 10%). The CodeNet dataset includes CPU time, but we found the information to be inconsistent (see Appendix A.3). Thus, we relabel the execution time using gem5 as described below; to create these annotated runtimes, we performed over 42.8 million simulations in our gem5 environment. We split the resulting dataset of pairs P into train/validation/test sets, ensuring that any particular competitive programming problem only appears in one of them. We obtain a training set of 77,967 pairs from 1,474 problems, a validation set of 2,544 pairs from 77 problems, and a test set of 982 pairs from 41 problems. For each pair in the test set, we also record the fastest human submission execution time for that problem; in Section 4, we include this running time as a comparison point.
+1 , yu
+1, y∗
+2, . . . , y∗ n].
+Test cases. Our goal is to improve performance while ensuring correctness. We evaluate correctness through unit tests; we reject the program if a single test fails. CodeNet includes an average of 4 test cases per problem. To improve coverage, we include additional test cases from AlphaCode (Li et al., 2021) generated with a fine-tuned LLM. A small set of test cases would lead to substantial timeouts above 2 minutes in gem5;
+3
+
+
+Preprint. Under review.
+after excluding them, we obtain a median of 82.5 test cases per problem in our training set, 75 test cases per problem in our validation set, and 104 test cases per problem for our test set. See Appendix A.2 for additional details.
+Performance measurement using gem5. Benchmarking program performance is notoriously difficult. For instance, code instrumentation introduces overhead, and there is substantial variance across executions due to numerous factors, including server load and idiosyncrasies introduced by the operating system. If bench- marking is not performed carefully, it is easy to mistakenly over-report program optimization results. With enough samples and variance, benchmarking the same exact program can easily lead us to report significant optimizations.
+To illustrate the challenges, consider HYPERFINE Peter (2023), a Rust library designed to precisely bench- mark binaries. We benchmarked 500 programs “pairs” where the “slow” and “fast” programs are identical. Ideally, we should have source time target time = 1 (i.e., the two programs have identical performance). However, we observed a mean speedup of 1.12×, with a standard deviation of 0.36, and the top 5% of pairs exhibited a speedup of 1.91×. These results underscore the significant challenges in performance measurement.
+To address this challenge, we measure program performance using the gem5 (Binkert et al., 2011) full system detailed microarchitectural simulator of state-of-the-art processors. Executing deterministic pro- grams in gem5 provides fully deterministic performance results, enabling reliable isolation of the impact of performance-improving edits and reproducibility. We use the Verbatim configuration of the Intel Skylake architecture from gem5.2. An advantage of this approach is that our framework can be applied to other platforms like ARM or RISC-V without having access to hardware for those platforms.
+3 ADAPTING CODE LLMS TO PROGRAM OPTIMIZATION
+3.1 FEW-SHOT PROMPTING
+Instruction-prompting. We use prompts instructing the LLM to improve the performance of the given program, an approach commonly referred to as instruction prompting (Mishra et al., 2021; Gupta et al., 2022; Longpre et al., 2023); details on the prompt are in Figure 10 in Appendix A.8.
+Few-shot prompting. Next, we use few-shot prompting (Brown et al., 2020). In particular, we create a prompt with the format “slow1 → fast1 || slow2 → fast2 || . . . ”. A slow test set program is appended to this prompt during inference and supplied to the model. We create the prompts by randomly sampling two (fast, slow) pairs from the training set. Examples of prompts are shown in Figure 11 in Appendix A.8.
+Chain-of-thought prompting. Inspired by Chain-of-Thought (COT) prompting (Wei et al., 2022b), we also designed prompts that ask the LLM to think about how to optimize the program before actually producing the optimized program. This strategy is used in conjunction with few-shot prompting. Examples of prompts are shown in Figure 12 in Appendix A.8.
+Dynamic retrieval-based few-shot prompting. Recent work has demonstrated that retrieval-based mecha- nisms can improve language models for various tasks requiring factual or procedural knowledge (Liu et al., 2021; Poesia et al., 2021; Rubin et al., 2021; Madaan et al., 2022; Rubin et al., 2022; Shrivastava et al., 2023). Program optimization is a non-trivial task requiring knowledge of algorithms, data structures, and programming grounded in performance; thus, retrieving highly relevant examples may improve an LLM’s optimization ability. For example, a solution optimized for a knapsack problem in dynamic programming could inform strategies for the coin change problem. Through dynamic retrieval-based prompts, we aim to match tasks with analogous structures or challenges, allowing models to better harness the patterns in PIE. We use the CodeBertScore models trained for C++ (Zhou et al., 2023b) to embed both the program to be
+2https://github.com/darchr/gem5-skylake-config
+4
+
+
+Preprint. Under review.
+optimized and the programs in PIE. We use FAISS (Johnson et al., 2019) to retrieve K closest programs from the training set; and to construct a “slow1 → fast1 || ...” style prompt on the fly. Examples of prompts are shown in Figure 13 in Appendix A.8.
+3.2 FINETUNING
+We also consider fine-tuning to improve pretrained code LLMs using our PIE dataset. In addition to standard fine-tuning on the entire dataset, we describe additional strategies we used.
+Dataset imbalance. While we have tens of thousands of slow-fast pairs in the PIE training dataset, these submissions target just 1,474 problems, which may limit the learned model’s ability to generalize to new programs. Furthermore, submissions are not uniformly distributed across problems. To address this im- balance, we additionally introduce a subset of 4,085 “high-quality” slow-fast pairs—in particular, we take examples with the highest speedup and disallow more than 4 submissions per problem, for an average of 2.77 submissions per problem. Given the high costs of training models through the OpenAI API, we also use this dataset as a base for fine-tuning experiments with GPT-3.5.
+This is a slow program we want to
+(cid:44)→
+(cid:44)→
+optimize to score {score_tag}/10.
+This is a slow program we want
+(cid:44)→
+to optimize to score 10/10.
+### Program: {src_code}
+### Program: {src_code}
+### Optimized Version with score
+(cid:44)→
+{score_tag}/10:
+(b) Inference Prompt.
+(a) Training Prompt.
+Figure 2: Training and inference prompts for Goal-Conditioned optimization with PIE.
+Performance-conditioned generation. Programs can typically be written in many ways with different performance profiles. Consequently, when training a model to predict performance-improving edits with a large dataset like PIE, it is trained on a mix of large and small improvements, without any information on which improvements are more desirable than others. Inspired by recent prompting strategies (Zhang et al., 2023) and offline-rl (Chen et al., 2021a), we introduce performance tags during training by associating each “fast” program with a tag indicating the optimal achievable performance across all solutions in the dataset. Specifically, the tag indicates how close that program is to peak performance on a binned-scale {1, 2, . . . , 10}. We instantiate our tags by categorizing the top 10% of optimized solutions in the dataset for a given task as “10/10", the next 10% as “9/10”, and so on. These tags enable the model to discern the relationship between specific problem attributes and their corresponding high-performance solutions (Figure 2, left). During inference, we prompt the model with a test input and a maximal score tag “10/10”, directing it to generate the most optimal solution (Figure 2, right).
+Synthetic data. Given the high cost of obtaining human-written programs, we also augment our dataset with synthetic examples through a multi-stage process. First, we prompt OpenAI’s GPT-3.5 with examples from the PIE dataset, instructing it to produce new programs that produce different outputs given the same inputs. After filtering out programs producing outputs identical to those in PIE and tracking semantic duplicates among those generated, we obtain 3,314 unique synthetic programs and many thousand more duplicates. Next, we generate an optimized version for each synthetic "slow" program using a GPT-3.5 model that has
+5
+
+
+Preprint. Under review.
+been fine-tuned on the original PIE dataset. Finally, we retain pairs where the optimized program is at least 5× faster and limit semantic duplicates to three, resulting in 1,485 optimized synthetic examples. This methodology aligns with self-play and self-instruct approachs in neural program synthesis (Haluptzok et al., 2022; Rozière et al., 2023). We provide additional details on the generation process in Appendix A.4.
+Table 1: Overview of results: This table reports our strongest performing models by SPEEDUP across different adaptation regimes covered in subsequent sections. We report results for Open-access CODELLAMA and OpenAI models. The models are GPT-3.5 prompted with few-shot (FS) and CoT reasoning Best@1. CODELLAMA 34B and GPT4 prompted with dynamic retrieval-based few-shot prompts (retrieval), Best@4, CODELLAMA fine-tuned with performance conditioning (PC) Best@8, and GPT-3.5 fine-tuned with our subset of high-quality data and data generated via self-play (SP) Best@8. The highest number in each column is bolded and the second-highest is underscored.
+Scenario
+Model
+%Opt
+Speedup
+Correct
+Human reference Human reference
+Best Human Same Human
+100.00% 100.00%
+4.06 3.64
+100.00% 100.00%
+All Models, Prompt
+GPT-3.5, FS-CoT
+43.78%
+1.61
+93.15%
+Open-Source, Retrieval Black-Box, Retrieval
+CODELLAMA 34B GPT4
+42.16% 69.03%
+2.57 3.56
+77.92% 95.90%
+Open-Source, FineTune CODELLAMA 13B-PC
+Black Box, FineTune
+GPT-3.5, SP
+66.60% 87.68%
+5.65 6.86
+71.08% 95.11%
+4 EXPERIMENTS
+Models. We evaluate and adapt models from the CODELLAMA models (Rozière et al., 2023) and models from OpenAI available through their API. We also used pretrained checkpoints of (Rozière et al., 2023): CODELLAMA {7B,13B,34B} obtained via HuggingFace (Wolf et al., 2020). For the CODELLAMA family of models, we use the base set of models that have not been instruction-tuned, as the authors of the paper note that instruction-tuning diminished the performance on code generation. We provide training details in Appendix A.6. We experiment with gpt-3.5-turbo-0613 by prompting the pre-trained model and using the fine-tuning API. We evaluate gpt-4-0613 by prompting the pre-trained model; to date, fine- tuning GPT4 is not available through the API.
+Metrics. To evaluate performance, we measure the following for functionally correct programs:
+Percent Optimized [%OPT]: The fraction of programs in the test set (out of 1000 unseen samples) improved by a certain method. A program must be at least 10% faster and correct to contribute.
+Speedup [SPEEDUP]: the absolute improvement in running time. If o and n are the “old” and “new” (cid:1). A program must be correct to contribute.
+n
+Percent Correct [%Correct]: The proportion of programs in the test set that are at least functionally equivalent to the original program (included as a secondary outcome).
+As described in Section 2, we count a program as functionally correct if it passes every test case in our dataset. Though correctness is not our primary focus, we include it to help interpret our results. In addition, we report our SPEEDUP as the average speedup across all test set examples. For generations that are either incorrect or slower than the original program, we use a speedup of 1.0 for that example, given that, in the worst case, the original program has a speedup of 1.0. We benchmark performance using our gem5
+6
+
+
+Preprint. Under review.
+Table 2: Prompting: Results for different prompting strategies and models for Best@1 and Best@8. *Note that for GPT4, we report only with Best@4 due to resource constraints.
+Best@1
+Best@8
+Method
+Model
+%Opt
+Speedup
+Correct
+%Opt
+Speedup
+Instruction-Only Instruction-Only Instruction-Only Instruction-Only Instruction-Only
+CODELLAMA 7B CODELLAMA 13B CODELLAMA 34B GPT-3.5 GPT-4
+0.94% 0.42% 2.93% 16.29% 8.60%
+1.01 1.00 1.05 1.20 1.15
+5.44% 24.06% 2.51% 10.24% 19.46% 45.40% 80.75% 39.10% 93.45% 16.58%*
+1.06 1.03 1.27 1.54 1.23*
+Few-Shot Few-Shot Few-Shot Few-Shot
+CODELLAMA 7B CODELLAMA 13B CODELLAMA 34B GPT-3.5
+2.20% 2.30% 2.73% 11.70%
+1.02 1.02 1.03 1.13
+44.67% 41.27% 45.23% 83.07%
+9.73% 14.11% 14.06% 29.68%
+1.15 1.21 1.17 1.39
+COT COT COT COT
+CODELLAMA 7B CODELLAMA 13B CODELLAMA 34B GPT-3.5
+0.84% 2.30% 4.08% 21.78%
+1.01 1.04 1.08 1.26
+28.11% 33.75% 31.14% 67.01%
+7.63% 11.49% 20.06% 43.78%
+1.13 1.21 1.30 1.61
+Dynamic Retrieval, K=2 CODELLAMA 7B Dynamic Retrieval, K=2 CODELLAMA 13B Dynamic Retrieval, K=2 CODELLAMA 34B
+4.60% 9.40% 12.67%
+1.14 1.36 1.33
+21.21% 29.47% 31.87%
+17.35% 28.74% 42.16%
+1.52 1.99 2.57
+Dynamic Retrieval, K=2 Dynamic Retrieval, K=2
+GPT-3.5 GPT4
+26.28% 50.15%
+1.58 2.61
+80.47% 80.82
+48.16% 69.03%*
+2.14 3.56*
+environment and all test cases mentioned in Section 2. We compile all C++ programs with GCC version 9.3.0 and C++17 as well as the -O3 optimization flag; therefore, any reported improvements would be those on top of the optimizing compiler.
+Decoding strategy. Code generation is known to benefit from sampling multiple candidate outputs for each input and choosing the best one (Li et al., 2021); in our case, “best” is the fastest program that passes all test cases. We use BEST@k to denote this strategy with k samples and a temperature of 0.7.
+4.1 RESULTS FOR FEW-SHOT PROMPTING
+Baseline few-shot prompting. Table 2 (top) shows results on standard few-shot prompting techniques (Sec- tion 3.1, prompts are shown in appendix A.8). We find that generic few-shot prompts often yield similar results compared to simple instruction-prompting. For instance, when prompted with instructions alone, both GPT-3.5 and CODELLAMA 34B demonstrated superior %OPT and SPEEDUP metrics. This observation aligns with the findings of Zhao et al. (2021), which highlighted that few-shot examples can sometimes bias the model and lead to an incorrect understanding of the task. In the context of our study, the consistent use of the same fixed prompt might constrain the model to only apply optimization techniques present in the prompt, thereby resulting in sub-optimal performance. Finally, in line with the findings of Wei et al. (2022a) that identified COT prompting as an emergent capability, we observe improvements with this approach over both instruction-tuned and fixed prompt setups, but notably only for the larger CODELLAMA (13B and 34B) and GPT-3.5 models.
+Retrieval-based few-shot prompting. Table 2 (bottom) shows results using our dynamic retrieval-based few-shot prompting strategy, with the optimal setting at K = 2 retrieved prompts. Extended results for
+7
+Correct
+70.19% 41.38% 87.24% 98.78% 98.46%*
+87.45% 85.27% 85.20% 98.43%
+75.24% 81.19% 80.88% 93.15%
+56.74% 66.25% 77.92%
+97.96% 95.90%*
+
+
+Preprint. Under review.
+K ∈ {1, 2, 4} are detailed in Appendix A.5. The results show that dynamic few-shot prompting outperforms all the baseline variants, showing that PIE effectively adapts LLMs for program optimization in few-shot settings. We note that increased speedup may, however, come with some cost of correctness.
+4.2 RESULTS FOR FINETUNING
+Table 3: Fine-Tuning: Results for various models and dataset configurations.
+Best@1
+Best@8
+Dataset
+Model
+%Opt
+Speedup
+Correct
+%Opt
+Speedup
+All All
+CODELLAMA 7B CODELLAMA 13B
+7.33% 12.93%
+1.23 1.53
+58.04% 55.50%
+31.16% 43.79%
+2.04 2.71
+HQ HQ HQ
+CODELLAMA 7B CODELLAMA 13B GPT-3.5
+10.29% 11.51% 38.49%
+1.40 1.43 2.70
+76.48% 70.47% 59.16%
+45.21% 47.86% 86.66%
+3.13 3.43 6.74
+All w/Perf-Cond CODELLAMA 7B All w/Perf-Cond CODELLAMA 13B
+25.05% 31.87%
+2.44 2.95
+34.73% 38.70%
+56.82% 66.60%
+4.84 5.65
+HQ + Self-Play HQ + Self-Play HQ + Self-Play
+CODELLAMA 7B CODELLAMA 13B GPT-3.5
+15.27% 14.26% 45.62%
+1.58 1.61 3.02
+75.87% 76.37% 61.71%
+46.13% 49.59% 87.68%
+3.31 3.50 6.86
+Fine-tuning with PIE substantially improves all models. We fine-tune CODELLAMA and GPT-3.5 models on our PIE dataset. Due to the cost of fine-tuning and sampling models through the OpenAI API, we were only able to train GPT-3.5 on the smaller, high-quality dataset (HQ) in Section 3.2. The top of Table 3 shows results for traditional fine-tuning on all models. We see substantially stronger results when fine-tuning on the smaller, high-quality dataset. These results reflect the observation that to adapt LLMs, a small set of high-quality examples can elicit strong performance (Zhou et al., 2023a; Chen et al., 2023).
+Performance-conditioned training outperforms fine-tuning. Table 3 shows results for performance- conditioned (perf-cond) generation (Section 3.2). Both fine-tuned CODELLAMA models (7B and 13B) show significant improvements in %OPT and SPEEDUP. These gains highlight how the performance improvement information (Figure 2) can enable models to distinguish optimal and sub-optimal solutions, leading to more effective optimizations.
+Synthetic data from self-play marginally improves generalization. Next, we fine-tuned both CODEL- LAMA and GPT-3.5 using our PIE dataset augmented with our synthetic examples. We show results at the bottom of Table 3. For CODELLAMA and GPT-3.5, compared to using no synthetic data, the additional data improves both %OPT and often SPEEDUP, particularly with BEST@1. We believe the small set of synthetic examples helped generalize the fine-tuned model, as evidenced by the higher %OPT. 3
+4.3 DISCUSSION AND KEY TAKEAWAYS
+CODELLAMA vs. GPT-3.5 . Our results demonstrate that openly available models such as CODELLAMA can be competitive with GPT-3.5. For prompting, CODELLAMA 34B with dynamic retrieval (42.16% %OPT,
+3For GPT-3.5, to be sure the increases came from the type of data and not the quantity of data, we performed an ablation by fine-tuning on the top 5,793 examples from PIE with a maximum of 8 duplicates (instead of the 5,570 pairs that included synthetic programs), and we saw BEST@1 performance degrade %OPT to 36.66% and SPEEDUP to 2.67×, and BEST@8 performance degrade %OPT to 83.63% and SPEEDUP to 6.03×.
+8
+Correct
+75.25% 75.56%
+87.68% 85.13% 95.42%
+63.85% 71.08%
+87.47% 86.25% 95.11%
+
+
+Preprint. Under review.
+2.57× SPEEDUP for BEST@8) roughly matched the performance of GPT-3.5 with dynamic retrieval (48.16% %OPT, 2.14× SPEEDUP for BEST@8). With fine-tuning, CODELLAMA 13B with performance-conditioned generation (66.60% %OPT, 5.65× SPEEDUP for BEST@8) approached the performance of GPT-3.5 with synthetic data (87.68% %OPT, 6.86× SPEEDUP for BEST@8); indeed, we may expect that fine-tuning CODELLAMA 34B using the same strategy would further bridge this gap. These results demonstrate that with the right adaptation strategies, open models can be competitive with closed ones.
+Prompting vs. fine-tuning. Our results demonstrate that while prompting can be an effective way to adapt models (with retrieval), fine-tuning significantly outperforms prompting for models of the same size.
+Effectiveness of retrieval-based few-shot learning. Our results show that dynamic retrieval provides enor- mous gains over all other prompting approaches; for instance, it improved the performance of CODELLAMA 34B from 20.07 %OPT, 1.61× SPEEDUP to 42.16% %OPT, 2.57× SPEEDUP for BEST@8.
+Effectiveness of performance-conditioned generation. We find that performance-conditioned generation is incredibly effective for achieving good performance; in particular, it improved the performance of CODEL- LAMA 13B from 47.86% %OPT, 3.43× SPEEDUP to 66.60% %OPT, 5.65× SPEEDUP for BEST@8.
+Ineffectiveness of LoRA. We also experimented with low-rank adaptors (LoRA) (Hu et al., 2021), but they performed significantly worse than end-to-end; see Appendix A.7 for results. We hypothesize that this gap may be because performance optimization examples do not occur naturally in the training data.
+4.4 ANALYSIS OF GENERATED CODE EDITS
+Next, we study the kinds of edits LLMs make that lead to our performance gains, focusing on our best- performing model, GPT-3.5 fine-tuned with synthetic data. We manually analyze a randomly sampled set of 120 (source, optimized) program pairs to understand the algorithmic and structural changes responsible for the performance gains. We find that the transformations can be broadly categorized into four kinds: Algorith- mic changes, Input/Output operations (IO), Data Structure modifications, and Miscellaneous adjustments. Algorithmic changes (complex modifications, such as changing recursive methods to dynamic programming, and unexpected ones, such as omitting Binary Indexed Trees for simpler constructs) are most common, com- prising ~34.15% of changes; Input/Output operations (e.g., changing ‘cin/cout‘ to ‘scanf/printf‘, efficiently reading strings) comprised ~26.02%; Data Structures (e.g., switching from vectors to arrays) comprised ~21.14%, and Miscellaneous (e.g., code cleanups and constant optimizations) comprised ~18.70%. These findings show the LLM’s capability to perform sophisticated optimizations while preserving functionality. See Appendix A.1 for details.
+In Appendix A.1, we show several examples to demonstrate the nature of optimizations made by our model. In these examples, we highlight the removal of a wasteful nested loop (Figure 4), eliminating the need to sort (Figure 3), avoiding unnecessary precomputations (Figure 5), use of simple modular arithmetic properties for optimization (Figure 6), and restructuring loops to improve performance (Figure 7).
+Finally, while our analysis showcases a variety of optimizations, it is essential to address certain speedup sources that may be considered spurious. Specifically, in 10 out of the 120 cases we examined, the speedup stemmed from reducing the constants used to allocate arrays. These speedups might not always reflect genuine algorithmic improvements, and indicate that the test cases may not perfectly cover all the cases, an open problem in code synthesis (Li et al., 2021). Thus, while they contribute to the overall speedup metrics, they should be interpreted with caution. Nevertheless, our analysis shows that the vast majority of speedups do not suffer from this issue, supporting our strong empirical results.
+9
+
+
+Preprint. Under review.
+5 CONCLUSION
+Our work is an initial step towards unlocking the potential of LLMs in leveraging the opportunities at the “top” of the computing stack. In particular, we improve algorithmic efficiency and, given a correctness oracle, enable automatic code optimization beyond optimizing compilers. Our results pave an exciting path for improving computing efficiency post Moore’s law.
+ACKNOWLEDGEMENTS
+This material is partly based on research sponsored in part by the Air Force Research Laboratory (agreement number FA8750-19-2-0200), Army Research Office Award W911NF-20-1-0080, and NSF Award CCF- is authorized to reproduce and distribute reprints for Governmental purposes 1917852. The U.S. Govt. notwithstanding any copyright notation thereon. The views and conclusions contained herein are those of the authors and should not be interpreted as necessarily representing the official policies or endorsements, either expressed or implied, of the Air Force Research Laboratory or the U.S. Government. We would like to extend our gratitude towards Herman Schmit, Chandu Thekkath, Mangpo Phothilimthana, James Laudon, Stella Aslibekyan, and Tianjun Zhang for reviewing the paper and providing insightful feedback. We also thank the extended team at Google Research, Brain Team (now Google DeepMind) who enabled this research and helped us with the paper.
+REFERENCES
+Mansi Agnihotri and Anuradha Chug. A Systematic Literature Survey of Software Metrics, Code Smells
+and Refactoring Techniques. Journal of Information Processing Systems, 2020.
+Alfred V Aho, Ravi Sethi, and Jeffrey D Ullman. Compilers: Principles, Techniques, and Tools, volume 2.
+Addison-wesley Reading, 2007.
+David F Bacon, Susan L Graham, and Oliver J Sharp. Compiler Transformations for High-Performance
+Computing. CSUR, 1994.
+Nathan Binkert, Bradford Beckmann, Gabriel Black, Steven K. Reinhardt, Ali Saidi, Arkaprava Basu, Joel Hestness, Derek R. Hower, Tushar Krishna, Somayeh Sardashti, Rathijit Sen, Korey Sewell, Muhammad Shoaib, Nilay Vaish, Mark D. Hill, and David A. Wood. The gem5 simulator. SIGARCH Comput. Archit. News, 2011.
+Aymeric Blot and Justyna Petke. MAGPIE: Machine Automated General Performance Improvement via
+Evolution of Software, 2022. URL https://arxiv.org/abs/2208.02811.
+Tom B Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, Prafulla Dhariwal, Arvind Neelakantan, Pranav Shyam, Girish Sastry, Amanda Askell, et al. Language models are few-shot learners. arXiv preprint arXiv:2005.14165, 2020.
+Binghong Chen, Daniel Tarlow, Kevin Swersky, Martin Maas, Pablo Heiber, Ashish Naik, Milad Hashemi, and Parthasarathy Ranganathan. Learning to Improve Code Efficiency, 2022. URL https://arxiv. org/abs/2208.05297.
+Lichang Chen, Shiyang Li, Jun Yan, Hai Wang, Kalpa Gunaratna, Vikas Yadav, Zheng Tang, Vijay Srini- vasan, Tianyi Zhou, Heng Huang, et al. Alpagasus: Training a better alpaca with fewer data. arXiv preprint arXiv:2307.08701, 2023.
+10
+
+
+Preprint. Under review.
+Lili Chen, Kevin Lu, Aravind Rajeswaran, Kimin Lee, Aditya Grover, Misha Laskin, Pieter Abbeel, Aravind Srinivas, and Igor Mordatch. Decision transformer: Reinforcement learning via sequence modeling. Advances in neural information processing systems, 34:15084–15097, 2021a.
+Mark Chen, Jerry Tworek, Heewoo Jun, Qiming Yuan, Henrique Ponde de Oliveira Pinto, Jared Kaplan, Harri Edwards, Yuri Burda, Nicholas Joseph, Greg Brockman, Alex Ray, Raul Puri, Gretchen Krueger, Michael Petrov, Heidy Khlaaf, Girish Sastry, Pamela Mishkin, Brooke Chan, Scott Gray, Nick Ry- der, Mikhail Pavlov, Alethea Power, Lukasz Kaiser, Mohammad Bavarian, Clemens Winter, Philippe Tillet, Felipe Petroski Such, Dave Cummings, Matthias Plappert, Fotios Chantzis, Elizabeth Barnes, Ariel Herbert-Voss, William Hebgen Guss, Alex Nichol, Alex Paino, Nikolas Tezak, Jie Tang, Igor Babuschkin, Suchir Balaji, Shantanu Jain, William Saunders, Christopher Hesse, Andrew N. Carr, Jan Leike, Josh Achiam, Vedant Misra, Evan Morikawa, Alec Radford, Matthew Knight, Miles Brundage, Mira Murati, Katie Mayer, Peter Welinder, Bob McGrew, Dario Amodei, Sam McCandlish, Ilya Sutskever, and Woj- ciech Zaremba. Evaluating Large Language Models Trained on Code. ArXiv preprint, abs/2107.03374, 2021b. URL https://arxiv.org/abs/2107.03374.
+Chris Cummins, Zacharias V Fisches, Tal Ben-Nun, Torsten Hoefler, Michael FP O’Boyle, and Hugh Leather. ProGraML: A Graph-based Program Representation for Data Flow Analysis and Compiler Op- timizations. In ICLR, 2021.
+Daniel Fried, Armen Aghajanyan, Jessy Lin, Sida Wang, Eric Wallace, Freda Shi, Ruiqi Zhong, Wen-tau Yih, Luke Zettlemoyer, and Mike Lewis. Incoder: A Generative Model for Code Infilling and Synthesis. ArXiv preprint, abs/2204.05999, 2022. URL https://arxiv.org/abs/2204.05999.
+Spandan Garg, Roshanak Zilouchian Moghaddam, Colin B. Clement, Neel Sundaresan, and Chen Wu. DeepPERF: A Deep Learning-Based Approach For Improving Software Performance, 2022. URL https://arxiv.org/abs/2206.13619.
+Prakhar Gupta, Cathy Jiao, Yi-Ting Yeh, Shikib Mehri, Maxine Eskenazi, and Jeffrey P Bigham. Instructdial: improving zero and few-shot generalization in dialogue through instruction tuning. In Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing, pp. 505–525, 2022.
+Patrick Haluptzok, Matthew Bowers, and Adam Tauman Kalai. Language models can teach themselves to
+program better. arXiv preprint arXiv:2207.14502, 2022.
+Youssef Hamadi and Youssef Hamadi. Autonomous Search. Combinatorial Search: From Algorithms to
+Systems, 2013.
+Edward J Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. Lora: Low-rank adaptation of large language models. arXiv preprint arXiv:2106.09685, 2021.
+Changwu Huang, Yuanxiang Li, and Xin Yao. A Survey of Automatic Parameter Tuning Methods for
+Metaheuristics. IEEE transactions on evolutionary computation, 2019.
+Jeff Johnson, Matthijs Douze, and Hervé Jégou. Billion-scale similarity search with GPUs. IEEE Transac-
+tions on Big Data, 7(3):535–547, 2019.
+Sam Kaufman, Phitchaya Phothilimthana, Yanqi Zhou, Charith Mendis, Sudip Roy, Amit Sabne, and Mike Burrows. A Learned Performance Model for Tensor Processing Units. Proceedings of Machine Learning and Systems, 2021.
+Pascal Kerschke, Holger H Hoos, Frank Neumann, and Heike Trautmann. Automated Algorithm Selection:
+Survey and Perspectives. Evolutionary computation, 2019.
+11
+
+
+Preprint. Under review.
+Lars Kotthoff. Algorithm Selection for Combinatorial Search Problems: A Survey. Data mining and con-
+straint programming: Foundations of a cross-disciplinary approach, 2016.
+Charles E Leiserson, Neil C Thompson, Joel S Emer, Bradley C Kuszmaul, Butler W Lampson, Daniel Sanchez, and Tao B Schardl. There’s plenty of room at the top: What will drive computer performance after moore’s law? Science, 368(6495):eaam9744, 2020.
+Yujia Li, David Choi, Junyoung Chung, Nate Kushman, Julian Schrittwieser, Rémi Leblond, Tom Ec- cles, James Keeling, Felix Gimeno, Agustin Dal Lago, Thomas Hubert, Peter Choy, Cyprien de Mas- son d’Autume, Igor Babuschkin, Xinyun Chen, Po-Sen Huang, Johannes Welbl, Sven Gowal, Alexey Cherepanov, James Molloy, Daniel J. Mankowitz, Esme Sutherland Robson, Pushmeet Kohli, Nando de Freitas, Koray Kavukcuoglu, and Oriol Vinyals. Competition-level Code Generation with AlphaCode. ArXiv preprint, abs/2105.12655, 2021. URL https://arxiv.org/abs/2105.12655.
+Jhe-Yu Liou, Xiaodong Wang, Stephanie Forrest, and Carole-Jean Wu. GEVO: GPU Code Optimization
+using Evolutionary Computation. TACO, 2020.
+Jiachang Liu, Dinghan Shen, Yizhe Zhang, Bill Dolan, Lawrence Carin, and Weizhu Chen. What Makes Good In-Context Examples for GPT-$3$? arXiv:2101.06804 [cs], 2021. URL http://arxiv.org/ abs/2101.06804. arXiv: 2101.06804.
+Shayne Longpre, Le Hou, Tu Vu, Albert Webson, Hyung Won Chung, Yi Tay, Denny Zhou, Quoc V Le, Barret Zoph, Jason Wei, et al. The flan collection: Designing data and methods for effective instruction tuning. arXiv preprint arXiv:2301.13688, 2023.
+Ilya Loshchilov and Frank Hutter. Decoupled weight decay regularization, 2019.
+Aman Madaan, Niket Tandon, Peter Clark, and Yiming Yang. Memory-assisted prompt editing to improve gpt-3 after deployment. In Proceedings of the 2022 Conference on Empirical Methods in Natural Lan- guage Processing, pp. 2833–2861, 2022.
+Daniel J Mankowitz, Andrea Michi, Anton Zhernov, Marco Gelmi, Marco Selvi, Cosmin Paduraru, Edouard Leurent, Shariq Iqbal, Jean-Baptiste Lespiau, Alex Ahern, et al. Faster sorting algorithms discovered using deep reinforcement learning. Nature, 618(7964):257–263, 2023.
+Charith Mendis, Cambridge Yang, Yewen Pu, Dr Amarasinghe, Michael Carbin, et al. Compiler Auto-
+Vectorization with Imitation Learning. Advances in Neural Information Processing Systems, 2019.
+Tom Mens and Tom Tourwé. A Survey of Software Refactoring. IEEE Transactions on software engineering,
+2004.
+Swaroop Mishra, Daniel Khashabi, Chitta Baral, Yejin Choi, and Hannaneh Hajishirzi. Reframing Instruc-
+tional Prompts to GPTk’s Language. arXiv preprint arXiv:2109.07830, 2021.
+Erik Nijkamp, Bo Pang, Hiroaki Hayashi, Lifu Tu, Huan Wang, Yingbo Zhou, Silvio Savarese, and Caiming Xiong. Codegen: An open large language model for code with multi-turn program synthesis. ArXiv preprint, abs/2203.13474, 2022. URL https://arxiv.org/abs/2203.13474.
+Dorit Nuzman, Ira Rosen, and Ayal Zaks. Auto-vectorization of Interleaved Data for SIMD. ACM SIGPLAN
+Notices, 2006.
+David Peter. hyperfine, 2023. URL https://github.com/sharkdp/hyperfine.
+Gabriel Poesia, Alex Polozov, Vu Le, Ashish Tiwari, Gustavo Soares, Christopher Meek, and Sumit Gul- wani. Synchromesh: Reliable code generation from pre-trained language models. In International Con- ference on Learning Representations, 2021.
+12
+
+
+Preprint. Under review.
+Ruchir Puri, David Kung, Geert Janssen, Wei Zhang, Giacomo Domeniconi, Vladmir Zolotov, Julian Dolby, Jie Chen, Mihir Choudhury, Lindsey Decker, Veronika Thost, Luca Buratti, Saurabh Pujar, Shyam Ramji, Ulrich Finkler, Susan Malaika, and Frederick Reiss. Codenet: A large-scale ai for code dataset for learning a diversity of coding tasks. arXiv preprint arXiv:2105.12655, 2021. URL https://arxiv.org/ abs/2105.12655.
+Baptiste Rozière, Jonas Gehring, Fabian Gloeckle, Sten Sootla, Itai Gat, Xiaoqing Ellen Tan, Yossi Adi, Jingyu Liu, Tal Remez, Jérémy Rapin, et al. Code llama: Open foundation models for code. arXiv preprint arXiv:2308.12950, 2023.
+Ohad Rubin, Jonathan Herzig, and Jonathan Berant. Learning To Retrieve Prompts for In-Context Learning. arXiv:2112.08633 [cs], 2021. URL http://arxiv.org/abs/2112.08633. arXiv: 2112.08633.
+Ohad Rubin, Jonathan Herzig, and Jonathan Berant. Learning to retrieve prompts for in-context learning. In Proceedings of the 2022 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, pp. 2655–2671, 2022.
+Yash Sherry and Neil C. Thompson. How Fast Do Algorithms Improve? [Point of View]. Proceedings of
+the IEEE, 2021.
+Hui Shi, Yang Zhang, Xinyun Chen, Yuandong Tian, and Jishen Zhao. Deep symbolic superoptimization
+without human knowledge. In International Conference on Learning Representations, 2019.
+Disha Shrivastava, Hugo Larochelle, and Daniel Tarlow. Repository-level prompt generation for large lan- In International Conference on Machine Learning, pp. 31693–31715. PMLR,
+guage models of code. 2023.
+Alex Shypula, Pengcheng Yin, Jeremy Lacomis, Claire Le Goues, Edward Schwartz, and Graham Neubig.
+Learning to superoptimize real-world programs. arXiv preprint arXiv:2109.13498, 2021.
+Delaram Talaashrafi. Advances in the Automatic Detection of Optimization Opportunities in Computer
+Programs. PhD thesis, Western University, 2022.
+Lewis Tunstall, Leandro Von Werra, and Thomas Wolf. Natural Language Processing with Transformers.
+"O’Reilly Media, Inc.", 2022.
+Jason Wei, Yi Tay, Rishi Bommasani, Colin Raffel, Barret Zoph, Sebastian Borgeaud, Dani Yogatama, Maarten Bosma, Denny Zhou, Donald Metzler, Ed H. Chi, Tatsunori Hashimoto, Oriol Vinyals, Percy Liang, Jeff Dean, and William Fedus. Emergent Abilities of Large Language Models. arXiv preprint arXiv:2206.07682, 2022a.
+Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Fei Xia, Ed Chi, Quoc V Le, Denny Zhou, et al. Chain-of-thought prompting elicits reasoning in large language models. Advances in Neural Infor- mation Processing Systems, 35:24824–24837, 2022b.
+Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Clement Delangue, Anthony Moi, Pierric Cistac, Tim Rault, Remi Louf, Morgan Funtowicz, Joe Davison, Sam Shleifer, Patrick von Platen, Clara Ma, Yacine Jernite, Julien Plu, Canwen Xu, Teven Le Scao, Sylvain Gugger, Mariama Drame, Quentin Lhoest, and Alexander Rush. Transformers: State-of-the-art natural language processing. In Proceed- ings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demon- strations, pp. 38–45, Online, 2020. Association for Computational Linguistics. doi: 10.18653/v1/2020. emnlp-demos.6. URL https://aclanthology.org/2020.emnlp-demos.6.
+Frank F Xu, Uri Alon, Graham Neubig, and Vincent Josua Hellendoorn. A Systematic Evaluation of Large
+Language Models of Code. In MAPS, 2022.
+13
+
+
+Preprint. Under review.
+Tianjun Zhang, Fangchen Liu, Justin Wong, Pieter Abbeel, and Joseph E Gonzalez. The wisdom of hindsight
+makes language models better instruction followers. arXiv preprint arXiv:2302.05206, 2023.
+Zihao Zhao, Eric Wallace, Shi Feng, Dan Klein, and Sameer Singh. Calibrate before use: Improving few- shot performance of language models. In International Conference on Machine Learning, pp. 12697– 12706. PMLR, 2021.
+Chunting Zhou, Pengfei Liu, Puxin Xu, Srini Iyer, Jiao Sun, Yuning Mao, Xuezhe Ma, Avia Efrat, Ping Yu,
+Lili Yu, et al. Lima: Less is more for alignment. arXiv preprint arXiv:2305.11206, 2023a.
+Shuyan Zhou, Uri Alon, Sumit Agarwal, and Graham Neubig. Codebertscore: Evaluating code generation
+with pretrained models of code. 2023b. URL https://arxiv.org/abs/2302.05527.
+14
+
+
+Preprint. Under review.
+A APPENDIX
+A.1 ADDITIONAL ANALYSIS OF OPTIMIZATIONS
+Algorithmic Transformations (34.15%). The most dominant transformation, representing approximately 34.15% of the changes, is the Algorithmic category. Edits in this category exhibited sophisticated code re- structuring. A frequent transformation was the shift from recursive methodologies to dynamic programming approaches, which can significantly enhance running time for specific problem types. Other examples in- clude replacing Binary Indexed Trees with more straightforward constructs, removing redundant conditional checks, bit manipulations, and in some cases, using identities from number theory and algebra to replace complex computation with a formula.
+Input/Output Operations (26.02%). The Input/Output operations category, accounting for roughly 26.02% of the changes, primarily centered on transitioning from C++ standard I/O methods (‘cin/cout‘) to the faster C-standard methods (‘scanf/printf‘). Other examples include reading a string character-by-character vs. reading in one go, This transformation is particularly beneficial for problems dealing with extensive datasets, where I/O operations can be a bottleneck.
+Data Structure Modifications (21.14%). Changes in the Data Structures category, which constituted about 21.14% of the transformations, showcased the model’s adeptness in selecting optimal data structures for the task. A recurring modification was the transition from vectors to traditional arrays, leading to enhanced access times and reduced overhead. Additionally, the changes include removal of pointers in favor of direct access, and using hashmaps when appropriate.
+Miscellaneous Optimizations (18.70%). The Miscellaneous category, encompassing approximately 18.70% of changes, captured a myriad of optimizations. These ranged from code cleanups, such as omitting unnecessary initializations, to replacing computationally intensive functions with predefined constants.
+int main(){
+int main(){
+int n, m, a, b; vector<int> v, v1;
+cin >> n >> m;
+for(int i = 0; i < m; i++){
+int n, m, a, b, max = -1, min = 1e9; scanf("%d%d", &n, &m); for(int i = 0; i < m; i++){ scanf("%d%d", &a, &b); if(a > max) max = a; if(b < min) min = b;
+}
+cin >> a >> b; v.push_back(a); v1.push_back(b);
+} ans = min - max + 1; if(ans < 0){ ans = 0;
+sort(v.begin(), v.end()); sort(v1.begin(), v1.end());
+} printf("%d\n", ans); return 0;
+if(v.back() > v1[0]){ cout << 0 << endl;
+}
+} else {
+cout << v1[0] - v.back() + 1 << endl;
+(b) Faster Code.
+}
+}
+return 0;
+(a) Slower Code.
+Figure 3: Comparison of two programs for determining the range between the maximum and minimum values from a set of input pairs. The faster code (right) generated by PIE directly computes the maximum start and minimum end of the ranges in a single pass (O(n)), eliminating the need for sorting (O(n log n)).
+15
+
+
+Preprint. Under review.
+int main(){ int k,x; cin>>k>>x; for (int i=-1000000;i<1000001;i++) { if(i==x){
+int main(){ int k,x; scanf("%d %d",&k,&x); for(int i=x-k+1;i<=x+k-1;i++)
+printf("%d ",i);
+for (i=x-(k-1);i<x+k;i++){ cout<< i<<" ";
+}
+return 0;
+}
+}
+} return 0;
+(b) Faster Code.
+}
+(a) Slower Code.
+Figure 4: Comparison of two code implementations for printing 2k − 1 consecutive numbers centered around the input x. The faster code (right) optimizes the process by directly computing the range without the need for nested loops, resulting in a more efficient and concise solution. The red highlighted portion in the slower code (left) indicates the wasteful nested loop that was eliminated in the optimized version. This loop unnecessarily iterates over a large range of numbers, only to perform a meaningful operation for a tiny fraction of those iterations.
+int main() {
+int i, n; long long num[100005] = {0,1}; for (i = 2; i <= 100004; i++)
+num[i] = (num[i-1] * i)%(1000000007);
+scanf("%d", &n); printf("%lld\n", num[n]); return 0;
+}
+long long a=1,mod=1e9+7; int n; int main() {
+scanf("%d",&n); for(int i=1;i<=n;i++) {
+a=(a*i)%mod;
+} printf("%lld",a);
+}
+(a) Slower Code.
+(b) Faster Code.
+Figure 5: Comparison of two code implementations for computing factorial modulo 109+7. The slower code (left) precomputes the factorial for all numbers up to 105, storing them in an array. The faster code (right) computes the factorial only for the given input, resulting in a more memory-efficient and faster solution. The red highlighted portion in the slower code indicates the precomputation step that was eliminated in the optimized version.
+A.2 PIE DATASET DETAILS
+Dataset Unique Problem IDs
+Train Val Test
+1,474 77 41
+Table 4: Number of unique problem ids.
+16
+
+
+Preprint. Under review.
+int main() {
+int main() {
+int A, B, C; scanf("%d %d %d", &A, &B, &C);
+int A, B, C; scanf("%d %d %d", &A, &B, &C);
+bool isYes = false; for (int i = 0; i < 1000; i++) {
+for (int j = 0; j < 1000; j++) { if ((A * i) - (B * j) == C)
+bool is_yes = false; for (int i = 0; i < B; i++) { if ((A * i) % B == C) is_yes = true;
+isYes = true;
+}
+}
+}
+printf("%s\n", is_yes ? "YES" : "NO"); return 0;
+printf("%s\n", isYes ? "YES" : "NO"); return 0;
+}
+}
+(b) Optimized Code.
+(a) Slower Code with Nested Loops.
+Figure 6: Optimization of a modular arithmetic problem. The slower code naively checks all possible combinations of i and j leading to a complexity of O(106). The faster code leverages the property of modular arithmetic, reducing the complexity to O(B). By directly computing the modulo operation for each i in the range [0, B − 1], it efficiently determines if the condition (A × i) mod B = C is satisfied.
+int main() {
+int i,n,m; cin>>n>>m; for(i=m-n+1;i<m+n;i++){
+int main(){ int n,m; scanf("%d%d",&n,&m); for(int i=m-n+1;i<m;i++){ printf("%d ",i);
+}
+cout<<i; if(i!=m+n-1)
+cout<<" ";
+} printf("%d",m); for(int i=m+1;i<m+n;i++){ printf(" %d",i);
+}
+(a) Slower Code.
+}
+} printf("\n"); return 0;
+(b) Optimized Code.
+Figure 7: Comparison of the slower code (left) with its optimized version (right). The optimized code avoids an additional conditional check inside the loop by restructuring the loop.
+A.3 EXAMPLE OF DUPLICATE CODE IN CODENET WITH DIFFERENT MEASURED RUNTIMES
+Here is one example of code we found duplicated across the Project Codenet Dataset with variance in the dataset’s report of CPUTime. For problem number p03160 and between submission s766827701 and s964782197 a speedup of 2.44× is reported, despite the programs and environments being identical. We note that multiple submissions existed, because it was template code. For brevity, we remove the macros, imports, and comments.
+A.4 SELF-PLAY DATA GENERATION DETAILS
+We use the template in Figure 9 for prompting GPT-3.5 in the self-play scenario. For the prompt, we sample natural language descriptions of programming problems as well as accepted solutions to fill in the template. For generation, we use a temperature of 1.0 and use top-p sampling with p = 0.9 For each prompt, we try attempt to take n = 5 samples. We chose these samples after doing a sweep of 6 configurations of
+17
+
+
+Preprint. Under review.
+Dataset
+Pairs
+Train Val Test
+77,967 2,544 982
+Table 5: Number of pairs.
+Dataset Mean src Mean tgt Median src Median tgt
+Train Val Test
+675.00 644.74 429.12
+616.44 471.47 398.78
+417 180 363
+372 110 318.5
+Table 6: GPT-2 Tokenizer lengths.
+generation parameters, each attempting to generate 200 programs. We found this configuration to be the most cost-effective per new-sample with relatively promising rates of novelty.
+We found that after attempting to generate 10,000 new programs through the prompting strategy, 6,553 were not in the training/validation/test set of PIE. We keep track of equivalent programs of the ones generated, and of these 6,553 generations we found 3,314 equivalence sets. In total, this required executing over 1.4 million binary input pairs. Parallelized on a 24-core Intel 13900k processor with 64GB of RAM, this took less than 72 hours to complete.
+A.5 ABLATION OF RETRIEVAL-BASED FEW-SHOT PROMPTING CONFIGURATION
+For our retrieval-based prompting experiment we tried multiple configurations for the number of retrieved prompts where of K = {1, 2, 4} of the K closest retrieved prompts.
+Table 7: Retrieval-based few-shot prompting experiments: Results for various models and datasets configu- rations. *We note that for GPT4, we report only with Best@4, given resource constraints.
+Best@1
+Best@8
+Method
+Model
+%Opt
+Speedup
+Correct
+%Opt
+Speedup
+Dynamic Retrieval, K=1 CodeLlama7B Dynamic Retrieval, K=1 CodeLlama13B Dynamic Retrieval, K=1 CodeLlama34B
+3.39% 5.62% 10.51%
+1.09 1.17 1.26
+17.29% 22.59% 32.06%
+16.33% 23.22% 35.67%
+1.52 1.74 2.26
+Dynamic Retrieval, K=2 CodeLlama7B Dynamic Retrieval, K=2 CodeLlama13B Dynamic Retrieval, K=2 CodeLlama34B
+4.60% 9.40% 12.67%
+1.14 1.36 1.33
+21.21% 29.47% 31.87%
+17.35% 28.74% 42.16%
+1.52 1.99 2.57
+Dynamic Retrieval, K=4 CodeLlama7B Dynamic Retrieval, K=4 CodeLlama13B Dynamic Retrieval, K=4 CodeLlama34B
+5.54% 9.61% 12.12%
+1.19 1.30 1.35
+23.72% 27.69% 31.45%
+18.81% 29.05% 43.68%
+1.63 2.07 2.47
+Dynamic Retrieval, K=2 Dynamic Retrieval, K=2
+GPT3.5 GPT4
+26.28% 50.15%
+1.58 2.61
+80.47% 48.16% 80.82% 69.03%*
+2.14 3.56*
+18
+Correct
+52.49% 65.43% 72.61%
+56.74% 66.25% 77.92%
+60.08% 64.26% 75.44%
+97.96% 95.90%*
+
+
+Preprint. Under review.
+using namespace std; typedef long long ll; inline void getInt(int* p); const int maxn=1000010; const int inf=0x3f3f3f3f; ll n; ll dp[maxn]; ll a[maxn]; int main() {
+gbtb; cin>>n; repd(i,1,n) {
+cin>>a[i];
+} dp[1]=0; dp[0]=0; dp[2]=abs(a[2]-a[1]); repd(i,3,n) {
+dp[i]=min(dp[i-2]+abs(a[i]-a[i-2]),dp[i-1]+abs(a[i]-a[i-1]));
+} cout<<dp[n]; return 0;
+}
+inline void getInt(int* p) {
+char ch; do {
+ch = getchar();
+} while (ch == ' ' ch == '\n'); if (ch == '-') {
+p = -(getchar() - '0'); while ((ch = getchar()) >= '0' && ch <= '9') {
+p = *p * 10 - ch + '0';
+}
+} else {
+p = ch - '0'; while ((ch = getchar()) >= '0' && ch <= '9') {
+p = *p * 10 + ch - '0';
+}
+}
+}
+Figure 8: An example of a C++ program we found multiple submissions for as it is template code. Across these submissions, we found variance in the reported CPU runtime despite the code and competitive pro- gramming environment being identical.
+A.6 TRAINING DETAILS
+We fine-tuned the 7B and 13B variants using the HuggingFace Transformers library with FSDP to distribute the training process across 8× 48GB GPUs (NVIDIA RTX A6000/NVIDIA L40). For our high-quality dataset, which consists of approximately 4,000 examples, the models were fine-tuned until convergence was achieved, which can be done under 12 hours with 8 GPUs. For tasks related to full data fine-tuning and performance-conditioned fine-tuning, we only train for 1 epoch, which takes 24 to 36 hours, depending on the model of GPU used. All experiments were conducted using the AdamW optimizer (Loshchilov & Hutter, 2019). For the 7B and 13B variants of CODELLAMA, we used a batch size of 32 and a learning rate of 1e−5 for all of the experiments.
+19
+
+
+Preprint. Under review.
+Description 1: {description_1} Code 1: {code_1} Description 2: {description_2} Code 2: {code_2} Now, can you generate a program that takes that same input as Code 2
+in Code 3 but produces different outputs? Write it to be as novel as possible.
+(cid:44)→
+(cid:44)→ Code 3:
+Figure 9: The prompt template used for prompting GPT-3.5 for generating synthetic data for self-play.
+A.7 LORA RESULTS
+We show results using low-rank adaptors for finetuning in Table 8.
+Table 8: LoRA Experiments: Results for fine-tuning CODELLAMA with low rank adapters. A LoRA rank of 32 and LoRA alpha of 16 is used for all experiments listed.
+Best@1
+Best@8
+Dataset
+Model
+%Opt
+Speedup
+Correct
+%Opt
+Speedup
+All All
+CODELLAMA 7B CODELLAMA 13B
+1.12% 0.41%
+1.01 1.01
+45.82% 59.47%
+9.57% 9.67%
+1.17 1.15
+HQ
+CODELLAMA 13B
+0.92%
+1.02
+59.57%
+10.69%
+1.17
+A.8 PROMPTS
+Given the program below, improve its performance:
+### Program: {src_code}
+### Optimized Version:
+Figure 10: Instruction-prompting for adapting LLMs. The model is provided with direct instructions to improve the performance of the given program.
+20
+Correct
+87.47% 90.94%
+91.04%
+
+
+Preprint. Under review.
+slow1 → fast1 || slow2 → fast2 || slow3 → fast3 || ... || slowN →
+(cid:44)→
+fastN
+### Program: {src_code}
+### Optimized Version:
+Figure 11: Few-shot prompting for in-context learning. The format "slow → fast" is used for adaptation. A test program is appended for inference.
+### slower program: {src_code} Give a potential strategy improving the program:
+LLM reasoning: The current program calculates the sum of integers from 1 to n-1 using a loop. This iterative approach results in a time complexity of O(n). The sum of the first n natural numbers follows an arithmetic progression, and by leveraging Gauss’s formula, n(n-1)/2, we can compute the sum directly. This formula-based approach allows us to calculate the sum in constant time, O(1), eliminating the need for iteration. ### optimized version of the same code with the strategy mentioned (cid:44)→
+above:
+LLM Response: optimized code
+Figure 12: Chain-of-thought prompting. The model’s intermediate response and final program are high- lighted in blue, indicating they are produced by the LLM.
+similar_slow1 → similar_fast1 || similar_slow2 → similar_fast2 || ...
+(cid:44)→
+|| similar_slowN → similar_fastN
+### Program: {src_code}
+### Optimized Version:
+Figure 13: Retrieval-based few-shot prompting. By dynamically retrieving analogous program structures or challenges, the model is guided to better harness patterns in PIE.
+21
+
+
+Preprint. Under review.
+Below is a program. Optimize the
+(cid:44)→
+(cid:44)→
+program and provide a more efficient version.
+Below is a program. Optimize the
+(cid:44)→
+(cid:44)→
+program and provide a more efficient version.
+### Program: {src_code}
+### Program: {src_code}
+### Optimized Version: {tgt_code}
+### Optimized Version:
+(a) Training Prompt.
+(b) Inference Prompt.
+Figure 14: Training and inference prompts for unconditional optimization with PIE.
+22
+
+
+Preprint. Under review.
+// Retrieved 1-nearest prompt, slower
+// Retrieved 1-nearest prompt, faster
+src_code
+#include <iostream> #include <stack> using namespace std;
+tgt_code #include <cstdio>
+int n, ans; char ch1, ch2;
+stack<char> s;
+int main() { int n; cin >> n; for (int i = 0; i < n; ++i) {
+char t; cin >> t; if (s.empty()) s.push(t);
+int main() {
+scanf("%d", &n); ch1 = getchar(); ch1 = getchar(); ans = 1; for (int i = 1; i < n; i++) {
+ch2 = getchar(); if (ch2 != ch1) ans++; ch1 = ch2;
+else if (t == s.top())
+;
+} printf("%d", ans);
+else
+}
+s.push(t);
+} cout << s.size(); return 0;
+(b) Retrieved Fast.
+}
+(a) Retrieved Slow.
+// Code for to_be_optimized goes here #include <bits/stdc++.h> using namespace std;
+int main() {
+int N, len; cin >> N; string s; cin >> s; len = s.size(); if (len > N) {
+for (int i = len; i > N; i--) {
+s.pop_back();
+} for (int j = 0; j < 3; j++) {
+s.push_back('.');
+} cout << s;
+} else {
+cout << s;
+} return 0;
+}
+(c) Program to be optimized.
+Figure 15: Example of retrieval-based prompting. To optimized the program in Figure 15(c), our dynamic prompting method retrieves the closest source program from the training set (Figure 15(a)), where the simi- larity is measured using CodeBertScore (Zhou et al., 2023b). The slow program and the corresponding fast program (Figure 15(b)) from the training set are used as prompts.
+23

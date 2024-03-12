@@ -1,0 +1,379 @@
+4 2 0 2
+b e F 0 2
+] L C . s c [
+2 v 1 4 5 2 0 . 4 0 3 2 : v i X r a
+PWESUITE: Phonetic Word Embeddings and Tasks They Facilitate
+Vilém Zouhar E =
+Kalvin Chang C =
+Chenxuan Cui C
+Nathaniel Carlson Y
+Nathaniel R. Robinson C Mrinmaya Sachan E David Mortensen C
+EDepartment of Computer Science, ETH Zurich CLanguage Technologies Institute, Carnegie Mellon University YDepartment of Computer Science, Brigham Young University {vzouhar,msachan}@ethz.ch natbcar@gmail.com {kalvinc,cxcui,nrrobins,dmortens}@cs.cmu.edu
+Abstract
+Mapping words into a fixed-dimensional vector space is the backbone of modern NLP. While most word embedding methods successfully encode semantic information, they overlook phonetic information that is crucial for many tasks. We develop three methods that use articulatory features to build phonetically informed word embeddings. To address the inconsistent evaluation of existing phonetic word embedding methods, we also contribute a task suite to fairly evaluate past, current, and future methods. We evaluate both (1) intrinsic aspects of phonetic word embeddings, such as word retrieval and correlation with sound similarity, and (2) extrinsic performance on tasks such as rhyme and cognate detection and sound analogies. We hope our task suite will promote reproducibility and inspire future phonetic embedding research.
+Keywords: phonetic word embeddings,
+representation learning, phonology, articulatory features, evaluation
+Code: github.com/zouharvi/pwesuite
+Dataset:
+huggingface.co/datasets/ zouharvi/pwesuite-eval
+1.
+Introduction
+soybean | sɔɪbiːn | S OY B IY N
+motion | moʊʃən | M OW SH AH N
+f
+ocean | oʊʃən | OW SH AH N
+Word embeddings are omnipresent in modern NLP (Le and Mikolov, 2014; Pennington et al., 2014; Almeida and Xexéo, 2019, inter alia). Their main benefit lies in compressing some information into fixed-dimensional vectors. These vectors can be used as machine-learning features for NLP appli- cations, and their study can reveal linguistic in- sights (Hamilton et al., 2016; Ryskina, Maria and Rabinovich, Ella and Berg-Kirkpatrick, Taylor and Mortensen, David R. and Tsvetkov, Yulia, 2020; Francis et al., 2021). Word embeddings are often trained via methods from distributional semantics (Camacho-Collados and Pilehvar, 2018) and thus bear semantic information. For example, the em- bedding for the word carrot may encode higher similarity to embeddings for other vegetables than to that of ocean.
+Figure 1: Embedding function ƒ projects words in various forms (left) to a vector space (right).
+phonetic word embeddings, contain phonetic in- formation and have been of recent interest (Par- rish, 2017; Yang and Hirschberg, 2019; Hu et al., 2020; Sharma et al., 2021).1 The objective is that words with similar pronunciation should be mapped to vectors near each other in embedding space. Many tasks have benefited from incorpo- rating phonetic word embeddings, including cog- nate and loanword detection (Rama, 2016; Nath et al., 2022b,a), named entity recognition (Bharad- waj et al., 2016; Chaudhary et al., 2018), spelling correction (Zhang et al., 2021), and speech recog- nition (Fang et al., 2020). See Section 6.2 for a more detailed list of possible applications.
+Some applications may require a different type of information to be encoded. The orthography, especially in English, can obscure the pronuncia- tion. A poem generation model, for instance, may need embeddings to reflect that ocean rhymes with motion and not with a soybean, even though the spelling of the words’ final syllables suggest oth- erwise (see Figure 1). Such embeddings, called
+We introduce four phonetic word embedding methods—count-based, autoencoder, and metric and contrastive learning. Though some of these techniques are inspired by previous work, we are the first to apply them with supervision from articu- latory feature vectors, a seldom-exploited form of
+=Co-first authors.
+1The technically correct term is phonological word embeddings but prior literature uses the term phonetic.
+
+
+linguistic knowledge for representation learning.
+More importantly, we introduce an evaluation suite for testing the performance of phonetic embeddings. The motivations for this are two- fold. First, prior work is inconsistent in evaluat- ing models. This prevents the field from observ- ing long-term improvements in such embeddings and from making fair comparisons across different approaches. Secondly, when a practitioner is de- ciding which phonetic word embedding method to use, the go-to approach is to first apply the embed- dings (generally fast) and then train a downstream model on those embeddings (compute and time intensive). Instead, intrinsic embedding evaluation metrics (cheap)—if shown to correlate well with extrinsic metrics—could provide useful signals in embedding method selection prior to training of downstream models (expensive). In contrast to semantic word embeddings (Bakarov, 2018), we show that intrinsic and extrinsic metrics for pho- netic word embeddings generally correlate with each other. While Ghannay et al. (2016) evalu- ate acoustic word embeddings, we specialize in phonetic word embeddings for text, not speech.
+Our main contribution is this evaluation suite for phonetic word embeddings, the equivalent of which does not yet exist in this subfield. We also contribute multiple methods for and a survey of existing phonetic word embeddings.
+2. Survey of Phonetic Embeddings
+Given an alphabet  and a dataset of words W ⊆ ∗, d-dimensional word embeddings are given by a function ƒ : W → Rd. This function takes an element from ∗ (set of all possible words over the alphabet ) and maps it to a d-dimensional vector of numbers. For many embedding functions, W is a finite set of words, and the embeddings are not defined for unseen words (Mikolov et al., 2013a; Pennington et al., 2014). Other embed- ding functions—which we dub open—are able to provide an embedding for any word  ∈ ∗ (Bo- janowski et al., 2017). An illustration of a phonetic embedding function is shown in Figure 1 (motion is closer to ocean than to soybean).
+We use 3 distinct alphabets: characters C, IPA symbols P and ARPAbet symbols A. We use  when the choice is not important and refer to ele- ments of  as characters or phonemes. We review some semantic embeddings in Section 5 and now focus on prior work in phonetic embeddings. From our formalism it also follows that we are interested in phonetic representations of textual input.
+2.1. Poetic Sound Similarity
+Parrish (2017) learns word embeddings captur-
+ing pronunciation similarity for poetry generation for words in the CMU Pronouncing Dictionary (Group, 2014). First, each phoneme is mapped to a set of phonetic features F using the function P2F : A → 2F . From the sequence of sets that each sequence of phonemes maps to, bi-grams of phonetic features are created (using Cartesian product × between sets  and +1) and counted. The function COUNTVEC outputs these bi-gram counts in a vector of constant dimension. The re- sulting vector is then reduced using PCA to the target embedding dimension d.
+W2F() = 〈P2F()| ∈ 〉 F2V() = COUNTVEC.(cid:0) (cid:91)
+(array) (cid:1)
+ × +1
+1≤≤||−1
+ƒPAR = PCAd({F2V(W2F())| ∈ W}) (3)
+The function ƒPAR can provide embeddings even for words unseen during training. This is because the only component dependent on the training data is the PCA over the vector of bigram counts, which can also be applied to new vectors.
+2.2. phoneme2vec
+Fang et al. (2020) do not use hand-crafted features and learn phoneme embeddings using a more com- plex, deep-learning, model. They start with a gold sequence of phonemes () and a noisy sequence of phonemes (y). The phonemes are one-hot en- coded in matrices X and Y. The gold sequence is first read by an LSTM model, yielding the ini- tial hidden state h0. From this hidden state, the phonemes ( ˆy) are decoded using teacher forcing (upon predicting ˆy, the model receives the correct  as the input). The phoneme embedding ma- trix V is trained jointly with the model weights and constitutes the embedding function.
+h0 = LSTM(XV) Lp2v = −(cid:88)
+(4) log softmx(LSTM(Y<V)y ) (5)
+0<≤|y|
+For a fair comparison, we average these vec- tors which are phoneme-level to get word-level embeddings. In addition, in contrast to other em- beddings, these phoneme embeddings are only 50-dimensional. We revisit the question of dimen- sionality in Section 5.5.
+2.3. Phonetic Similarity Embeddings
+Sharma et al. (2021) propose a vowel-weighted phonetic similarity metric to compute similarities between words. They then use it for training pho- netic word embeddings which should share some properties with this similarity function. This is in contrast to the previous approaches, where the
+(1)
+(2)
+
+
+embedding training is indirect on an auxiliary task. Given a sound similarity function SPSE, they con- struct a matrix of similarity scores S ∈ R|W|×|W| such that S,j = SPSE(W, Wj). On this matrix, they use non-negative matrix factorization to learn the embedding matrix V ∈ R|W|×d such that the following loss is minimized:
+LPSE = ||S − V · V T ||2
+(6)
+Then, the -th row of V contains the embedding for -th word from W. A critical disadvantage of this approach is that it cannot be used for embedding new words because the matrix V would need to be recomputed again. We apply the sound similarity function SPSE, defined specifically for English, to all evaluation languages.
+3. Our Models
+We now introduce several embedding baselines. Then, we describe our articulatory distance metric and models trained with supervision therefrom.
+3.1. Count-based Vectors
+Perhaps the most straightforward way of creating a vector representation for a sequence of input char- acters or phonemes  ∈ ∗ is simply counting n- grams in this sequence. We use a term frequency- inverse document frequency (TF-IDF) vectorizer of 1-, 2-, and 3-grams (formally denoted [] n) across the input sequence of symbols (e.g. characters) with a maximum of 300 features. This vector then becomes our word embedding. For instance, the first dimension may be the TF-IDF score or occur- rence count of the bigram 〈/dIn/, /a/〉.
+C2V() = [] 1 ∪ [] 2 ∪ [] 3 ƒcount() = TF-IDFfeat ures
+(features) (7) ({C2V()| ∈ W}) (8)
+=d
+3.2. Autoencoder
+Another common approach, though less inter- pretable, for vector representation with fixed di- mension size is an encoder-decoder autoencoder. Specifically, we use this architecture together with forced-teacher decoding and use the bottleneck vector as the phonetic word embedding. In an ideal case, the fixed-size bottleneck contains all the information to reconstruct the whole sequence from ∗.
+ƒθ() = LSTM(|θ) dθ′ () = LSTM(|θ′)
+(encoder)
+(10) − log softmax(dθ′ (ƒθ()|<) ) (11)
+(decoder)
+Lauto. = (cid:88)
+(9)
+0<≤||
+3.3. Phonetic Word Embeddings With
+Articulatory Features
+3.3.1. Articulatory Features and Distance
+Articulatory features (Bloomfield, 1993; Jakobson et al., 1951; Chomsky and Halle, 1968) decom- pose sounds into their constituent properties. Each segment can be mapped to a vector with n dif- ferent features (24 for PanPhon Mortensen et al., 2016) such as whether the phoneme segment is produced with a nasal airflow or if it is produced with raised or lowered tongue tip. A segment is a group of phonetic characters (e.g., as defined by Unicode) that represent a single sound. We de- fine : P → {−1, 0, +1}24 as the function which maps a phoneme segment into a vector of artic- ulatory features. Values +1/-1 mean present/not present and the value 0 is used when the feature is irrelevant.
+The articulatory distance, also called feature edit distance (Mortensen et al., 2016), is a version of Levenshtein distance with custom costs. Specif- ically, the substitution cost is proportional to the Hamming distance between the source and target when they are represented as articulatory feature vectors. Omitting edge-cases, it is defined as:
+A,j(, ′) = min
+ 
+A−1,j(, ′) + d() A,j−1(, ′) + (′) A−1,j−1(, ′) + s(, ′ j
+
+A(, ′) = A||,|′|(, ′)
+where d and  are deletion and insertion costs, which we set to constant 1. The function s is a sub- stitution cost, defined as the number of elements (normalized) that need to be changed to render the two articulatory vectors identical:
+s(, ′) =
+1
+24
+24 (cid:88)
+=1
+|() − (′)|
+The articulatory distance A induces a metric space-like structure for words in ∗. It quanti- fies the phonetic similarity between a pair of words, capturing the intuition that /pæt/ and /bæt/ are pho- netically closer than /pæt/ and /hæt/, for example.
+3.3.2. Metric Learning
+As one means of generating word embeddings, we use the last hidden state of an LSTM-based model. We use characters C, IPA symbols P (Section 2) and articulatory feature vectors as the input. We discuss these choices and especially their effect on performance and transferability in Section 5.3. We now have a function ƒ that produces a vector for each input word. However, it is not yet trained to produce vectors encoding phonetic information.
+(12)
+)
+(13)
+(14)
+
+
+We, therefore, define the following differentiable loss where A is the articulatory distance.
+Ldist. =
+1
+|W|
+(cid:88)
+∈W b∼W
+(cid:128) ||ƒθ() − ƒθ(b)||2
+− A(, b)(cid:138)2
+This forces the embeddings to be spaced in the same way as the articulatory distance (A, Sec- tion 3.3.1) would space them. Metric learning (learning a function to space output vectors sim- ilarly to some other metric) has been employed previously (Yang and Jin, 2006; Bellet et al., 2015; Kaya and Bilge, 2019) and was used to train acous- tic embeddings by Yang and Hirschberg (2019).
+3.3.3. Triplet Margin loss
+While the previous approach forces the embed- dings to be spaced exactly as by the articulatory distance function A, we may relax the constraint so only the structure (ordering) is preserved. This is realized by triplet margin loss:
+Ltriplet = mx
+ 
+
+0 α + |ƒθ() − ƒθ(p)| −|ƒθ() − ƒθ(n)|
+We consider all possible ordered triplets that of A(, p) < A(, n). We refer to  as the anchor, p as the positive example, and n as the negative example. We then minimize Ltriplet over all valid triplets. This allows us to learn θ for an embedding function ƒθ that preserves the local neighbourhoods of words defined by A(, ′). In addition, we modify the function ƒθ by applying attention to all hidden states extracted from the last layer of the LSTM encoder. This allows our model to focus on phonemes that are potentially more useful when trying to summarize the phonetic information in a word. A related approach was used by Yang and Hirschberg (2019) to learn acoustic word embed- dings. Although contrastive learning is a more intuitive approach, it yielded only negative results: (cid:0)exp(|ƒθ() − ƒθ(p)|2)(cid:1)/(cid:0)(cid:80) exp(|ƒθ() − ƒθ(n)|2)(cid:1). Though metric learning and triplet margin loss have been applied previously to similar applica- tions, we are the first to apply them using articula- tory features and articulatory distance.
+(, p, n)
+distinct words
+such
+3.4. Phonetic Language Modeling
+To shed more light into the true landscape of pho- netic word embedding models, we describe here a model which did not perform well on our suite of tasks (in contrast to other models). A common
+(15)
+(16)
+way of learning word embeddings now is to train on the masked language model objective, popularized by BERT (Devlin et al., 2019). We input articula- tory features from PanPhon into several successive Transformer (Vaswani et al., 2017) encoder layers and a final linear layer that predicts the masked phone. Positional encoding is added to each in- put. We prepend and append [CLS] and [SEP] tokens, respectively, to the phonetic transcriptions of each word, before we look up each phone’s Pan- Phon features. We use [CLS] pooling–taking the output of the Transformer corresponding to the first token–to extract a word-level representation. Un- like BERT, we do not train on the next sentence prediction objective. In addition, we do not add an embedding layer because we are not interested in learning individual phone embeddings but rather wish to learn a word-level embedding.
+4. Evaluation Suite (key contribution)
+We now introduce the embedding evaluation met- rics of our suite, the primary contribution of this paper. We draw inspiration from evaluating seman- tic word embeddings (Bakarov, 2018) and work on phonetic word embeddings (Parrish, 2017). In some cases, the distinction between intrinsic and extrinsic evaluations is tenuous (e.g., retrieval and analogies). The main characteristic of intrinsic eval- uation is that they are efficiently computed and are In contrast, not part of any specific application. extrinsic evaluation metrics directly measure the usefulness of the embeddings for a particular task. We evaluate with 9 phonologically diverse lan- guages: Amharic,∗ Bengali,∗ English, French, Ger- man, Polish, Spanish, Swahili, and Uzbek. Lan- guages marked with ∗ use non-Latin script. The non-English data (200k tokens each) is from CC- 100 (Wenzek et al., 2020; Conneau et al., 2020), while the English data (125k tokens) is from the CMU Pronouncing Dictionary (Group, 2014).
+4.1.
+Intrinsic Evaluation
+4.1.1. Articulatory Distance
+The unifying desideratum for phonetic embeddings is that they should capture the concept of sound similarity. Recall from Section 2 that phonetic word embeddings are a function ƒ : ∗ → Rd. In the vector space of Rd, there are two widely used notions of similarity S. The first is the negative L2 distance and the other is the cosine similarity. Consider three words , ′ and ′′. Using either metric, S(ƒ (), ƒ (′)) yields the embedding simi- larity between  and ′. On the other hand, since we have prior notions of similarity SP between the words, e.g., based on a rule-based function, we can use this to represent the similarity between the
+
+
+words: SP(, ′). We want to have embeddings ƒ such that S◦ƒ produces results close to SP. There are at least two ways to verify that the similarity results are close. First is exact equality. For exam- ple, if SP(, ′) = 0.5, SP(, ′′) = 0.1, we want S(ƒ (), ƒ (′)) = 0.5, S(ƒ (), ƒ (′′)) = 0.1. We can measure this using Pearson’s correlation coef- ficient between S◦ƒ and SP. On the other hand, we may consider only the relative similarity values. Fol- lowing the previous example, we would only care that S(ƒ (), ƒ (′)) > S(ƒ (), ƒ (′′)). In this case we use Spearman’s correlation coefficient between S ◦ ƒ and SP. For the rule-based similarity metric SP, we use articulatory distance (Mortensen et al., 2016), as described in Section 3.3.1.
+4.1.2. Human Judgement
+Vitz and Winkler (1973) asked people to judge the sound similarity of English words. For selected word pairs, we denote the collected judgements (scaled from 0–least similar to 1–identical) with the function SH. For example, SH(slant, plant) = 0.9 and SH(plots, plant) = 0.4. Like the previous task, we find correlations between S◦ƒ and SH. We note SH judgments were produced from a small English-only corpus. These limitations highlight the importance of including analyses with A, rather than SH alone. In fact, A and SH do not correlate positively, with Pearson coefficient −0.74.
+4.1.3. Retrieval
+An important usage of word embeddings is the re- trieval of associated words, which is also utilized in the analogies extrinsic evaluation and other ap- plications. Success in this task means that the new embedding space has the same local neigh- bourhood as the original space induced by some non-vector-based metric. Given a word dataset W and one word  ∈ W, we sort W \ {} based on both S◦ƒ and SP distance from . Based on this ordering, we define the immediate neighbour of  based on SP, denoted N and ask the question What is the average rank of N in the ordering by S◦ƒ ? If the similarity given by S◦ƒ is copying SP perfectly, then the rank will be 0 because N will be the closest to  in S◦ƒ .
+Again, for SP we use the articulatory distance A (Section 3.3.1). Even though there are a variety of possible metrics to evaluate retrieval, we focus on the average rank. We further cap the retrieval neighborhood at n = 1000 samples and compute n−r percentile rank as n . This choice is done so that the metric will be bounded between 0 (worst) and 1 (best), which will become important for overall evaluation later (Section 4.3).
+Error analysis. We identify two types of errors in the retrieval task for the Metric Learner model with articulatory features. The first one are sim- ply incorrect neighbours with low sound similarity, such as the word carcass, whose correct neigh- bour is cardiss but for which krutick is chosen. The next group are plausible ones, such as for the word counterrevolutionary, its neighbour in ar- ticulatory distance space counterinsurgency and the retrieved word cardiopulmonary. In this case we might even say that the retrieved word is closer.
+4.2. Extrinsic Evaluation
+4.2.1. Rhyme Detection
+There are multiple types of word rhymes, most of which are based around two words sounding similarly. We focus on perfect rhymes: when the sounds from the last stressed syllables are identi- cal. An example is grown and loan, even though the surface character form does not suggest it. Clearly, this task can be deterministically solved if one has access to the articulatory and stress information of the concerned words. Nevertheless, we wish to evaluate whether this information can be encoded in a fixed-length vector produced by ƒ . We create a balanced binary prediction task for rhyme detection in English and train a small multi- layer perceptron classifier on top of pairs of word embeddings. The linking hypothesis is that the higher the accuracy, the more useful information for the task there is in the embeddings.
+4.2.2. Cognate Detection
+Cognates are words in different languages that share a common origin. We include loanwords alongside genetic cognates. Similarly to rhyme detection, we frame cognate detection as a binary classification task where the input is a potential cognate pair. CogNet (Batsuren et al., 2019) is a large cognate dataset of many languages, making it ideal to evaluate the usefulness of phonetic em- beddings. We add non-cognate, distractor pairs in the dataset by finding the orthographically closest word that is not a known cognate. For example, plant EN and planteFR are cognates, while plant EN and planeEN are not. Although cognates also pre- serve some of the similarities in the meaning, we detect them using phonetic characteristics only.
+4.2.3. Sound Analogies
+Just as distributional semantic vectors can com- plete word-level analogies such as man : woman ↔ king : queen (Mikolov et al., 2013b), so too should well-trained phonetic word embeddings cap- ture sound analogies. For example of a sound analogy, consider /dIn/ : /tIn/ ↔ /zIn/ : /sIn/. The
+
+
+Model
+INTRINSIC Human Sim. Art. Dist. (Pearson)
+(Pearson)
+Retrieval (rank perc.)
+Analogies (Acc@1)
+EXTRINSIC Rhyme (accuracy)
+Cognate (accuracy)
+OVERALL
+s r u O
+Metric Learner Triplet Margin Count-based Autoencoder
+0.46 0.65 0.82 0.49
+0.94 0.96 0.10 0.16
+0.98 1.00 0.84 0.73
+84% 100% 13% 50%
+83% 77% 79% 61%
+64% 66% 68% 50%
+0.78 0.84 ⋆ 0.56 0.50
+’ Poetic Sound Sim. s r e phoneme2vec h t O Phon. Sim. Embd.
+0.74 0.77 0.16
+0.12 0.09 0.05
+0.78 0.80 0.50
+35% 17% 0%
+60% 88% 51%
+57% 64% 52%
+0.53 0.56 0.29
+c BPEmb i t fastText n a m BERT e S INSTRUCTOR
+0.23 0.25 0.10 0.60
+0.08 0.12 0.34 0.12
+0.60 0.64 0.69 0.73
+5% 2% 4% 7%
+54% 58% 58% 54%
+66% 68% 63% 66%
+0.36 0.38 0.40 0.45
+Table 1: Embedding method performance in our evaluation suite. Higher number is always better.
+difference within the pairs is [±voice] in the first phoneme segment of each word.
+With this intuition in mind, we define a perturba- tion as a pair of phonemes (p, q) differing in one ar- ticulatory feature. We then create a sound analogy corpus of 200 quadruplets 1 : 2 ↔ 3 : 4 for each language, with the following procedure:
+for our evaluation suite as the arithmetic average of results from each task. We mainly consider the results of all available languages averaged but later in Section 5.3 discuss results per language as well. To allow for future extensions in terms of languages and tasks, this evaluation suite is versioned, with the version described in this paper being v1.0.
+1. Choose a random word 1 ∈ W and one of its phonemes on random position : p1 = 1,. 2. Randomly select two perturbations of the same phonetic feature so that p1 : p2 ↔ p3 : p4, for example /t/ : /d/ ↔ /s/ : /z/.
+3. Create 2, 3, and 4 by duplicating 1 and replacing 1, with p2, p3, and p4. The new words 2, 3, and 4 do not have to be a real word in the language but we are still interested in analogies in the space of all possible words and their detection. This is possible only for open embeddings.
+We apply the above procedure 1 or 2 times to create 200 analogous quadruplets with 1 or 2 per- turbations (evenly split). We then measure the Acc@1 to retrieve 4 from W ∪ {4}. We simply measure how many often the closest neighbour of 2 − 1 + 3 is 4. Our analogy task is dif- ferent from that of Parrish (2017) who focused on morphological derivation2 and that of Silfverberg et al. (2018), which show that phoneme embed- dings learned via the word2vec objective demon- strate sound analogies at the phoneme level. We consider sound analogies at the word level.
+4.3. Overall Score
+5. Evaluation
+We now compare all the aforementioned embed- ding models using our evaluation suite. We show the results in Table 1 with three categories of mod- els. Our models trained using some articulatory features or distance supervision (Section 3) are given first, followed by other phonetic word em- bedding models (Section 2). We also include non- phonetic word embeddings, not as a fair baseline for comparison but to show that these embeddings are different from phonetic word embeddings and are not suited for our tasks: fastText (Grave et al., 2018), BPEmb (Heinzerling and Strube, 2018), BERT (Devlin et al., 2019) and INSTRUCTOR (Su et al., 2022). We chose these embeddings be- cause they are open (i.e., they provide embeddings even to words unseen in the training data). All of these embeddings except for BERT and INSTRUC- TOR are 300-dimensional (see Section 5.5).
+5.1. Model Comparison
+In Table 1 we show the performance of all previ- ously described models. The Triplet Margin model is best overall, outperforming Metric Learner, de- spite its less direct supervision in training. How- ever, it also requires the longest time to train.3
+Since all the measured metrics are bounded be- tween 0 and 1, we can define the overall score
+2Example decide : decision ↔ explode : explosion.
+3The overall GPU budget for all included experiments is 100 hours on GTX 1080 Ti. We include reproducibility details in the code repository.
+
+
+Human Sim.
+Art. Dist.
+Analogies
+Retrieval
+Art. Dist.
+Rhyme
+Cognate0.010.070.580.540.440.330.620.590.090.180.700.840.750.760.470.570.070.360.790.770.840.820.310.500.650.58-0.030.140.230.47
+Rhyme
+Analogies
+Retrieval
+Figure 2: Spearman (upper left) and Pearson (lower right) correlations between performance on suite tasks. All models from Table 1 are used.
+Surprisingly, the best model for human similarity is a simple count-based model. Semantic word embeddings perform worse than explicit phonetic embeddings, most notably on human similarity and analogies. However, they do perform reasonably on cognate detection.
+We now examine how much the performance on one task (particularly an intrinsic one) is predic- tive of performance on another task. We measure this across all systems in Table 1 and revisit this topic later for creating variations of the same model. For lexical/semantic word embeddings, Bakarov (2018) notes that the individual tasks do not cor- In Figure 2, we find relate among each other. the contrary for some of the tasks (e.g., retrieval- rhyme or retrieval-analogies). Importantly, there is no strong negative correlation between any tasks, suggesting that performance on one task is not a tradeoff with another.
+Model
+Art.
+IPA Text
+Metric Learner Triplet Margin Autoencoder Count-based
+0.78 0.84 0.50 -
+0.64 0.84 0.41 0.56
+0.62 0.79 0.41 0.51
+Table 2: Overall performance of models with vari- ous input features. Art. = articulatory features.
+5.2.
+Input Features
+For all of our models, it is possible to choose the input feature type, which has an impact on the performance, as shown in Table 2. Unsurprisingly, the more phonetic the features are, the better the resulting model is. In the Metric Learner and Triplet Margin models we are still using supervision from the articulatory distance, and despite that, the input features play a major role.
+FR
+FR
+DETrain language.80.79.78.79.78.79.79.79.78.76.77.76.76.75.76.76.77.76.78.78.78.78.77.78.77.78.77.74.74.74.74.74.74.74.74.74.73.73.73.73.72.73.73.73.73.76.76.76.76.75.76.76.76.75.77.77.77.77.76.77.77.77.77.79.79.79.78.78.79.78.79.78.80.80.80.79.79.80.79.80.80
+PL
+SW
+PL
+SW
+UZ
+ES
+UZ
+BN
+BN
+DEEval language
+ES
+EN
+AM
+EN
+AM
+Figure 3: Suite score of Metric Learner with ar- ticulatory features trained on one language and evaluated on another one. Diagonal shows models trained and evaluated on the same language.
+5.3. Transfer Between Languages
+Recall from Section 3.3 that there are multiple fea- ture types that can be used for our phonetic word embedding model: orthographic characters, IPA characters and articulatory feature vectors. It is not surprising that the characters as features provide little transferability when the model is trained on a different language than it is evaluated on. The transfer between languages for a different model type, shown in Figure 3, demonstrates that not all languages are equally challenging (e.g. Polish is more challenging than German). Furthermore, the articulatory features appear to be very useful for generalizing across languages. This echoes the findings of Li et al. (2021), who also break down phones into articulatory features to share informa- tion across, possibly unseen, phones.
+5.4. Embedding Topology Visualization
+The differences between feature types in Table 2 may not appear very large. Closer inspection of the clusters in the embedding space in Figure 4 reveals, that using the articulatory feature vectors or IPA features yields a vector space which resem- bles one induced by the articulatory distance the most. This is in line with A (articulatory distance, Section 3.3.1) being calculated using articulatory features and is used for the model supervision.
+5.5. Dimensionality and Train Data Size
+So far we used 300-dimensional embeddings. This choice was motivated solely by the comparison to other word embeddings. Now we examine how the choice of dimensionality, keeping all other things equal, affects individual task performance. The results in Figure 5 (top) show that neither too small
+
+
+d=8Art. Distance
+d=8Art. Features
+d=36Characters
+Figure 4: T-SNE projection of articulatory dis- tance and embedding spaces from the metric learn- ing models with articulatory or character features. Each point corresponds to one English word. Dif- ferently coloured clusters were selected in the ar- ticulatory distance space (left) and highlighted in other spaces. d is the average distance within the clusters normalized with average distance between points (unitless). Articulatory Features (center) re- sult in tighter clusters than Characters (right).
+nor too large a dimensionality is useful for the pro- posed tasks. Furthermore, there is little interaction between the task type and dimensionality. As a re- sult, model ranking based on each task is very sim- ilar across dimensions, with Spearman and Pear- son correlations of 0.61 and 0.79, respectively.
+A natural question is how data-intensive the pro- posed metric learning method is. For this, we con- strained the training data size and show the results in Figure 5 (bottom). Similarly to changing the di- mensionality, the individual tasks react to changing the training data size without an effect of the task variable. The Spearman and Pearson correlations are 0.64 and 0.65, respectively.
+6. Discussion
+6.1. The Field of Phonology
+Phonological features, especially articulatory fea- tures, play a strong role in phonology since Bloom- field (1993) and the work of Prague School lin- guists (Trubetskoy, 1939; Jakobson et al., 1951). The widely used articulatory feature set employed by PanPhon originates in the monumental Sound Pattern of English (Chomsky and Halle, 1968), which assumes a universal set of discrete phono- logical features and that all speech sounds in all languages consist of vectors of these features. The similarity between these feature vectors should capture the similarity between sounds. This po- sition is born out in our results. These features encode a wealth of knowledge gained through decades of linguistic research on how the sound systems of languages behave, both synchronically and diachronically. While there is evidence that
+102
+Analogy
+Rhyme
+Human Sim.
+Art. Dist.
+101
+Retrieval
+0.75
+0.25Score
+100
+Training data size (k)
+Cognate
+0.50
+1.00
+Figure 5: Metric Learner performance with varying dimensionality (top) and varying training data size (bottom) with articulatory features. Bands show 95% confidence intervals from t-distribution.
+phonological features are emergent rather than uni- versal (Mielke, 2008), these results suggest they can nevertheless contribute robustly to computa- tional tasks. Phonetic word embeddings also rep- resent more closely how humans and, in particular, children, interact with language (through sound rather than abstract meaning). Their study may have further applications in the fields of phonetics and phonology.
+6.2. Applications
+Phonetic word embeddings are more niche than their semantic counterparts but there are many applications shown to benefit from them.
+Cognate/loanword detection (Rama, 2016; Nath et al., 2022b,a). Along with semantic simi- larity, phonetic similarity measured in some latent transformation of articulatory features suggests cognacy or lexical borrowing.
+Multilingual named entity recognition (Bharad- waj et al., 2016; Chaudhary et al., 2018). Learn- ing word embeddings from PanPhon features enables cross-lingual transfer for named entity recognition since named entities will likely bear pronunciation similarities across languages.
+Keyphrase extraction (Ray Chowdhury et al., 2019; Fahd Saleh Alotaibi and Gupta, 2022). Keyphrase extraction from Tweets for disaster relief can leverage PanPhon features to take ad- vantage of the tendency for orthographic vari-
+
+
+ants of the same word across different Tweets to share similar pronunciations.
+Spelling correction (Tan et al., 2020; Zhang et al., 2021). Imbuing word embeddings with pronunciation similarity helps in correcting typing mistakes by substituting words with their pho- netic transcription and similar-sounding words. Another approach is to pretraing a spelling- correction model on phonetic units.
+Phonotactic learning (Mirea and Bicknell, 2019; Romero and Salamea, 2021). Phonetic informa- tion is a necessary part in deriving phonotactic patterns and vector representations.
+Multimodal word embeddings (Zhu et al., 2020, 2021). Phonetic and syntactic information can be incorporated into semantic word embeddings.
+Spoken language understanding (Chen et al., 2018, 2021; Fang et al., 2020). Training with phoneme embeddings can reduce errors from confusing phonetically similar words in automatic speech recognition so that such errors do not propagate to downstream natural language un- derstanding tasks.
+Language identification (Zhan et al., 2021; Salesky et al., 2021) Phonological features help in distinguishing between languages and their identification.
+Poetry generation (Talafha and Rekabdar, 2021; Yi et al., 2018) Word sounds and their pronunciations are critical for poetry and incor- poration of this information helps in automatic poetry generation.
+Linguistic analysis (Hamilton et al., 2016; Ryskina, Maria and Rabinovich, Ella and Berg- Kirkpatrick, Taylor and Mortensen, David R. and Tsvetkov, Yulia, 2020; Francis et al., 2021) Apart from direct applications, there exist many in- vestigations and analyses on what phonological and phonetic features are encoded by speakers. Phonological word embeddings are one tool by which this can be studied. 6.3. Limitations and Ethics
+As hinted in Section 5.1, we evaluate models that use supervision from some of the tasks during training. Specifically, the metric learning models have an advantage on the articulatory distance task. Nevertheless, the models perform well also on other, more unrelated tasks and we also provide models without this supervision. We also do not make any distinction between training and develop- ment data. This is for a practical reason because some of the methods we use for comparison are
+not open embeddings and need to see all con- cerned words during training.
+Another limitation of our work is that we train on phonemic transcriptions, which cannot capture finer grained phonetic distinctions. Phonemic dis- tinctions may be sufficient for applications such as rhyme detection, but not for tasks such as phone recognition or dialectometry.
+We attempted to be inclusive with the language
+selection and do not foresee any ethical issues.
+7. Future Work
+After having established the standardized evalua- tion suite, we wish to pursue the following:
+enlarging the pool of languages, • including more tasks in the evaluation suite, • contextual phonetic word embeddings, • new models for phonetic word embeddings.
+8. Bibliographical References
+Felipe Almeida and Geraldo Xexéo. 2019. Word
+embeddings: A survey. arXiv:1901.09069.
+Amir Bakarov. 2018. A survey of word embeddings
+evaluation methods. arXiv:1801.09536.
+Khuyagbaatar Batsuren, Gabor Bella, and Fausto Giunchiglia. 2019. CogNet: A large-scale cog- nate database. In Proceedings of the 57th An- nual Meeting of the Association for Computa- tional Linguistics, pages 3136–3145.
+Aurélien Bellet, Amaury Habrard, and Marc Seb- ban. 2015. Metric learning. Morgan & Claypool.
+Akash Bharadwaj, David R Mortensen, Chris Dyer, and Jaime G Carbonell. 2016. Phonologically aware neural model for named entity recognition in low resource transfer settings. In Proceedings of the Conference on Empirical Methods in Nat- ural Language Processing, pages 1462–1472.
+Leonard Bloomfield. 1993. Language. University
+of Chicago Press.
+Piotr Bojanowski, Edouard Grave, Armand Joulin, and Tomas Mikolov. 2017. Enriching word vec- tors with subword information. Transactions of the association for computational linguistics, 5:135–146.
+Jose Camacho-Collados and Mohammad Taher Pilehvar. 2018. From word to sense embed- dings: A survey on vector representations of meaning. Journal of Artificial Intelligence Re- search, 63:743–788.
+
+
+Aditi Chaudhary, Chunting Zhou, Lori Levin, Graham Neubig, David R Mortensen, and Jaime G Carbonell. 2018. Adapting word em- beddings to new languages with morphologi- cal and phonological subword representations. arXiv:1808.09500.
+Qian Chen, Wen Wang, and Qinglin Zhang. 2021. Pre-training for spoken language understanding with joint textual and phonetic representation learning. In Interspeech 2021. ISCA.
+Yi-Chen Chen, Sung-Feng Huang, Chia-Hao Shen, Hung-yi Lee, and Lin-shan Lee. 2018. Phonetic- and-semantic embedding of spoken words with applications in spoken content retrieval. In 2018 IEEE Spoken Language Technology Workshop (SLT), pages 941–948.
+Noam Chomsky and Morris Halle. 1968. The
+Sound Pattern of English. Harper & Row.
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. 2019. BERT: Pre-training of deep bidirectional transformers for language understanding. In Proceedings of the 2019 Con- ference of the North American Chapter of the As- sociation for Computational Linguistics: Human Language Technologies, pages 4171–4186.
+Vishal
+Alotaibi, Saurabh Sharma and Savita Gupta. 2022. Keyphrase extraction using enhanced word and document embedding. IETE Journal of Research, 0(0):1–13.
+Gupta
+Fahd
+Saleh
+Anjie Fang, Simone Filice, Nut Limsopatham, and Oleg Rokhlenko. 2020. Using phoneme repre- sentations to build predictive models robust to In Proceedings of the 43rd Inter- ASR errors. national ACM SIGIR Conference on Research and Development in Information Retrieval, page 699–708. Association for Computing Machinery.
+David Francis, Ella Rabinovich, Farhan Samir, David Mortensen, and Suzanne Stevenson. 2021. Quantifying cognitive factors in lexical decline. Transactions of the Association for Com- putational Linguistics, 9:1529–1545.
+Sahar Ghannay, Yannick Esteve, Nathalie Camelin, and Paul Deléglise. 2016. Evaluation of acoustic In Proceedings of the 1st word embeddings. Workshop on Evaluating Vector-Space Repre- sentations for NLP, pages 62–66.
+William L Hamilton, Jure Leskovec, and Dan Ju- rafsky. 2016. Diachronic word embeddings re- veal statistical laws of semantic change. arXiv preprint arXiv:1605.09096.
+Yushi Hu, Shane Settle, and Karen Livescu. 2020. Multilingual jointly trained acoustic and written word embeddings. arXiv:2006.14007.
+Roman Jakobson, Gunnar Fant, and Morris Halle. 1951. Preliminaries to Speech Analysis: The Distinctive Features and their Correlates. Lan- guage.
+Mahmut Kaya and Hasan ¸Sakir Bilge. 2019. Deep metric learning: A survey. Symmetry, 11:1066.
+Quoc Le and Tomas Mikolov. 2014. Distributed representations of sentences and documents. In International conference on machine learning, pages 1188–1196. PMLR.
+Xinjian Li, Juncheng Li, Florian Metze, and Alan W Black. 2021. Hierarchical phone recognition with compositional phonetics. In Interspeech, pages 2461–2465.
+Jeff Mielke. 2008. The emergence of distinctive
+features. Oxford University Press.
+Tomas Mikolov, Kai Chen, Greg Corrado, and Jeffrey Dean. 2013a. Efficient estimation of word representations in vector space. arXiv:1301.3781.
+Tomas Mikolov, Wen-tau Yih, and Geoffrey Zweig. Linguistic regularities in continuous 2013b. space word representations. In Proceedings of the 2013 Conference of the North Ameri- can Chapter of the Association for Computa- tional Linguistics: Human Language Technolo- gies, pages 746–751.
+Nicole Mirea and Klinton Bicknell. 2019. Using LSTMs to assess the obligatoriness of phonolog- ical distinctive features for phonotactic learning. In Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics, pages 1595–1605.
+David R. Mortensen, Patrick Littell, Akash Bharad- waj, Kartik Goyal, Chris Dyer, and Lori Levin. 2016. PanPhon: A resource for mapping IPA segments to articulatory feature vectors. In Pro- ceedings of COLING 2016, the 26th Interna- tional Conference on Computational Linguistics: Technical Papers, pages 3475–3484.
+Abhijnan Nath, Rahul Ghosh, and Nikhil Krish- naswamy. 2022a. Phonetic, semantic, and artic- ulatory features in Assamese-Bengali cognate detection. In Proceedings of the Ninth Work- shop on NLP for Similar Languages, Varieties and Dialects, pages 41–53. Association for Com- putational Linguistics.
+
+
+Abhijnan Nath, Sina Mahdipour Saravani, Ibrahim Khebour, Sheikh Mannan, Zihui Li, and Nikhil Krishnaswamy. 2022b. A generalized method for automated multilingual loanword detection. In Proceedings of the 29th International Confer- ence on Computational Linguistics, pages 4996– 5013.
+Allison Parrish. 2017. Poetic sound similarity vec- tors using phonetic features. In Thirteenth Artifi- cial Intelligence and Interactive Digital Entertain- ment Conference.
+Jeffrey Pennington, Richard Socher, and Christo- pher D Manning. 2014. GloVe: Global vectors for word representation. In Proceedings of the 2014 conference on Empirical Methods in Natu- ral Language Processing, pages 1532–1543.
+Taraka Rama. 2016. Siamese convolutional net- works for cognate identification. In Proceed- ings of COLING, the 26th International Confer- ence on Computational Linguistics, pages 1018– 1027.
+Jishnu Ray Chowdhury, Cornelia Caragea, and Doina Caragea. 2019. Keyphrase extraction from disaster-related tweets. In The world wide web conference, pages 1555–1566.
+David Romero and Christian Salamea. 2021. On the use of phonotactic vector representations with fasttext for language identification. Conver- sational Dialogue Systems for the Next Decade, pages 339–348.
+Ryskina, Maria and Rabinovich, Ella and Berg- Kirkpatrick, Taylor and Mortensen, David R. and Tsvetkov, Yulia. 2020. Where new words are born: Distributional semantic analysis of neol- ogisms and their semantic neighborhoods. In Proceedings of the Society for Computation in Linguistics, volume 3.
+Elizabeth Salesky, Badr M. Abdullah, Sabrina J. Mielke, Elena Klyachko, Oleg Serikov, Edoardo Ponti, Ritesh Kumar, Ryan Cotterell, and Ekate- rina Vylomova. 2021. SIGTYP 2021 shared task: Robust spoken language identification.
+Rahul Sharma, Kunal Dhawan, and Balakrishna Phonetic word embeddings.
+Pailla. 2021. arXiv:2109.14796.
+Miikka P. Silfverberg, Lingshuang Mao, and Mans Hulden. 2018. Sound analogies with phoneme embeddings. In Proceedings of the Society for Computation in Linguistics (SCiL), pages 136– 144.
+Hongjin Su, Weijia Shi, Jungo Kasai, Yizhong Wang, Yushi Hu, Mari Ostendorf, Wen-tau Yih,
+Noah A. Smith, Luke Zettlemoyer, and Tao Yu. Instruction- 2022. One embedder, any task: finetuned text embeddings. arXiv:2212.09741.
+Sameerah Talafha and Banafsheh Rekabdar. 2021. Poetry generation model via deep learning incor- porating extended phonetic and semantic em- beddings. In 2021 IEEE 15th International Con- ference on Semantic Computing (ICSC), pages 48–55.
+Min Tan, Dagang Chen, Zesong Li, and Peng Wang. 2020. Spelling error correction with BERT based on character-phonetic. In 2020 IEEE 6th International Conference on Computer and Com- munications (ICCC), pages 1146–1150.
+Nikolai Trubetskoy. 1939. Grundzüge der Phonolo- gie, volume VII. Travaux du Cercle Linguistique de Prague.
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Łukasz Kaiser, and Illia Polosukhin. 2017. Atten- tion is all you need. Advances in neural informa- tion processing systems, 30.
+Paul C Vitz and Brenda Spiegel Winkler. 1973. Pre- dicting the judged “similarity of sound” of English words. Journal of Verbal Learning and Verbal Behavior, 12(4):373–388.
+Liu Yang and Rong Jin. 2006. Distance metric learning: A comprehensive survey. Michigan State Universiy, 2(2):4.
+Zixiaofan Yang and Julia Hirschberg. 2019. Linguistically-informed training of acoustic word embeddings for low-resource languages. In In- terspeech, pages 2678–2682.
+Xiaoyuan Yi, Maosong Sun, Ruoyu Li, and Zong- han Yang. 2018. Chinese poetry generation with a working memory model.
+Qingran Zhan, Xiang Xie, Chenguang Hu, and Haobo Cheng. 2021. A self-supervised model for language identification integrating phonological knowledge. Electronics, 10(18).
+Ruiqing Zhang, Chao Pang, Chuanqiang Zhang, Shuohuan Wang, Zhongjun He, Yu Sun, Hua Wu, and Haifeng Wang. 2021. Correcting chi- nese spelling errors with phonetic pre-training. In Findings of the Association for Computational Linguistics 2021, pages 2250–2261.
+Wenhao Zhu, Shuang Liu, and Chaoming Liu. 2021. Incorporating syntactic and phonetic infor- mation into multimodal word embeddings using graph convolutional networks. In ICASSP Inter- national Conference on Acoustics, Speech and Signal Processing, pages 7588–7592. IEEE.
+
+
+Wenhao Zhu, Shuang Liu, Chaoming Liu, Xiaoya Yin, and Xiaping Xv. 2020. Learning multimodal word representations by explicitly embedding syntactic and phonetic information. IEEE Ac- cess, 8:223306–223315.
+Conneau, Alexis and Khandelwal, Kartikay and Goyal, Naman and Chaudhary, Vishrav and Wen- zek, Guillaume and Guzmán, Francisco and Grave, Edouard and Ott, Myle and Zettlemoyer, Luke and Stoyanov, Veselin. 2020. Unsuper- vised Cross-lingual Representation Learning at Scale.
+Edouard Grave, Piotr Bojanowski, Prakhar Gupta, Armand Joulin, and Tomas Mikolov. 2018. Learn- ing word vectors for 157 languages. In Pro- ceedings of the International Conference on Lan- guage Resources and Evaluation (LREC 2018).
+Carnegie Mellon Speech Group. 2014.
+The Carnegie Mellon Pronouncing Dictionary 0.7b. Carnegie Mellon University.
+Benjamin Heinzerling and Michael Strube. 2018. BPEmb: Tokenization-free pre-trained subword embeddings in 275 languages. In Proceedings of the Eleventh International Conference on Lan- guage Resources and Evaluation (LREC 2018). European Language Resources Association.
+Wenzek, Guillaume and Lachaux, Marie-Anne and Conneau, Alexis and Chaudhary, Vishrav and Guzmán, Francisco and Joulin, Armand and Grave, Edouard. 2020. CCNet: Extracting High Quality Monolingual Datasets from Web Crawl Data. European Language Resources Associa- tion.

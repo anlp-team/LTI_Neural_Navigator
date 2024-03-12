@@ -1,0 +1,159 @@
+3 2 0 2
+l u J
+4 2
+] S A . s s e e [
+2 v 4 7 7 6 0 . 2 0 3 2 : v i X r a
+SPEAKER-INDEPENDENT ACOUSTIC-TO-ARTICULATORY SPEECH INVERSION
+Peter Wu1, Li-Wei Chen2, Cheol Jun Cho1, Shinji Watanabe2, Louis Goldstein3, Alan W Black2, Gopala K. Anumanchipalli1, 1University of California, Berkeley, 2Carnegie Mellon University, 3University of Southern California
+ABSTRACT
+To build speech processing methods that can handle speech as naturally as humans, researchers have explored multiple ways of building an invertible mapping from speech to an interpretable space. The articulatory space is a promis- ing inversion target, since this space captures the mechanics of speech production. To this end, we build an acoustic- to-articulatory inversion (AAI) model that leverages self- supervision to generalize to unseen speakers. Our approach obtains 0.784 correlation on an electromagnetic articulogra- phy (EMA) dataset, improving the state-of-the-art by 12.5%. Additionally, we show the interpretability of these represen- tations through directly comparing the behavior of estimated representations with speech production behavior. Finally, we propose a resynthesis-based AAI evaluation metric that does not rely on articulatory labels, demonstrating its efficacy with an 18-speaker dataset.
+Fig. 1. EMA features (points) and tract variables (segments). Diagram extends [23]. Details in Sections 2.1 and 3.1.
+Index Terms— articulatory inversion, articulatory speech
+processing
+1. INTRODUCTION
+Interpretable representations of speech waveforms are valu- able for tasks like diagnosing voice disorders [1] and building generalizable, controllable speech synthesizers [2, 3, 4]. Ar- ticulatory speech processing is a promising direction for mak- ing speech representations interpretable, since methods in this direction aim to directly model information about vocal tract physiology [5, 6, 7]. Specifically, articulatory representations directly describe the movement of articulators, e.g., the jaw, lips, and tongue.
+Currently, building speaker-independent speech process- ing models with articulatory data remains challenging, since such data is limited. Most articulatory datasets [8, 9, 10, 11] contain only a few hours of high-quality speech, much less than popular non-articulatory ones [12]. This is mainly since the equipment and processes used to acquire articulatory la- bels are expensive [13]. A promising, cost-effective alter- native to manually collecting articulatory data is acoustic-to- articulatory inversion (AAI), which aims to automatically es- timate articulatory features directly from speech signals [14]. In recent years, deep learning algorithms have become popular state-of-the-art methods for AAI [15, 16, 17, 18, 19,
+20, 21, 22]. Since these methods are data-driven and depend on the limited amount of articulatory data, they are unable to sufficiently generalize to unseen speakers to our knowledge. In this work, we aim to help bridge this gap through improv- ing the AAI deep learning framework. Specifically, we exam- ine different architecture configurations, features and training objectives to showcase a suitable framework that improves the state-of-the-art by 12.5% using autoregression, adversar- ial training, and self supervision. We also evaluate predicted features through the articulatory phonology lens, comparing phoneme-level articulatory trajectories with expected human speech production behavior. Analyzing trajectories this way allows us to perform evaluation on any speaker, not just those who have recorded articulatory labels. Our analysis of esti- mated articulator movements also highlights the interpretabil- ity of our speech representations. Finally, we also evaluate inversion on speakers without articulatory labels using resyn- thesis and show that our inversion approach is also effective here. Code and additional related information are available at https://github.com/articulatory/articulatory.
+2. DATASETS
+2.1. MOCHA-TIMIT EMA Dataset
+We train our AAI models on an 8-speaker dataset using MOCHA-TIMIT [8, 9] and MNGU0 [10], containing 5.2 hours of 16 kHz speech. Data is collected with the speaker
+
+
+Fig. 2. Estimating the palate location with a convex hull on tongue data for HPRC speaker F04. Details in Section 3.1.
+instrumented in an electromagnetic articulography (EMA) machine providing 200 Hz samples of EMA features. These 12-dimensional features contain the midsagittal x and y coor- dinates of jaw, lip, and tongue positions. Specifically, the 6 x-y positions correspond to the lower incisor, upper lip, lower lip, tongue tip, tongue body, and tongue dorsum, as visualized in Figure 1. To study how well our AAI approach general- izes to unseen speakers, we arbitrarily choose MSAK as the unseen speaker, evaluating on all MSAK data and training on the other 7 speakers. Within the 7-speaker training set, we randomly set off 10% of the utterances for the validation set.
+2.2. HPRC EMA Dataset
+We also follow previous works [13, 24, 25] to evaluate on the Haskins Production Rate Comparison (HPRC) [11] database. HPRC is an 8-speaker dataset containing 7.9 hours of 44.1 kHz speech and 100 Hz EMA. We downsampled the audio to 16kHz before further processing. As done in previous work [13], we only consider information along the midsagit- tal plane and do not use the provided mouth left and jaw left data, matching our MOCHA-TIMIT EMA feature set described in Section 2.1.
+For our AAI train-val-test split, we hold out 1 male and 1 female speaker for our test set and train on the remaining 6 speakers, as done in [15]. While [15] also used these two speakers in their validation set, we put all of the data from both speakers in the test set in order to fully experiment within the unseen speaker setting. We note that our formulation in- creases the difficulty of the task compared to [15] since hy- perparameter tuning would not lead to overfitting on the test speakers. However, our AAI method still obtains state-of-the- art Pearson correlation scores with this dataset, as detailed in Section 5. For our train-val split, we use the same 90%-10% approach as the MOCHA-TIMIT split in Section 2.1 above.
+2.3. Combined EMA Dataset
+To train more generalizable models using a larger articula- tory dataset, we combine MOCHA-TIMIT [8, 9, 10] and HPRC [11], forming a 16-speaker EMA dataset. Here, we create a train-val-test split with 1000 val and 1000 test utter- ances, randomly assigning each utterance to one of the three sets. We note that all speakers appear in all three sets. Our
+resynthesis experiments use models trained on this combined dataset, discussed in Section 5.3.
+2.4. Unseen Speaker Test Data without EMA Labels
+We further evaluate our inversion approach using the CMU ARCTIC database [26, 27], an 18-speaker dataset composed of 14.3 hours of 16 kHz speech. In addition to the afore- mentioned held-out-speaker experiments, evaluations with this dataset also test our approach on unseen speakers. More- over, ARCTIC contains various accents that are not present in our training set, testing the generalizability of our model to unseen accents. Since ARCTIC does not contain ground truth EMA labels, we evaluate our AAI model qualitatively by visualizing the predicted normalized lip aperture (LA) for individual vowels, detailed in Section 5.2. We conduct further AAI evaluations with this dataset quantitatively using a resynthesis approach discussed in Section 5.3.
+3. FEATURES
+3.1. Tract Variables
+Vocal tract positions in raw EMA are fairly speaker-dependent, which can be unsuitable for objective multi-speaker AAI evaluation [13]. Thus, we follow [13] to derive tract variables (TVs) that are more speaker-independent. As visualized in Figure 1, we adopted 9 TVs: lip aperture (LA), lip protrusion (LP), tongue body constriction location (TBCL), tongue body constriction degree (TBCD), tongue tip constriction location (TTCL), and tongue tip constriction degree (TTCD).
+Since one of our articulatory datasets does not contain tongue palate data, unlike [13], we estimate the palate loca- tion. Specifically, we estimate the palate with a convex hull fitted on the tongue position data [28]. E.g., Figure 2 plots the estimated palate locations for the MOCHA-TIMIT speaker MAPS. Then, we calculate the distance between the 3 EMA tongue positions (tip, body, dorsum) and the estimated palate as in [13]. All 9 TVs are calculated element-wise across time and thus have the same sampling rate as raw EMA features. Like [13], we scale each speaker’s TVs to between -1 and 1.
+3.2. Phonemic Features
+Since EMA data is limited, performing multi-task learning (MTL) with additional features can reduce overfitting [29, 29]. Phonemic features implicitly contain articulatory infor- mation and properties not in EMA, e.g., voicing, and thus could improve AAI performance through MTL. [13] showed that adding a task of classifying aligned IPA-based phoneme labels provided in the dataset improves inversion quality. We extend this MTL approach to the fully unseen speaker setting with our baseline in this work.
+Since AAI is typically formulated as a regression task, we also explore phonemic features that can be estimated in
+
+
+this manner. Specifically, we map each phoneme to an 18- dimensional vector, where each dimension corresponds to a different (place, manner) pair and is a binary value denoting the presence of the respective phoneme type, as in [4]. For all phonemic features, we use the same sampling rate as the EMA data in the respective datasets.
+3.3. Self-supervised Learning Features
+Recent works [30] explored using pretrained self-supervised learning (SSL) speech features in speech processing tasks. These features, trained on large-scale unsupervised speech corpora, have been shown to capture linguistic informa- tion [31]. The use of SSL features in articulatory tasks is still relatively unexplored. To help bridge this, we use the final layer of HuBERT [31, 30], a recent SSL model that has achieved state-of-the-art speech recognition performance. 1
+3.4. Speaker Embeddings
+We note that the aforementioned features lack lots of speaker information, since the EMA-based features are normalized and the phoneme-based ones are effectively non-acoustic. Moreover, EMA- and phoneme-based features inherently lack speaker attributes like pitch [28]. Thus, to help our syn- thesis model generate speech more like the target speaker, we add an ECAPA-TDNN speaker embedding [32] to the input.
+4. MODELS
+4.1. Articulatory Inversion Model
+For our baseline AAI model, we use the bidirectional-GRU- based architecture in [15]. Specifically, this model is com- prised of a two-layer bidirectional GRU [33] with size-256 hidden states followed by a two-layer multi-layer perceptron (MLP) [34] with 128 hidden units. A probability-0.3 dropout layer succeeds each layer, and a batch norm layer precedes the MLP output layer. The model outputs 50 dimensions, 9 for TVs and 41 for classifying phonemes, with Tanh applied to the TV dimensions. We optimize our baseline using the mean absolute error (MAE) loss on the TVs added to 0.5 times the cross-entropy loss on the phonemes, as in [15]. We use the same normalized MFCCs as [15] as inputs to our baseline.
+For our proposed inversion model, we build on the base- line by making it use chunked autoregression [35, 28] and ad- versarial training [36, 28]. Specifically, we encode outputs us- ing an MLP and concatenate the encodings to subsequent in- put [35, 28], which could help with modelling articulation de- pendencies across time, e.g., coarticulation [37]. With adver- sarial training, we use a convolutional neural network (CNN) discriminator to encourage the model to output more realis- tic estimates [36, 28]. We observed that using MAE with our
+1We used the hubert large ll60k model in https://github.com/s3prl/s3prl.
+Model MFCC MFCC, MTL (Baseline) [15] HuBERT HuBERT, MTL HuBERT, MTL, AR, GAN
+MOCHA HPRC 0.677 0.697 0.770 0.782 0.784
+0.475 0.502 0.641 0.678 0.672
+Table 1. Pearson correlation coefficients (PCCs) for held- out-speaker AAI. Models use multi-task learning (MTL), au- toregression (AR) and adversarial training (GAN). 3
+18-dimensional phonemic features, as introduced in Section 3.2, outperformed cross-entropy with one-hot phonemes here, potentially since the former let the discriminator more easily compare estimates with ground truths. Finally, we use the Hu- BERT features in Section 3.3 as inputs, linearly interpolated to match the TV sampling frequencies.
+4.2. Articulatory Synthesis Model
+For our resynthesis experiments in Section 5.3, we use HiFi- CAR [28], a generative model composed of residual CNN layers, to synthesize waveforms directly from our TV artic- ulatory features. In order to provide the synthesizer with speaker information, we also concatenate the speaker embed- ding in Section 3.4 to each time step in the input.
+5. RESULTS
+5.1. Articulatory Inversion
+Table 1 summarizes our AAI results, measured using Pearson correlation as done previously [15]. Our approaches in the last two rows improve the SOTA performance on the HPRC dataset by 12.5% and outperform the SOTA model by 0.176 correlation on MOCHA-TIMIT. Switching from MFCC in- puts to HuBERT ones yields the largest improvement, sug- gesting that self-supervised features are better than spectral ones for multi-speaker AAI tasks. We attribute the lower performance on MOCHA-TIMIT compared to HPRC for all models due to HPRC having more hours of speech and po- tentially higher-quality EMA labels. This performance dif- ference is probably not due to phoneme label quality, as the phoneme classification accuracy on MOCHA, 0.682, is com- parable to that on HPRC, 0.673.
+To further study which types of inputs our model con- tributes improved inversions, we compare the baseline with our proposed method at the phoneme level. Specifically, we calculate the average L1 distance between the predicted and ground truth tract variables, defined in Section 3.1, in our
+3MOCHA results are updated from ICASSP 2023 version after correcting
+a preprocessing error.
+
+
+[15] Ours Diff.
+AA .206 .175 .031
+AO .214 .182 .032
+AW ER .211 .229 .168 .187 .042 .042
+F .208 .163 .045
+K .222 .193 .029
+L .222 .177 .045
+M .216 .176 .041
+N .195 .163 .032
+NG OY .226 .244 .191 .213 .035 .031
+P .206 .178 .028
+R .206 .173 .033
+TH .207 .179 .028
+V .198 .165 .033
+Table 2. Average L1 distances (↓) between estimated and ground truth TVs per phoneme. Phonemes listed here have the largest difference between the L1 of our method and that of the baseline [15]. Details in 5.1.
+Model Baseline [15] Ours
+AWB 9.23 8.03
+SLT 10.24 9.69
+Average 10.94 ± 0.76 9.52 ± 0.59
+Table 3. MCDs (↓) in resynthesis analysis experiments on ARCTIC speakers AWB and SLT, as well as the average and standard deviation across all speakers.
+Fig. 3. Predicted normalized lip aperture (LA) for our ap- proach (blue) and the baseline (green) across 18 ARCTIC speakers for each vowel.
+HPRC test set for each phoneme. We obtain phoneme align- ments with the Montreal Forced Aligner [38] and use the L1 distance metric since it can be computed at the frame level, e.g., as opposed to a correlation-based metric. Table 2 sum- marizes these results. We observe that our model outperforms the baseline noticeably on nasals (M, N, NG) and liquids (L, R). One potential reason for this is that modelling improve- ments may help compensate for the lack of voicing and velar information in EMA. Generally, we observed that our model performs better than the baseline across all phonemes, and we encourage readers to see the supplementary material for all phoneme results.
+evaluating synthesis quality. To study performance on un- seen speakers this way, we resynthesize ARCTIC utterances using our synthesis model and each inversion method. Then, we compute the DTW-MCD [39] between the predicted and ground truth waveforms. Table 3 summarizes these results. Our approach outperforms the baseline for all speakers, con- sistent with our inversion results in Table 1 and earlier single- speaker experiments [40]. We note that the MCD values are high since we did not optimize for synthesis quality in this work. Given the nascent nature of the multi-speaker articu- latory synthesis direction, we plan to improve such models and continue validating inversion performance in this man- ner using MCD and more synthesis metrics [39, 41] moving forward.
+6. CONCLUSION
+5.2. Inversion Analysis without EMA Labels
+Figure 3 contains the predicted normalized lip aperture (LA) for our approach and the baseline across 18 ARCTIC speak- ers for each vowel. As mentioned in Section 2.4, all of these speakers are unseen during training. Both approaches are able to generally predict the biologically plausible LA val- ues. For example, the lip aperture, visualized in Figure 1, is predicted to be wide for the ”AE” sound and narrow for the ”UW” sound. However, our model is much more consistent across speakers, as evinced by the lower variance. We note that this lower variance is consistent with the fact that the TVs are normalized and much less speaker dependent than EMA features [13]. Since the baseline incorrectly estimates lip aperture for a larger number of speakers, this suggests that our method is better at generalizing to unseen speakers.
+In this work, we devise an acoustic-to-articulatory inversion (AAI) approach in the context of generalizing to unseen speakers, improving state-of-the-art by 12.5% on the HPRC task [11]. We also show the interpretability of the estimated representations through directly comparing them with speech production behavior, evincing how this analysis can be done without labeled articulatory data. Finally, we propose a resynthesis-based AAI evaluation metric that does not rely on articulatory labels. We demonstrate the efficacy of this eval- uation method using ARCTIC and observe results consistent with our inversion correlation metrics. In the future, we plan to extend our methodology to high-fidelity resynthesis and AAI for articulatory features beyond EMA.
+7. ACKNOWLEDGEMENTS
+5.3. Resynthesis Analysis without EMA Labels
+We can also compare inversion performance through resyn- thesizing speech from estimated features (Section 4.2) and
+This research is supported by the following grants to PI Anumanchipalli — NSF award 2106928, Google Research Scholar Award, Rose Hills Foundation and Noyce Founda- tion.
+
+
+8. REFERENCES
+[1] Y. Lu, C. E. Wiltshire, K. E. Watkins, et al., “Characteristics of articulatory gestures in stuttered speech: A case study using real-time magnetic resonance imaging,” Journal of Communi- cation Disorders, vol. 97, pp. 106213, 2022.
+[2] H.-S. Choi, J. Lee, W. Kim, et al., “Neural analysis and syn- thesis: Reconstructing speech from self-supervised representa- tions,” NeurIPS, 2021.
+[3] A. Polyak et al., “Speech Resynthesis from Discrete Disentan-
+gled Self-Supervised Representations,” in Interspeech, 2021.
+[4] G. K. Anumanchipalli, J. Chartier, and E. F. Chang, “Speech synthesis from neural decoding of spoken sentences,” Nature, vol. 568, no. 7753, pp. 493–498, 2019.
+[5] G. Fant, “What can basic research contribute to speech synthe- sis?,” Journal of Phonetics, vol. 19, no. 1, pp. 75–90, 1991.
+[6] P. Rubin, T. Baer, and P. Mermelstein, “An articulatory synthe- sizer for perceptual research,” The Journal of the Acoustical Society of America, vol. 70, no. 2, pp. 321–328, 1981.
+[7] C. Scully, “Articulatory synthesis,” in Speech production and
+speech modelling, pp. 151–186. Springer, 1990.
+[8] A. Wrench, “The mocha-timit articulatory database,” 1999.
+[9] A. A. Wrench,
+“A multi-channel/multi-speaker articula- tory database for continuous speech recognition research.,” Phonus., 2000.
+[10] K. Richmond, P. Hoole, and S. King, “Announcing the electro- magnetic articulography (day 1) subset of the mngu0 articula- tory corpus,” in Interspeech, 08 2011, pp. 1505–1508.
+[11] M. K. Tiede et al., “Quantifying kinematic aspects of reduction in a contrasting rate production task,” Journal of the Acoustical Society of America, 2017.
+[12] H. Zen et al., “LibriTTS: A corpus derived from librispeech
+for text-to-speech,” in Interspeech, 2019.
+[13] N. Seneviratne et al., “Multi-corpus acoustic-to-articulatory
+speech inversion.,” in Interspeech, 2019.
+[14] T. Toda, A. Black, and K. Tokuda, “Acoustic-to-articulatory inversion mapping with gaussian mixture model,” in Eighth In- ternational Conference on Spoken Language Processing, 2004.
+[15] Y. M. Siriwardena et al., “Acoustic-to-articulatory speech in-
+version with multi-task learning,” Interspeech, 2022.
+[16] J. Wang et al., “Acoustic-to-articulatory inversion based on speech decomposition and auxiliary feature,” in ICASSP, 2022.
+[17] G. Sun, Z. Huang, L. Wang, and P. Zhang,
+“Temporal convolution network based joint optimization of acoustic-to- articulatory inversion,” Applied Sciences, 2021.
+[18] B. Uria, I. Murray, S. Renals, and K. Richmond, “Deep archi- tectures for articulatory inversion,” in Interspeech, 2012.
+[19] A. S. Shahrebabaki, S. M. Siniscalchi, and T. Svendsen, “Raw speech-to-articulatory inversion by temporal filtering and dec- imation,” Interspeech, 2021.
+[20] N. Bozorg, M. T. Johnson, and M. Soleymanpour,
+“Au- toregressive articulatory wavenet flow for speaker-independent acoustic-to-articulatory inversion,” in SpeD. IEEE, 2021.
+[21] S. K. Maharana, A. Illa, R. Mannem, et al.,
+“Acoustic-to- articulatory inversion for dysarthric speech by using cross- corpus acoustic-articulatory data,” in ICASSP. IEEE, 2021. [22] S. Udupa, A. Roy, A. Singh, et al., “Estimating articulatory movements in speech production with transformer networks,” arXiv preprint arXiv:2104.05017, 2021.
+[23] J. Chartier, G. K. Anumanchipalli, K. Johnson, and E. F. Chang, “Encoding of articulatory kinematic trajectories in hu- man speech sensorimotor cortex,” Neuron, 2018.
+[24] A. S. Shahrebabaki, G. Salvi, T. Svendsen, and S. M. Sinis- calchi, “Acoustic-to-articulatory mapping with joint optimiza- tion of deep speech enhancement and articulatory inversion models,” TASLP, vol. 30, pp. 135–147, 2022.
+[25] A. S. Shahrebabaki, N. Olfati, A. S. Imran, et al., “A two-stage deep modeling approach to articulatory inversion,” in ICASSP, 2021, pp. 6453–6457.
+[26] J. Kominek and A. W. Black,
+“The CMU Arctic speech databases,” in Fifth ISCA workshop on speech synthesis, 2004. [27] A. Wilkinson, A. Parlikar, S. Sitaram, et al., “Open-source
+consumer-grade indic text to speech.,” in SSW, 2016.
+[28] P. Wu, S. Watanabe, L. Goldstein, et al., “Deep speech synthe-
+sis from articulatory representations,” in Interspeech, 2022.
+[29] Y. Zhang and Q. Yang, “An overview of multi-task learning,”
+National Science Review, 2018.
+[30] S. wen Yang, P.-H. Chi, Y.-S. Chuang, et al.,
+“SUPERB: Speech Processing Universal PERformance Benchmark,” in Interspeech, 2021, pp. 1194–1198.
+[31] W.-N. Hsu, B. Bolte, Y.-H. H. Tsai, et al.,
+“Hubert: Self- supervised speech representation learning by masked predic- tion of hidden units,” TASLP, 2021.
+[32] M. Ravanelli, T. Parcollet, P. Plantinga, et al., “SpeechBrain:
+A general-purpose speech toolkit,” 2021, arXiv:2106.04624.
+[33] J. Chung, C. Gulcehre, K. Cho, and Y. Bengio,
+“Empiri- cal evaluation of gated recurrent neural networks on sequence modeling,” NeurIPS, 2014.
+[34] D. E. Rumelhart, G. E. Hinton, and R. J. Williams, Learning Internal Representations by Error Propagation, MIT Press, 1986.
+[35] M. Morrison, R. Kumar, K. Kumar, et al., “Chunked autore- gressive gan for conditional waveform synthesis,” in ICLR, April 2022.
+[36] J. Kong, J. Kim, and J. Bae, “HiFi-GAN: Generative adversar- ial networks for efficient and high fidelity speech synthesis,” in NeurIPS, 2020.
+[37] C. P. Browman and L. Goldstein, “Articulatory phonology: An
+overview,” Phonetica, 1992.
+[38] M. McAuliffe et al., “Montreal forced aligner: Trainable text-
+speech alignment using kaldi,” in Interspeech, 2017.
+[39] S. Watanabe, T. Hori, S. Karita, et al., “ESPnet: End-to-end
+speech processing toolkit,” in Interspeech, 2018.
+[40] K. Richmond, Z. Ling, J. Yamagishi, et al., “On the evaluation of inversion mapping performance in the acoustic domain,” in Interspeech, 2013.
+[41] T. Hayashi et al., “Espnet2-tts: Extending the edge of tts re-
+search,” arXiv preprint arXiv:2110.07840, 2021.

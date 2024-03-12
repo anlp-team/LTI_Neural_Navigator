@@ -1,0 +1,242 @@
+3 2 0 2
+p e S 8 1
+] S A . s s e e [
+1 v 0 1 5 9 0 . 9 0 3 2 : v i X r a
+DYNAMIC-SUPERB: TOWARDS A DYNAMIC, COLLABORATIVE, AND COMPREHENSIVE INSTRUCTION-TUNING BENCHMARK FOR SPEECH
+Chien-yu Huang1, Ke-Han Lu∗1, Shih-Heng Wang∗1, Chi-Yuan Hsiao†1, Chun-Yi Kuan†1, Haibin Wu†1 Siddhant Arora§2, Kai-Wei Chang§1, Jiatong Shi2, Yifan Peng2, Roshan Sharma2, Shinji Watanabe2 Bhiksha Ramakrishnan2,3, Shady Shehata3, Hung-yi Lee1
+1National Taiwan University, Taiwan, 2Carnegie Mellon University, USA 3Mohamed bin Zayed University of Artiﬁcial Intelligence, United Arab Emirates
+ABSTRACT
+Text language models have shown remarkable zero-shot capability in generalizing to unseen tasks when provided with well-formulated instructions. However, existing studies in speech processing primar- ily focus on limited or speciﬁc tasks. Moreover, the lack of stan- dardized benchmarks hinders a fair comparison across different ap- proaches. Thus, we present Dynamic-SUPERB, a benchmark de- signed for building universal speech models capable of leveraging instruction tuning to perform multiple tasks in a zero-shot fashion. To achieve comprehensive coverage of diverse speech tasks and har- ness instruction tuning, we invite the community to collaborate and contribute, facilitating the dynamic growth of the benchmark. To ini- tiate, Dynamic-SUPERB features 55 evaluation instances by com- bining 33 tasks and 22 datasets. This spans a broad spectrum of di- mensions, providing a comprehensive platform for evaluation. Ad- ditionally, we propose several approaches to establish benchmark baselines. These include the utilization of speech models, text lan- guage models, and the multimodal encoder. Evaluation results in- dicate that while these baselines perform reasonably on seen tasks, they struggle with unseen ones. We also conducted an ablation study to assess the robustness and seek improvements in the performance. We release all materials to the public and welcome researchers to collaborate on the project, advancing technologies in the ﬁeld to- gether1.
+Index Terms— self-supervised learning,
+instruction tuning,
+benchmark
+1. INTRODUCTION
+Self-supervised learning (SSL) signiﬁcantly improves the scalabil- ity of machine learning models and their ability to generalize across a wide range of tasks [1–4]. When applying an SSL model to a downstream task, a common approach is to build a task-dependent network on top of the SSL model and ﬁne-tune it with task-speciﬁc data. However, this approach demands that users construct a unique model for each task. As downstream tasks increase, this process becomes more resource-intensive and time-consuming. To address these issues, several parameter-efﬁcient tuning approaches have thus gained popularity, such as prompting [5–13] and adapters [14–17]. Particularly, in natural language processing (NLP), instruction tun- ing involves ﬁne-tuning language models (LM) on datasets where the tasks are deﬁned by speciﬁc instructions [18]. This approach
+∗co-second authors. †co-third authors. §co-fourth authors. 1https://github.com/dynamic-superb/dynamic-superb
+considerably ampliﬁes the zero-shot learning capacity of LMs, en- abling them to efﬁciently handle unseen tasks. However, it remains largely unexplored in the speech-processing ﬁeld, where the aspects are even more abundant and diverse. While there are existing stud- ies like SPECTRON [19] and AudioPaLM [20] that focus on jointly processing text and speech, they are designed for speciﬁc tasks. On the other hand, AudioGPT [21], though driven by text instructions, is limited to a pre-deﬁned set of tasks.
+This paper presents Dynamic-SUPERB, the ﬁrst collaborative benchmark for instruction-tuning speech models. Although previous benchmarks provide evaluations on several aspects, they are static [22–29]. In contrast, Dynamic-SUPERB encourages the commu- nity to contribute a broader range of tasks so that the task variations are dynamically extended, aiming for a more comprehensive assess- ment. For the ﬁrst version, we gathered over 20 publicly available datasets and transformed them into a diverse set of tasks. These tasks span 6 dimensions: content, speaker, semantics, degradation, par- alinguistics, and audio (non-speech). In Dynamic-SUPERB, each task is basically composed of three parts: (I) text instructions, (II) speech utterances, and (III) text labels. Following this, the system receives both the text instruction and speech utterances as input, and then functions based on the instruction. For example, given the in- struction “Identify the emotion conveyed in the utterance”, the model performs emotion recognition and outputs the label “Happy” textu- ally. For simplicity in evaluation, we currently focus on classiﬁ- cation tasks, such as intent classiﬁcation and speaker veriﬁcation, and leave generative ones for future collaboration with the commu- nity. To enhance user engagement, we offer detailed documentation and establish a clear process for submitting new tasks to Dynamic- SUPERB. All submitted tasks are subject to a review before inclu- sion. Reviews mainly focus on technical accuracy and completeness, ensure clarity of the proposal, and determine if the task aptly evalu- ates its intended objectives.
+We propose ﬁve approaches to establish baselines in Dynamic- SUPERB. We integrated text embeddings from BERT [30] into the generative spoken language model (GSLM) [31], enabling opera- tions on both speech and text. We also adapted Whisper [32], which was primarily designed for speech recognition involving both speech and text, to instruction tuning. Besides modifying speech models, we integrated speech representations from either Whisper or ImageBind [33], into LLaMA [34,35], a prevalent large language model (LLM). We also utilize Whisper (ASR) and ChatGPT [36] to build a con- catenative system (ASR-ChatGPT). Due to the lack of instruction- based tasks in the ﬁeld, we developed Dynamic-SUPERB-Train us- ing academic resources as a preliminary training set for the base- lines. Its overlap with Dynamic-SUPERB differentiates tasks into
+
+
+seen and unseen categories, assessing model generalizability. Eval- uation results indicate that no single model dominates across all tasks. ASR-ChatGPT excels in some semantic tasks but underper- forms with speaker and paralinguistic tasks. Speech models that integrate text struggle with unseen tasks due to their limited com- prehension of text instructions. Conversely, combining speech rep- resentations with a text language model surpassed other methods.
+2. DYNAMIC-SUPERB
+2.1. Objectives
+Dynamic-SUPERB is committed to offering a comprehensive eval- uation of universal speech models and facilitating advancements in this ﬁeld. We believe that instruction tuning is a pivotal step to- wards universal speech models. While we included a wide range of tasks to kickstart the benchmark, there are always numerous innova- tive and creative applications in speech processing. Unlike previous benchmarks with a ﬁxed task set [22–29], Dynamic-SUPERB seeks to dynamically expand its task variety through community collabo- ration, just as its name indicates. We offer a straightforward pipeline for easy user engagement and have established a review guideline outlining how the community can contribute to Dynamic-SUPERB.
+2.2. Terminologies
+We collected several datasets and used them in a variety of tasks. For example, we can utilize LibriSpeech [37] for speaker veriﬁcation (multi-speaker dataset), and spoken term detection (transcription available), to name just a few applications. Therefore, in Dynamic- SUPERB, a dataset can correspond to multiple tasks, and a task may cover several datasets. In this paper, a task is the speciﬁc type of processing or operation to be carried out, such as “speaker veriﬁca- tion” or “intent classiﬁcation”. It is a general category that deﬁnes the kind of work or operation being done, without specifying the dataset on which it is performed. Meanwhile, an instance refers to the speciﬁc combination of a task and a dataset. For example, per- forming “speaker veriﬁcation” on the “LibriSpeech” dataset would be an instance. This term describes the exact pairing of the task and dataset we evaluate or discuss.
+2.3. Tasks & datasets
+Generally, tasks can be categorized as either discriminative or gener- ative. Discriminative tasks aim to sort data into predeﬁned class sets. In contrast, generative tasks involve producing sequences of tokens or signals of variable lengths, making them inherently more chal- lenging. As an initial launch to simplify the evaluation process, we only consider classiﬁcation tasks in the current version of Dynamic- SUPERB. These tasks assess the capabilities of models across var- ious dimensions, including content (CNT), speaker (SPK), seman- tics (SEM), degradation (DEG), and paralinguistics (PRL). Besides, we added audio-processing tasks (AUD) to investigate how baseline models extend beyond speech processing. Table 1 outlines the tasks in Dynamic-SUPERB by the above-mentioned 6 dimensions.
+Given the lack of instruction-tuning data in the ﬁeld, we col- lected Dynamic-SUPERB-Train to train baselines. It shares some tasks with Dynamic-SUPERB, termed seen tasks, but uses different datasets for instances. Due to the space limit, we cannot list all tasks in detail. The full collection of tasks is available on the Dynamic- SUPERB ofﬁcial page1.
+Table 1: Statistics of Dynamic-SUPERB.
+Attribute
+Status CNT SPK SEM DEG PRL AUD
+Datasets
+
+5
+3
+3
+6
+7
+3
+Tasks
+Seen Unseen
+3 2
+2 1
+2 2
+4 8
+3 3
+0 3
+Instances
+Seen Unseen
+9 2
+3 2
+2 4
+6 13
+4 3
+0 7
+2.4. Task format
+Each task consists of at least three components: speech utterance, in- struction, and label. We sourced it from widely-used corpora such as LibriSpeech [37], LJSpeech [38], and VCTK [39]. Depending on the task speciﬁcation, there may be more than one utterance. For exam- ple, in speaker veriﬁcation, two utterances are involved to determine whether they are produced by the same speaker. For instructions, we chose to use text format rather than spoken format. Spoken instruc- tions, with varying content, speaker characteristics, and prosody, are more complex than text-based ones. Text instructions serve as an in- termediary, bridging text and spoken instruction tuning. To generate various instructions, we initially created some basic ones manually and then used ChatGPT to rephrase them and generate additional variations. This results in each task containing approximately 10 to 30 different types of instructions.
+A standard classiﬁcation model produces a distribution over all potential labels. For instance, an emotion classiﬁer assigns proba- bilities to each emotion category, including happy, angry, and sad. The method is simple and efﬁcient, but it constrains the adaptability of the model. Adding a new emotion, like “tired,” would require re- training the model, let alone adapting it for entirely different tasks. To tackle this issue, we believe that a universal speech model should produce outputs generatively. Consequently, in Dynamic-SUPERB, all labels are represented textually. To explore generalizability on unseen tasks, all baseline models are designed to respond in a gen- erative manner. That is, without any constraints, a model can pro- duce any arbitrary response. For example, a model might respond with synonyms instead of the exact desired answer, complicating the evaluation process. To address this, we specify the available options directly in the instruction. Speciﬁcally, we append the phrase “The answer could be A, B, or C” to the instruction, where A, B, and C represent the candidate answers. If “A” is the correct answer, then only the response “A” is considered correct. Responses like “The answer is A” or synonyms of “A” are considered incorrect.
+2.5. Benchmark extendibility
+Dynamic-SUPERB is a benchmark designed with forward-thinking principles. As detailed in Sec. 2.1, it has the capability to dynam- ically expand its task coverage. In most conventional benchmarks, adding a new task is challenging because it requires users to undergo re-training speciﬁc to the new task. However, Dynamic-SUPERB leverages instruction tuning, enabling a single model to handle mul- tiple tasks without explicit ﬁne-tuning. This feature signiﬁcantly sim- pliﬁes the process when new tasks are integrated, highlighting the extendibility of the benchmark.
+Contrasting many existing benchmarks that focus on static evaluations, Dynamic-SUPERB adopts a more dynamic and ﬂex- ible design. Recognizing the ever-changing landscape of speech- processing tasks, we believe that benchmarks should evolve along-
+
+
+side the innovations and advances in research. Though Dynamic- SUPERB may not encompass every potential speech-processing task at present, its real value lies in its design that encourages growth and the incorporation of emerging tasks. This inclusive framework not only welcomes but thrives on community collaboration, facilitating the introduction of innovative tasks and methods. Such extendibility ensures that Dynamic-SUPERB remains relevant and effective in the fast-paced world of speech-processing research.
+3. BASELINE FRAMEWORKS
+While instruction tuning is a promising method for achieving uni- versal speech models, there is no model that has been speciﬁcally designed to do so. Therefore, based on existing models, we pro- pose ﬁve approaches to instruction tuning and serve them as the baseline models. These models were directly trained with Dynamic- SUPERB-Train and tested on Dynamic-SUPERB.
+3.1. BERT-GSLM
+GSLM [31] comprises three components: a discrete feature extractor (utilizing HuBERT and k-means clustering), a unit language model (uLM), and a speech synthesizer. The ﬁrst two components are used here. To adapt the GSLM for instruction tuning, we aim to enhance the uLM to handle both input and output in textual form. For the in- put, we employ BERT [30] to derive contextualized representations of text tokens. These are then projected into the GSLM embedding space using a linear layer. For the output, originally, the uLM pro- duced a probability distribution exclusively over speech tokens. We expanded the token set by incorporating text tokens, allowing the uLM to produce a distribution that includes both speech and text tokens. During training, feature extractors (HuBERT & BERT) re- mained ﬁxed, while the uLM and the projection layer were trainable.
+3.2. Whisper
+Whisper [32] is a large-scale ASR model, but its encoder captures a wealth of information beyond mere content [40]. The decoder transcribes based on speech features and previously generated texts, making it potentially suitable for our scenario. We add the instruc- tion to the text input of the decoder, enabling it to autoregressively generate the desired output conditioned on the instruction.
+In the original Whisper implementation, several special tokens were used to signify speciﬁc functions, and we also adhered to this for instruction tuning. Text instructions are appended after the PREV token, followed by the start of transcription token, a lan- guage tag token, and a timestamp disabling token. Whisper then auto-regressively generates a response based on these tokens and the encoder-extracted speech features. During training, we employed Whisper-medium, and both the encoder and decoder were updated.
+3.3. Multi-modal large language model
+LLMs have demonstrated exceptional proﬁciency in instruction tun- ing tasks within NLP, prompting our choice of LLaMA [34,35] here. Speciﬁcally, we used ImageBind-LLM [41], a multi-modal variant of LLaMA. ImageBind [33] is a multi-modal encoder that embeds several data types, such as images and audio, into a uniﬁed space. Speech samples are converted into utterance-level features and sub- sequently integrated with LLaMA through the zero-initialized injec- tion mechanism [41, 42]. We employed LLaMA-Adapter [42, 43]
+Table 2: Average accuracy (%) of the proposed baselines on seen tasks in Dynamic-SUPERB across different dimensions. Entries marked with “-” indicate an empty task set.
+Model
+CNT SPK SEM DEG PRL AUD
+66.3 95.3 ImageBind-LLM 64.3 77.6 -
+BERT-GSLM Whisper
+Whisper-LLM ASR-ChatGPT
+45.0 55.6 42.1 92.3 -
+47.1 54.9 47.6 55.5 -
+68.2 71.1 78.7 91.0 -
+52.7 49.4 59.8 66.3 -
+- - - -
+Random
+49.9
+54.1
+41.0
+45.9
+67.1
+
+Table 3: Average accuracy (%) of the proposed baselines on unseen tasks in Dynamic-SUPERB across different dimensions.
+Model
+CNT SPK SEM DEG PRL AUD
+0.0 14.4 ImageBind-LLM 15.7 8.7 65.0
+BERT-GSLM Whisper
+Whisper-LLM ASR-ChatGPT
+32.8 58.0 45.4 60.6 40.3
+5.3 13.8 24.7 20.9 70.0
+41.6 55.4 47.6 59.0 43.5
+12.6 8.5 20.6 6.6 22.9
+0.0 0.8 35.7 15.9 9.8
+Random
+11.8
+50.2
+33.1
+43.1
+21.0
+23.4
+for computational efﬁciency. During training, ImageBind remained ﬁxed, and only adapter modules in LLaMA were updated.
+While ImageBind-LLM shows promise, we observed that its utterance-level encoding overlooks the temporal nuances of speech. Therefore we introduced Whisper-LLM to address this limitation. We substituted ImageBind with the Whisper encoder to better cap- ture temporal information. The training process was similar to that of ImageBind-LLM, with the exception of an added downsampling step to reduce the sequence length of speech features.
+3.4. ASR-ChatGPT
+The above models require re-training. We also adopted a concatena- tive framework using pre-trained models, as demonstrated in a pre- vious study [44]. Speciﬁcally, we used Whisper to transcribe the speech and then merge it with the instruction to guide ChatGPT in responding. However, we found responses from ChatGPT vary. For example, an answer “A” might be elaborated as “The answer is A.” To ensure ChatGPT adheres to our requirements, we added a prompt: “Please select one label from the provided options and respond with that label only.” Empirically, this constrains ChatGPT effectively.
+4. RESULTS
+In this section, we present a preliminary study of the baseline mod- els. Speciﬁcally, we ﬁrst discuss how the models perform on seen tasks (Sec. 4.1 & Sec. 4.2), and then examine their capability of gen- eralization towards unseen tasks (Sec. 4.3).
+4.1. Seen tasks
+Table 2 presents the evaluation results for each baseline on seen tasks in Dynamic-SUPERB. Due to space constraints, we report the aver- age accuracy for each dimension. Detailed accuracy for each task is available on our website1. We also included the random baseline for comparison, which was obtained by randomly selecting answers
+
+
+from the label distribution of each task. Here, we discuss the perfor- mance on seen tasks, which were used in both training and testing. ASR-ChatGPT is included for comparison (Table 3), even though the term “seen tasks” does not apply to it. The audio (AUD) dimen- sion is not discussed here because there are no seen tasks.
+Overall, GSLM performed poorly. While the best performance of GSLM was in the degradation dimension (DEG), its accuracy only surpassed that of ASR-ChatGPT. We believe this is likely because GSLM has fewer parameters than other models, and using discrete speech tokens may discard crucial information required for these tasks. Whisper showed an outstanding accuracy in the content di- mension (CNT). This is probably because Whisper is primarily an ASR model, contributing to its high accuracy in processing con- tent information. ImageBind-LLM had a slightly better performance than GSLM. Despite using utterance-level embeddings, it achieved much higher accuracy than the random baseline in CNT, which we believed would require the use of temporal information. This sug- gests that, as of now, some tasks in this dimension do not neces- sitate detailed temporal information. We hope the community will contribute more diverse tasks to enrich it. Whisper-LLM dominated in most dimensions except CNT. Particularly, it achieved very high accuracy in the speaker (SPK) and degradation (DEG) dimensions. The performance difference between Whisper and Whisper-LLM suggests that while the Whisper encoder provides abundant informa- tion, the way we utilize this information signiﬁcantly impacts perfor- mance (comparing the Whisper decoder to LLaMA). ASR-ChatGPT excelled in the semantics dimension (SEM) and had a much higher accuracy than all the other baselines. Conversely, it failed in those involving several speech characteristics (SPK, DEG, and PRL) be- cause the ASR process discarded the essential information.
+4.2. Seen & unseen instructions
+For seen tasks, despite being utilized during the training stage, cer- tain instructions were reserved exclusively for the testing. We then analyzed how baseline models performed from the view of seen and unseen instructions. Table 4 lists the performance comparison based on seen/unseen instructions. The audio dimension (AUD) is excluded as it was not utilized during training. All the baselines followed the same trend. In CNT, SPK, and SEM, there was lit- tle difference between the seen and unseen instructions. For DEG and PRL, the unseen instructions had a greater impact, leading to decreased accuracies. In the two dimensions, there was a relatively serious imbalance between the seen and unseen instructions, so the average accuracy was inﬂuenced much by a speciﬁc task that mod- els did not perform well on. In our preliminary study, we endeavored to provide as many instructions as possible for each task. However, in real-world scenarios, there can be hundreds or even thousands of ways to formulate instructions speciﬁc to a task. Achieving such di- versity is unlikely with just a small group of researchers or solely with tools like ChatGPT. This underscores the importance of com- munity collaboration to diversify and enhance the benchmark.
+4.3. Unseen tasks
+Table 3 reveals a signiﬁcant performance gap between seen and un- seen tasks across all models. While baseline models performed rea- sonably on seen tasks, their performance declined on unseen tasks. In typical classiﬁcation tasks, a random guess serves as the baseline for the lowest performance, but this is not the case here. Although the instructions explicitly outlined available options, the model re- sponded in a generative manner. It could produce answers that were
+Table 4: Average accuracy (%) across different dimensions based on seen/unseen instructions. Only seen tasks were evaluated.
+Model
+Instruction CNT
+SPK SEM DEG PRL
+BERT-GSLM
+Seen Unseen
+66.5 65.9
+44.2 45.4
+47.1 47.1
+68.2 60.6
+69.3 54.6
+Whisper
+Seen Unseen
+95.4 95.0
+55.3 55.4
+54.6 55.6
+71.0 50.5
+65.8 49.6
+ImageBind-LLM
+Seen Unseen
+64.1 64.8
+42.9 41.6
+47.1 49.0
+78.6 62.8
+75.8 59.7
+Whisper-LLM
+Seen Unseen
+77.3 78.1
+92.5 92.1
+55.0 56.6
+91.1 84.9
+84.7 66.4
+not among the given options, leading to a performance that was even worse than what a random guess would achieve. BERT-GSLM and Whisper struggled to select from the provided options, which is evidenced by their accuracy falling below the expected random baseline. Notably, BERT-GSLM had a very low accuracy of 0.0% on unseen tasks in CNT. On the other hand, ImageBind-LLM and Whisper-LLM seemed to make selections that appeared almost ran- dom from the instructions, which resulted in an accuracy that hov- ered around the random baseline. These indicate that while LLMs might not always perform a speciﬁc task as instructed, they exhibit an understanding of how options are presented in natural language. This proﬁciency likely stems from their pre-training on large-scale text data. Conversely, speech models, without text pre-training and trained on limited data, could not achieve the same proﬁciency.
+Additionally, we observed that most models underperformed in AUD. This can be attributed both to its absence during the training and the intrinsic distinction between speech and audio signals. Con- versely, ImageBind-LLM exhibited superior accuracy because of its pre-training on several data modalities, including audio.
+From our analysis of seen/unseen instructions (Sec. 4.2) and tasks (this section), we surmise that these models could not gen- uinely perform speciﬁc tasks based on the semantic information in the instructions. Instead, they often performed tasks by recogniz- ing speciﬁc patterns in the instructions, such as a bag-of-words ap- proach. Within a task, despite variations in instructions, they might possess a similar bag of words due to their design aimed at speci- fying the same task. On the other hand, different tasks have unique instructions (and patterns), and the model might fail if these were not used in training. This explains why these models demonstrated notable performance on seen tasks with unseen instructions but fal- tered in generalizing effectively to unseen tasks. The instructions for unseen tasks have very different patterns than those for seen tasks.
+5. CONCLUSIONS
+Instruction tuning is increasingly popular for enabling zero-shot applications in NLP, but it remains underexplored in speech pro- cessing. This paper presents Dynamic-SUPERB, the ﬁrst dynamic and collaborative benchmark for instruction tuning in speech mod- els, offering a comprehensive exploration across diverse dimensions. Five different approaches are proposed and tested on the benchmark, showing encouraging results on seen tasks. However, their perfor- mance on unseen tasks highlights the need for continued research in this ﬁeld. We open-source all the materials to lower the barrier for reproduction, benchmarking, and analysis of instruction tuning in speech processing. We welcome researchers to join our active community and drive the research frontier together.
+
+
+6. REFERENCES
+[1] Aaron van den Oord, Yazhe Li, and Oriol Vinyals,
+“Rep- resentation learning with contrastive predictive coding,” arXiv:1807.03748, 2018.
+[2] Alexei Baevski et al., “wav2vec 2.0: A framework for self- supervised learning of speech representations,” NeurIPS, 2020.
+[3] Wei-Ning Hsu et al., “Hubert: Self-supervised speech rep- resentation learning by masked prediction of hidden units,” IEEE/ACM Transactions on Audio, Speech, and Language Processing, 2021.
+[4] Abdelrahman Mohamed et al., “Self-supervised speech repre- sentation learning: A review,” IEEE Journal of Selected Topics in Signal Processing, 2022.
+[5] Kai-Wei Chang et al.,
+“An Exploration of Prompt Tuning on Generative Spoken Language Model for Speech Processing Tasks,” in INTERSPEECH, 2022.
+[6] Kai-Wei Chang et al., “Speechprompt v2: Prompt tuning for
+speech classiﬁcation tasks,” arXiv:2303.00733, 2023.
+[7] Haibin Wu et al., “Speechgen: Unlocking the generative power of speech language models with prompts,” arXiv:2306.02207, 2023.
+[8] Xiang Lisa Li and Percy Liang, “Preﬁx-tuning: Optimizing
+continuous prompts for generation,” in ACL, 2021.
+[9] Xiao Liu et al., “P-tuning: Prompt tuning can be comparable
+to ﬁne-tuning across scales and tasks,” in ACL, 2022.
+[10] Xiao Liu et al., “Gpt understands, too,” AI Open, 2023.
+[11] Brian Lester, Rami Al-Rfou, and Noah Constant, “The power of scale for parameter-efﬁcient prompt tuning,” in EMNLP, 2021.
+[12] Taylor Shin et al., “Autoprompt: Eliciting knowledge from language models with automatically generated prompts,” in EMNLP, 2020.
+[13] Puyuan Peng et al., “Prompting the Hidden Talent of Web- Scale Speech Models for Zero-Shot Task Generalization,” in INTERSPEECH, 2023.
+[14] Zih-Ching Chen et al., “Exploring efﬁcient-tuning methods in
+self-supervised speech models,” in SLT, 2023.
+[15] Yuan Gong et al.,
+“Listen,
+think, and understand,”
+arXiv:2305.10790, 2023.
+[16] Chin-Lun Fu et al., “Adapterbias: Parameter-efﬁcient token- dependent representation shift for adapters in nlp tasks,” in NAACL 2022, 2022.
+[17] Ruidan He et al., “On the effectiveness of adapter-based tuning for pretrained language model adaptation,” in ACL, 2021.
+[18] Jason Wei et al., “Finetuned language models are zero-shot
+learners,” in ICLR, 2021.
+[19] Eliya Nachmani et al., “Lms with a voice: Spoken language
+modeling beyond speech tokens,” arXiv:2305.15255, 2023.
+[20] Paul K Rubenstein et al., “Audiopalm: A large language model
+that can speak and listen,” arXiv:2306.12925, 2023.
+[21] Rongjie Huang et al.,
+generating speech, music, arXiv:2304.12995, 2023.
+“Audiogpt: Understanding and and talking head,”
+sound,
+[22] Tu Anh Nguyen et al., “The zero resource speech benchmark 2021: Metrics and baselines for unsupervised spoken language modeling,” arXiv:2011.11588, 2020.
+[23] Shu wen Yang et al., “SUPERB: Speech Processing Universal
+PERformance Benchmark,” in INTERSPEECH, 2021.
+[24] Suwon Shon et al.,
+“Slue: New benchmark tasks for spo- ken language understanding evaluation on natural speech,” in ICASSP, 2022.
+[25] Sol`ene Evain et al., “ LeBenchmark: A Reproducible Frame- work for Assessing Self-Supervised Representation Learning from Speech,” in Interspeech, 2021.
+[26] Sanchit Gandhi, Patrick Von Platen, and Alexander M Rush, “Esb: A benchmark for multi-domain end-to-end speech recognition,” arXiv:2210.13352, 2022.
+[27] Alexis Conneau et al., “Fleurs: Few-shot learning evaluation
+of universal representations of speech,” in SLT, 2023.
+[28] Jiatong Shi et al., “Ml-superb: Multilingual speech universal
+performance benchmark,” arXiv:2305.10615, 2023.
+[29] Guan-Ting Lin et al., “On the utility of self-supervised models
+for prosody-related tasks,” in SLT, 2023.
+[30] Jacob Devlin et al., “BERT: Pre-training of deep bidirectional
+transformers for language understanding,” in NAACL, 2019.
+[31] Kushal Lakhotia et al., “On generative spoken language model- ing from raw audio,” Transactions of the Association for Com- putational Linguistics, 2021.
+[32] Alec Radford et al., “Robust speech recognition via large-scale
+weak supervision,” in ICML, 2023.
+[33] Rohit Girdhar et al., “Imagebind: One embedding space to
+bind them all,” in CVPR, 2023.
+[34] Hugo Touvron et al., “Llama: Open and efﬁcient foundation
+language models,” arXiv:2302.13971, 2023.
+[35] Hugo Touvron et al., “Llama 2: Open foundation and ﬁne-
+tuned chat models,” arXiv:2307.09288, 2023.
+[36] OpenAI, “Chatgpt (august 3 version),” Large language model,
+2023.
+[37] Vassil Panayotov et al., “Librispeech: an asr corpus based on
+public domain audio books,” in ICASSP, 2015.
+[38] Keith Ito and Linda Johnson,
+“The lj speech dataset,”
+https://keithito.com/LJ-Speech-Dataset/, 2017.
+[39] Junichi Yamagishi, Christophe Veaux, and Kirsten MacDon- ald, “CSTR VCTK Corpus: English multi-speaker corpus for CSTR voice cloning toolkit (version 0.92),” 2019.
+[40] Yuan Gong et al.,
+“Whisper-AT: Noise-Robust Automatic Speech Recognizers are Also Strong General Audio Event Tag- gers,” in INTERSPEECH, 2023.
+[41] Jiaming Han et al., “Imagebind-llm: Multi-modality instruc-
+tion tuning,” arXiv:2309.03905, 2023.
+[42] Peng Gao et al., “Llama-adapter v2: Parameter-efﬁcient visual
+instruction model,” arXiv:2304.15010, 2023.
+[43] Renrui Zhang et al., “Llama-adapter: Efﬁcient ﬁne-tuning of language models with zero-init attention,” arXiv:2303.16199, 2023.
+[44] Mutian He and Philip N. Garner, “Can ChatGPT Detect Intent? Evaluating Large Language Models for Spoken Language Un- derstanding,” in INTERSPEECH, 2023.

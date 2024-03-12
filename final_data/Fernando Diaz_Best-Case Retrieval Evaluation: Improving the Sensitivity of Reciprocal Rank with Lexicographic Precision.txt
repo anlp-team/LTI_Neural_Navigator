@@ -1,0 +1,360 @@
+3 2 0 2
+n u J
+3 1
+]
+R
+I . s c [
+1 v 8 0 9 7 0 . 6 0 3 2 : v i X r a
+Best-Case Retrieval Evaluation: Improving the Sensitivity of Reciprocal Rank with Lexicographic Precision
+Fernando Diaz Google Montréal, QC, Canada diazf@acm.org
+ABSTRACT Across a variety of ranking tasks, researchers use reciprocal rank to measure the effectiveness for users interested in exactly one relevant item. Despite its widespread use, evidence suggests that reciprocal rank is brittle when discriminating between systems. This brittleness, in turn, is compounded in modern evaluation set- tings where current, high-precision systems may be difficult to distinguish. We address the lack of sensitivity of reciprocal rank by introducing and connecting it to the concept of best-case retrieval, an evaluation method focusing on assessing the quality of a ranking for the most satisfied possible user across possible recall require- ments. This perspective allows us to generalize reciprocal rank and define a new preference-based evaluation we call lexicographic pre- cision or lexiprecision. By mathematical construction, we ensure that lexiprecision preserves differences detected by reciprocal rank, while empirically improving sensitivity and robustness across a broad set of retrieval and recommendation tasks.
+1 INTRODUCTION Evaluating ranking systems for users seeking exactly one relevant item has a long history in information retrieval. As early as 1968, Cooper [7] proposed Type 1 expected search length or ESL1, defined as the rank position of the highest ranked relevant item. In the context of TREC-5, Kantor and Voorhees [12] proposed using the reciprocal of ESL1 in order to emphasize rank changes at the top of the ranked list and modeling the impatience of a searcher as they need to scan for a single item. Over the years, reciprocal rank (and less so ESL1) has established itself as a core metric for retrieval [5] and recommendation [4], adopted in situations where there is actually only one relevant item as well as in situations where there are multiple relevant items. Given two rankings, reciprocal rank and ESL1 always agree in terms of which ranking is better. Because of this, we refer to them collectively as the recall level 1 or RL1 metrics.
+Despite the widespread use of reciprocal rank, recent evidence suggests that it may brittle when it comes to discriminating between ranking systems [10, 19, 20]. In particular, the low number of unique values of reciprocal rank means that, especially when evaluating multiple highly-performing systems, we are likely to observe tied performance. Voorhees et al. [21] demonstrate that these conditions exist in many modern deep learning benchmarks.
+We address these issues by theoretically interpreting RL1 as a population-level metric we refer to as best-case retrieval evaluation. This allows us to propose a generalization of the RL1 ordering based on social choice theory [17] and preference-based evaluation [8]. This evaluation method, lexicographic precision or lexiprecision,
+RL1lexicographicprecision
+(1,2,3,4,5)(1,2,3,4,6)(n-4,n-3,n-2,n-1,n)(1,2,3,4,7)(n-5,n-3,n-2,n-1,n)(2,3,4,5,6)(1,n-3,n-2,n-1,n)……
+(1,*,*,*,*)(2,*,*,*,*)(3,*,*,*,*)(n-4,n-3,n-2,n-1,n)(n-5,*,*,*,*)…
+Figure 1: Hasse diagram of possible positions of relevant items. Each tuple represents the possible positions of five relevant items in a corpus of 𝑛 items. RL1 metrics such as reciprocal rank (left) have 𝑛 − 4 unique values and, therefore, result in a partial order over all possible positions of relevant items. Lexicographic precision (right) is a total order over all possible positions of relevant items that preserves all strict orders in RL1 evaluation.
+preserves any strict ordering between rankings based on RL1 while also providing a theoretically-justified ordering when RL1 is tied. We compare lexiprecision and RL1 orderings using Hasse dia- grams in Figure 1. On the left, we show the partial order of all possible positions of five relevant items in a corpus of size 𝑛. Since reciprocal rank and ESL1 only consider the position of the first relevant item, we only have 𝑛 different relevance levels. While this may not be an issue in general (since 𝑛 is usually large), the num- ber of rankings within each level can be very large and multiple highly effective systems can result in numerous ties. In contrast, lexiprecision has one relevance level for each unique arrangement of relevant items. That is, the number of relevance levels scales with the number relevant items and, by design, two rankings are tied only if they place relevant items in exactly the same positions. In this paper, we contribute to the theoretical understanding of evaluation through a detailed study of RL1 metrics, best-case retrieval evaluation, and lexiprecision. In Section 2, we motivate our work by showing that RL1 has fundamental theoretical limits, especially in situations where there are multiple relevant items. In Section 3, we demonstrate that RL1 can be interpreted as best-case retrieval evaluation, allowing us to to address its limitations by using methods from social choice theory and generalizing it as lexiprecision. In Section 5, we then conduct extensive empirical
+
+
+analysis to show that lexiprecision is strongly correlated with RL1 metrics while substantially improving its discriminative power.1
+2 MOTIVATION Our work is based on the observation that ceiling effects are inher- ent in RL1 evaluation. Assume a standard ranking problem where, given a query with 𝑚 associated relevant items, a system orders all 𝑛 documents in the collection in decreasing order of predicted relevance. The set of all possible rankings of 𝑛 is referred to as the symmetric group over 𝑛 elements and is represented as 𝑆𝑛. For a given ranking 𝜋 ∈ 𝑆𝑛, let 𝑝𝑖 be the position of the 𝑖th highest-ranked relevant item. We can then define reciprocal rank as RR1 (𝜋) = 1 . 𝑝1 When no relevant document is retrieved (e.g. if no relevant items are in the system’s top 𝑘 retrieval), we set RR1 = 0. For two rank- ings, we define 𝛿RR1 (𝜋, 𝜋 ′) = RR1 (𝜋) −RR1 (𝜋 ′). For the remainder of this section, we will use reciprocal rank for clarity although the analysis applies to ESL1 as well.
+Although we can easily see that there are 𝑛 different values for RR1 (𝜋), we are interested in the distribution of ties amongst system rankings for these 𝑛 values as predicted by theoretical properties of reciprocal rank. Specifically, we want to compute, for a given position of the first relevant item 𝑝1 and a random second ranking, the probability that we will observe a tie. For any 𝑝1, there are (cid:0)𝑛−𝑝1 (cid:1) tied arrangements of positions of relevant items amongst all 𝑚−1 of the possible arrangements 𝑝′ from a second system. If we sample an arrangement of relevant items uniformly at random, then the probability of a tie with 𝜋 is 𝑃𝑟 (𝑝1 = 𝑝′
+(𝑛−𝑝1 𝑚−1 ) ( 𝑛 𝑚)
+1|𝑝1) =
+.
+We plot this probability in Figure 2. We can observe that, when we have few relevant items (i.e. small 𝑚), we have a relatively small and uniform probability of ties across all values of 𝑝1. However, as we increase the number of relevant items, the distribution begins to skew toward a higher probability of a tie as 𝑝1 is smaller. This means that, if we have a ranking where the first relevant item is close to the top, even if the second ranking is drawn uniformly at random, we will be more likely to find a tie than if the first relevant item were lower in the ranking.
+While our analysis indicates a lack of sensitivity of reciprocal rank for 𝑝′ drawn uniformly at random as 𝑚 increases, we are also interested in the probability of ties when 𝑝′ is drawn from rank- ings produced by real systems. We collected runs associated with multiple public benchmarks (see Section 4.1 for details) and com- puted the the empirical distribution of ties conditioned 𝑝1 (Figure 3). Because of the highly skewed distribution, we plot the logarith- mic transform of the probability of a rank position. As we can see, across both older and newer benchmarks, the probability of a tie for rankings when the top-ranked relevant item is at position 1 is substantially larger than if we assume 𝑝′ is drawn uniformly at random. The 2021 TREC Deep Learning track data in particular demonstrates higher skew than others, confirming observations previously made about saturation at top rank positions [21].
+Taken together, these results demonstrate a fundamental limita- tion of RL1 metrics (i.e., reciprocal rank and ESL1) for evaluation.
+1In lieu of an isolated ‘Related Work’ section, we have included discussion of relevant literature when necessary. This helps make connections explicit to our work.
+Fernando Diaz
+0100200300400500
+0.0000.0010.0020.0030.0040.005
+p1Pr(p1=p1')
+m1050100250
+Figure 2: Given a ranking where the highest-ranked relevant item is at position 𝑝1, the probability of a tie with a second ranking sampled uniformly from all arrangements of rel- evant items for a corpus size of 𝑛 = 50000. This figure and others are best rendered or printed in color.
+p1Pr(p1=p1')
+robustweb 2013DL 2021 (docs)ml-1m
+0.0050.0100.0200.0500.1000.2000.500
+12510
+Figure 3: Empirical probability of a tie with a second ranking for several benchmarks (see Section 4.1 for details). Horizon- tal and vertical axes are on a logarithmic scale for clarity.
+As retrieval and other scenarios where reciprocal rank is used be- gin to attract highly performant systems, we need to extend our evaluation approaches to address these issues.
+3 LEXICOGRAPHIC PRECISION RL1 evaluation emphasizes precision by considering the position of the top-ranked relevant item and ignoring the positions of other relevant items. However, only ever looking at the position of the top- ranked relevant item results in the ceiling effects described in the previous section. Our goal is to develop an evaluation method that preserves the ordering of a pair of rankings by RL1 (i.e., agree with RR1 when RR1 (𝜋) ≠ RR1 (𝜋 ′)) and provides a justified ordering
+
+
+Best-Case Retrieval Evaluation: Improving the Sensitivity of Reciprocal Rank with Lexicographic Precision
+of a pair of rankings when RL1 is tied (i.e., generate a sensible order when RR1 (𝜋) = RR1 (𝜋 ′)). Although metrics like expected reciprocal rank [6] and average precision include reciprocal rank as a component in their computation, they are not guaranteed to preserve the ordering of reciprocal rank when there is one. In this section, we will interpret RL1 metrics as best-case retrieval evaluation, allowing us to derive a preference-based evaluation method based on social choice theory.
+determine an item’s psychological relevance to any particular user. From this perspective, there are 2𝑚 − 1 possible non-empty sets of relevant items for a specific request, each representing psycho- logical relevance to a possible user. Nevertheless, amongst these possible users, if they are interested in precisely one relevant item, there are 𝑚 unique utilities. Again, since RL1 monotonically de- creases in rank, the best-case utility is RR1, followed by RR2 until we reach RR𝑚.
+3.1 Best-Case Retrieval Evaluation When a user approaches a retrieval system, there is a great deal of uncertainty about their information need. While a request such as a text query provides information about which items in the corpus might be relevant, it says much less about the user’s appetite for relevant information. As a result, there is an implicit population of possible users issuing any particular request, each of whom may have a different utility for any particular ranking. In this section, we explore two types of uncertainty and demonstrate that, from both perspectives, RL1 evaluation represents the best-case utility over that population.
+We first consider uncertainty over recall requirements. Robert- son [15] presented a model for evaluating rankings based on the diverse set of recall requirements that a user might have. Given a request and its associated relevant items, users may be interested in one relevant item, a few relevant items, or the complete set of all relevant items. We can assess the quality of a ranking for any particular user recall requirement with what Cooper [7] refers to as the Type 2 expected search length: the number of items a user with requirement 𝑖 has to scan before finding 𝑖 relevant items. So, each information need has 𝑚 recall levels and RL1 is the evaluation measure associated with users requiring exactly one relevant item. From this perspective, we can, for a specific ranking, look at how utility is distributed amongst possible users, as represented by their recall levels. For example, we can ask how utility for users with high and low recall requirements compares; or what the average utility across these populations is. While previous work has looked at the average-case utility [8] and worst-case utility [9], in this work we suggest that RL1 represents the best-case performance over these possible users. The proof is relatively simple. Because RR𝑖 monoton- ically degrades in rank, the best-case utility over this representation of users is RR1 (equivalently ESL1). The next-best-case is RR2 and so forth until we reach RR𝑚, which we refer to as the worst-case. So, given two rankings 𝜋 and 𝜋 ′, observing RR1 (𝜋) > RR1 (𝜋 ′) implies that the best-case performance over possible user recall requirements is higher in 𝜋 compared to 𝜋 ′.
+Both uncertainty over recall levels and over psychological rele- vance focus on possible populations of users. Because the utility to the user implies utility to the system designer (e.g., for objec- tives like retention), understanding the best-case performance is valuable in decision-making. From the perspective of social choice theory, best-case retrieval evaluation is inherently optimistic and represents risk-seeking decision-making.
+3.2 Lexicographic Precision The problem with evaluating for best-case retrieval (as shown in Section 2) is the tendency for multiple rankings to be tied, especially as (i) we increase the number of relevant items and (ii) systems optimize for retrieval metrics. We can address these ceiling effects by developing a best-case preference-based evaluation that focuses on measuring differences in performance instead of absolute per- formance [8]. While metric-based evaluation models the preference between rankings by first computing some evaluation metric for each ranking, preference-based evaluation explicitly models the preference between two rankings. Prior research has demonstrated that preference-based evaluation can be much more sensitive than metric-based evaluation [8], making it well-suited for addressing the ceiling effects described in Section 2.
+Under best-case preference-based retrieval, we are interested in answering the question, ‘under the best possible scenario, which ranking would the user prefer?’ In this respect, it is a user-based evaluation method, but one based on preferences and measurement over a population of users. More formally, given an information need and two rankings 𝜋 and 𝜋 ′ associated with two systems, metric-based evaluation uses an evaluation metric 𝜇 : 𝑆𝑛 → ℜ (e.g. reciprocal rank or average precision) to compute a preference,
+𝜇 (𝜋) > 𝜇 (𝜋 ′) =⇒ 𝜋 ≻ 𝜋 ′ where 𝜋 ≻ 𝜋 ′ indicates that we prefer 𝜋 to 𝜋 ′. Notice that, if 𝜇 (𝜋) = 𝜇 (𝜋 ′), then we cannot infer a preference between 𝜋 and 𝜋 ′. We contrast this with preference-based evaluation, which directly models this relationship Δ : 𝑆𝑛 × 𝑆𝑛 → ℜ,
+Δ(𝜋, 𝜋 ′) > 0 =⇒ 𝜋 ≻ 𝜋 ′
+Next, we consider uncertainty over psychologically relevant items. When evaluating a retrieval system, we often use relevance labels derived from human assessors or statistical models. But what if a specific user does not find the top-ranked item labeled relevant actually relevant to them? For example, a user may have already seen a specific item or they may desire an item with a specific (miss- ing) attribute. A judged relevant item might be inappropriate for any number of reasons not expressed in the request. The concept of psychological relevance [11] suggests that judging any item relevant in general (as is the case in many retrieval benchmarks, including those used in TREC) is a necessary but not sufficient criteria to
+Our goal is to design a preference-based evaluation that preserves the best-case properties of RL1 metrics with much higher sensitivity. Consider the two position vectors 𝑝 and 𝑝′ in Figure 4 associated with the two rankings 𝜋 and 𝜋 ′.
+These two vectors are tied in the best case (i.e., 𝑝1 = 𝑝′
+1). However, we can break this tie by looking at the next-best case (i.e. 𝑝2) where, because 𝑝2 < 𝑝′ 2, we say that 𝜋 ≻ 𝜋 ′. If we had observed a tie between the next-best case, we could compare 𝑝3, and so forth. This is known as lexicographic sorting in the social choice literature [17] and reflects a generalization of best-case sorting. Given two sorted vectors of utilities, here reflected by the rank position, the
+
+
+9
+500
+8
+=
+n
+n
+n-1
+<latexit sha1_base64="0Z4JlA8iYg6awHPgf7vVaWYiDbg=">AAAB7HicbZA9SwNBEIbn4leMX1FLm8UgWIU7EbUzaGMZwUsCyRH2NnvJkr29Y3dOCCG/wcZCEVt/kJ0/xc7NJYUmvrDw8L4z7MyEqRQGXffLKaysrq1vFDdLW9s7u3vl/YOGSTLNuM8SmehWSA2XQnEfBUreSjWncSh5MxzeTvPmI9dGJOoBRykPYtpXIhKMorX8jskY65YrbtXNRZbBm0Pl+jvKVe+WPzu9hGUxV8gkNabtuSkGY6pRMMknpU5meErZkPZ526KiMTfBOB92Qk6s0yNRou1TSHL3d8eYxsaM4tBWxhQHZjGbmv9l7Qyjq2AsVJohV2z2UZRJggmZbk56QnOGcmSBMi3srIQNqKYM7X1K9gje4srL0DirehfV83u3UruBmYpwBMdwCh5cQg3uoA4+MBDwBC/w6ijn2Xlz3melBWfecwh/5Hz8AL2uklc=</latexit>
+2
+2
+4
+10
+ 
+<latexit sha1_base64="8Q9MIF5tmntsfpBcQKFy38+B7+U=">AAAB6HicbVDJSgNBEK2JW4xb1KOXxiDkFGYEl2PQi8cEzAKZIfR0apI2PQvdPUIY8gUe9KCIVz/FT/Dmh3i3sxw08UHB470qqur5ieBK2/aXlVtZXVvfyG8WtrZ3dveK+wdNFaeSYYPFIpZtnyoUPMKG5lpgO5FIQ19gyx9eT/zWPUrF4+hWjxL0QtqPeMAZ1UaqJ91iya7YU5Bl4sxJqVp2y98fj26tW/x0ezFLQ4w0E1SpjmMn2suo1JwJHBfcVGFC2ZD2sWNoRENUXjY9dExOjNIjQSxNRZpM1d8TGQ2VGoW+6QypHqhFbyL+53VSHVx6GY+SVGPEZouCVBAdk8nXpMclMi1GhlAmubmVsAGVlGmTTcGE4Cy+vEyapxXnvHJWN2lcwQx5OIJjKIMDF1CFG6hBAxggPMAzvFh31pP1ar3NWnPWfOYQ/sB6/wGimJCI</latexit>p<latexit sha1_base64="fXfk0Lq5jyRW4bqrFK2t5Ax8G70=">AAAB6XicbVDJSgNBEK2JW4xb1KOXxiDmFGYEl2PQi8coZoHMEHo6PUmTnu6hu0cIQ/5AEA+KePVP/ARvfoh3O8tBEx8UPN6roqpemHCmjet+Obml5ZXVtfx6YWNza3unuLvX0DJVhNaJ5FK1QqwpZ4LWDTOcthJFcRxy2gwHV2O/eU+VZlLcmWFCgxj3BIsYwcZKt8lxp1hyK+4EaJF4M1Kqlv3y98ejX+sUP/2uJGlMhSEca9323MQEGVaGEU5HBT/VNMFkgHu0banAMdVBNrl0hI6s0kWRVLaEQRP190SGY62HcWg7Y2z6et4bi/957dREF0HGRJIaKsh0UZRyZCQav426TFFi+NASTBSztyLSxwoTY8Mp2BC8+ZcXSeOk4p1VTm9sGpcwRR4O4BDK4ME5VOEaalAHAhE8wDO8OAPnyXl13qatOWc2sw9/4Lz/AAMXkLk=</latexit>p0
+𝛿RR1 (𝜋, 𝜋 ′) 𝛿ESL1 (𝜋, 𝜋 ′) sgnLP(𝜋, 𝜋 ′) rrLP(𝜋, 𝜋 ′)
+Δ(𝜋, 𝜋 ′) 0 0 −1 − 1 8
+(a) Lexicographic Precision
+(b) Preference Magnitude
+Figure 4: Lexicographic precision between two rankings 𝜋 and 𝜋 ′ with 𝑚 = 5 relevant items in corpus of size 𝑛. (a) Using the sorted positions of relevant items, lexiprecision returns a preference based on the highest-ranked difference in positions. (b) The magnitude of preference between 𝜋 and 𝜋 ′ under different schemes.
+lexicographic maximum begins by looking at utilities in the best- off positions (i.e. 𝑝1 and 𝑝′ 1) and iteratively inspects lower utility positions until we find an inequality.
+If we exhaust all 𝑚 relevance levels, we indicate that there is not preference between the rankings. Note that a tie can only happen if two rankings have all relevant items in exactly the same positions. Lexicographic sorting generates a total ordering over all positions of relevant items, in contrast with just inspecting 𝑝1, which com- presses all arrangements onto 𝑛 possible values. Because of its basis in lexicographic ordering, we refer to this lexicographic precision or lexiprecision.
+3.3 Number of Ties Under Lexicographic
+Precision
+We can contrast the number of ties as 𝑚 increases in RL1 metrics with the number of ties as 𝑚 increases in lexiprecision. In the latter, we only observe ties when the positions of the relevant items for two rankings are the same and, therefore, we have (cid:0) 𝑛 (cid:1) possible 𝑚 ‘values’ and the number of ties given a fixed ranking is constant. If we add 𝑘 relevant items, the number of ‘values’ increases, resulting in an increase in discriminative power. Specifically, if we add 𝑘 relevant items to 𝑚, then the number of possible values scales exponentially in 𝑘.
+(cid:0) 𝑛 𝑚+𝑘 (cid:0) 𝑛 𝑚
+𝑚+𝑘 (cid:214)
+(cid:1) (cid:1) =
+𝑛 + 1 − 𝑖 𝑖
+𝑖=𝑚+1 By contrast, for RL1 metrics, this increase in the number of unique position vectors needs to be allocated to a fixed 𝑛 values, resulting in collisions, as suggested by the pigeonhole principle. Moreover, these collisions will tend to increasingly occur at values associated with position vectors where 𝑝1 is small (Section 2).
+3.4 Best-Case Retrieval Evaluation Revisited In Section 3.1, we described two dimensions of uncertainty in re- trieval evaluation: recall level and psychological relevance. In both cases, we saw that the best-case utility was represented by RL1. In terms of preference-based evaluation, we would like to show
+(1)
+Fernando Diaz
+that, for both recall level uncertainty and psychological relevance uncertainty, the highest ranked difference in utility will be 𝛿RR𝑖∗ , where 𝑖∗ = argmin𝑗 ∈ [1,𝑚]𝛿RR𝑖 (𝜋, 𝜋 ′) ≠ 0. This is clear for recall level uncertainty because the population of possible users exactly matches the recall levels defining 𝑖∗.
+However, for psychological relevance uncertainty, we have 2𝑚 −1 possible users. That said, there are only 𝑚 possible RL1 metric values. Moreover, the number of possible users tied at the first recall level is 2𝑚−1; at the second recall level is 2𝑚−2; down to the final recall level where there is a single possible user. This arrangement of ties is the same regardless of the exact positions of the relevant items. Therefore, if we observe 𝛿RR1 = 0, we will observe 2𝑚−1 ties amongst the possible psychological relevance states where where the first relevant item is at position 𝑝1. The next highest utility is, by the monotonicity of RL1 metrics, associated with the second recall level. We can continue this procedure until we observe an inequality, which will occur exactly at the first 𝑖 such that 𝛿RR𝑖 (𝜋, 𝜋 ′) ≠ 0. In other words, 𝑖∗.
+These observations are important since they demonstrate that lexiprecision generalizes RL1 evaluation and best-case performance across two types of uncertainty.
+3.5 Quantifying Preferences Although lexiprecision provides a ordering over a pair of rankings, it does not quantify the magnitude of the preference (i.e. the value of Δ(𝜋, 𝜋 ′)). Defining a magnitude allows us to measure the degree of preference, which can then be averaged over multiple requests. We can define the magnitude directly as the value of 𝛿RR𝑖 and,
+therefore, defining Δ(𝜋, 𝜋 ′) as,
+rrLP(𝜋, 𝜋 ′) = 𝛿RR𝑖∗ (𝜋, 𝜋 ′) (2) where 𝑖∗ is defined in Section 3.4. This has the advantage of, when 𝑖∗ = 1, reproducing the difference in reciprocal rank. Under this definition, the magnitude of preferences for higher recall levels will tend to be smaller due to the aggressive discounting in reciprocal rank.
+Alternatively, we can be more conservative in our quantification and just return a constant value based on the preference, defining Δ(𝜋, 𝜋 ′) as,
+sgnLP(𝜋, 𝜋 ′) = sgn(𝛿RR𝑖∗ (𝜋, 𝜋 ′)) (3) where 𝑖∗ is defined as above. Although the direction of the prefer- ence agrees with rrLP, we discard its magnitude and, as a result, differences at lower ranks are equal to those at higher ranks. Prior work found that looking at unweighted preference information alone can help with preference sensitivity [8].
+3.6 Lexicographic Precision as Modeling 𝛿RR1 A different way to interpret lexiprecision is as a method to estimate a high-precision preference between rankings. Assume that we have some latent preference between two rankings, ˆΔ(𝜋, 𝜋 ′), that we know to be ‘high-precision’. That is, users prefer finding some relevant items quickly than all relevant items quickly.
+One way to model this preference is to inspect the positions of relevant items in 𝜋 and 𝜋 ′. From the perspective of ‘very high precision’, observing 𝛿RR1 (𝜋, 𝜋 ′) > 0 provides significant evidence that ˆΔ(𝜋, 𝜋 ′) > 0. What if we do not observe a preference at the
+
+
+Best-Case Retrieval Evaluation: Improving the Sensitivity of Reciprocal Rank with Lexicographic Precision
+robustweb 2013DL 2021 (docs)ml-1m
+5101520
+iPr(pi=pi')
+0.00.20.40.60.81.0
+0.00.20.40.60.81.0
+robustweb 2013DL 2021 (docs)ml-1m
+05101520
+recall level
+Figure 5: Empirical probability of a tie in position by recall level. Note that, while Figure 2 measures the probability of a tie for different positions of the highest ranked relevant item (i.e. 𝑝1), this figure measures the probability of a tie for different recall levels.
+Figure 6: Empirical cumulative distribution function of recall level needed to distinguish systems.
+first recall level? Inspired by Katz’s back-off model [13], we inspect the second recall level for evidence of the value of ˆΔ(𝜋, 𝜋 ′). If we do not observe a preference, we can progressively back off to higher and higher recall levels.
+While Section 2 demonstrated that 𝛿RR1 (𝜋, 𝜋 ′) = 0 with high probability, backing off our estimates works best if, for 𝑖 > 1, we expect 𝛿RR𝑖 (𝜋, 𝜋 ′) = 0 with lower probability. Using the runs associated with several public benchmarks, we computed 𝛿RR𝑖 for all pairs of rankings generated by multiple systems for the same query. We show the probability of a tie for the first twenty recall levels in Figure 5. We can see that the number of ties at 𝛿RR1 are high, ranging from roughly 20
+Inspecting the number of relevant items retrieved confirms this. The DL 2021 submissions had 38.74 ± 21.75 relevant items in their retrievals, compared to web with 53.14 ± 47.06. Meanwhile, robust submissions had 40.51 ± 41.49 relevant items retrieval, suggesting much higher variance and ml-1m with 7.46 ± 8.57 relevant items retrieved and much higher variance, leading to more more ties at higher recall levels.
+Given that different benchmarks observed different behaviors for ties amongst recall levels, we need to understand how many recall levels we need to visit before finding evidence for ˆΔ. If a benchmark needs many recall levels but observes many ties at high recall levels, then our model of ˆΔ may be less reliable. We computed the number of recall levels needed, 𝑖∗, for each benchmark and plotted the empirical cumulative distribution function in Figure 6. We find that we need fewer than ten recall levels to capture 90
+the true value of 𝛿RR𝑖 when it is missing or tied. Note that, if we ob- serve 𝛿RR𝑖 > 0 and 𝑛 is large, there is absolutely no guarantee that 𝛿RR𝑖+1 > 0 since the next ranked relevant items could, in theory, occur anywhere in the range [𝑝𝑖 + 1, 𝑛] and [𝑝′ 𝑖 + 1, 𝑛]. That said, given the number of ties at recall level 1, we are interested in under- standing whether information at other rank positions can provide a way to distinguish tied rankings. In Figure 7a, we computed the Pearson correlation amongst all pairs of 𝛿RR𝑖 for 𝑖 ∈ [1, 8] for the Robust 2004 benchmark. The fact that correlation between 𝛿RR𝑖 and 𝛿RR𝑖+𝑗 degrades as 𝑗 increases from 1 demonstrates that there is indeed high locality. The implication justifies the use of backoff modeling of ˆΔ.
+To test this hypothesis explicitly, we fit a linear model of 𝛿RR1 using 𝛿RR2, . . . , 𝛿RR4 as independent variables. We plot the coef- ficients of the linear regression in the solid line in Figure 7b. The substantially larger coefficient on 𝛿RR2 indicates that the majority of the predictive power can be found at recall level 2 (𝑗 = 1). Higher recall levels (𝑗 > 1) are associated with much smaller coefficients. The actual contributions of higher recall levels are much smaller than this suggests since, because we are operating with reciprocals, the magnitude of 𝛿RR𝑖 shrinks as 𝑖 grows. While the colinearity in Figure 7a might explain some of this disparity in weights, the locality of individual Pearson correlations and high predictive ac- curacy means, from a modeling perspective, that a backoff model is justified. We repeated this analysis for predicting 𝛿RR2 from 𝛿RR3, . . . , 𝛿RR6 and similarly for 𝛿RR3 and 𝛿RR4.
+Similar to our observation when modeling 𝛿RR1, these results suggest that the next higher recall level is the most valuable predic- tor when modeling 𝛿RR𝑖 for any specific recall level.
+Although our preceding analysis demonstrates that a backoff model of ˆΔ based on lexiprecision will terminate at a reasonable depth, we still need to show that there is locality amongst 𝛿RR𝑖 . This means that we ask, if we observe 𝛿RR1 (𝜋, 𝜋 ′) > 0, how likely is it that 𝛿RR2 (𝜋, 𝜋 ′) > 0? 𝛿RR3 (𝜋, 𝜋 ′) > 0? If there is high locality amongst 𝛿RR𝑖 , then information from 𝛿RR𝑖+1 can help in predicting
+We repeated this regression analysis for explicitly cascaded data (i.e. only modeling cases when there is a tie at positions 𝑖′ < 𝑖) as well as for regressing against the sign of the preference and ob- served identical findings. Although we omit those plots due to space constraints, they further support a backoff model intrepretation of lexiprecision.
+
+
+0.92
+δRR5
+0.64
+0.87
+0.84
+0.62
+0.78
+0.74
+0.84
+0.63
+0.91
+0.74
+0.59
+0.56
+0.55
+δRR1
+δRR3
+δRR8
+δRR6
+δRR2
+0.86
+0.47
+0.51
+0.67
+0.93
+0.73
+0.73
+δRR4
+0.44
+0.80
+0.87
+δRR7
+0.69
+0.80
+0.42
+0.94
+(a) Correlation between 𝛿RR𝑖
+predicting δRRi using δRRi+jjcoefficient
+i1 (R2=0.53)2 (R2=0.70)3 (R2=0.76)4 (R2=0.83)
+0.00.20.40.60.81.0
+1234
+(b) Regression of 𝛿RR𝑖 using 𝛿RR𝑖+1, . . . , 𝛿RR𝑖+4
+Figure 7: Locality of 𝛿RR𝑖 . Relationship between the differ- ence in reciprocal rank across recall levels using Robust 2004 runs. (a) Pearson and linear fit between all pairs of 𝛿RR𝑖 . (b) Linear regression of 𝛿RR𝑖 using 𝛿RR𝑖+1:𝑖+4 as independent vari- ables. Regression shown for 𝑖 = {1, 2, 3, 4}.
+4 METHODS In previous sections, we theoretically and conceptually connected RL1 to the notion of best-case retrieval evaluation, with a few illus- trative empirical results. In order to rigorously test the viability of lexiprecision, we conducted a series of empirical analyses based on publicly available benchmarking data.2
+4.1 Data We analyzed the performance of lexiprecision across a variety of retrieval and recommendation tasks. Specifically, we collected runs submitted to TREC news (Robust 2004, Core 2017 and 2018), web (Web 2009-2014), and deep learning (Deep Learning 2019-2021)
+2Code for computing lexiprecision can be found at https://github.com/diazf/pref_eval.
+Fernando Diaz
+Table 1: Datasets used in empirical analysis.
+requests
+runs
+rel/request
+docs/request
+news robust (2004) core (2017) core (2018) web web (2009) web (2010) web (2011) web (2012) web (2013) web (2014) deep deep-docs (2019) deep-docs (2020) deep-docs (2021) deep-pass (2019) deep-pass (2020) deep-pass (2021) recsys movielens libraryThing beerAdvocate
+249 50 50
+50 48 50 50 50 50
+43 45 57 43 54 53
+6005 7227 17564
+110 75 72
+48 32 61 48 61 30
+38 64 66 37 59 63
+21 21 21
+69.93 180.04 78.96
+129.98 187.63 167.56 187.36 182.42 212.58
+153.42 39.27 189.63 95.40 66.78 191.96
+18.87 13.15 13.66
+913.82 8853.11 7102.61
+925.31 7013.21 8325.07 6719.53 7174.38 6313.98
+623.77 99.55 98.83 892.51 978.01 99.95
+100.00 100.00 99.39
+tracks as well as several public recommendation tasks [20]. We present details of these datasets in Table 1.
+4.2 Analyses Our empirical analyses were founded on two core questions, (i) how empirically correlated are lexiprecision and RL1 metrics, and (ii) how much more robust is lexiprecision than RL1 metrics. Because of its widespread adoption in the research community, we will use reciprocal rank for analyses. In order to answer the first question, we conducted experiments designed to predict the agreement be- tween lexiprecision and RL1 metrics under different conditions. We considered two types of agreement. Agreement in ranking pref- erence tests whether 𝜋 ≻LP 𝜋 ′ agrees with 𝜋 ≻RR 𝜋 ′. Because lexiprecision is substantially more sensitive than RL1 metrics, we only consider situations where 𝛿RR1 (𝜋, 𝜋 ′) ≠ 0. Because sgnLP and rrLP always agree in sign, we will only show results for one of the metrics when computing ranking agreement. Agreement in system preference tests whether E𝑞∼Q E𝑞∼Q . This measures whether our choice of rrLP or sgnLP affects its correlation with reciprocal rank. Agreement is measured as a percentage of preferences agreed upon.
+(cid:104)ΔLP (𝜋𝑞, 𝜋 ′ 𝑞)
+(cid:105)
+agrees in sign with
+(cid:105)
+(cid:104)ΔRR (𝜋𝑞, 𝜋 ′ 𝑞)
+In order to assess the robustness of lexiprecision, we measure the number of ties observed amongst pairs of rankings and discrim- inative power. We claim that a robust approach has fewer ties and higher discriminative power. For discriminative power, we adopt Sakai’s approach of measuring the number of statistically signif- icant differences between runs [16], using both Tukey’s honestly significant difference (HSD) test [3] and classic paired test to com- pute 𝑝-values. The paired test uses the Student’s 𝑡-test for reciprocal rank and rrLP [18]; and the binomial test for sgnLP.
+
+
+Best-Case Retrieval Evaluation: Improving the Sensitivity of Reciprocal Rank with Lexicographic Precision
+Table 2: Ranking agreement between 𝛿RR1 and preferences based on the positions of the last 𝑚 − 1 relevant items. The computation of sgnLP in the table is based on the 𝑚 − 1 posi- tions of relevant items after the top-ranked relevant item.
+sgnLP
+𝛿RR2
+news robust (2004) core (2017) core (2018) web web (2009) web (2010) web (2011) web (2012) web (2013) web (2014) deep deep-docs (2019) deep-docs (2020) deep-docs (2021) deep-pass (2019) deep-pass (2020) deep-pass (2021) recsys ml-1M (2018) libraryThing (2018) beerAdvocate (2018)
+85.78 89.23 88.01
+85.87 87.29 88.91 87.22 86.51 88.02
+86.56 83.73 92.41 90.45 92.86 91.97
+78.90 66.50 58.84
+83.44 87.30 86.58
+84.79 85.41 87.54 85.45 84.45 85.82
+83.10 79.34 89.78 88.87 91.08 90.14
+77.56 66.08 58.25
+5 RESULTS 5.1 Correlation with Reciprocal Rank By construction, we know that 𝛿RR1 (𝜋, 𝜋 ′) > 0 =⇒ LP(𝜋, 𝜋 ′) > 0 and, so, the correlation between the two will be high. We can further test this by comparing how well lexiprecision predicts a ground truth preference between rankings based on 𝛿RR1.
+In our first analysis, given an observed 𝛿RR1 (𝜋, 𝜋 ′) ≠ 0, we measure the ability of lexiprecision and reciprocal based only on 𝑚 − 1 subsequent recall levels to predict the sign of 𝛿RR1 (𝜋, 𝜋 ′). That is, we use 𝛿RR1 (𝜋, 𝜋 ′) as a target value and compute 𝛿RR1 and LP using suffixes 𝑝2:𝑚 and 𝑝′ 2:𝑚. Although artificial, this analy- sis provides an indication of the predictive value gained through cascaded modeling (as opposed to just looking at the top-ranked relevant item). We present the results in Table 2. As we can see, lexiprecision consistently agrees more with the target (masked) 𝛿RR1 than 𝛿RR1 of the suffix across all datasets, indicating that the additional information in higher recall levels can be used to predict the target (masked) 𝛿RR1. This agrees with our preliminary analysis in Section 3.6.
+We can also test the relationship between reciprocal rank and lexiprecision by measuring the agreement under incomplete infor- mation. Specifically, we consider removing either labels (treating unlabeled items as non-relevant) or requests (i.e. queries or users). We then measure the agreement between preferences with incom- plete data and 𝛿RR1 on complete data (i.e. all requests and labels). Methods that agree more with reciprocal rank on complete data are considered more correlated. We present results for ranking and system agreement when removing labels (Figure 8a) and queries
+0.60.70.80.9
+deep
+0.60.70.80.9
+recsys
+0.40.50.60.70.80.9
+newsranking
+0.70.80.9
+web
+0.20.40.60.8label fractionsign agreement
+web
+system
+0.20.40.60.8label fractionsign agreement
+news
+0.70.80.9
+deep
+0.80.9
+recsys
+0.90.95
+0.70.80.9
+(a) Removing labels.
+deep
+news
+0.20.40.60.8query fractionsign agreement
+0.90.95
+recsys
+0.50.60.70.80.9
+0.70.80.9
+0.70.80.9
+web
+system
+(b) Removing queries.
+Figure 8: Preference agreement with 𝛿RR1 with full data. La- bels and requests removed randomly. Results averaged across ten samples. Solid green lines: 𝛿RR1 with incomplete infor- mation. Dashed red lines: rrLP with incomplete informa- tion. Dotted blue lines: sgnLP with incomplete information. Shaded areas: one standard deviation across samples. Rank- ing agreement with incomplete labels for sgnLP is identical to rrLP and omitted for clarity.
+(Figure 8b). Across all conditions, we observe that the rrLP has as
+
+
+Table 3: Percentage of ties between pairs of rankings from two systems for the same request. We collapse rrLP and sgnLP for clarity.
+rrLP, sgnLP
+𝛿RR1
+news robust (2004) core (2017) core (2018) web web (2009) web (2010) web (2011) web (2012) web (2013) web (2014) deep deep-docs (2019) deep-docs (2020) deep-docs (2021) deep-pass (2019) deep-pass (2020) deep-pass (2021) recsys ml-1M (2018) libraryThing (2018) beerAdvocate (2018)
+0.39 0.23 1.72
+4.93 0.61 1.02 0.34 0.83 0.64
+1.06 2.43 0.23 2.63 2.58 1.32
+3.38 16.48 41.73
+44.22 48.50 31.43
+15.13 25.85 41.99 34.01 31.09 41.93
+68.45 73.99 80.84 56.89 50.30 47.41
+21.39 25.85 45.72
+high or slightly higher agreement with 𝛿RR1 with complete infor- mation than 𝛿RR1 with incomplete information. This means that rrLP can accurately predict 𝛿RR1 with complete information as well or better than using reciprocal rank. Moreover, we observed that sgnLP shows weaker system agreement which occurs because its magnitude does not decay with rank position and, therefore, result- ing averages are inconsistent with averages of position-discounted reciprocal rank values.
+5.2 Sensitivity In Section 2, we motivated our work by showing that RL1 metrics theoretically and empirically suffer from ceiling effects. The primary instrument we used to determine this was the probability of ties between rankings. In Table 3, we present the percentage of tied rankings from different systems for the same request. As predicted by our analysis in Section 3.3, lexiprecision has substantially fewer ties because this only happens when two rankings place relevant items in exactly the same positions.
+In Section 3.3, we showed that lexiprecision implicitly and ex- ponentially increased its fidelity as the number of relevant items 𝑚 increased, while RL1 would quickly suffer from ties. In Figure 9, we show the number of tied rankings as a function of incomplete labels. This allows us to see trends with respect to 𝑚. Across our three retrieval benchmark sets, we see the growth in number of ties for RL1 as 𝑚 increases; meanwhile, they shrink for lexiprecision. The drop in ties for recommender systems benchmarks suggests that, as described in Section 3.6, rankings contain very few relevant items and, as a result, removing labels will result in no relevant items present and increasingly tied rankings.
+Fernando Diaz
+00.20.40.6
+web
+00.20.40.6
+newsranking
+recsys
+00.20.40.6
+deep
+0.20.40.60.8label fractionfraction tied
+00.20.40.6
+Figure 9: Number of ties as labels are removed randomly. Results are averaged across ten samples. Solid green lines: 𝛿RR1 with incomplete information. Dashed red lines: rrLP with incomplete information. Shaded areas: one standard deviation across samples. Number of ties with incomplete labels for sgnLP is identical to rrLP and omitted for clarity.
+While the number of ties indicates that RL1 might not be able to distinguish systems, for a large enough sample of requests, a met- ric might still be good enough to distinguish systems. A different approach to measuring the discriminative power of an evaluation method is to count the number of differences that are statistically significant [16]. When we compare the percentage of pairs regis- tering a statistically significant difference (Table 4), both rrLP and sgnLP outperform reciprocal rank, often by a very large margin. This indicates that the number of ties indeed hurts the ability of reciprocal rank to detect significant differences, while both variants of lexiprecision are much more sensitive.
+6 DISCUSSION Our results demonstrate that our lexiprecision variants capture the properties of RL1 while substantially increasing the ability to dis- tinguish systems under the same best-case evaluation assumptions. Practitioners and evaluators need to assess whether the assump- tions behind RL1 metrics, including reciprocal rank, or lexiprecision or any other evaluation scheme are aligned with the use case. If a retrieval environment supports the assumptions behind RL1 met- rics, including ties, then, by all means, they should be used to assess performance. However, in Section 3.1, we raised several reasons why uncertainty over recall requirements and psychological rel- evance suggest that RL1 metrics make quite strong assumptions not realized in most retrieval settings. We designed lexiprecision
+
+
+Best-Case Retrieval Evaluation: Improving the Sensitivity of Reciprocal Rank with Lexicographic Precision
+Table 4: Percentage of run differences detected at 𝑝 < 0.05. Red: better than reciprocal rank. Bold: best for an evaluation setting.
+(a) Tukey’s HSD test
+(b) Paired test with Bonferroni correction
+rrLP
+sgnLP
+RR
+rrLP
+sgnLP
+RR
+news robust (2004) core (2017) core (2018) web web (2009) web (2010) web (2011) web (2012) web (2013) web (2014) deep deep-docs (2019) deep-docs (2020) deep-docs (2021) deep-pass (2019) deep-pass (2020) deep-pass (2021) recsys ml-1M (2018) libraryThing (2018) beerAdvocate (2018)
+27.42 17.41 28.60
+23.85 18.95 14.70 13.39 5.85 20.00
+8.25 5.26 6.39 16.52 37.46 24.07
+81.43 93.81 92.38
+27.34 14.67 31.42
+28.28 13.51 10.22 11.61 5.79 11.72
+19.20 3.47 11.19 18.47 40.91 24.78
+90.95 96.67 96.19
+23.55 15.03 27.39
+24.11 18.35 13.83 13.21 6.07 18.85
+6.97 2.88 4.48 13.21 28.35 20.38
+80.00 93.81 90.95
+news robust (2004) core (2017) core (2018) web web (2009) web (2010) web (2011) web (2012) web (2013) web (2014) deep deep-docs (2019) deep-docs (2020) deep-docs (2021) deep-pass (2019) deep-pass (2020) deep-pass (2021) recsys ml-1M (2018) libraryThing (2018) beerAdvocate (2018)
+26.22 16.22 29.30
+23.76 18.55 12.30 11.97 4.75 15.86
+11.66 2.33 3.73 15.02 39.04 23.55
+90.00 97.14 94.76
+27.36 11.35 31.73
+25.18 9.27 6.94 10.11 4.64 7.13
+16.36 1.79 9.14 17.42 39.45 20.99
+92.38 97.62 96.67
+21.45 11.53 27.03
+23.49 17.74 9.73 11.35 4.32 14.02
+5.69 0.60 3.03 10.36 28.00 16.79
+90.48 96.67 94.76
+to operate as conservatively as possible, preserving any preference from RL1 metrics and only acting to break ties.
+Although RL1 metrics and lexiprecision agree perfectly when there is only one relevant item, this does not mean that all situations where we have a single judged relevant item should adopt a metric like reciprocal rank. For example, the MSMARCO dataset [14] in- cludes requests and very sparse labels; the majority of requests have one judged relevant item. One might be tempted to use reciprocal rank but Arabzadeh et al. [1] demonstrate that this would obscure the multitude of unjudged relevant items (of which there are many). This hurts efficacy of best-case retrieval evaluation including recip- rocal rank, as shown in Figures 8a and 9. Recommendation tasks have similar issues with sparsity due in part to it being more diffi- cult for a third party to assess the relevance of personalized content and to the difficulty in gathering explicit feedback. Labels derived from behavioral feedback in general suffer from similar sparsity [2]. In this respect, we echo the call from Arabzadeh et al. [1] to make labeling practices across all of these domains much more robust. Given the observation of Voorhees et al. [21] that better labeling can result in less informative evaluation, we need to also develop more sensitive evaluation schemes such as lexiprecision.
+7 CONCLUSION Motivated by ceiling effects in evaluation with reciprocal rank, we have attempted to increase our understanding of the metric and designed a well-grounded mitigation to conducting best-case re- trieval evaluation. We have shown that lexiprecision can effectively address the limitations of reciprocal rank in retrieval evaluation. Our results highlight the importance of considering the effects of tie-breaking in the evaluation process and provide a method for conducting more reliable best-case retrieval evaluation. Given the use of retrieval metrics—including reciprocal rank—outside of in- formation retrieval contexts, we believe these contributions will be relevant to a researchers in the broader research community.
+REFERENCES [1] Negar Arabzadeh, Alexandra Vtyurina, Xinyi Yan, and Charles L. A. Clarke. 2022. Shallow Pooling for Sparse Labels. Inf. Retr. 25, 4 (dec 2022), 365–385. https://doi.org/10.1007/s10791-022-09411-0
+[2] Michael Bendersky, Xuanhui Wang, Marc Najork, and Donald Metzler. 2018. Learning with Sparse and Biased Feedback for Personal Search. In Proceedings of the Twenty-Seventh International Joint Conference on Artificial Intelligence, IJCAI-18. International Joint Conferences on Artificial Intelligence Organization, 5219–5223. https://doi.org/10.24963/ijcai.2018/725
+Finally, this study has introduced a new preference-based eval- uation method for RL1 metrics. As such, our focus has been on developing an understanding for comparing pairs of rankings and systems. We do not claim that lexiprecision itself is a metric and emphasize that we use it for comparing two rankings or systems. As such, although we address some concerns with reciprocal rank raised by Ferrante et al. [10], we do not make claims about lexipreci- sion being an interval measure. That said, the total ordering shown in Figure 1 suggests that there may be version of lexiprecision that can indeed be represented as an interval measure.
+[3] Benjamin A. Carterette. 2012. Multiple testing in statistical analysis of systems- based information retrieval experiments. ACM Trans. Inf. Syst. 30, 1, Article 4 (March 2012), 34 pages. https://doi.org/10.1145/2094072.2094076
+[4] Pablo Castells and Alistair Moffat. 2022.
+Offline
+recommender AI Maga- https://doi.org/10.1002/aaai.12051
+system evaluation: Challenges 225–238. zine arXiv:https://onlinelibrary.wiley.com/doi/pdf/10.1002/aaai.12051
+and new directions.
+43,
+2
+(2022),
+[5] Praveen Chandar, Fernando Diaz, and Brian St. Thomas. 2020. Beyond Accu- racy: Grounding Evaluation Metrics for Human-Machine Learning Systems. https://github.com/pchandar/beyond-accuracy-tutorial. In Advances in Neural Information Processing Systems.
+[6] Olivier Chapelle, Donald Metzler, Ya Zhang, and Pierre Grinspan. 2009. Expected reciprocal rank for graded relevance. In Proceedings of the 18th ACM conference on Information and knowledge management (Hong Kong, China) (CIKM ’09). ACM,
+
+
+New York, NY, USA, 621–630. https://doi.org/10.1145/1645953.1646033
+[7] William S. Cooper. 1968. Expected search length: A single measure of retrieval effectiveness based on the weak ordering action of retrieval systems. American Documentation 19, 1 (1968), 30–41. https://doi.org/10.1002/asi.5090190108 [8] Fernando Diaz and Andres Ferraro. 2022. Offline Retrieval Evaluation Without Evaluation Metrics. In Proceedings of the 45th Annual International ACM SIGIR Conference on Research and Development in Information Retrieval.
+[9] Fernando Diaz and Bhaskar Mitra. 2023. Recall, Robustness, and Lexicographic
+Evaluation. arXiv:2302.11370 [cs.IR]
+[10] Marco Ferrante, Nicola Ferro, and Norbert Fuhr. 2021. Towards Meaningful Statements in IR Evaluation: Mapping Evaluation Measures to Interval Scales. IEEE Access 9 (2021), 136182–136216. https://doi.org/10.1109/ACCESS.2021. 3116857
+[11] Stephen P. Harter. 1992. Psychological relevance and information science. Journal
+of the American Society for Information Science 43, 9 (1992), 602–615.
+[12] Paul B Kantor and Ellen Voorhees. 1997. Report on the TREC Confusion Track.
+In Proceedings of The Fifth Text REtrieval Conference (TREC-5).
+[13] S. Katz. 1987. Estimation of probabilities from sparse data for the language model component of a speech recognizer. IEEE Transactions on Acoustics, Speech, and Signal Processing 35, 3 (1987), 400–401. https://doi.org/10.1109/TASSP.1987. 1165125
+[14] Tri Nguyen, Mir Rosenberg, Xia Song, Jianfeng Gao, Saurabh Tiwary, Rangan Majumder, and Li Deng. 2016. MS MARCO: A Human Gen- erated MAchine Reading COmprehension Dataset. (November 2016). https://www.microsoft.com/en-us/research/publication/ms-marco-human- generated-machine-reading-comprehension-dataset/
+[15] Stephen Robertson. 2008. A New Interpretation of Average Precision. In Pro- ceedings of the 31st Annual International ACM SIGIR Conference on Research and Development in Information Retrieval (Singapore, Singapore) (SIGIR ’08).
+Fernando Diaz
+Association for Computing Machinery, New York, NY, USA, 689–690. https: //doi.org/10.1145/1390334.1390453
+[16] Tetsuya Sakai. 2014. Metrics, statistics, tests. In Bridging Between Information Retrieval and Databases - PROMISE Winter School 2013, Revised Tutorial Lectures (Lecture Notes in Computer Science (including subseries Lecture Notes in Artificial Intelligence and Lecture Notes in Bioinformatics)). Springer Verlag, 116–163. https: //doi.org/10.1007/978-3-642-54798-0_6 2013 PROMISE Winter School: Bridging Between Information Retrieval and Databases ; Conference date: 04-02-2013 Through 08-02-2013.
+[17] Amartya Sen. 1970. Collective Choice and Social Welfare. Holden-Day. [18] Mark D. Smucker, James Allan, and Ben Carterette. 2007. A Comparison of Sta- tistical Significance Tests for Information Retrieval Evaluation. In Proceedings of the Sixteenth ACM Conference on Conference on Information and Knowledge Man- agement (Lisbon, Portugal) (CIKM ’07). Association for Computing Machinery, New York, NY, USA, 623–632. https://doi.org/10.1145/1321440.1321528 [19] Daniel Valcarce, Alejandro Bellogín, Javier Parapar, and Pablo Castells. 2018. On the Robustness and Discriminative Power of Information Retrieval Met- rics for Top-N Recommendation. In Proceedings of the 12th ACM Conference on Recommender Systems (Vancouver, British Columbia, Canada) (RecSys ’18). Association for Computing Machinery, New York, NY, USA, 260–268. https: //doi.org/10.1145/3240323.3240347
+[20] Daniel Valcarce, Alejandro Bellogín, Javier Parapar, and Pablo Castells. 2020. Information Retrieval
+Assessing ranking metrics in top-N recommendation. Journal 23, 4 (2020), 411–448. https://doi.org/10.1007/s10791-020-09377-x [21] Ellen M. Voorhees, Nick Craswell, and Jimmy Lin. 2022. Too Many Relevants: Whither Cranfield Test Collections?. In Proceedings of the 45th International ACM SIGIR Conference on Research and Development in Information Retrieval (Madrid, Spain) (SIGIR ’22). Association for Computing Machinery, New York, NY, USA, 2970–2980. https://doi.org/10.1145/3477495.3531728

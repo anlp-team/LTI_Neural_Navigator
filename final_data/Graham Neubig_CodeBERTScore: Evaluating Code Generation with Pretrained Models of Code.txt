@@ -1,0 +1,595 @@
+3 2 0 2
+t c O 1 3
+] E S . s c [
+2 v 7 2 5 5 0 . 2 0 3 2 : v i X r a
+CodeBERTScore: Evaluating Code Generation with Pretrained Models of Code
+Shuyan Zhou∗ Uri Alon∗† Sumit Agarwal Graham Neubig Language Technologies Institute, Carnegie Mellon University {shuyanzh,ualon,sumita,gneubig}@cs.cmu.edu
+Abstract
+Since the rise of neural natural-language-to- code models (NL→Code) that can generate long expressions and statements rather than a single next-token, one of the major prob- lems has been reliably evaluating their gen- In this paper, we propose erated output. CodeBERTScore: an evaluation metric for code generation, which builds on BERTScore (Zhang et al., 2020). Instead of encoding only the generated tokens as in BERTScore, CodeBERTScore also encodes the natural lan- guage input preceding the generated code, thus modeling the consistency between the gener- ated code and its given natural language con- text as well. We perform an extensive eval- uation of CodeBERTScore across four pro- gramming languages. We find that Code- BERTScore achieves a higher correlation with human preference and with functional correct- ness than all existing metrics. That is, gener- ated code that receives a higher score by Code- BERTScore is more likely to be preferred by humans, as well as to function correctly when executed. We release five language-specific pretrained models to use with our publicly available code. Our language-specific models have been downloaded more than 1,000,000 times from the Huggingface Hub.1
+1
+Introduction
+Natural-language-to-code generation (NL→Code) has seen sharply growing popularity recently due to the emergence of large language models (LLMs) trained on vast amounts of natural lan- guage and code (Chen et al., 2021; Fried et al., 2022; Zhou et al., 2023; Austin et al., 2021; Al- lal et al., 2023). LLMs have reached such a high NL→Code accuracy that they are now useful for the broad programming audience and actually save
+∗Equal contribution † Now at Google DeepMind 1The code and data are available at https://github.com/
+developers’ time when implemented in tools such as GitHub’s Copilot. This sharp rise in LLMs’ us- ability was achieved thanks to their ability to ac- curately generate long completions, which span multiple tokens and even lines, rather than only a single next-token as in early models (Allama- nis and Sutton, 2013; Movshovitz-Attias and Co- hen, 2013). Nevertheless, evaluating and compar- ing different models has remained a challenging problem (Xu et al., 2022) that requires an accurate and reliable evaluation metric for the quality of the models’ generated outputs, and existing met- rics are sub-optimal.
+Existing evaluation approaches The most common evaluation metrics are token-matching methods such as BLEU (Papineni et al., 2002), adopted from natural language processing. These metrics are based on counting overlapping n- grams in the generated code and the reference code. CrystalBLEU (Eghbali and Pradel, 2022) extends BLEU by ignoring the 500 most oc- curring n-grams, arguing that they are trivially shared between the prediction and the reference. Nonetheless, both BLEU and CrystalBLEU rely on the lexical exact match of tokens, which does for diversity in implementation, not account variable names, and code conventions. Figure 1 shows an example: given the reference code in Figure 1(a), both BLEU and CrystalBLEU prefer (rank higher) the non-equivalent code in Figure 1(b) over the functionally equivalent code in Figure 1(c).
+CodeBLEU (Ren et al., 2020) attempts to lower the requirement for a lexical exact match, by rely- ing on data-flow and Abstract Syntax Tree (AST) matching as well; nevertheless, valid generations may have different ASTs and data flow from the reference code, which may lead to low CodeBLEU score even when the prediction is correct. Further, partial predictions may be useful for a program-
+neulab/code-bert-score
+
+
+Reference: int f(Object target) {
+int i = 0; for (Object elem: this.elements) {
+if (elem.equals(target)) {
+return i;
+} i++;
+} return -1;
+}
+(a) The ground truth reference – find the index of target in this.elements.
+Non-equivalent candidate:
+Equivalent candidate:
+boolean f(Object target) {
+int f(Object target) {
+for (Object elem: this.elements) {
+for (int i=0; i<this.elements.size(); i++) {
+if (elem.equals(target)) {
+return true;
+Object elem = this.elements.get(i); if (elem.equals(target)) {
+}
+return i;
+}
+}
+return false;
+} return -1;
+}
+}
+(b) Preferred by BLEU & CrystalBLEU – find whether or not target is in this.elements.
+(c) Preferred by CodeBERTScore – find the index of target in this.elements.
+Figure 1: An intuitive example for the usefulness of CodeBERTScore in measuring generated code: Figure 1(a) shows a reference code snippet in Java. Figure 1(b) and Figure 1(c) show two generated predictions. Among these two candidates and given the reference, both BLEU and CrystalBLEU prefer (score higher) the snippet in Figure 1(b), which is not functionally equivalent to the reference, while our proposed CodeBERTScore prefers the code in Figure 1(c), which is functionally equivalent to the code in Figure 1(a).
+mer, but accepting them may lead to partial code that does not parse, and thus cannot be fully eval- uated by CodeBLEU (for example, predicting the first line of a for loop, without the loop’s body). Execution-based evaluation attempts to address these problems by running tests on the generated code to verify its functional correctness (Chen et al., 2021; Athiwaratkun et al., 2022; Li et al., 2022; Wang et al., 2022; Lai et al., 2022). This provides a direct measure of the functionality of the generated code while being agnostic to di- versity in implementation and style. However, execution-based evaluation requires datasets that are provided with hand-written test cases for each example, which is costly and labor-intensive to create; thus, only few such datasets exist. Addi- tionally, executing model-generated code is sus- ceptible to security threats, and thus should be run in an isolated sandbox, which makes it technically cumbersome to work with iteratively.
+Our approach In this work, we introduce Code- BERTScore, an evaluation metric for code genera- tion, leveraging self-supervised pretrained models of code such as CodeBERT (Feng et al., 2020), and adopting best practices BERTScore (Zhang
+First, CodeBERTScore encodes et al., 2020). the generated code and the reference code inde- pendently with pretrained models, with the inclu- sion of natural language instructions or comments. Then, we compute the cosine similarity between the encoded representations of each token in the generated code and each token in the reference code. Finally, the best matching token vector pairs are used to compute precision and recall. Code- BERTScore allows comparing code pairs that are lexically different while taking into account the (1) programmatic- or natural-language-context, if such provided; the (2) contextual information of each token; and (3) implementation diversity. Our approach is illustrated in Figure 2.
+Example A concrete example is shown in Fig- ure 1: while BLEU and CrystalBLEU prefer (rank higher) the non-equivalent code in Figure 1(b) given the reference code in Figure 1(a), Code- BERTScore prefers the code in Figure 1(c), which is functionally equivalent to the reference (Fig- ure 1(a)). We note that in this example, the vari- able names are identical across all three code snip- pets. When the variable names of the reference are different than the candidate’s, it is even harder
+
+
+Generated Code
+**0.5Reference CodeGenerated Codemath xsqrt
+CodeBERTScoreCodeBERTScoreCodeBERTScorePrecisionRecallF-score
+# Find the square root of xEncode
+math.sqrt(x)
+Reference Code
+Similarity Matrixx
+x ** 0.5
+Pairwise Cosine Similarity(only between non-punctuationcode tokens)
+Natural Language Instruction
+CodeBERT
+CodeBERT
+Figure 2: A diagram illustrating CodeBERTScore: We use a language-specific CodeBERT model to encode each of ⟨natural_language, reference_code⟩ and ⟨natural_language, generated_code⟩. We then compute the pairwise cosine similarity between every encoded token in the reference and every encoded token in the generated code, ignoring the encoded natural language context tokens and encoded punctuation tokens; finally, we take the max across the rows of the resulting matrix to compute Precision and across columns to compute Recall.
+for token-matching approaches such as BLEU and CrystalBLEU to compare the reference with the candidates, while CodeBERTScore can trivially match variable names according to their semantic similarity and their functional role in the code.
+Contributions In summary, our main contribu- tions are: (a) CodeBERTScore: a self-supervised metric for NL→Code evaluation, based on BERTScore, which leverages the benefits of pre- trained models, while not requiring labeling or manually annotated data. (b) An extensive em- pirical evaluation across four programming lan- guages, showing that CodeBERTScore is more correlated with human preference and more cor- related with execution correctness than all pre- vious approaches including BLEU, CodeBLEU, and CrystalBLEU. (c) We pretrain and release five language-specific CodeBERT models to use with our publicly available code, for Java, Python, C, C++, and JavaScript. As of the time of this sub- mission, our models have been downloaded from the Huggingface Hub more than 1,000,000 times.
+didates is more important than the absolute value of f (ˆy, y∗). That is, ideally, if a prediction ˆy1 is more functionally equivalent to y∗ and more preferable by human programmers over a predic- tion ˆy2, we wish that a good metric would rank ˆy1 higher than ˆy2. That is, we seek an f function such that f (ˆy1, y∗) > f (ˆy2, y∗).
+2.2 Background: BERTScore
+BERTScore (Zhang et al., 2020) was proposed as a method for evaluating mainly machine transla- tion outputs. The idea in BERTScore is to en- code the candidate sentence (the prediction) and the reference sentence (the ground truth) sepa- rately, using a BERT-based model, which encodes each sequence of tokens as a sequence of vectors. Then, BERTScore computes the cosine similarity between every vector from the candidate sequence and every vector from the reference sequences.
+2 Evaluating Generated Code
+2.1 Problem Formulation
+Given a context x ∈ X (e.g., a natural language instruction or comment), a code generation model M : X → Y produces a code snippet ˆy ∈ Y by conditioning on the intent specified by x. The quality of the generation is evaluated by compar- ing ˆy ∈ Y with the reference implementation y∗ ∈ Y, using a metric function f : Y × Y → R, essentially computing f (ˆy, y∗).
+A larger value of f (ˆy, y∗) indicates that the gen- erated code is more accurate with respect to the reference code, and the way f ranks different can-
+Given these similarity scores, BERTScore com- putes sentence-level precision by taking the max- imum similarity score for every candidate vec- tor and averaging, and computes recall by tak- ing the average of the maximum similarity scores for every reference vector. Intuitively, a high BERTScore-recall is obtained, for example, if ev- ery vector from the reference sentence has at least one vector from the candidate sentence that is highly cosine-similar to it; a high BERTScore- precision is obtained if every vector from the can- didate sentence is highly cosine-similar to at least one vector from the reference sentence. Ulti- mately, the final score is the F1 score, computed as the harmonic mean of precision and recall.
+
+
+CodeBERTScoreP
+CodeBERTScoreR
+=
+=
+1 |ˆy[ ˆm]|
+1 |y∗[m]|
+(cid:88)
+max y∗ i ∈y∗[m∗]
+ˆyj ∈ˆy[ ˆm] (cid:88)
+max ˆyj ∈ˆy[ ˆm]
+y∗ i ∈y∗[m∗]
+sim (y∗
+i , ˆyj)
+sim (y∗
+i , ˆyj)
+CodeBERTScoreF1
+CodeBERTScoreF3
+=
+=
+2 · CodeBERTScoreP · CodeBERTScoreR CodeBERTScoreP + CodeBERTScoreR 10 · CodeBERTScoreP · CodeBERTScoreR 9 · CodeBERTScoreP + CodeBERTScoreR
+Figure 3: Main equations for CodeBERTScore
+2.3 CodeBERTScore
+enized sequence, resulting in sequences of vectors:
+Our approach generally follows BERTScore, with the following main differences:
+B (⟨x1,...,xk,y∗ 1,...,y∗ m⟩ B (⟨x1,...,xk,ˆy1,...,ˆyn⟩) = ⟨x1,...,xk, ˆy1,..., ˆyn⟩
+1,...,y∗
+m⟩) = ⟨x1,...,xk,y∗
+1. We encode the context (the natural language instruction or comment) along with each of the generated and reference code snippets, but without using the encoded context in the final similarity computation, essentially com- puting f (ˆy, y∗, x) rather than f (ˆy, y∗).
+instead of computing the F1 score, we also compute F3 to weigh recall higher than precision, follow- ing METEOR (Banerjee and Lavie, 2005). 3. As our underlying BERT-like model, we use programming language-specific models that we pretrain and release, rather than models that were intended for natural language only. We use a BERT-like pretrained model B to en- In our exper- code the reference and candidate. iments, B is a CodeBERT model that we fur- ther pretrained using the masked language mod- eling objective (Devlin et al., 2019) on language- specific corpora, but B can be any transformer- based model which we have access to its internal hidden states.
+2. Given the precision and recall,
+(2) Finally, we mask out the encoded context tokens x1, ..., xk as well as all non-alphanumeric tokens (parentheses, brackets, dots, commas, whites- paces, etc.) except for arithmetic operators, from each of the encoded reference and encoded can- didate. This results in encoded reference tokens y∗ = ⟨y∗ m⟩, encoded candidate tokens ˆy = ⟨ ˆy1, ..., ˆyn⟩, and their corresponding masks m∗ and ˆm. We denote y[m] as the remaining encoded tokens in y after selecting only alphanumeric to- ken vectors according to the mask m.
+1, ..., y∗
+Similarity Computation We compute the co- sine similarity between the encoded reference and candidate tokens, following Zhang et al. (2020):
+sim (y∗
+i , ˆyj) =
+⊤ · ˆyj y∗ i ∥y∗ i ∥ · ∥ ˆyj∥
+Although this compares the individual tokens y∗ i their vector representations y∗ i and ˆyj and ˆyj, contain information about their context, and thus about their semantic role in the code.
+Token Representation We concatenate the con- text x with each of the reference and the candidate, resulting in x · y∗ and x · ˆy. We use the tokenizer TB provided with the model B:
+TB (x · y∗) = ⟨x1, ..., xk, y∗ TB (x · ˆy)
+1, ..., y∗ m⟩ = ⟨x1, ..., xk, ˆy1, ..., ˆyn⟩
+to get a sequences of tokens. We run a standard “forward pass” with the model B for each tok-
+(1)
+CodeBERTScore We use the similarity matrix (see Figure 2), formed by the similarity scores be- tween y∗ and ˆy, to compute precision, recall, and F1, by taking the maximum across the rows and columns of the similarity matrix, and then aver- aging. Following Banerjee and Lavie (2005), we also compute F3 by giving more weight to recall, as shown in Figure 3. Additional details regarding token weighting and scaling are provided in Ap- pendix A.
+(4)
+(5)
+(6)
+(7)
+(3)
+
+
+3 Experimental Setup
+We evaluate CodeBERTScore across multiple datasets and programming languages. We first show that CodeBERTScore is more correlated with human preference than previous metrics, us- ing human-rated solutions for the CoNaLa dataset (Yin et al., 2018a; Evtikhiev et al., 2022). We then show that CodeBERTScore is more correlated with functional correctness, using the HumanEval dataset (Chen et al., 2021). We also show that CodeBERTScore achieves a higher newly pro- posed distinguishability than other metrics (Ap- pendix F). Finally, we analyze some of the design decisions and their implications.
+3.1 Training Language-specific CodeBERT
+models
+Training We used CodeBERT (Feng et al., 2020) as our base model (B) and continued its self- supervised pretraining (Gururangan et al., 2020) with the masked language modeling (MLM) ob- jective (Devlin et al., 2019) on Python, Java, C++, C, and JavaScript corpora. We trained a sepa- rate model for each programming language, for 1,000,000 steps for each language, using a batch size of 32, an initial learning rate of 5e−5, decayed linearly to 3e−5. Our implementation is based on the widely used HuggingFace Transformers library (Wolf et al., 2019) and BERTScore2, and it supports any transformer-based model available on the HuggingFace hub.
+Dataset We trained each model on the language- specific subset of the CodeParrot (Tunstall et al., 2022) dataset3, which consists of overall 115M code files from GitHub, further filtered by keep- ing only files having average line length lower than 100, more than 25% alphanumeric characters, and non-auto-generated files. Even after 1,000,000 training steps, none of the models have completed even a single epoch, meaning that every training example was seen only once at most.
+3.2 Comparing Different Metrics
+We compare CodeBERTScore with existing met- rics that are commonly used on code generation evaluation. We use human annotated preference and execution-based results as the ground truth and measure their correlation with these metrics.
+2https://github.com/Tiiiger/bert_score 3https://huggingface.co/datasets/codeparrot/
+github-code-clean
+Correlation metrics We used three major cor- relation metrics. Following best practices in natu- ral language evaluation, we used Kendall-Tau (τ ), Pearson (rp) and Spearman (rs) to measure the correlation between each metric’s scores and the references. The detailed equations can be found in Appendix C.
+Human preference experiments We evaluate different metrics on CoNaLa (Yin et al., 2018b), a natural language to Python code generation bench- mark collected from StackOverflow. We use the human annotation of Evtikhiev et al. (2022) to measure the correlation between each metric and human preference. More details are provided in Appendix B.1.
+Functional experiments We evaluate functional correctness using the Hu- manEval (Chen et al., 2021) benchmark. Each a natural example language goal, hand-written input-output test cases, and a human-written reference solution. is in Python, While the original HumanEval Cassano et al. (2022) translated HumanEval to 18 programming languages, and provided the predictions of the Codex model (Chen et al., 2021) (code-davinci-002) and their corresponding functional correctness.4 We used Java, C++, Python, and JavaScript for these experiments, which are some of the most popular programming languages in open-source projects.5 More details are provided in Appendix B.2.
+correctness
+in HumanEval
+contains
+Hyperparameters We tuned only the following hyperparameters for CodeBERTScore: whether to use F1 or F3, and which layer of the underlying model to extract the encoded tokens from, which we examine in Section 5. We used F1 in the hu- man preference experiments and F3 in the func- tional correctness experiments. We perform 3-fold cross-validation and report average results across the three folds. As for the layer to extract the to- ken vectors from, we used layer 7 for CoNaLa, and in HumanEval we used layer 7 for Java, 10 for C++, 11 for JavaScript, and 9 for Python.
+4 Results
+Correlation with human preference Table 2 shows the correlation between different metrics
+4https://huggingface.co/datasets/nuprl/MultiPL-E 5https://octoverse.github.com/2022/
+top-programming-languages
+
+
+Metric
+τ
+Java
+rs
+τ
+C++
+rs
+Python rs τ
+JavaScript rs τ
+BLEU CodeBLEU ROUGE-1 ROUGE-2 ROUGE-L METEOR chrF CrystalBLEU
+.481 .496 .516 .525 .508 .558 .532 .471
+.361 .324 .318 .315 .344 .383 .319 .273
+.112 .175 .262 .270 .258 .301 .319 .046
+.301 .201 .260 .273 .288 .321 .321 .095
+.393 .366 .368 .365 .338 .418 .394 .391
+.352 .326 .334 .322 .350 .402 .379 .309
+.248 .261 .279 .261 .271 .324 .302 .118
+.343 .299 .280 .292 .293 .415 .374 .059
+CodeBERTScore
+.553
+.369
+.327
+.393
+.422
+.415
+.319
+.402
+Table 1: Kendall-Tau (τ ) and Spearman (rs) correlations of each metric with the functional correctness on Hu- manEval in multiple languages. The correlation coefficients are reported as the average across three runs. Standard deviation is provided in Table 3.
+Metric
+BLEU CodeBLEU ROUGE-1 ROUGE-2 ROUGE-L METEOR chrF CrystalBLEU
+τ
+.374 .350 .397 .429 .420 .366 .470 .411
+rp
+.604 .539 .604 .629 .619 .581 .635 .598
+rs
+.543 .495 .570 .588 .574 .540 .623 .576
+achieves the highest or comparable Kendall-Tau and Spearman correlation with functional correct- ness across all four languages. METEOR achieves a comparable correlation with CodeBERTScore in Java and JavaScript, and its correlation is surpris- ingly better than other baseline metrics. However, in C++ and Python, CodeBERTScore is strictly better. Overall on average across languages, Code- BERTScore is more correlated with functional correctness than all baselines.
+CodeBertScore
+.517
+.674
+.662
+5 Analysis
+Table 2: The Kendall-Tau (τ ), Pearson (rp) and Spear- man (rs) correlation with human preference. The best performance is bold. The correlation coefficients are reported as the average across three runs. Standard de- viations are provided in Table 4.
+We conducted a series of additional experiments to understand the importance of different design decisions, and to gain insights on applying Code- BERTScore to new datasets and scenarios.
+and human preference. CodeBERTScore achieves the highest correlation with human preference, across all correlation metrics. While Evtikhiev et al. (2022) suggested that chrF and ROUGE-L are the most suitable metrics for evaluating code generation models in CoNaLa, CodeBERTScore outperforms these metrics by a significant mar- gin. For example, CodeBERTScore achieves Kendall-Tau correlation of 0.517 compared to 0.470 of chrF and 0.420 of ROUGE-L. These re- sults show that generated code that is preferred by CodeBERTScore— also tends to be preferred by human programmers.
+Correlation with functional correctness Ta- ble 1 shows the correlation between different met- rics and functional correctness: CodeBERTScore
+Can we use CodeBERTScore in a new lan- guage without a language-specific CodeBERT? In all experiments in Section 4, we used the language-specific model which we continued to pretrain on each language. But what if we wish to use CodeBERTScore in a language in which we don’t have a language-specific model? We com- pare the language-specific models to CodeBERT- base in Figure 4. Generally, CodeBERT-base achieves close performance to a language-specific model. However, in most HumanEval experi- ments and correlation metrics, using the language- specific model is beneficial. These results show that language-specific models are often preferred if such models are available, but the CodeBERT- base can still provide close performance even without language-specific pretraining.
+
+
+0.7
+0.65
+0.65
+τ -Lang-specific
+τ -Base model
+rs-Lang-specific
+rs-Base model
+0.6
+0.52
+0.52
+0.56
+0.56
+0.5
+0.46
+0.45
+0.4
+0.3
+0.34
+0.35
+0.33
+0.32
+0.38
+0.39
+0.37
+0.35
+0.37
+0.38
+0.34
+0.3
+0.2
+0.1
+0
+CoNaLa
+HumanEval-Python
+HumanEval-Java
+HumanEval-C++ HumanEval-JavaScript
+Figure 4: The Kendall-Tau and Spearman on the development set of different datasets with the language-specific pretrained model (Lang-specific) and with the base CodeBERT (Base model).
+0.45
+tion, while higher layers encode deeper semantic meaning in natural language.
+0.4
+0.35
+0.3
+Java C++ JavaScript Python
+0.25
+0
+2
+4
+6 Layer
+8
+10
+12
+Figure 5: The average of Kendall-Tau and Spearman on the development set of HumanEval when using the embeddings from different layers.
+Which transformer layer should we use? We further investigate the impact of using hidden states from different layers of the model — the layer which the vectors in Equation (2) come from, in the computation of CodeBERTScore. The re- sults are shown in Figure 5: generally, the deeper the layer – the higher the average correlation be- tween CodeBERTScore and functional correct- ness, across all programming languages. However in almost all languages, performance reaches its maximum before the last layer, and decreases at the following layers. This suggests that higher lay- ers encode the semantic information of each token more accurately, but the final layers may be more task-specific. These observations are consistent with Tenney et al. (2019), who found that lower layers in BERT tend to process shallow informa-
+Does encoding natural language context help? One major difference between CodeBERTScore and BERTScore is that CodeBERTScore lever- ages the context for the generated code, such as the natural language instruction or intent that was given as input for generation. We find that us- ing context increases the correlation, for example, the Kendall-Tau of CodeBERTScore from 0.50 to 0.52. While this paper mainly focuses on natu- ral language instructions, we believe that Code- BERTScore can thus benefit other programming scenarios as well, for example when generating code given the human-written comments, or gen- erating code given the preceding code context.
+CodeBERTScore allows soft matching of tokens The heatmaps in Figure 6 show the sim- ilarity scores between tokens in CodeBERTScore. both shutil.rmtree and For os.rmdir in Figure 6(a) delete a folder; CodeBERTScore aligns each token to a respective token in the other expression, even though the two spans do not share many identical tokens.
+example,
+In Figure 6(b), both code snippets calculate a square root, where one uses math.sqrt(x) and the other uses x ** 0.5. An exact surface- form-matching metric such as chrF would assign a low similarity score to this code pair, as they only share the token x. However, CodeBERTScore as- signs non-zero scores to each token with meaning- ful alignments, such as matching [sq,rt] with [_0,5], since a square root is the 0.5-th power.
+Additionally, we study the robustness of Code- BERTScore to adversarial perturbations. We found that token-based metrics such as chrF are
+
+
+shutil.rmtree(folder)os.rmdir(folder)
+0.1
+0.8
+0.3
+0.7
+0.0
+0.6
+0.2
+0.4
+0.5
+x_**_0.5math.sqrt(x)
+(a)
+(b)
+Figure 6: Heatmaps of the similarity scores between two pieces of code that achieve the same goal. Figure 6(a) shows the similarity scores between os.rmdir(folder) and shutil.rmtree(folder). Figure 6(b) shows the similarity scores between math.sqrt(x) and x ** 0.5.
+much more prone to matching trivial tokens rather than tokens that preserve the semantic meaning of the code. Examples can be found in Appendix E. Additional discussion and experiments regard- ing the distinguishability of CodeBERTScore are provided in Appendix F. Additional general exam- ples are provided in Appendix G.
+6 Related Work
+Token-based metrics Metrics such as BLEU (Papineni et al., 2002) evaluate code generation by counting matching n-grams between generated and reference code. CrystalBLEU (Eghbali and Pradel, 2022) refines this approach by disregard- ing trivially shared n-grams, while ROUGE (Lin, 2004) and METEOR (Banerjee and Lavie, 2005) emphasize recall and balance of precision and re- call respectively. However, these metrics, relying on exact lexical matches, often fail to capture se- mantically equivalent but lexically different code snippets. Unlike these, CodeBERTScore captures the wide, two-sided context of each token, which n-grams cannot capture.
+Static analysis-based metrics CodeBLEU (Ren et al., 2020) incorporates data-flow and Abstract Syntax Tree (AST) matching, in addition to token-matching. However, valid code may not always align in ASTs and data-flows. Addition- ally, partial code, although potentially useful, may not parse, thus cannot be fully evaluated by CodeBLEU. Further, as highlighted by subsequent studies (Wang et al., 2022), CodeBLEU does not
+correlate well with execution accuracy.
+Execution-based Metrics To alleviate previous issues, execution-based evaluation counts a gener- ated code snippet as correct if it produces the re- quired outputs when run with given inputs (Chen et al., 2021; Athiwaratkun et al., 2022; Li et al., 2022; Wang et al., 2022; Lai et al., 2022; Huang et al., 2022). However, execution-based evalua- tion requires datasets that are provided with man- ually crafted test cases for each example, which is costly and labor-intensive to create; thus, only few such datasets exist. In contrast, CodeBERTScore is completely unsupervised and does not depend on any specific dataset. Further, executing model- generated code is susceptible to security threats, and thus should be run in an isolated sandbox, which makes it technically cumbersome to work with iteratively.
+7 Conclusion
+In this paper, we present CodeBERTScore, a sim- ple evaluation metric for code generation, which builds on BERTScore (Zhang et al., 2020), using pretrained language models of code, and lever- aging the natural language context of the gen- erated code. We perform an extensive evalua- tion across four programming languages which shows that CodeBERTScore is more correlated with human preference than all prior metrics. Fur- ther, we show that generated code that receives a higher score by CodeBERTScore is more likely to function correctly when executed. Finally, we
+
+
+release five programming language-specific pre- trained models to use with our publicly available code. These models were downloaded more than 1,000,000 times from the HuggingFace Hub. Our code and data are available at https://github.com/ neulab/code-bert-score.
+Acknowledgement
+We thank Misha Evtikhiev, Egor Bogomolov, and Timofey Bryksin for the discussions, and for the data from their paper (Evtikhiev et al., 2022). We thank anonymous reviewers for the valuable feed- back. We are grateful to Yiwei Qin for the dis- cussions regarding the T5Score paper (Qin et al., 2022); the idea to use functional correctness as a meta-metric was born thanks to the discus- sion with her. We are also grateful to Aryaz Eghbali and Michael Pradel for the discussions about CrystalBLEU (Eghbali and Pradel, 2022). This material is partly based on research spon- sored in part by the Air Force Research Labora- tory under agreement number FA8750-19-2-0200. The U.S. Government is authorized to reproduce and distribute reprints for Governmental purposes notwithstanding any copyright notation thereon. The views and conclusions contained herein are those of the authors and should not be interpreted as necessarily representing the official policies or endorsements, either expressed or implied, of the Air Force Research Laboratory or the U.S. Gov- ernment. This project was also partially supported by a gift from AWS AI.
+Limitations
+CodeBERTScore requires a GPU for computing the metric, while traditional metrics such as BLEU require only a CPU. This adds a hardware re- quirement to the evaluation of models of code, while most previous approaches are computation- ally cheaper (e.g., by counting n-grams). How- ever, since training and testing neural models re- quire GPU anyways, we can safely assume that a GPU is available. Further, BERT-base models are encoder-only and non-autoregressive; this means that they require only a single “forward pass”, compared to encoder-decoder models (e.g., T5) and decoder-only models (e.g., GPT-3) that need to autoregressively generate token after token, us- ing a forward pass for each output token. Thus, the additional time consumption by encoder-only models (e.g., BERT) is negligible, especially when
+evaluating encoder-decoder or decoder-only as the NL→Code generator models.
+that Code- to consider BERTScore relies on a strong underlying BERT- based model, while methods such as BLEU do not have many “moving parts” or hyperparameters to tune. However, this is mostly an advantage, since CodeBERTScore can be further improved in the future using stronger base models.
+Another point
+is
+References
+Loubna Ben Allal, Raymond Li, Denis Kocetkov, Chenghao Mou, Christopher Akiki, Carlos Munoz Ferrandis, Niklas Muennighoff, Mayank Mishra, Santa- Alex Gu, Manan Dey, et al. 2023. arXiv preprint coder: don’t reach for the stars! arXiv:2301.03988.
+Miltiadis Allamanis and Charles Sutton. 2013. Mining source code repositories at massive scale using lan- guage modeling. In 2013 10th working conference on mining software repositories (MSR), pages 207– 216. IEEE.
+Ben Athiwaratkun, Sanjay Krishna Gouda, Zijian Wang, Xiaopeng Li, Yuchen Tian, Ming Tan, Wasi Uddin Ahmad, Shiqi Wang, Qing Sun, Mingyue Shang, et al. 2022. Multi-lingual evalu- ation of code generation models. ArXiv preprint, abs/2210.14868.
+Jacob Austin, Augustus Odena, Maxwell Nye, Maarten Bosma, Henryk Michalewski, David Dohan, Ellen Jiang, Carrie Cai, Michael Terry, Quoc Le, et al. 2021. Program synthesis with large language mod- els. ArXiv preprint, abs/2108.07732.
+Satanjeev Banerjee and Alon Lavie. 2005. METEOR: An automatic metric for MT evaluation with im- proved correlation with human judgments. In Pro- ceedings of the ACL Workshop on Intrinsic and Ex- trinsic Evaluation Measures for Machine Transla- tion and/or Summarization, pages 65–72, Ann Ar- bor, Michigan. Association for Computational Lin- guistics.
+Federico Cassano, John Gouwar, Daniel Nguyen, Syd- ney Nguyen, Luna Phipps-Costin, Donald Pinck- ney, Ming Ho Yee, Yangtian Zi, Carolyn Jane An- derson, Molly Q Feldman, et al. 2022. A scalable and extensible approach to benchmarking nl2code for 18 programming languages. ArXiv preprint, abs/2208.08227.
+Mark Chen, Jerry Tworek, Heewoo Jun, Qiming Yuan, Henrique Ponde, Jared Kaplan, Harri Edwards, Yura Burda, Nicholas Joseph, Greg Brockman, et al. 2021. Evaluating large language models trained on code. ArXiv preprint, abs/2107.03374.
+
+
+Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. 2019. BERT: Pre-training of deep bidirectional transformers for language under- In Proceedings of the 2019 Conference standing. of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers), pages 4171–4186, Minneapolis, Minnesota. Associ- ation for Computational Linguistics.
+Aryaz Eghbali and Michael Pradel. 2022. Crystalbleu: precisely and efficiently measuring the similarity of code. In 37th IEEE/ACM International Conference on Automated Software Engineering, pages 1–12.
+Mikhail Evtikhiev, Egor Bogomolov, Yaroslav Sokolov, and Timofey Bryksin. 2022. Out of the bleu: how should we assess quality of the code gen- eration models? ArXiv preprint, abs/2208.03133.
+Zhangyin Feng, Daya Guo, Duyu Tang, Nan Duan, Xi- aocheng Feng, Ming Gong, Linjun Shou, Bing Qin, Ting Liu, Daxin Jiang, and Ming Zhou. 2020. Code- BERT: A pre-trained model for programming and In Findings of the Association natural languages. for Computational Linguistics: EMNLP 2020, pages 1536–1547, Online. Association for Computational Linguistics.
+Daniel Fried, Armen Aghajanyan, Jessy Lin, Sida Wang, Eric Wallace, Freda Shi, Ruiqi Zhong, Wen- tau Yih, Luke Zettlemoyer, and Mike Lewis. 2022. Incoder: A generative model for code infilling and synthesis. ArXiv preprint, abs/2204.05999.
+Suchin Gururangan, Ana Marasovi´c,
+Swabha Swayamdipta, Kyle Lo, Iz Beltagy, Doug Downey, and Noah A. Smith. 2020. Don’t stop pretraining: In Adapt language models to domains and tasks. Proceedings of the the 58th Annual Meeting of Association for Computational Linguistics, pages 8342–8360, Online. Association for Computational Linguistics.
+Junjie Huang, Chenglong Wang, Jipeng Zhang, Cong Yan, Haotian Cui, Jeevana Priya Inala, Colin Clement, and Nan Duan. 2022. Execution-based evaluation for data science code generation mod- In Proceedings of the Fourth Workshop on els. Data Science with Human-in-the-Loop (Language Advances), pages 28–36, Abu Dhabi, United Arab Emirates (Hybrid). Association for Computational Linguistics.
+Yuhang Lai, Chengxi Li, Yiming Wang, Tianyi Zhang, Ruiqi Zhong, Luke Zettlemoyer, Scott Wen-tau Yih, Daniel Fried, Sida Wang, and Tao Yu. 2022. Ds-1000: A natural and reliable benchmark for ArXiv preprint, data science code generation. abs/2211.11501.
+Yujia Li, David Choi, Junyoung Chung, Nate Kush- man, Julian Schrittwieser, Rémi Leblond, Tom Eccles, James Keeling, Felix Gimeno, Agustin
+Dal Lago, et al. 2022. Competition-level code gen- eration with alphacode. Science, 378(6624):1092– 1097.
+Chin-Yew Lin. 2004. Rouge: A package for auto- matic evaluation of summaries. In Text summariza- tion branches out, pages 74–81.
+Dana Movshovitz-Attias and William Cohen. 2013. Natural language models for predicting program- ming comments. In Proceedings of the 51st Annual Meeting of the Association for Computational Lin- guistics (Volume 2: Short Papers), pages 35–40.
+Kishore Papineni, Salim Roukos, Todd Ward, and Wei- Jing Zhu. 2002. Bleu: a method for automatic eval- uation of machine translation. In Proceedings of the 40th Annual Meeting of the Association for Com- putational Linguistics, pages 311–318, Philadelphia, Pennsylvania, USA. Association for Computational Linguistics.
+Yiwei Qin, Weizhe Yuan, Graham Neubig, and Pengfei T5score: Discriminative fine-tuning arXiv preprint
+Liu. 2022. of generative evaluation metrics. arXiv:2212.05726.
+Shuo Ren, Daya Guo, Shuai Lu, Long Zhou, Shujie Liu, Duyu Tang, Neel Sundaresan, Ming Zhou, Am- brosio Blanco, and Shuai Ma. 2020. Codebleu: a method for automatic evaluation of code synthesis. ArXiv preprint, abs/2009.10297.
+Ian Tenney, Dipanjan Das, and Ellie Pavlick. 2019. BERT rediscovers the classical NLP pipeline. In Proceedings of the 57th Annual Meeting of the Asso- ciation for Computational Linguistics, pages 4593– 4601, Florence, Italy. Association for Computa- tional Linguistics.
+Lewis Tunstall, Leandro von Werra, and Thomas Wolf. 2022. Natural Language Processing with Trans- formers. " O’Reilly Media, Inc.".
+Zhiruo Wang, Shuyan Zhou, Daniel Fried, and Gra- ham Neubig. 2022. Execution-based evaluation for open-domain code generation. ArXiv preprint, abs/2212.10481.
+Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Clement Delangue, Anthony Moi, Pier- ric Cistac, Tim Rault, Rémi Louf, Morgan Fun- towicz, et al. 2019. Huggingface’s transformers: State-of-the-art natural language processing. ArXiv preprint, abs/1910.03771.
+Frank F. Xu, Uri Alon, Graham Neubig, and Vincent J. Hellendoorn. 2022. A systematic evaluation of large language models of code.
+Pengcheng Yin, Bowen Deng, Edgar Chen, Bogdan Vasilescu, and Graham Neubig. 2018a. Learning to mine aligned code and natural language pairs from stack overflow. In International Conference on Min- ing Software Repositories, MSR, pages 476–486. ACM.
+
+
+Pengcheng Yin, Bowen Deng, Edgar Chen, Bogdan Vasilescu, and Graham Neubig. 2018b. Learning to mine aligned code and natural language pairs from stack overflow. In Proceedings of the 15th Interna- tional Conference on Mining Software Repositories, pages 476–486.
+Aohan Zeng, Xiao Liu, Zhengxiao Du, Zihan Wang, Hanyu Lai, Ming Ding, Zhuoyi Yang, Yifan Xu, Wendi Zheng, Xiao Xia, et al. 2022. Glm-130b: An open bilingual pre-trained model. ArXiv preprint, abs/2210.02414.
+Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q. Weinberger, and Yoav Artzi. 2020. Bertscore: Eval- In 8th Inter- uating text generation with BERT. national Conference on Learning Representations, ICLR 2020, Addis Ababa, Ethiopia, April 26-30, 2020. OpenReview.net.
+Shuyan Zhou, Uri Alon, Frank F. Xu, Zhengbao Jiang, and Graham Neubig. 2023. Docprompting: Gener- ating code by retrieving the docs. In International Conference on Learning Representations (ICLR), Kigali, Rwanda.
+
+
+A Additional Details
+Fβ The well-known F1 score is computed as:
+F1 =
+2 recall + 1
+1
+precision
+=
+2 · precision · recall precision + recall
+(4) A more general F score Fβ uses a positive factor β, where recall is considered β times as important as precision:
+Fβ =
+(cid:0)1 + β2(cid:1) · precision · recall β2 · precision + recall
+As found in METEOR (Banerjee and Lavie, 2005), using Fβ with β = 3, thus preferring re- call over precision, results in a higher correlation with human preference in machine translation. In our experiments, we found that this applies to NL→Code as well.
+Token Weighting Following Zhang et al. (2020), we compute the inverse document fre- quency (idf), according to a language-specific test set, and weigh each token according to its negative log frequency.
+Scaling Following Zhang et al. (2020), the co- sine similarity scores of hidden states tend to lie in a limited range. Thus, we can linearly scale the resulting scores, using an empirical base scalar b:
+(cid:92)CodeBERTScore =
+CodeBERTScore − b 1 − b
+(6) This typically spreads the CodeBERTScore F1 scores to the [0, 1] range, and is merely a cos- metical change: this scaling does not change the way CodeBERTScore ranks different prediction, but can be slightly more intuitive and easier to in- terpret. We computed b empirically by sampling random unrelated code pairs and measuring their average similarity score. For Java, the empirical bJava was 0.78 and for C++, bC++ it was 0.76.
+B Evaluation Details
+B.1 Human Preference
+For each example, Evtikhiev et al. (2022) asked experienced software developers to grade the gen- erated code snippets from five different models. The grade scales from zero to four, with zero de- noting that the generated code is irrelevant and un- helpful, and four meaning that the generated code solves the problem accurately. Overall, there are
+(5)
+2860 annotated code snippets (5 generations × 472 examples) where each snippet is graded by 4.5 annotators.
+B.2 Functional Correctness
+We evaluate functional correctness using the Hu- manEval (Chen et al., 2021) benchmark. Each ex- ample in HumanEval contains a natural language goal, hand-written input-output test cases, and a human-written reference solution. On average, each example has 7.7 test cases and there are 164 examples in total. While the original HumanEval is in Python, Cassano et al. (2022) translated Hu- manEval to 18 programming languages, and pro- vided the predictions of the Codex model (Chen et al., 2021) (code-davinci-002) and their corresponding functional correctness.6 We used Java, C++, Python, and JavaScript for these ex- periments, which are some of the most popular programming languages in open-source projects.7 Notably, Cassano et al. (2022) did not translate the reference solutions to the other languages, so, we collected these from HumanEval-X (Zeng et al., 2022).8 The reference score of every example is either 1 (“correct”, if it passes all test cases) or 0 (“incorrect”, otherwise).
+C Correlation Metrics
+τ measures the ordinal/rank Kendall-Tau (τ ) association between a metric such as Code- BERTScore and the reference measurement. It is calculated as:
+τ =
+|concordant| − |discordant| |concordant| + |discordant|
+where |concordant| represents the number of pairs where two measurements agree on their relative if f ( ˆy1, y∗ 2), the rank. That is, reference measurement also yields f ∗( ˆy1, y∗ 1) > f ∗( ˆy2, c∗ 2). Similarly, |discordant| represents the number of pairs where two measurements yield opposite ranks. Notably, in our experiments, we restrict the comparisons of ranks within the gener- ations of the same question.
+1) > f ( ˆy2, y∗
+rp measures the linear correlation Pearson (rp) between a metric and the reference measurement.
+6https://huggingface.co/datasets/nuprl/MultiPL-E 7https://octoverse.github.com/2022/
+top-programming-languages
+8https://huggingface.co/datasets/THUDM/humaneval-x
+
+
+It is defined as:
+rp =
+(cid:80)N
+i )− ¯f )(f ∗( ˆyi,y∗
+i )− ¯f ∗)
+i=1(f ( ˆyi,y∗
+(cid:113)(cid:80)N
+i )− ¯f )2 (cid:80)N
+i )− ¯f ∗)2
+i=1(f ( ˆyi,y∗
+i=1(f ∗( ˆyi,y∗
+where N is the number of generations in the dataset, ¯f is the mean CodeBERTScore of the dataset, and ¯f ∗ is the mean similarity score cal- culated by the reference measurement.
+Spearman (rs) rs measures the Pearson corre- lation coefficient between the ranks produced by a metric and the reference measurement:
+rp =
+cov(R(f ( ˆY), R(f ∗(Y∗))) σR(f ( ˆY))σR(f ∗(Y∗))
+where R returns the ranks of code snippets in a collection of code snippets Y. cov(·, ·) is the co- variance of two variables and σ(·) is the standard deviation.
+D Standard Deviation
+Table 3 shows the same results as in Table 1, but with standard deviations. Table 4 shows the results from Table 2, with standard deviations.
+E Robustness to adversarial
+perturbations
+Ref: shutil.rmtree(folder)
+Candidate
+CodeBERTScore
+chrF
+os.rmdir(folder) os.rmdir(f) (folder)
+1st 2nd 3rd
+1st 3rd 2nd
+three Figure code the code shutil.rmtree(folder). While Code- BERTScore correctly ranks os.rmdir(f) over the the non-equivalent (folder), chrF prefers just (folder) over os.rmdir(f).
+7: snippets
+The
+similarity
+of reference
+rankings
+given
+We conducted a qualitative evaluation of Code- BERTScore under various perturbations. An example is shown in Figure 7, which shows the CodeBERTScore and chrF rankings of three code snippets based on the similarity to the reference shutil.rmtree(folder). CodeBERTScore gives a higher ranking to the code snippet that employs the appropriate API (os.rmdir) than the trivial (folder) that
+has the same variable name but without any func- tion call. Contrarily, chrF assigns a higher rank- ing to (folder) which has a longer common sequence of characters, although semantically in- equivalent.
+F Distinguishing Code with Different
+Semantics
+We study how well can CodeBERTScore perform as a generic similarity function that measures the similarity between two arbitrary code snippets yi and yj.
+F.1 Distinguishability Metric
+We evaluate CodeBERTScore using the distin- guishability metric d proposed by Eghbali and Pradel (2022) which is calculated as follows:
+d =
+(cid:80)
+(cid:80)
+yi,yj ∈Pairsintra
+yi,yj ∈Pairsinter
+f (yi, yj) f (yi, yj)
+(7)
+where Pairintra defines a set of code pairs from the same semantically equivalent clusters, and Pairinter defines a set of code pairs from two clusters of dif- ferent functionality. Formally,
+Pairintra ={(yi, yj) | ∃k such that yi, yj ∈ Ck} Pairinter ={(yi, yj) | ∃k such that yi ∈ Ck, yj /∈ Ck}
+where Ck is the k-th cluster with semantically Intuitively, a similar- equivalent code snippets. ity function f that can distinguish between similar and dissimilar code will produce d larger than 1, meaning that a pair of code snippets from the same semantic cluster has a higher similarity score than a pair of snippets from different clusters. Since the number of intra-class and inter-class pairs grows quadratically with the number of code snippets, in our experiments we followed Eghbali and Pradel (2022) to sample N inter- and N intra-class pairs instead.
+F.2 Dataset with Semantically equivalent
+clusters
+We follow Eghbali and Pradel (2022) to evaluate whether CodeBERTScore can distinguish similar and dissimilar code mined from ShareCode9, an online coding competition platform. Semantically equivalent code snippets are from the same coding problem, and they all pass the unit tests provided by the platform. The dataset consists 6958 code
+9https://sharecode.io/
+
+
+Java
+C++
+Python
+JavaScript
+Metric
+τ
+rs
+τ
+rs
+τ
+rs
+τ
+rs
+BLEU CodeBLEU ROUGE-1 ROUGE-2 ROUGE-L METEOR chrF CrystalBLEU
+.481(±.030) .496(±.034) .516(±.052) .525(±.049) .508(±.060) .558(±.058) .532(±.067) .471(±.024)
+.361(±.037) .324(±.037) .318(±.043) .315(±.047) .344(±.038) .383(±.027) .319(±.035) .273(±.067)
+.112(±.059) .175(±.021) .262(±.073) .270(±.073) .258(±.091) .301(±.061) .319(±.056) .046(±.009)
+.301(±.054) .201(±.037) .260(±.024) .273(±.036) .288(±.027) .321(±.023) .321(±.020) .095(±.064)
+.393(±.083) .366(±.079) .368(±.092) .365(±.094) .338(±.103) .418(±.090) .394(±.096) .391(±.080)
+.352(±.064) .326(±.075) .334(±.054) .322(±.077) .350(±.064) .402(±.049) .379(±.058) .309(±.073)
+.248(±.075) .261(±.065) .279(±.092) .261(±.077) .271(±.078) .324(±.075) .302(±.073) .118(±.057)
+.343(±.052) .299(±.043) .280(±.068) .292(±.057) .293(±.046) .415(±.022) .374(±.044) .059(±.069)
+CodeBERTScore
+.553(±.068)
+.369(±.049)
+.327(±.086)
+.393(±.048)
+.422(±.090)
+.415(±.071)
+.319(±.054)
+.402(±.030)
+Table 3: Kendall-Tau (τ ) and Spearman (rs) correlations of each metric with the functional correctness on Hu- manEval in multiple languages. The correlation coefficients are reported as the average across three runs, along with the standard deviation.
+Metric
+τ
+rp
+rs
+BLEU CodeBLEU ROUGE-1 ROUGE-2 ROUGE-L METEOR chrF CrystalBLEU
+.374(±.025) .350(±.037) .397(±.023) .429(±.025) .420(±.037) .366(±.033) .470(±.029) .411(±.030)
+.604(±.016) .539(±.033) .604(±.016) .629(±.015) .619(±.014) .581(±.016) .635(±.023) .598(±.019)
+.543(±.018) .495(±.037) .570(±.018) .588(±.022) .574(±.022) .540(±.022) .623(±.018) .576(±.034)
+CodeBertScore
+.517(±.024)
+.674(±.012)
+.662(±.012)
+Table 4: The Kendall-Tau (τ ), Pearson (rp) and Spearman (rs) correlation with human preference. The best performance is bold. The correlation coefficients are reported as the average across three runs. Numbers inside parentheses indicate the standard deviations.
+Metric
+BLEU CodeBLEU CrystalBLEU
+Java
+2.36 1.44 5.96
+C++
+2.51 1.42 6.94
+This result confirms that CodeBERTScore assigns higher similarity scores to semantically similar code pairs, compared to randomly paired snippets that belong to different semantic classes.
+CodeBERTScore
+9.56
+9.13
+Table 5: Distinguishability with different metrics as the similarity function. CodeBERTScore achieves a higher distinguishability than CrystalBLEU, which proposed this meta-metric, on the same datasets.
+snippets covering 278 problems in Java and C++. We use CodeBERTScore to calculate the similar- ity score for code pairs that share the same seman- tic class and code pairs that do not. We then mea- sure the distinguishability of CodeBERTScore ac- cording to Equation 7. The results are shown in Table 5.
+Table 5 shows that CodeBERTScore achieves a higher distinguishability than CrystalBLEU, which proposed this meta-metric, in both Java and C++. CodeBERTScore achieves distinguisha- bility scores of 9.56 in Java while CrystalBLEU achieves 5.96; in C++, CodeBERTScore achieves 9.13 while CrystalBLEU achieves only 6.94.
+Can We Hack the Distinguishability Metric? Despite the encouraging results in Table 5, we also found that distinguishability can be easily manipu- lated since it compares absolute scores across dif- ferent metrics. For example, while CrystalBLEU achieves a distinguishability score of 5.96, we can craft a variant of CodeBERTScore that achieves a distinguishability score of 120,000 by simple ex- ponentiation of CodeBERTScore’s output score.
+To illustrate this, we conducted a distinguisha- bility evaluation with the same configurations as before, but with a variant of CodeBERTScore that we call CodeBERTScorek, and defined as the composition of CodeBERTScore with the f (x) = xk function, that is: CodeBERTScorek (y1, y2) = (CodeBERTScore (y1, y2))k.
+As Figure 8 shows, distinguishability of CodeBERTScorek increases almost exponentially while increasing k, although the base Code- BERTScore metric has not changed.
+
+
+130,000 120,000 110,000 100,000 90,000 80,000 70,000 60,000 50,000 40,000 30,000 20,000 10,000 0
+CodeBERTScore k
+0
+10
+20
+30
+40
+k
+Figure 8: Distinguishability by exponentiating the orig- inal CodeBERTScore by k.
+We thus argue that distinguishability is not a reliable meta-metric and is no substitute for execution-based- or human-rating. We further sus- pect that any meta-metric that compares exact, ab- solute, scores across different metrics is suscepti- ble to such manipulations, and the reliable way to compare metrics is according to the way they rank different examples, rather than the exact scores.
+of CodeBERTScorek with different values of k are shown in Figure 8. As Figure 8 shows, the distinguishability increases almost exponentially with the increasing value of k. We thus argue that distinguishability is not a reliable meta- metric and is no substitute for execution-based- or human-rating. We further suspect that any meta-metric that compares exact, absolute, scores across different metrics is susceptible to such manipulations, and the reliable way to compare metrics is according to the way they rank different examples, rather than the exact scores.
+The
+distinguishability
+results
+G Additional Examples
+In this section, we provide additional examples in which CodeBERTScore prefers the functionally correct prediction, while the best baseline metric in each language ranks higher a functionally in- correct prediction, which is inequivalent to the ref- erence. Figure 9 shows an example in Java, and Figure 10 shows a C++ example.
+50
+
+
+Natural Language Question:
+Reference:
+/** Find how many times a given substring can be found in the original string. Count overlaping cases. >>> howManyTimes("", "a") 0 >>> howManyTimes("aaa", "a") 3 >>> howManyTimes("aaaa", "aa") 3 */
+public static int howManyTimes(String string,
+String substring) {
+int times = 0; for (int i = 0; i < string.length() -
+substring.length() + 1; i++) {
+if (string.substring(i, i + substring.length())
+.equals(substring)) {
+times += 1;
+}
+} return times;
+}
+(a) The natural language question.
+(b) The ground truth reference.
+Non-equivalent candidate:
+Equivalent candidate:
+public static int howManyTimes(
+public static int howManyTimes(
+String string, String substring) { int count = 0; int index = 0; while ((index = string.indexOf(
+String string, String substring) {
+int counter = 0; int index = 0; while (true) {
+substring, index)) != -1) {
+count++; index += substring.length();
+index = string.indexOf(substring, index); if (index == -1)
+break;
+} return count;
+counter += 1; index += 1;
+}
+} return counter;
+}
+(c) Preferred by METEOR.
+(d) Preferred by CodeBERTScore.
+Figure 9: An example in HumanEval-Java, in which METEOR assigns a higher score to Figure 9(c) which is not functionally equivalent to the reference (Figure 9(b)), while CodeBERTScore prefers the functionally correct candidate Figure 9(d).
+
+
+Natural Language Question:
+Reference:
+/* Write a function that takes a vector of numbers as input and returns the number of elements in the vector that are greater than 10 and both first and last digits of a number are odd (1, 3, 5, 7, 9). For example: specialFilter({15, -73, 14, -15})
+long specialFilter(
+std::vector<long> nums) {
+int num=0; for (int i=0;i<nums.size();i++)
+if (nums[i]>10) {
+string w=to_string(nums[i]); if (w[0]%2==1 and
+w[w.length()-1] % 2 == 1)
+=> 1
+num+=1;
+specialFilter({33, -2, -3, 45, 21, 109})
+}
+=> 2
+return num;
+/
+}
+(a) The natural language question.
+(b) The ground truth reference.
+Non-equivalent candidate:
+Equivalent candidate:
+long specialFilter(
+long specialFilter(
+std::vector<long> nums) {
+std::vector<long> nums) {
+// Write your code here long sum = 0; for(int i=0; i<nums.size(); i++){
+long count = 0; for(int i=0; i<nums.size(); i++){
+if(nums[i] >= 10) {
+std::string str =
+std::to_string(nums[i]);
+long firstDigit = nums[i] /
+int last = nums[i] % 10; int first = nums[i]; while(first >= 10) {
+abs(nums[i]);
+first /= 10;
+long lastDigit = nums[i]%10; if(nums[i] > 10 &&
+} if (last % 2 != 0 &&
+(firstDigit % 2 == 1 ||
+first % 2 != 0) {
+lastDigit % 2 == 1)){
+count++;
+sum++;
+}
+}
+}
+} return sum;
+} return count;
+}
+}
+(c) Preferred by chrF.
+(d) Preferred by CodeBERTScore.
+Figure 10: An example in HumanEval-C++, in which chrF assigns a higher score to Figure 10(c) which is not functionally equivalent to the reference (Figure 10(b)), while CodeBERTScore assigns a higher score to the func- tionally correct candidate Figure 10(d).

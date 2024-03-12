@@ -1,0 +1,313 @@
+3 2 0 2
+n u J
+5 1
+] L C . s c [
+1 v 8 1 8 8 0 . 6 0 3 2 : v i X r a
+Pragmatic Inference with a CLIP Listener for Contrastive Captioning
+Jiefu Ou1 Benno Krojer2 Daniel Fried1 Carnegie Mellon University1 Mila/McGill University2 jiefuo@andrew.cmu.edu
+Abstract
+We propose a simple yet effective and robust method for contrastive captioning: generating discriminative captions that distinguish target images from very similar alternative distractor images. Our approach is built on a pragmatic in- ference procedure that formulates captioning as a reference game between a speaker, which pro- duces possible captions describing the target, and a listener, which selects the target given the caption. Unlike previous methods that derive both speaker and listener distributions from a single captioning model, we leverage an off- the-shelf CLIP model to parameterize the lis- tener. Compared with captioner-only pragmatic models, our method benefits from rich vision- language alignment representations from CLIP when reasoning over distractors. Like previ- ous methods for discriminative captioning, our method uses a hyperparameter to control the tradeoff between the informativity (how likely captions are to allow a human listener to dis- criminate the target image) and the fluency of the captions. However, we find that our method is substantially more robust to the value of this hyperparameter than past methods, which al- lows us to automatically optimize the captions for informativity — outperforming past meth- ods for discriminative captioning by 11% to 15% accuracy in human evaluations.1
+Figure 1: Illustration of the contrastive captioning task with a random example from the ImageCoDe dataset. Models are tasked with generating captions that dis- tinguish the target image (a) from other very similar distractors images (b) to (d). (There are a total of 9 dis- tractors in each set of images, we omit the rest of them for simplicity of illustration.) Compared with baselines from previous work, our proposed approach, PICL, gen- erates informative captions that help clearly identify the target out of the distractors, while remaining natural and fluent.
+1
+Introduction
+Discriminative captioning provides a challenging testbed for generating context-sensitive grounded language. In this task, a model must produce a description of a target image (e.g., the green high- lighted image in Figure 1) that allows a person to correctly identify the target image from among a set of similar distractor images (e.g., the red highlighted images). Good captions must strike a balance between two criteria: (1) being fluent
+1The
+code
+is
+available
+at https://github.com/
+descriptions of the target image and (2) being dis- criminative in context: allowing a person to pick out the target image from the set.
+Past work on discriminative captioning has suc- cessfully applied techniques from computational pragmatics to trade off between the two criteria above (Andreas and Klein, 2016; Vedantam et al., 2017; Cohn-Gordon et al., 2018). Possible cap- tions are selected using a combination of two scor- ing functions: (1) the caption’s probability under a standard image captioning model, or base speaker score, which measures the caption’s fluency and
+JefferyO/prag_clip_contra_caption
+
+
+faithfulness to the image, and (2) a base listener score, which predicts how likely a human listener would be to correctly identify the target image given the caption, i.e. measuring discriminative- ness.These past works typically obtain the listener scores from the image captioning (speaker) model itself, for example using Bayesian inference over the set of possible images (Cohn-Gordon et al., 2018). The relative weight of these two scores is controlled using a informativity hyperparameter,2 whose value affects the tradeoff between produc- ing captions that are predicted to be fluent and faithful, versus captions that are predicted to be discriminative. It is challenging to automatically choose a value for this hyperparameter, as captions that appear to be discriminative under a caption- ing model are frequently uninformative for peo- ple (Dessì et al., 2022).
+Our approach, PICL (Pragmatic Inference with a CLIP Listener) follows this same pragmatic framework, but scores discriminativeness using a listener model separate from the speaker. We implement the listener model using CLIP (Rad- ford et al., 2021). As shown in previous work, the rich vision-language representation learned in CLIP (1) provides robust assessments of model- generated captions that highly correlate with hu- man judgments (Hessel et al., 2021), and (2) ef- fectively quantifies the degree of discriminative- ness/informativeness of visual referring expres- sions (Takmaz et al., 2022).
+To evaluate PICL, we conduct experiments with sets of images from ImageCoDe (Krojer et al., 2022), a challenging dataset originally designed for contrastive retrieval: retrieving target images among a set of distractors given contextual descrip- tions. We perform contrastive captioning on this dataset for the first time. We compare PICL to past work on two criteria: (1) informativeness and (2) fluency, evaluating both metrics using automatic as well as human evaluations.
+Results show that our approach typically outper- forms past methods on both criteria, and is substan- tially more robust to the value of the informativ- ity hyperparameter. In particular, we are able to choose this hyperparameter automatically by maxi- mizing how informative the captions are predicted to be to human evaluators. In contrast, we find that maximizing predicted informativity leads past
+2This parameter is also sometimes referred to as a ratio-
+nality parameter.
+methods to produce captions that are so disfluent that they are misleading for people. In this auto- matic hyperparameter selection setting, our method produces captions that are 11% to 15% easier for human annotators to interpret correctly than past work.
+2 Related Work
+Contrastive Captioning A variety of methods for contrastive captioning generate captions that optimize for discriminative objectives, e.g., mini- mizing the textual similarity between captions for the target and distractor images (Wang et al., 2020), using generated captions as input to image retrieval models (Luo et al., 2018; Liu et al., 2018), and com- puting CLIP similarity scores between captions and target images (Cho et al., 2022). Other meth- ods involve leveraging fine-grained image regional features to generate distinctive captions based on similar and/or unique objects among target and dis- tractors (Wang et al., 2021; Mao et al., 2022), para- phrasing generic captions to enhance both diversity and informativeness (Liu et al., 2019), and fine- tuning RL-optimized caption models to encourage low-frequency words (Honda et al., 2022). Most of the methods above require training a discrim- inative captioning model — either by designing an discriminative captioning architecture that takes multiple images as input, or fine-tuning a model using discriminative rewards. In contrast, our pro- posed approach is fully inference-time — it requires no training, and is applicable to any off-the-shelf generic captioning model.
+Our approach builds on a family of inference- time pragmatic-based contrastive captioning meth- ods which have taken one of two approaches: (1) incrementally generating captions but using only a captioning model (our speaker model), where tokens are chosen that have high probability for the target image and low probability for the dis- tractor (Vedantam et al., 2017; Cohn-Gordon et al., 2018; Nie et al., 2020) or (2) using a separate dis- criminative model but selecting a discriminative caption from among a set of entire captions gener- ated by the speaker model for the target image (An- dreas and Klein, 2016; Luo and Shakhnarovich, 2017). Our work shows that these approaches can be productively combined, using a strong off-the- shelf discriminative model (CLIP) to guide the in- cremental generation of captions. This allows us to tackle a more challenging dataset and task than
+
+
+previous discriminative captioning work, contain- ing a large number (10) of highly-similar distractor images.
+Pragmatics Our approach to contrastive genera- tion follows a long line of work on computational pragmatics, particularly in the Rational Speech Acts framework (Frank and Goodman, 2012; Good- man and Frank, 2016) which models language gen- eration as an interaction between speakers and lis- teners. Prior work has found that pragmatic genera- tion can improve performance on a variety of NLP tasks, including reference games (Monroe et al., 2017), instruction generation (Fried et al., 2018), summarization (Shen et al., 2019), machine trans- lation (Cohn-Gordon and Goodman, 2019), and dialogue (Kim et al., 2020; Fried et al., 2021).
+Tradeoff between discriminativeness and accu- racy/fluency Assessing the quality of image cap- tions requires multifaceted evaluation. Prior work on contrastive/discriminative captioning investi- gates the tradeoff of model performance between discriminativeness and accuracy/fluency (Wang et al., 2021; Liu et al., 2019; Honda et al., 2022; Cho et al., 2022; Vedantam et al., 2017; Andreas and Klein, 2016). In this paper, we also perform an extensive study on the tradeoff between informa- tiveness and fluency. Specifically, we focus on ana- lyzing the robustness of the proposed and baseline methods in the tradeoff according to the selection of hyperparameters.
+3 Method
+Our PICL approach conducts incremental prag- matic inference at the token level by combining a base speaker and a CLIP listener to derive a prag- matic speaker. At each step of decoding, the base speaker selects a set of candidate tokens and adds them to partial captions. Given candidate partial captions, the listener updates its beliefs on which is the target among the set of images based on CLIP similarity measurement. In particular, it contrasts each partial caption to all the images by calculating the CLIP similarity scores of partial caption-image pairs and normalizes over all images to derive the listener likelihood. Finally, a pragmatic speaker reasons over both the base speaker and listener by combining their distribution to rerank partial cap- tions, select a highly-scored subset and proceed to the next decoding step.
+3.1
+Incremental Pragmatic Inference Framework
+Similar to Cohn-Gordon et al. (2018), we for- mulate the process of generating contrastive cap- tions as a series of reference games between two agents, a speaker and a listener. Given a shared visual context I = i+ ∪ I − consisting of a tar- get image i+ and a set of m similar distractors I − = {i− m}, the speaker aims to produce a sequence of T tokens o1:T = (o1, . . . oT ) that could let the listener identify i from I. Such prag- matic inference is conducted incrementally: at each step t of the caption generation, the speaker selects the next token ot by playing the reference game with the listener based on the context I and the partial caption o<t obtained from the last step. In the following subsections, we will introduce the speaker and listener models as well as the incre- mental inference strategy in detail.
+1 , . . . , i−
+3.2 Speaker and Listener Models
+Base Speaker At each step of generation, the base speaker S0 yields a distribution PS0(ot|o<t, i+) over the token vocabulary for the next possible token ot, conditioning on the previous partial caption and the target image. We parameterize PS0 with a context-agnostic In particular, we use OFA3 captioning model. (Wang et al., 2022), a unified sequence-to-sequence multimodal pretraining model and finetune it on MSCOCO Image Captioning dataset (Chen et al., 2015). Finetuned OFA is a strong base captioner; at the time of this work, it achieves state-of-the-art performance on MSCOCO Image Captioning.
+Base Listener Given a candidate partial caption o1:t = (o<t, ot) generated by S0, the base listener L0 yields a distribution PL0(i|o1:t, I) over all can- didate images i ∈ I, modeling the likelihood of choosing each candidate given the partial caption at step t and the shared context I. We derive PL0 from a zero-shot CLIP model by normalizing its similarities between images and partial captions over all image candidates:
+PL0(i|o1:t, I) =
+exp(c(i, o1:t)) Σi′ ∈I exp(c(i′, o1:t))
+where c(i, o1:t) denotes the cosine similarity between the CLIP visual encoding of i and textual
+3We use the OFA-base configuration from https://
+github.com/OFA-Sys/OFA
+(1)
+
+
+encoding of o1:t
+Pragmatic Speaker From the base speaker and listener, we derive a distribution for the pragmatic speaker S1 as
+PS1(ot|o<t, i+, I) =PL0(i+|o1:t, I)λ
+PS0(ot|o<t, i+)1−λ
+where λ ∈ [0, 1] is a “informativity” hyper- parameter that trades off between producing fluent (from S0) and informative (from L0) captions.
+3.3 Decoding with Approximation
+To iteratively generate captions with the pragmatic speaker S1, we perform beam search with beam width B, which involves solving
+arg max
+ot
+PS1(ot|o<t, i+, I)
+for each beam item. However, it is computation- ally infeasible to obtain the exact solution to Equa- tion 3 since it requires encoding all #(vocabulary size) possible next partial captions with CLIP to calculate PL0 at each step. Thus, we adopt a sub- sampling approach similar to Andreas and Klein (2016); Fried et al. (2018). At each step of decod- ing, a subset of N (N > B) candidate next partial captions o1:T are obtained via beam search from the base speaker distribution PS0, and these N candi- dates are rescored with Equation 2 to approximate Equation 3. Finally, only the top B candidates after rescoring are retained to continue with.
+4 Experimental Setup
+We evaluate PICL on ImageCoDe (Krojer et al., 2022), a dataset originally designed for image re- trieval with contextual descriptions. Given the high visual similarity of the images in each problem in the dataset, we adopt it as a challenging testbed for discriminative captioning. We evaluate PICL and competitive baseline methods on two criteria, infor- mativeness and fluency, using both automatic and human evaluation. For informativeness, we follow previous work (Cohn-Gordon et al., 2018; Newman et al., 2020) to automatically evaluate the perfor- mance of pragmatic models with an evaluating lis- tener Leval. The discriminativeness of the method being evaluated is quantified by the retrieval accu- racy of Leval with method-generated captions as input. For fluency, we score the well-formedness of
+(2)
+(3)
+generated captions with the perplexity (PPL) under GPT-2 (Radford et al., 2019).
+In addition to the automatic evaluation, we con- duct human evaluation where annotators are tasked to a) retrieve the target image given the caption and b) score the fluency of the caption.
+4.1 Dataset
+We use sets of images collected in ImageCoDe (Krojer et al., 2022) to evaluate the proposed ap- proach. Each image set in ImageCoDe consists of 10 visually similar images. The image sets are col- lected in two categories: static pictures and video frames. A random subset of images per set is se- lected as targets, for which human annotators write discriminative captions that are retained if other hu- mans can successfully use it to retrieve the target. In our experiments, we use the validation split of ImageCoDe for hyper-parameter selection and eval- uate model performance on the test split. The valid and test sets contain 1,039 and 1,046 sets of im- ages and 2,302 and 2,306 human written captions, respectively.
+Table 1 shows the retrieval performance of sev- eral models on ImageCoDe test split, where CLIP- zero-shot is the base listener used in PICL and ALBEF-finetuned is the evaluating listener used for automatic evaluation (see Section 4.2). Given the large performance gap of all models between static and video subsets, we believe the video frames are too challenging for current neural mod- els to make pragmatic and contextual inferences for both captioning and retrieving. Therefore, we use only static images in our experiments.
+4.2 Automatic Evaluation
+Informativeness Following Cohn-Gordon et al. (2018) and Newman et al. (2020), we evaluate the informativeness of captions generated by our method and baselines using a listener test: whether an evaluative listener model could identify the tar- get image out of the distractors, given generated captions. However, an evaluative listener can only be an imperfect proxy for human listeners, and past work has found that utterances that are in- formative to an evaluative listener model can be uninterpretable to people, a phenomenon known as codebooking (Kim et al., 2019) or language drift (Lazaridou et al., 2020). This issue is par- ticularly likely to complicate evaluation in a prag- matic framework like ours, where an explicit lis- tener model (a frozen CLIP model, in our PICL
+
+
+All Video Static
+CLIP-zero-shot CLIP-finetuned-best ALBEF-finetuned
+22.4 29.9 33.6
+15.6 22.0 22.7
+47.8 59.8 74.2
+Table 1: Retrieval accuracy on ImageCoDe test split with human-written contextual captions as input. In the proposed method, we use CLIP-zero-shot as the base listener and ALBEF-finetuned as the listener for evaluation. CLIP-finetuned denotes the best-performing model in previous work. The fine-tuned ALBEF outper- forms the best CLIP model with a large margin on static images while improving slightly on video frames. Com- paring with performances on static images, all models struggle on video frames.
+approach) is used to guide utterance generation.
+To mitigate this codebooking issue in evaluation, past work has made the evaluative listener dissim- ilar by training it on separate data (Cohn-Gordon et al., 2018; Kim et al., 2019; Fried et al., 2021); we additionally use a separate architecture for the evaluative listener, dissimilar from our CLIP lis- tener: the ALBEF vision-language model (Li et al., 2021). We finetune ALBEF on the human-written contextual captions for the retrieval task in Image- Code.4 As shown in Table 1, finetuned ALBEF outperforms the best-performing retrieval model from previous work (Krojer et al., 2022) on Im- ageCoDe with human-written captions, so we use ALBEF-finetuned as our evaluating listener in au- tomatic evaluations of informativeness. Fluency While being informative, discrimina- tive captions should also be natural and fluent. Therefore, we additionally perform automatic eval- uations of the fluency of generated captions by computing their perplexity using a GPT-2 language model (Radford et al., 2019).
+4.3 Human Evaluation
+Recent analysis on ImageCode (Dessì et al., 2022) and in other reference game settings (Lazaridou et al., 2020) reveals that utterances generated by neural models can be discriminative enough for other neural models to retrieve the target image while being misleading to humans. This implies that the performance of a neural retriever evalu- ative listener (e.g., ALBEF) on model-generated captions might not correctly reflect the degree of informativeness of the captions from a human’s
+4Specifically, we finetuned the refcoco-checkpoint con-
+trastively, i.e. with the 9 distractors in the same batch.
+perspective. Therefore, we further conduct a hu- man evaluation for PICL and baseline methods on Amazon MTurk, where we present human workers with the same image retrieval task as for ALBEF, and use the success rate of workers in identifying the correct target images (retrieval accuracy) to measure the informativeness of the given captions. To obtain human judgments of caption fluency, we additionally ask workers to score the captions on a Likert scale ranging from 1 (nonsense) to 5 (com- pletely natural). We randomly sampled 100 sets of static images from the ImageCoDe test split and select one image with the human-written caption as the target. For each target, we produce a caption with each model and, together with the original human caption, present each caption-set pair to 3 workers. More details about the human evaluation setup could be found in Section A.3.
+4.4 Baselines
+We compare PICL to three baselines: Base Speaker We use the base speaker S0 intro- duced in Section 3. The base speaker takes only the target image as input and generates context- agnostic captions regardless of the distractors. Incre-RSA We further implement the incremen- tal RSA model (Incre-RSA) from Cohn-Gordon et al. (2018) as a competitive baseline. Specifically, we derive the Bayesian RSA model introduced in Cohn-Gordon et al. (2018) from our base speaker S0, which enables direct comparison with our pro- posed approach. Unlike PICL, Incre-RSA does not have a separate model as the listener. The listener probabilities are derived with Bayesian inference at each decoding step based on the speaker distri- bution and an image prior. E-S Also based on S0, we implement the emitter- suppressor (E-S) beam search introduced in Vedan- tam et al. (2017) for discriminative image caption- ing. Similar to Incre-RSA, the E-S approach dif- fers from PICL mainly in that it does not contain a separate model to rescore partial captions from a listener’s perspective. Instead, it incorporates con- textual reasoning by selecting tokens that, under the base speaker, have high probability for the target image but low probability for the distractor images, using a weighted difference of scores. Since their task and model formulation considers only a sin- gle distractor image, we extend it to include all distractors in the set by calculating the suppressor distribution as the mean of the distribution of the
+
+
+55
+65
+102
+60
+103
+Incre-RSA
+80ALBEF Retrieval Accuracy (%)
+E-S
+Human
+PICL
+Mean GPT-2 Perplexity
+Base Speaker
+PICL perplexity
+75
+70
+Figure 2: Automatic evaluations show a tradeoff be- tween the informativeness (measured by ALBEF re- trieval accuracy) and fluency (GPT-2 perplexity) of dis- criminative captions on the ImageCoDe valid set in auto- matic evaluations. Each curve is obtained by varying the value of the informativity hyperparameter. Compared with previous methods, our proposed PICL approach achieves a more robust trade-off between fluency and informativeness. The vertical line depicts the fluency- controlled criterion (Section 4.5), choosing a perplex- ity value that matches the perplexity of the maximally- informative PICL.
+next token conditioned on each of the distractors. For all three baselines, we use beam search at
+inference with the same beam width B as PICL.
+4.5
+Informativity Hyperparameter Selection
+Both our PICL method and the Incre-RSA and E- S baselines use an informativity hyperparameter5 to trade off between predicted informativity and fluency in generated captions. We describe two methods for choosing a value for this hyperparam- eter for each method.
+Informativity Maximization In our primary set of experiments, we set the informativity hyperpa- rameter for each method automatically to maximize the performance of our evaluating listener, ALBEF, on the captions in the validation set. We refer to the models obtained under this scheme as PICL, Incre-RSA, and E-S, respectively.
+When maximizing predicted evaluative listener accuracy, we observe qualitatively that PICL typ- ically generates captions which are fluent and human-understandable. In contrast, E-S and Incre- RSA are less robust, and under this informativity maximization objective typically produce highly
+5Sometimes also referred to as a “rationality” parameter.
+disfluent captions — identifying captions that are interpretable under our evaluating listener model, ALBEF, but potentially confusing to a human, con- sistent with past work identifying language drift in reference game setups (Lazaridou et al., 2020; Dessì et al., 2022). This trend is depicted in Fig- ure 2, where optimizing for high ALBEF accuracy in E-S and Incre-RSA pushes the average GPT-2 perplexity of captions to extremely high values. We will see in human evaluations in Section 5 that the disfluent captions obtained by maximizing predicted informativity in the Incre-RSA and E-S baselines, though “understandable” to the ALBEF model, are often uninterpretable for humans.
+Fluency Control Given the qualitative failures of E-S and Incre-RSA when maximizing automated proxies for informativity, we propose to improve these baselines using a fluency-controlled optimiza- tion scheme that pivots around PICL. In particular, we search for the informativity parameters for E-S and Incre-RSA so that the average GPT-2 perplex- ity of the generated captions are as close as possible to that of PICL. We refer to the models obtained under this scheme as ES (PPL) and Incre-RSA (PPL).
+5 Results
+5.1 Automatic Evaluation
+We use automatic evaluations (Section 4.2) to evalu- ate the tradeoff between the predicted informativity (using ALBEF) and predicted fluency (using GPT- 2) of captions over a wide range of values for the informativity hyper-parameter of each method.
+Hyper-parameter Sensitivity Figure 2 depicts how each method trades off between discrimina- tiveness and fluency by varying the informativity hyper-parameter. PICL demonstrates higher ro- bustness to hyper-parameter selection than Incre- RSA and ES in the trade-off: while optimizing for ALBEF-predicted informativity-maximization, Incre-RSA and ES produce more corrupted and dis- fluent captions with high perplexity whereas PICL’s perplexity degrades less. Informativeness As shown in Table 2, PICL substantially outperforms the base speaker and the incremental RSA (Incre-RSA, Cohn-Gordon et al. 2018) methods on ALBEF retrieval accuracy, and achieves comparable results to emitter-suppressor (E-S, Vedantam et al. 2017). The results demon- strate that our method could leverage CLIP as a
+
+
+ALBEF Accuracy Perplexity
+GPT-2
+Human Base Speaker
+74.2 54.2
+138.4 99.4
+Optimized for Informativity
+Incre-RSA E-S PICL
+64.3 77.5 77.3
+2703.0 4093.6 380.2
+Perplexity-Matched to PICL
+Incre-RSA (PPL) E-S (PPL)
+62.9 73.2
+446.5 366.6
+Table 2: Automatic evaluation results on the ImageCode test set: We evaluate informativity using the retrieval ac- curacy of the ALBEF evaluative listener using captions generated by each approach. PICL substantially out- performs Base Speaker, Incre-RSA, Incre-RSA (PPL), and E-S (PPL), achieving a competitive level of infor- mativeness to E-S. In fluency, evaluated using GPT-2 perplexity, methods that control for the fluency (PPL) pivoting around PICL achieve similar level of perplexity, while E-S and Incre-RSA that optimized for informativ- ity are substantially less fluent.
+listener model in incremental pragmatic caption generation. For both E-S and Incre-RSA, control- ling for fluency negatively affects ALBEF accuracy, which conforms with the trend in Figure 2. Fluency Table 2 also shows the perplexity that GPT-2 assigns to the output of each model on the ImageCoDe test set. As discussed in Section 4.5, Incre-RSA and E-S are less robust when being opti- mized for informativity, which is reflected by their extremely high perplexity. In contrast, when con- trolling for the fluency to match PICL’s validation perplexity, both Incre-RSA and E-S generate sub- stantially more fluent captions with test perplexity similar to PICL, at the cost of predicted informa- tiveness, as shown by a drop in ALBEF accuracy.
+5.2 Human Assessment Performance
+We perform human evaluations (Section 4.3) to val- idate these findings about the informativeness and fluency of the discriminative captioning methods.
+Informativeness Human retrieval accuracies on model- and human-generated captions are depicted in Table 3. In the setting where models are au- tomatically optimized for predicted informativity (Section 4.5), PICL substantially outperforms the Incre-RSA and E-S methods, with gains in human
+Method
+Human Accuracy
+Fluency Rating
+Human Base Speaker
+81.7 48.7
+4.76 4.80
+Optimized for Informativity
+Incre-RSA E-S PICL
+50.7 54.0 65.7
+2.87 3.59 4.07
+Perplexity-Matched to PICL
+Incre-RSA (PPL) E-S (PPL)
+53.3 63.7
+4.23 4.54
+Table 3: Human evaluation results on 100 sets of images from ImageCoDe test split: Informativity is assessed by the retrieval accuracy of human annotators using cap- tions generated by each approach. PICL outperforms all other models on human informativeness judgments. For fluency, human annotators evaluate using ratings on a 1-5 scale. Similar to results in the automatic evaluations of fluency (Table 2), annotators assign much lower flu- ency scores to E-S and Incre-RSA, which do not control for fluency.
+accuracy of 11% and 15% respectively. The results indicate that captions generated by PICL are more informative than by other approaches, judged by human annotators. When we control the disflu- ency of the other methods to be similar to PICL (as measured by GPT-2 perplexity in automatic evalua- tions), PICL still substantially outperforms Incre- RSA (PPL) and slightly outperforms ES (PPL). Moreover, for both E-S and RSA, controlling for PPL results in more informative captions, which is not reflected in the automatic evaluations using ALBEF (Table 2), implying that disfluency has a more significant negative effect on informativity for humans. While past work has often relied only on automated evaluations, our results indicate that human evaluations are important to accurately com- pare the performance of discriminative captioning systems.
+Fluency Table 3 also shows the average fluency scored by human workers for model- and human- generated captions. Similarly to Table 2 captions generated by E-S and Incre-RSA without control- ling for perplexity are much more disfluent as scored by humans.
+Informativity-Fluency Trade-off We further combine the human accuracy and fluency in Ta- ble 3 for each model and plot them in Figure 3.
+
+
+55
+5.0Fluency Score by Human Annotators
+65
+50
+4.5
+60
+humanBaseIncre-RSAIncre-RSA (PPL)Incre-RSA (mid PPL)E-SE-S (PPL)E-S (mid PPL)PICLPICL (mid PPL)
+80
+Incre-RSA
+human
+Base
+45
+E-S
+3.5
+85Human Annotators Retrieval Accuracy (%)
+3.0
+PICL
+75
+4.0
+70
+Figure 3: Human eval results on 100 test split static image sets.
+To depict the informativity-fluency trade-off under human assessments, we also include a setting of in- formativity hyperparameters for each method with an intermediate level of automatically predicted fluency. Specifically, for each model, we search for its informativity parameter so that the average GPT-2 perplexity of generated captions are as close as possible to the average perplexity of the base speaker + PICL. We refer to the models obtained under this scheme as ES (mid PPL), Incre-RSA (mid PPL) and PICL (mid PPL).
+With the resulting plot shown in Figure 3, PICL outperforms Incre-RSA along both dimensions. In comparison with E-S, PICL achieves better dis- criminativeness with a loss in fluency. For E-S and Incre-RSA, the trade-off patterns are different from that under ALBEF (Figure 2). While optimizing for ALBEF accuracy consistently induces more disfluent generation, the optimal informativeness under human judgment is likely to be achieved with a moderate level of disfluency.
+5.3 Automatic vs. Human Evaluation
+The analysis above reflects both agreement and mis- match between automatic evaluation and human judgments on different aspects. To further reveal the correlation between them, and lay a founda- tion for future work on discriminative captioning to make automatic evaluations more predictive of human performance, we conduct analysis along both axes of informativity and fluency.
+ALBEF vs. Human Retrieval Accuracy Fig- ure 4 plots ALBEF against human retrieval accu- racy on the same 100 sets of images. ALBEF accu- racy has a strong positive correlation with human
+65
+55
+50
+65
+85ALBEF Retrieval Accuracy (%)
+E-S
+human
+Base
+humanBaseIncre-RSAIncre-RSA (PPL)Incre-RSA (mid PPL)E-SE-S (PPL)E-S (mid PPL)PICLPICL (mid PPL)
+60
+Incre-RSA
+80
+70
+75
+80Human Annotators Retrieval Accuracy (%)
+75
+70
+PICL
+Figure 4: ALBEF accuracy and human accuracy are pos- itively correlated for model-generated outputs, with the exception of disfluent captions produced by the variants of E-S and Incre-RSA that do not control for perplexity.
+5.0Fluency Score by Human Annotators
+humanBaseIncre-RSAIncre-RSA (PPL)Incre-RSA (mid PPL)E-SE-S (PPL)E-S (mid PPL)PICLPICL (mid PPL)
+102
+Incre-RSA
+103
+E-S
+human
+4.5
+Mean GPT-2 Perplexity (log scale)
+4.0
+PICL
+3.5
+3.0
+Base
+Figure 5: Mean perplexity, under GPT-2, is predictive of human fluency evaluations across systems.
+judgments except for having human, E-S, and Incre- RSA as outliers. We posit that the performance mismatch on human written captions is because it is challenging for neural retrieval models like ALBEF to interpret human-written descriptions, which are highly nuanced and grammatically com- plex (Krojer et al., 2022). The high disfluency of the captions of E-S and and Incre-RSA hinders evaluators in interpreting them accurately, despite being discriminative to models.
+GPT-2 Perplexity vs. Human Fluency Score As illustrated in Figure 5, on the 100 evaluation image sets, there is a strong correlation between the mean GPT-2 perplexity of captions and human fluency scores, implying that GPT-2 perplexity is a good proxy for human fluency judgments.
+
+
+Accuracy
+PICL
+77.3
+incremental - distractors
+65.4 57.5
+Table 4: Automated ablation evaluations of informative- ness. We evaluate “- incremental” that only conducts CLIP scoring and reranking on full captions generated by the speaker model, and“- distractor" in which only the target image is included during inference.
+5.4 Ablation Results
+To further understand the performance of PICL, we conduct ablation studies to investigate the role of 1) incremental pragmatic inference and 2) grounding language to distinguish from distractors.
+For 1), we experiment with PICL - incremen- tal that removes incremental inference by first us- ing only the base speaker S0 to generate a set of complete and context-agnostic captions, and us- ing CLIP to score these entire captions. For 2), we evaluate PICL - distractors, excluding all dis- tractors and providing only the target image dur- ing inference. At each decoding step, the listener distribution is derived by normalizing the CLIP similarities between partial captions and the target image over all candidates. As shown in Table 4, the retrieval accuracy drops substantially on both variations, suggesting that both the incremental in- ference and grounding to distractors are vital com- ponents for pragmatic reasoning in PICL.
+6 Conclusion
+We propose an incremental pragmatic inference ap- proach with a CLIP listener, which combines the strengths of previous approaches that conduct in- cremental pragmatic reasoning with a separately modeled listener. We identify strengths and weak- nesses of automatic model-based evaluation of dis- criminative captioning systems, and suggest that future work 1) control for the disfluency of gener- ated captions and not solely optimize for predicted informativity and 2) use human evaluations. In human evaluations, our approach outperforms pre- vious discriminative captioning methods, and is substantially more robust than previous approaches in trading off between the fluency and informativity of the captions to human listeners.
+Acknowledgments
+We would like to thank Google for providing fund- ing for this work through a gift on Action, Task, and User Journey modeling, and Samsung Electronics Co., Ltd. for providing funding for BK.
+Limitations
+We evaluate only on the “static” image partition of the ImageCoDe dataset. ImageCoDe contains an- other more challenging partition, containing frames from short temporal intervals in videos, which re- mains extremely difficult for all current discrimi- native captioning methods, including our PICL ap- proach. (This partition, along with the static image partition that we use, has previously only been used in contrastive retrieval tasks, not in discriminative captioning.)
+While we made a substantial effort to explore the tradeoff between informativity and fluency, we were limited in the number of human evaluations that we were able to do and could only evaluate a few settings of the informativity parameter for each method. We complement these human evalua- tions with automated evaluations on a much wider range of parameters, and analyze the correlations between human performance and judgements and the automated metrics.
+References
+Jacob Andreas and Dan Klein. 2016. Reasoning about pragmatics with neural listeners and speakers. In Pro- ceedings of the 2016 Conference on Empirical Meth- ods in Natural Language Processing, pages 1173– 1182, Austin, Texas. Association for Computational Linguistics.
+Xinlei Chen, Hao Fang, Tsung-Yi Lin, Ramakr- ishna Vedantam, Saurabh Gupta, Piotr Dollár, and C. Lawrence Zitnick. 2015. Microsoft coco captions: Data collection and evaluation server. arXiv preprint, arXiv:1504.00325.
+Jaemin Cho, Seunghyun Yoon, Ajinkya Kale, Franck Dernoncourt, Trung Bui, and Mohit Bansal. 2022. Fine-grained image captioning with CLIP reward. In Findings of the Association for Computational Linguistics: NAACL 2022, pages 517–527, Seattle, United States. Association for Computational Lin- guistics.
+Reuben Cohn-Gordon and Noah Goodman. 2019. Lost in machine translation: A method to reduce mean- ing loss. In Proceedings of the 2019 Conference of the North American Chapter of the Association for
+
+
+Computational Linguistics: Human Language Tech- nologies, Volume 1 (Long and Short Papers), pages 437–441, Minneapolis, Minnesota. Association for Computational Linguistics.
+Reuben Cohn-Gordon, Noah Goodman, and Christo- pher Potts. 2018. Pragmatically informative image In Pro- captioning with character-level inference. ceedings of the 2018 Conference of the North Amer- ican Chapter of the Association for Computational Linguistics: Human Language Technologies, Vol- ume 2 (Short Papers), pages 439–443, New Orleans, Louisiana. Association for Computational Linguis- tics.
+Roberto Dessì, Eleonora Gualdoni, Francesca Franzon, Gemma Boleda, and Marco Baroni. 2022. Communi- cation breakdown: On the low mutual intelligibility between human and neural captioning. In Proceed- ings of the 2022 Conference on Empirical Methods in Natural Language Processing, pages 7998–8007, Abu Dhabi, United Arab Emirates. Association for Computational Linguistics.
+Michael C Frank and Noah D Goodman. 2012. Pre- dicting Pragmatic Reasoning in Language Games. Science, 336(6084):998–998.
+Daniel Fried, Jacob Andreas, and Dan Klein. 2018. Uni- fied pragmatic models for generating and following instructions. In Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Tech- nologies, Volume 1 (Long Papers), pages 1951–1963, New Orleans, Louisiana. Association for Computa- tional Linguistics.
+Daniel Fried, Justin Chiu, and Dan Klein. 2021. Reference-centric models for grounded collaborative dialogue. In Proceedings of the 2021 Conference on Empirical Methods in Natural Language Process- ing, pages 2130–2147, Online and Punta Cana, Do- minican Republic. Association for Computational Linguistics.
+Noah D Goodman and Michael C Frank. 2016. Prag- matic Language Interpretation as Probabilistic Infer- ence. Trends in Cognitive Sciences, 20(11):818–829.
+Jack Hessel, Ari Holtzman, Maxwell Forbes, Ronan Le Bras, and Yejin Choi. 2021. CLIPScore: A reference-free evaluation metric for image captioning. In Proceedings of the 2021 Conference on Empiri- cal Methods in Natural Language Processing, pages 7514–7528, Online and Punta Cana, Dominican Re- public. Association for Computational Linguistics.
+Ukyo Honda, Taro Watanabe, and Yuji Matsumoto. 2022. Switching to discriminative image captioning by relieving a bottleneck of reinforcement learning. In 2023 IEEE/CVF Winter Conference on Applica- tions of Computer Vision (WACV), pages 1124–1134.
+Hyunwoo Kim, Byeongchang Kim, and Gunhee Kim. 2020. Will I sound like me? improving persona
+consistency in dialogues through pragmatic self- consciousness. In Proceedings of the 2020 Confer- ence on Empirical Methods in Natural Language Processing (EMNLP), pages 904–916, Online. Asso- ciation for Computational Linguistics.
+Jin-Hwa Kim, Nikita Kitaev, Xinlei Chen, Marcus Rohrbach, Byoung-Tak Zhang, Yuandong Tian, Dhruv Batra, and Devi Parikh. 2019. CoDraw: Col- laborative drawing as a testbed for grounded goal- driven communication. In Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics, pages 6495–6513, Florence, Italy. Asso- ciation for Computational Linguistics.
+Benno Krojer, Vaibhav Adlakha, Vibhav Vineet, Yash Goyal, Edoardo Ponti, and Siva Reddy. 2022. Image retrieval from contextual descriptions. In Proceed- ings of the 60th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Pa- pers), pages 3426–3440, Dublin, Ireland. Association for Computational Linguistics.
+Angeliki Lazaridou, Anna Potapenko, and Olivier Tiele- man. 2020. Multi-agent communication meets natu- ral language: Synergies between functional and struc- tural language learning. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, pages 7663–7674, Online. Association for Computational Linguistics.
+Junnan Li, Ramprasaath R. Selvaraju, Akhilesh Deepak Gotmare, Shafiq R. Joty, Caiming Xiong, and Steven C. H. Hoi. 2021. Align before fuse: Vision and lan- guage representation learning with momentum distil- lation. In Neural Information Processing Systems.
+Lixin Liu, Jiajun Tang, Xiaojun Wan, and Zongming Guo. 2019. Generating diverse and descriptive im- In 2019 age captions using visual paraphrases. IEEE/CVF International Conference on Computer Vision (ICCV), pages 4239–4248.
+Xihui Liu, Hongsheng Li, Jing Shao, Dapeng Chen, and Xiaogang Wang. 2018. Show, tell and discriminate: Image captioning by self-retrieval with partially la- beled data. In Computer Vision - ECCV 2018 - 15th European Conference, Munich, Germany, September 8-14, 2018, Proceedings, Part XV, pages 353–369.
+Ruotian Luo, Brian L. Price, Scott D. Cohen, and Gregory Shakhnarovich. 2018. Discriminability ob- In 2018 jective for training descriptive captions. IEEE/CVF Conference on Computer Vision and Pat- tern Recognition (CVPR), pages 6964–6974.
+Ruotian Luo and Gregory Shakhnarovich. 2017. Comprehension-guided referring expressions. In Pro- ceedings of the IEEE Conference on Computer Vision and Pattern Recognition (CVPR), pages 7102–7111.
+Yangjun Mao, Long Chen, Zhihong Jiang, Dong Zhang, Zhimeng Zhang, Jian Shao, and Jun Xiao. 2022. Re- thinking the reference-based distinctive image cap- tioning. In Proceedings of the 30th ACM Interna- tional Conference on Multimedia.
+
+
+Will Monroe, Robert X.D. Hawkins, Noah D. Good- man, and Christopher Potts. 2017. Colors in context: A pragmatic neural model for grounded language understanding. Transactions of the Association for Computational Linguistics, 5:325–338.
+Benjamin Newman, Reuben Cohn-Gordon, and Christo- pher Potts. 2020. Communication-based evaluation In Proceedings for natural language generation. of the Society for Computation in Linguistics 2020, pages 116–126, New York, New York. Association for Computational Linguistics.
+Allen Nie, Reuben Cohn-Gordon, and Christopher Potts. 2020. Pragmatic issue-sensitive image captioning. In Findings of the Association for Computational Linguistics: EMNLP 2020, pages 1924–1938, Online. Association for Computational Linguistics.
+Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sas- try, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, and Ilya Sutskever. 2021. Learn- ing transferable visual models from natural language supervision. In International Conference on Machine Learning.
+Alec Radford, Jeff Wu, Rewon Child, David Luan, Dario Amodei, and Ilya Sutskever. 2019. Language models are unsupervised multitask learners.
+Sheng Shen, Daniel Fried, Jacob Andreas, and Dan Klein. 2019. Pragmatically informative text gener- In Proceedings of the 2019 Conference of ation. the North American Chapter of the Association for Computational Linguistics: Human Language Tech- nologies, Volume 1 (Long and Short Papers), pages 4060–4067, Minneapolis, Minnesota. Association for Computational Linguistics.
+Ece Takmaz, Sandro Pezzelle, and Raquel Fernández. 2022. Less descriptive yet discriminative: Quantify- ing the properties of multimodal referring utterances via CLIP. In Proceedings of the Workshop on Cogni- tive Modeling and Computational Linguistics, pages 36–42, Dublin, Ireland. Association for Computa- tional Linguistics.
+Ramakrishna Vedantam, Samy Bengio, Kevin P. Mur- phy, Devi Parikh, and Gal Chechik. 2017. Context- aware captions from context-agnostic supervision. 2017 IEEE Conference on Computer Vision and Pat- tern Recognition (CVPR), pages 1070–1079.
+Jiuniu Wang, Wenjia Xu, Qingzhong Wang, and An- toni B. Chan. 2020. Compare and reweight: Dis- tinctive image captioning using similar images sets. In Computer Vision - ECCV 2020 - 16th European Conference, Glasgow, UK, August 23-28, 2020, Pro- ceedings, Part I, pages 370–386.
+Jiuniu Wang, Wenjia Xu, Qingzhong Wang, and An- toni B. Chan. 2021. Group-based distinctive image captioning with memory attention. In Proceedings of the 29th ACM International Conference on Multime- dia.
+Peng Wang, An Yang, Rui Men, Junyang Lin, Shuai Bai, Zhikang Li, Jianxin Ma, Chang Zhou, Jingren Zhou, and Hongxia Yang. 2022. Unifying architectures, tasks, and modalities through a simple sequence-to- sequence learning framework. In International Con- ference on Machine Learning.
+A Implementation Details
+A.1 Computational Resources
+The finetuning of OFA model on COCO captions is run on 4 × Tesla V100 32GB GPUs.
+All pragmatic inference experiments are run on 4 × GeForce RTX 2080 Ti GPUs.
+A.2 Hyperparameter Searching
+A.2.1 Rationality Parameters Searching Range The search ranges of the ratio- nality parameter for PICL, E-S, and Incre-RSA are [0, 1], [0, 1], [0, 2] respectively.
+Searching Method We conduct all the hyperpa- rameter searching via coarse-to-fine search, with step sizes 0.1, 0.01, and 0.001 respectively.
+A.2.2 Beam Search Parameters For beam search parameters B, N discussed in Sec- tion 3.2, we set B = 16 and N = 256.
+A.3 Human Evaluation
+Figure 6 shows an example interface of the human evaluation. We have three MTurk workers evaluate each of the 100 instances of (images, caption) for each of the ten configurations of methods (includ- ing human-written captions) for informativity (by requiring them to choose the image referred to by the caption) and fluency (on a 1-5 Likert scale) . Workers are paid with $0.15 per caption evaluation.
+
+
+9
+Instructions:Given the description and the set of 10 images below,1. Select the image that is best described by the description.2. Score the ﬂuency of the description.Click on the images to display them in full size.
+8
+1. Which image is best described by the description?Select an option Submit
+10
+4
+3
+1
+Description:White table and chairs behind bright green plants.
+7
+2
+Images:
+6
+5
+Figure 6: Human Evaluation Interface

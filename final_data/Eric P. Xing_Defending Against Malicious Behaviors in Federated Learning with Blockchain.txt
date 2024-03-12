@@ -1,0 +1,934 @@
+3 2 0 2
+l u J
+2
+]
+G L . s c [
+1 v 3 4 5 0 0 . 7 0 3 2 : v i X r a
+JOURNAL OF IEEE TRANSACTIONS ON ARTIFICIAL INTELLIGENCE, VOL. 00, NO. 0, MONTH 2020
+Defending Against Malicious Behaviors in Federated Learning with Blockchain
+Nanqing Dong, Zhipeng Wang, Jiahao Sun, Michael Kampffmeyer, Yizhe Wen, Shuoying Zhang,
+William Knottenbelt, and Eric Xing, Fellow, IEEE
+Abstract—In the era of deep learning, federated learning (FL) presents a promising approach that allows multi-institutional data owners, or clients, to collaboratively train machine learn- ing models without compromising data privacy. However, most existing FL approaches rely on a centralized server for global model aggregation, leading to a single point of failure. This makes the system vulnerable to malicious attacks when dealing with dishonest clients. In this work, we address this problem by proposing a secure and reliable FL system based on blockchain and distributed ledger technology. Our system incorporates a peer-to-peer voting mechanism and a reward-and-slash mecha- nism, which are powered by on-chain smart contracts, to detect and deter malicious behaviors. Both theoretical and empirical analyses are presented to demonstrate the effectiveness of the proposed approach, showing that our framework is robust against malicious client-side behaviors.
+Assets
+Aggregation
+Ejaluation
+Voters
+or Slash
+Token
+Download
+Proposers
+Assets Redistribution
+Model
+blocki+2
+blocki+1
+Reward
+Model
+Vote
+Model
+Blockchain
+Global
+Updates
+Local Model
+Upload
+Stake
+Finalizaion
+Stake
+Global
+blocki-1
+Global
+blocki
+Impact Statement—Federated learning has been a promising solution to utilize multi-site data while preserving users’ privacy. Despite the success of integrating blockchain with federated learning to decentralize global model aggregation, the protection of this integration from clients with malicious intent in federated scenarios remains unclear. This paper presents the first formu- lation of this problem and the proposed stake-based aggregation mechanism shows robustness in detecting malicious behaviors. The results in this work not only pose a new research direction in federated learning, but can also benefit a wide variety of applications such as finance and healthcare.
+Fig. 1. A stake-based aggregation mechanism for FL with blockchain. In each round, the proposers are randomly selected from the participating clients to perform local training and upload local updates to the blockchain. Then, voters download the aggregated local updates from the blockchain, perform local validation, and vote for acceptance or rejection. If the majority of voters vote for accepting the global aggregation, the global model will be updated, and the proposers and the voters who vote for acceptance will be rewarded. Conversely, if the majority of voters vote for rejection, the global model will not be updated, and the proposers and the voters who vote for acceptance will be slashed.
+Index Terms—Blockchain, Deep Learning, Federated Learn-
+ing, Trustworthy Machine Learning
+I. INTRODUCTION
+N OWADAYS, machine learning (ML), or more specifi-
+cally, deep learning, has transformed a broad spectrum of industries, ranging from finance to healthcare. In current ML paradigms, training data are first collected and curated,
+The first two authors contributed equally to this work. This work was
+supported in part by FLock.io under the FLock Research Grant.
+N. Dong is with the Department of Computer Science, University of Oxford,
+Oxford, OX1 3QD, UK. (email: nanqing.dong@cs.ox.ac.uk)
+Z. Wang and W. Knottenbelt are with the Department of Com- (emails:
+puting, zhipeng.wang20@imperial.ac.uk, w.knottenbelt@imperial.ac.uk)
+Imperial College London, London, SW7 2AZ, UK.
+J. Sun is with the Data Science Institute, Imperial College London, SW7 2AZ, UK; and also with FLock.io, London, WC2H 9JQ, UK. (email: jiahao.sun@imperial.ac.uk)
+and then ML models are optimized by minimizing certain loss criteria on the training data. A common underlying assumption in the learning environment is that the training data can be instantly accessed or easily distributed across computing nodes without communication constraints, i.e. data are centralized. However, in a system with multiple clients (i.e. data hold- ers), to ensure data centralization, clients have to upload local data to a centralized device (e.g. a central server) to conduct the centralized training described above. Despite the success of centralized training in various deep learning applications [1], [2], [3], there is growing concern about data privacy and security, especially when the local data held by the clients are private or contain sensitive information. Especially, to ensure data governance, strict data regulations have been established [4], [5].
+M. Kampffmeyer is with the Department of Physics and Technology at UiT The Arctic University of Norway, 9019 Tromsø, Norway. (email: michael.c.kampffmeyer@uit.no)
+Y. Wen and S. Zhang are with FLock.io, London, WC2H 9JQ, UK. (emails:
+yizhe@flock.io, shuoying@flock.io)
+E. Xing is with the Machine Learning Department, School of Computer Science, Carnegie Mellon University, Pittsburgh, PA 15213, USA; and also with Mohamed bin Zayed University of Artificial Intelligence, Masdar City, Abu Dhabi, UAE (email: epxing@cs.cmu.edu)
+To address the aforementioned concern, federated learn- ing (FL) has been proposed [6]. In a typical FL system, a central server [7] is responsible for aggregating and syn- chronizing model weights, while a set of clients manipulate multi-site data. This facilitates data governance, as clients only exchange model weights or gradients with a central server
+1
+
+
+2
+JOURNAL OF IEEE TRANSACTIONS ON ARTIFICIAL INTELLIGENCE, VOL. 00, NO. 0, MONTH 2020
+instead of uploading local data to the central server, and has led to FL becoming a standardized solution to utilize multi-site data while preserving privacy.
+Though FL perfectly implements data decentralization, a trustworthy central server is required in the system. In such a system design, the central server in fact has privileges over clients, as the central server determines the global aggregation and synchronization. If the central server is compromised or manipulated by a malicious party, the clients are vulnerable if the central server intentionally distributes problematic model updates. This can potentially increase the cost of system management and maintenance. Towards avoiding this single point of failure, many efforts have been made to decentralize the central server, and one particularly promising solution is to use a blockchain as decentralized storage [8].
+Originally proposed for cryptocurrencies, a blockchain is a distributed ledger that can record the state transition informa- tion among multiple parties [9], [10], without relying on a cen- tralized server. Blockchain technology has gained widespread attention for its potential to revolutionize a variety of indus- tries, such as finance [9], healthcare [11], and supply chain management [12]. By leveraging the decentralized nature of the blockchain, FL can benefit from increased security, privacy, and efficiency, as well as reduced reliance on centralized servers [13]. Concretely, in FL with blockchain, each client participating in the learning process uploads their local model updates to the blockchain, where they are stored in blocks, the metadata of a blockchain system. These blocks are then used to aggregate the local model updates into a global model, which can be downloaded by the clients. The use of blockchain smart contracts [9], which are computer programs triggered by blockchain events, ensures that the global aggregation process is performed automatically and transparently, without the need for human intervention or centralized control.
+spies while the spies aim to impersonate the resistance force and survive until the end. Based on these two concepts, this work proposes a novel majority-voting mechanism for global aggregation where each participating client independently val- idates the quality of aggregated local updates and votes for acceptance of the global update. The aggregation mechanism is stake-based where participating clients stake assets1 or tokens (a quantitative measurement of the asset, which can be used to indicate the trustworthiness of the client in our system) for their own actions. There are two types of actions, proposing (uploading local updates) and voting. If the majority vote is to accept the global aggregation, a proposer will be refunded with its staked tokens and a voter who votes for acceptance will not only be refunded but also be rewarded with the staked tokens from the voters who vote for rejection, and vice versa. The overall procedure of the stake-based aggregation mechanism is illustrated in Fig. 1.
+We evaluate the proposed framework on a practical financial problem, namely loan default prediction. We simulate the FL and blockchain environment for the Lending Club Kaggle challenge dataset to conduct experiments in a controllable setting and to provide insights into the problem of interest. We empirically show that an FL system can maintain robust performance under malicious attacks by introducing the pro- posed stake-based aggregation mechanism.
+The contributions of this work are summarized as follows: 1) We formulate the problem of decentralized federated learning with blockchain in the presence of malicious attacks.
+2) We propose a stake-based aggregation mechanism for federated learning systems that can defend against ma- licious attacks.
+Though integrating blockchain with existing FL systems can partially solve the threat to the central server, FL systems are still vulnerable to client-side malicious attacks [14]. In this work, we define malicious behaviors as actions that inten- tionally decrease the learning performance (e.g. accuracy and convergence) of the global model. The attackers can sabotage the FL systems via attacks such as data poisoning [15] or model poisoning [14]. This work focuses on defending against client-side malicious attacks.
+We propose a generic framework that can integrate an FL system with a blockchain system and can defend against malicious attacks. The proposed defense mechanism is mo- tivated by proof-of-stake (PoS) [16], a consensus mechanism in blockchain, and The Resistance [17], a role-playing board game. PoS has an incentive mechanism that encourages honest behaviors by rewarding it and punishes dishonest behaviors via slashing. The Resistance, on the other hand, has two mismatched competing parties, where the party with a larger size is denoted as the resistance force and the other party is denoted as the spies. In The Resistance, there is a voting mechanism where, in each round, each player conducts inde- pendent reasoning and votes for a player, and the player with the highest votes will be deemed as a “spy” and kicked out of the game. The goal of the resistance force is to vote out all the
+3) We evaluate the robustness of the proposed framework in a simulated environment and provide initial empirical insights into the problem.
+II. RELATED WORK
+A. Federated Learning
+The concept of FL comes from the necessity of on-device training, where the training data have to remain on the de- vice [6]. The clients of FL are distributed at different physical locations that are connected to the internet, which exposes a few security risks compared with distributed learning. First, as the local dataset belongs to the client, FL has to take the users’ privacy into consideration. This can be addressed by integrating privacy-preserving techniques into FL, such as differential privacy [18]. Second, FL can be manipulated via internet access, e.g. the central server can be compromised by a third party. Third, a new client could participate in the federated training at any time if it meets the required criteria. This means that clients with malicious intentions can also join the federated systems while meeting the initial criteria. This work focuses on the third risk as the second risk is mitigated by replacing the central server with a blockchain. Traditional FL methods can only detect and defend the malicious clients
+1In practice, the staked assets can be linked with cryptocurrency or real
+currency to increase the financial cost of malicious attacks.
+
+
+FIRST A. AUTHOR et al.: BARE DEMO OF IEEETAI.CLS FOR IEEE JOURNALS OF IEEE TRANSACTIONS ON ARTIFICIAL INTELLIGENCE
+include on-chain
+Network
+P2P
+Recipient
+Unconfirmed
+Blockchain
+Legend
+Miner
+Miner
+Miner
+Miner
+Sender
+Miner
+Transaction
+Transaction
+Transaction
+Confirmed
+Fig. 2. Blockchain workflow overview. The sender broadcasts the issued transaction to the P2P network, which will be confirmed by the miners. The confirmed transaction will be stored on a public blockchain and can be read by the recipient. Blockchain miners typically adopt a consensus mechanism to achieve an agreement on the state of the blockchain.
+via assigning small weights to malicious clients during global aggregation based on the divergence of learned parameters [19] or using unsupervised learning methods (e.g. anomaly detec- tion [20] and clustering [21]) to get rid of malicious clients. However, none of these methods tackles the second challenge and these methods do not consider the third challenge. The proposed framework utilizes the blockchain to ensure the security of global aggregation and defends the client-side malicious behaviors with a novel majority-voting mechanism.
+B. Blockchain
+Blockchains refer to distributed ledgers that operate on a global peer-to-peer (P2P) network, as exemplified by popular cryptocurrencies such as Bitcoin [22] and Ethereum [9]. One of the defining characteristics of blockchain technology is the ability for users to freely join or leave the network, without a central authority in place to ensure common agreement on the distributed ledgers. Instead, users rely on consensus protocols [16], [23], such as proof-of-work (PoW) or PoS, to achieve agreement in a distributed setting.
+As shown in Fig. 2, in a blockchain system, a transaction typically involves a sender who wishes to transfer a digital asset, such as a cryptocurrency, to a recipient. The sender initiates the transaction by creating a digital signature that includes the transaction details and the sender’s private key, which is used to verify the sender’s identity and authorize the transfer. The transaction is then broadcasted over a P2P network to miners, who are participants in the network re- sponsible for verifying and adding new blocks of transactions to the blockchain. Miners validate and confirm the transaction using consensus protocols, to ensure that the transaction is legitimate and not a duplicate or fraudulent transaction. Once confirmed, the transaction is added to a block, which is then cryptographically linked to the previous block using hash functions [24], forming a chain of blocks (i.e., blockchain). The block is then propagated to all the participants in the network, creating a decentralized, immutable record of the transaction. Finally, the recipient can access the digital asset by using their private key to authenticate their identity and
+claim ownership of the asset. The use of cryptography and consensus protocols ensures the security, transparency, and decentralization of the transaction process, making blockchain technology a promising solution for a variety of applications beyond cryptocurrency, e.g., insurance [25], healthcare [11], supply chain management [12], energy [26], and Internet of Things (IoT) [27].
+Another key feature of blockchain technology is the use of smart contracts [9], which are quasi-Turing-complete programs that can be executed within a virtual machine. When a transac- tion is initiated, a smart contract is typically used to encode the terms and conditions of the transaction, such as the amount, currency, and time of transfer. The smart contract is then stored on the blockchain network and executed automatically when the predefined conditions are met. The execution of the smart contract verifies the transaction, ensuring that it meets the agreed-upon terms and conditions, and then automatically transfers the digital asset or currency to the recipient. Smart contracts can be leveraged to build a wide range of decen- tralized applications (DApps), such as decentralized finance (DeFi) services [28].
+C. Federated Learning with Blockchain
+Traditional FL faces challenges [29], such as privacy and security concerns, unreliable communication, and difficulty in reaching a consensus among the parties. Blockchain, on the other hand, provides a decentralized, secure, and transparent platform for data storage and sharing. This makes the use of blockchain for FL a promising direction to potentially address privacy and security concerns by allowing parties to keep their data private while still contributing to the training process. Additionally, blockchain can provide a secure communication channel for FL participants and ensure the integrity of the FL process.
+Current blockchain-based FL designs [30], [8], [31], [32] have been broadly used in diverse fields, including mobile edge computing [33], IoT [34] and distributed machine learn- ing [35]. Despite the potential benefits of combining FL with blockchain, several challenges remain. For instance, FL sys- tems are still vulnerable to client-side malicious attacks [14] and lack incentive-compatible mechanisms to motivate FL participants to behave honestly during the training process. Multiple reputation-based incentive mechanisms [36], [37] have recently been proposed to encourage participants and enhance model accuracy in blockchain-based FL. However, it remains unclear how to effectively utilize the blockchain infrastructure and leverage its inherent incentive mechanism (i.e., cryptocurrencies) to incentivize trustworthy FL behaviors and penalize malicious clients.
+III. PROBLEM FORMULATION
+This section introduces the problem of interest, the defini- tion of the malicious behaviors considered, and the underlying assumptions in this work.
+3
+
+
+4
+JOURNAL OF IEEE TRANSACTIONS ON ARTIFICIAL INTELLIGENCE, VOL. 00, NO. 0, MONTH 2020
+A. Setup
+There are K > 1 clients in a federated system. Let K = {1, 2, · · · , K} denote the set of all clients. Let Dk denote the local data stored in client k, we have Dk ∩Dl = ∅ for k ̸= l and k, l ∈ K. Each local dataset Dk can be randomly split into a training set and a test set, which are both private to client k. In addition to K clients, a blockchain plays the role of a parameter server [7] for global aggregation. Let fθ be the model of interest. In the parameter server, the parameter set θ0 0 is randomly initialized at round 0 and K clients download θ0 0 from the blockchain as K local copies {θ0 k=1 for full synchronization. During the federated optimization phase, a set of Kt p clients is randomly selected for round t. For each k ∈ Kt by training on the training k set of Dk independently for a number of local epochs. Then, the blockchain aggregates updated {θt k}k∈K collected from all the K clients to update θt 0. The K clients then synchro- nize with the parameter server, i.e. θt 0. To facilitate data governance, as required in among others the medical domain [5], [4], we assume that the patient’s data (either raw data or encoded data) in a client can not be uploaded to the blockchain or other clients, i.e. only parameters {θk}K k=0 and metadata (e.g. the statistics of data) [38], [39] can be exchanged between the blockchain and the clients. It is worth mentioning that this work focuses on the interactions between FL and blockchain, where blockchain computing (or mining, in a more fashionable sense) and the application of additional privacy-preserving techniques [18] are considered orthogonal research directions and thus beyond the scope of this work.
+k}K
+p, the client k updates θt−1
+k ← θt
+A1: The goal of malicious behaviors is to decrease the global model performance. This is also reflected in Sec. III-B. Under these assumptions, behaviors that are harmful to the system but do not influence the global model performance are beyond the scope of discussion in this work. An example is eavesdropping, i.e. cloning the model specifications.
+A2: All clients are rational. This means that both honest and malicious clients expect to maximize their gain or minimize their loss while achieving their goals.
+A3: Following previous studies on blockchain [13], we assume that η is strictly smaller than 50%. This means there are always more honest clients than malicious clients in a federated system.
+A4: There is no collusion among malicious clients. That is to say, each malicious client acts independently. In the application scenarios of this work (e.g. Sec. V), there is a minimal bar for a client to participate in the system, e.g. basic qualifications or industry standards for clinical or financial institutes. Meanwhile, it is difficult to com- promise multiple clients with independent cybersecurity systems simultaneously. Thus, we deem that it is almost impossible to launch large-scale multi-agent attacks in the application scenarios of interest. As an exploratory study, this work considers the single-agent scenario. (See Sec. IV-E for the discussion on a multi-agent scenario.) • A5: There is no capacity constraint on the hardware, including computing, communication, and storage, allow- ing us to solely focus on the algorithmic side of the problem.
+B. Malicious Behaviors
+The definition of malicious behavior in this work is an action that intentionally decreases the global model perfor- mance. There are two types of actions for each client that interact with the federated system, i.e. a client can propose (i.e. be a proposer) and vote (i.e. be a voter). Proposing is to upload local model or gradient updates to the parameter server, while voting is a peer-review process to validate the “virtually” aggregated model updates. The technical details of the two actions are described in Sec. IV. There are thus two corresponding malicious behaviors. The first malicious behavior is to propose harmful local model updates and the second one is to vote dishonestly. More specifically, in the second case, a client votes for approval when it is aware that the proposed model updates are poisoned and votes for rejection when there is no evidence that indicates that the proposed model updates are poisoned. It is worth mentioning that the clients themselves might not intentionally attack the FL system as they can be compromised by attackers. For simplicity, we define the clients that have malicious behaviors as malicious clients in this work, denoted as Km. We use η to denote the ratio of malicious clients among all clients, i.e. η = |Km| K , where | · | is the cardinality of a set.
+A6: The underlying blockchain of the FL system of interest is running securely with a consensus protocol that ensures the validity and integrity of transactions and blocks. While the security of the blockchain is crucial for the overall security of the FL system, addressing the malicious miners falls outside the scope of this study. IV. METHOD
+A6: The underlying blockchain of the FL system of interest is running securely with a consensus protocol that ensures the validity and integrity of transactions and blocks. While the security of the blockchain is crucial for the overall security of the FL system, addressing the malicious miners falls outside the scope of this study. IV. METHOD
+In this work, we illustrate the proposed framework in the the k=1 are uploaded and
+context of the seminal FL method, FedAVG [6]. At end of round t, the local models {θt aggregated as a weighted average:
+k}K
+θt 0 =
+K (cid:88)
+akθt−1 k
+,
+k=1
+where ak = nk local training examples stored in client k and N = (cid:80)K is the total number of training examples in the K clients.
+N . The metadata nk = |Dk| is the number of k=1 nk
+B. Local Validation
+C. Assumptions
+There are six important assumptions in this work.
+In contrast to standard FL algorithms, the aggregated global model is not recorded in a block directly. Instead, ˜θt 0, a copy of θt 0 is downloaded by a randomly selected set of clients, denoted as voters, Kt v. A voter k runs a local inference with ˜θt 0 on its local test set and outputs a local validation score.
+(1)
+
+
+FIRST A. AUTHOR et al.: BARE DEMO OF IEEETAI.CLS FOR IEEE JOURNALS OF IEEE TRANSACTIONS ON ARTIFICIAL INTELLIGENCE
+Proposers
+Proposers
+Proposers
+Evaluate
+Participants
+Voters
+Voters
+Voters
+Train
+Evaluate
+global model update candidates
+Revert and Slash
+5
+5
+Miners
+Miners
+Voters
+Voters
+Evaluate
+Voters
+Voters
+Voting
+Voting
+Selection
+Selection
+2
+2
+2
+Scores
+Slash
+Multiple Rounds
+Global Voting and Approval
+Assets
+local model updates
+3
+Reward
+Malicious Clients Elimination
+Setup
+Finalization
+Stake
+Evaluate
+Evaluate
+Miners
+Miners
+4
+Local Training
+3
+global model update candidates
+Evaluate
+Evaluate
+Evaluate
+Miners
+Local Training
+Finalization and Reward
+Aggregate voting scores
+Aggregate voting scores
+local model updates
+Scores
+Read
+Read
+Remove
+Train
+Participants
+Global Voting and Refusal
+6
+Train
+Train
+Train
+Train
+Train
+Train
+4
+Voters
+1
+Proposers
+Revert
+Proposers
+Proposers
+Proposers
+Proposers
+Fig. 3. A round-based training process. In the initial state (indexed as ①), both honest (black) and malicious (red) clients exist in an FL system. In the final state (indexed as ⑥), all malicious clients are expected to be removed from the system. To reach the final state from the initial state, multiple rounds of training are required. Here are two possible scenarios, the proposed aggregation is either approved (the upper branch) or denied (the lower branch) by the voters. In each round (within the dotted orange line), a subset of clients are randomly selected as proposers, and another subset of clients are randomly selected as voters. The proposers and voters interact with the blockchain following the order of orange arrows (from ② to ⑤).
+The local validation score st k is a scalar, which can be linked with common metrics of ML tasks2. If st k is not lower than a threshold, the voter votes for accepting this aggregated model; otherwise, the voter votes against it. The threshold can be based on a validation score st−1 acquired in the previous k round. In the training of ML tasks, the scores can be volatile due to the characteristics of the tasks. Thus, a hyperparameter ϵ ∈ (0, 1) is introduced to control the tolerance of performance decrease in a single round. Mathematically, Voter k has the following score.
+vt k =
+(cid:40)
+1, −1,
+k ≥ (1 − ϵ)st−1 st k < (1 − ϵ)st−1 st
+k
+k
+It is worth mentioning that it is almost impossible for the attackers to manipulate scores by fooling all the randomly selected voters (e.g. via adversarial attacks [40]). According to A5, the majority of voters are honest. It is thus difficult to attack (either via data poisoning or model poisoning) as the validation set of each client is private.
+C. Majority Voting
+(2)
+If at = 1, the global aggregation will be finalized and recorded in the block; otherwise, the global aggregation will be discarded.
+D. Asset Redistribution
+As there are two independent actions, there are two par- allel reward-and-slash designs for proposing and voting. For both actions, the randomly selected proposers and voters are required to stake a fixed sum of tokens before they act. If some of these actors fail to stake (they do not have enough tokens left), they lose their access to the blockchain and are removed from the FL system permanently. Proposers will be rewarded with tokens accumulated in an independent pool (if there are any tokens left in the pool) if the global aggregation is approved and lose their stakes if the global aggregation is rejected. The reward-and-slash design for the proposers is illustrated in Algorithm 1. For the voters, the majority party will not only take back their stakes but also be rewarded with the staked tokens lost by the minority party. The reward-and- slash design for the voters is illustrated in Algorithm 2. In the following section, Sec. IV-E, we demonstrate that under the proposed design and assumptions in Sec. III-C, malicious voters have no incentive to make dishonest votes.
+The majority voting process for whether to apply the global aggregation operation at round t can be described below. Here, we use a binary variable at to denote the decision.
+E. Theoretical Analysis on Malicious Votes
+at =
+(cid:40)
+1, (cid:80) −1, (cid:80)
+k∈Kv
+k∈Kv
+vk > 0 vk ≤ 0
+(3)
+In this section, we theoretically show that malicious voters in the proposed framework have no incentive to make dishon- est votes.
+2For example, common evaluation metrics include accuracy for classifica- tion, mean Intersection over Union (mIOU) for semantic segmentation, and mean average precision (mAP) for object detection.
+Theorem 1 (Honest Voting Hypothesis): When all clients are rational and there is no collusion among malicious clients, a malicious client should not make a malicious vote.
+5
+
+
+6
+JOURNAL OF IEEE TRANSACTIONS ON ARTIFICIAL INTELLIGENCE, VOL. 00, NO. 0, MONTH 2020
+Algorithm 1 Reward-and-slash design for a set of randomly selected proposers.
+at: Majority voting decision at round t K: Set of participating clients at round t Kt Mk: Asset of client k γp: Staked tokens for proposing poolp: Pool for proposers
+p: Set of proposers at round t
+1: if at == −1 then for k ∈ Kt p do 2: if Mk ≥ γp then 3: 4: 5: 6: 7:
+Mk ← Mk − γp poolp ← poolp + γp
+else
+poolp ← poolp + Mk Mk ← 0 Kt ← Kt \ {k}
+8: 9: 10: else 11: 12:
+if poolp > 0 then for k ∈ Kt p do
+13:
+Mk ← Mk +
+poolp |Kt p|
+14:
+poolp ← 0
+Algorithm 2 Reward-and-slash design for a set of randomly selected voters.
+of a malicious client will be (cid:90) 0.5
+R =
+−γvdr +
+0
+(cid:90) 1
+0.5
+1 − r r
+γvdr
+= −0.5γv + ((ln(1) − 1) − (ln(0.5) − 0.5))γv = −(ln(0.5) + 1)γv < 0
+Under A2, each client is rational. As R < 0, in the long run, a malicious client will lose all tokens and be removed from the system. So, a given client has no reason to make a dishonest vote resulting in honest votes by all clients.
+Additionally, there is a game among malicious clients. As Eq. (4) is known by all clients in advance. A malicious client can easily make an honest vote to gain tokens from other malicious clients who make dishonest votes. However, according to Nash Equilibrium [41], we are certain that, in the long run, no malicious clients will make dishonest votes.
+Theorem 1 will
+further be empirically validated in
+Sec. V-B1.
+In practice, A4 can be relaxed, where multiple malicious clients work together to attach the FL system. If A2 holds, we are certain that the malicious voters will reach a consensus internally before they act to win the majority vote. Intuitively, all malicious voters can be considered as a group together. In this case, this ”group” will behave exactly as the single malicious client in Theorem 1 based on the same reasoning. The proof is omitted.
+at: Majority voting decision at round t K: Set of participating clients at round t Kt Kt Mk: Asset of client k γv: Staked tokens for voting poolv: Pool for voters v \ Kt m do if Mk ≥ γv then
+v: Set of voters at round t m: Set of voters at round t with vt
+k == at
+1: for k ∈ Kt 2: 3: 4:
+Mk ← Mk − γv poolv ← poolv + γp
+F. Training
+Each round consists of the following steps: proposer selec- tion, local training, global aggregation, local validation, major- ity voting, token redistribution, and block creation (recording state3 information). The above steps are repeated in multi- ple rounds until certain stopping criteria are fulfilled. The complete training process is depicted in Fig. 3. The stopping criteria could be a fixed amount of training epochs, which is commonly adopted in ML.
+else
+5: 6: 7: 8: 9: for k ∈ Kt 10:
+poolv ← poolv + Mk Mk ← 0 Kt ← Kt \ {k}
+m do Mk ← Mk + poolv |Kt m|
+11: poolv ← 0
+Proof: Let Kv denote a randomly selected set of voters and nv = |Kv|. For client k ∈ Kv, let γv > 0 denote the staked tokens for voting, i.e. client k must stake γv to participate in the voting, otherwise, it will be removed from the system.
+Under A4, each client makes an independent decision on voting. Let r be the ratio of malicious clients in Kv, there are r · nv malicious clients in Kv and (1 − r) · nv honest clients. If r · nv < (1 − r) · nv, i.e. r < 0.5, each malicious client will lose γv; if r · nv > (1 − r) · nv, i.e. r > 0.5, each malicious client will gain (1−r)·nv·γv = 1−r r γv. The expected return R
+r·nv
+V. EXPERIMENTS
+A. Experimental Setup
+We evaluate the proposed framework in a simulated envi-
+ronment.
+1) Data and Task: We consider a standard classification task, namely loan default prediction. We use the Kaggle Lending Club dataset4 to simulate a realistic financial application scenario. We pre-process the raw dataset by dropping all entries with missing values. For the labels, we only keep “Fully Paid” and “Charged Off” to simplify the task as a binary classification task. We randomly select 80% of the data as the training set and use the rest of the data as the test set. The training set is split into K subsets of equal size and distributed across K clients. Within each client, 20% of the local data are randomly selected as the validation set. client.
+4https://www.kaggle.com/datasets/wordsforthewise/lending-club
+(4)
+
+
+FIRST A. AUTHOR et al.: BARE DEMO OF IEEETAI.CLS FOR IEEE JOURNALS OF IEEE TRANSACTIONS ON ARTIFICIAL INTELLIGENCE
+40
+Average Tokens
+30
+0
+20
+v = 4
+v = 2
+Epoch
+60
+50
+v = 8
+20
+0
+v = 32
+v = 16
+10
+80
+40
+10
+80
+60
+50
+Epoch
+v = 4
+40
+v = 16
+0
+Average Tokens
+v = 2
+0
+30
+v = 32
+v = 8
+20
+40
+20
+60
+40
+50
+v = 16
+10
+40
+v = 2
+20
+0
+30
+v = 32
+80
+v = 8
+20
+v = 4
+Epoch
+0
+Average Tokens
+40
+v = 4
+Epoch
+0
+20
+v = 8
+30
+50
+80
+v = 16
+0
+40
+v = 2
+Average Tokens
+10
+v = 32
+20
+60
+(a) η = 0.1.
+(b) η = 0.2.
+(c) η = 0.3.
+(d) η = 0.4.
+Fig. 4. Token distribution results for malicious voters when all proposers are honest. The malicious voters’ tokens decrease quickly as the number of epochs increases and a large γp leads to a high decreasing rate. This empirically validates our proof of Theorem 1. The solid line denotes the mean over 5 runs with different random seeds and the shaded region denotes 1 standard deviation around the mean.
+FedAVG w/o Mal
+0.9
+1.0
+FedAVG w/ Block
+100
+AUROC
+200
+0.6
+FedAVG w/ Mal
+0.5
+150
+Epoch
+0
+0.7
+50
+0.8
+FedAVG w/ Block
+200
+0.3
+0.8
+50
+AUROC
+100
+0.6
+150
+0.7
+Epoch
+0.4
+0.5
+FedAVG w/ Mal
+FedAVG w/o Mal
+1.0
+0.9
+0
+FedAVG w/ Block
+200
+0.3
+0.8
+0.9
+FedAVG w/ Mal
+0
+0.2
+0.0
+0.7
+150
+100
+0.5
+1.0
+AUROC
+0.6
+0.4
+Epoch
+FedAVG w/o Mal
+0.1
+50
+150
+0.1
+FedAVG w/ Mal
+FedAVG w/ Block
+100
+0.7
+0.4
+Epoch
+1.0
+0.9
+0.0
+FedAVG w/o Mal
+0.6
+0.5
+0.3
+0.2
+0
+AUROC
+0.8
+50
+200
+(a) η = 0.1.
+(b) η = 0.2.
+(c) η = 0.3.
+(d) η = 0.4.
+Federated training under different values of the ratio of malicious clients (η). The solid lines are the mean AUROCs and the shaded regions are Fig. 5. 1 standard deviation around the means. FedAVG w/ Block significantly outperforms FedAVG w/ mal, while being comparable with FedAVG w/o mal, the performance upper bound under this setup.
+Epoch
+p = 4
+200
+p = 32
+0.8
+Global Accuracy
+50
+150
+p = 8
+p = 2
+p = 16
+0.9
+0
+100
+1.0
+0.7
+1.0
+0.8
+0.7
+Global Accuracy
+100
+150
+Epoch
+p = 8
+p = 2
+50
+0
+p = 16
+200
+p = 4
+p = 32
+0.9
+100
+p = 32
+1.0
+0.9
+0.7
+150
+Global Accuracy
+0.8
+p = 2
+0
+p = 16
+200
+Epoch
+p = 4
+50
+p = 8
+0.8
+p = 2
+200
+p = 4
+Global Accuracy
+p = 16
+0
+0.9
+50
+0.7
+p = 8
+150
+Epoch
+1.0
+p = 32
+100
+(a) η = 0.1.
+(b) η = 0.2.
+(c) η = 0.3.
+(d) η = 0.4.
+Fig. 6. Global accuracy results when choosing γp = 2, 4, 8, 16, and 32. The global accuracy is not sensitive to the value of γp but the convergence tasks more epochs for larger η.
+2) Implementation: There are K = 50 clients in the system and each client is initialized with 64 tokens. We use a 3- layer multi-layer perceptron (MLP) as the network backbone. Apart from the last layer, each layer of the MLP has 128 hidden nodes. We use a standard Adam [42] optimizer with fixed learning rate 10−3 and batch size 128. No data aug- mentation is applied. We use the binary accuracy as both the local validation score and evaluation metric. We consider a simple data poisoning attack [14], where malicious clients are trained to confuse the model. All baselines are implemented in PyTorch 1.12.1 [43] on one NVIDIA Tesla T4 GPU. We leverage Ethereum smart contracts to deploy our reward-and- slash design in a private blockchain and simulate the training process using the Python library Web3.py5. We set ϵ = 0.05 5https://web3py.readthedocs.io/en/v5/
+based on empirical experience.6
+3) Baselines: We consider 4 baselines. The first one is an Oracle approach, a centralized baseline without malicious attacks. The Oracle should provide the upper-bound perfor- mance of the experiment. The second one is FedAVG without malicious attacks (denoted as FedAVG w/o mal), which is equivalent to FedAVG under η = 0 and should provide the upper-bound performance for a decentralized environment. The third one is FedAVG under malicious attacks (denoted as FedAVG w/ mal), where η of clients are malicious. The fourth one is the proposed method, FedAVG with blockchain under malicious attacks (denoted as FedAVG w/ block). For FL baselines, 10% of clients are randomly selected to perform local training at each epoch. For FedAVG w/ block, we simply use the remaining 90% of the clients as voters.
+6We notice that too small ϵ can cause large oscillation, which slows the convergence, and too large ϵ can facilitate the convergence at the expense of decreased detection performance, i.e. the system fails to remove the majority of malicious clients.
+7
+
+
+8
+JOURNAL OF IEEE TRANSACTIONS ON ARTIFICIAL INTELLIGENCE, VOL. 00, NO. 0, MONTH 2020
+TABLE I PERFORMANCE COMPARISON UNDER DIFFERENT VALUES OF THE RATIO OF MALICIOUS CLIENTS (η). THE REPORTED NUMBERS OF THE PERFORMANCE ARE MEAN AND STANDARD DEVIATION UNDER 5 RANDOM SEEDS.
+Model FedAVG w/ mal FedAVG w/ block (Ours) FedAVG w/o mal Oracle
+η = 0.1 0.963 ± 0.017 0.965 ± 0.008 0.975 ± 0.004 0.971 ± 0.007
+η = 0.2 0.946 ± 0.034 0.969 ± 0.003 0.975 ± 0.004 0.971 ± 0.007
+η = 0.3 0.801 ± 0.222 0.952 ± 0.020 0.975 ± 0.004 0.971 ± 0.007
+η = 0.4 0.709 ± 0.266 0.955 ± 0.021 0.975 ± 0.004 0.971 ± 0.007
+50
+Malicious, p = 8
+0
+150
+40
+Average Tokens
+60
+200
+Honest, p = 8
+80
+100
+Epoch
+Honest, p = 8
+40
+Malicious, p = 8
+200
+100
+150
+Epoch
+80
+50
+60
+0
+Average Tokens
+150
+Epoch
+Malicious, p = 8
+100
+80
+100
+Average Tokens
+0
+200
+50
+60
+Honest, p = 8
+20
+40
+Honest, p = 8
+50
+150
+0
+20
+Average Tokens
+Epoch
+200
+80
+60
+100
+100
+Malicious, p = 8
+40
+(a) η = 0.1.
+(b) η = 0.2.
+(c) η = 0.3.
+(d) η = 0.4.
+Fig. 7. Token distribution results for clients when setting the parameter for slashing proposers as γp = 8. The expected average token of malicious proposers fluctuates down during the training process.
+40
+p = 8
+0
+100
+150
+80
+p = 4
+200
+Epoch
+60
+Malicious Client Tokens
+p = 32
+p = 2
+20
+50
+p = 16
+50
+p = 4
+p = 32
+Malicious Client Tokens
+40
+100
+100
+200
+60
+p = 8
+0
+p = 16
+20
+80
+150
+Epoch
+p = 2
+100
+p = 16
+0
+p = 4
+50
+40
+Malicious Client Tokens
+100
+80
+p = 32
+p = 2
+Epoch
+20
+60
+0
+200
+150
+p = 8
+200
+p = 2
+50
+p = 4
+Malicious Client Tokens
+40
+60
+120
+20
+Epoch
+p = 8
+p = 32
+80
+0
+100
+p = 16
+0
+150
+100
+(a) η = 0.1.
+(b) η = 0.2.
+(c) η = 0.3.
+(d) η = 0.4.
+Fig. 8. Token distribution results for malicious clients when choosing γp = 2, 4, 8, 16, and 32. The expected average token of malicious proposers exhibits a higher rate of decrease when a large value of γp is selected.
+150
+100
+p = 4
+Epoch
+0
+p = 8
+40
+Honest Client Tokens
+100
+p = 32
+80
+60
+200
+p = 2
+p = 16
+50
+p = 16
+50
+60
+120
+200
+100
+80
+0
+p = 2
+40
+Honest Client Tokens
+100
+150
+p = 8
+Epoch
+p = 4
+p = 32
+160
+100
+150
+p = 8
+80
+0
+p = 16
+p = 32
+Epoch
+140
+40
+200
+120
+p = 4
+50
+p = 2
+Honest Client Tokens
+60
+100
+p = 32
+40
+200
+50
+p = 2
+160
+150
+p = 8
+180
+0
+p = 16
+100
+Honest Client Tokens
+Epoch
+p = 4
+60
+200
+100
+120
+80
+140
+(a) η = 0.1.
+(b) η = 0.2.
+(c) η = 0.3.
+(d) η = 0.4.
+Fig. 9. Token distribution results for honest clients when choosing γp = 2, 4, 8, 16, and 32. The expected average token of honest proposers displays a higher rate of growth when a large value of γp is selected.
+B. Results
+malicious voters will be eliminated from the system shortly (i.e. their average tokens decline to 0 within ≈ 40 epochs).
+1) Empirical Analysis on Malicious Voters: To empirically validate the theoretical result in Sec. IV-E, we first simulate a hypothetical scenario where there are only honest proposers. As there are more honest proposers than malicious proposers at each round on average, the effect of malicious weights can be seen as slowing the convergence and decreasing the global performance, which will be validated in Sec. V-A3. Note, due to A4, we further simplify the scenario to focus on the behavior of malicious voters. As shown in Fig. 4, given the set of the hyperparameter for slashing voters γr = {2, 4, 8, 16, 32}, the
+2) Comparison with Baselines: Following Theorem 1 and Sec. V-B1, we now are certain that there will be no de facto malicious voters. Thus, in the following experiments, we focus on the scenarios where malicious clients only upload harmful weights but make honest votes. We evaluate the proposed framework against the baselines described in Sec. V-A3. We provide the learning curves in Fig. 5 and the accuracy for all four approaches after convergence (the mean accuracy of the last 50 epochs) in Tab. I. The performance of FedAVG w/ block is competitive with FedAVG w/o mal (i.e. η = 0) and
+
+
+FIRST A. AUTHOR et al.: BARE DEMO OF IEEETAI.CLS FOR IEEE JOURNALS OF IEEE TRANSACTIONS ON ARTIFICIAL INTELLIGENCE
+20
+15
+0
+30p
+10
+Survival Time
+100
+25
+200
+5
+0
+200
+10
+100
+Survival Time
+30p
+25
+20
+15
+5
+30p
+100
+15
+0
+Survival Time
+5
+25
+10
+20
+200
+Survival Time
+5
+30p
+100
+20
+200
+10
+0
+15
+25
+(a) η = 0.1.
+(b) η = 0.2.
+(c) η = 0.3.
+(d) η = 0.4.
+Fig. 10. Malicious proposers survival time with various γp. The expected survival time of malicious proposers declines as γp increases.
+100
+0
+10
+25
+15
+30p
+Survival Time
+5
+200
+20
+10
+200
+0
+5
+15
+20
+100
+Survival Time
+30p
+25
+15
+0
+100
+20
+30p
+25
+10
+200
+5
+Survival Time
+20
+5
+25
+15
+100
+Survival Time
+10
+30p
+0
+200
+(a) η = 0.1.
+(b) η = 0.2.
+(c) η = 0.3.
+(d) η = 0.4.
+Fig. 11. Honest proposers survival time with various γp. A large γp can also decrease the expected survival time of honest proposers when the malicious rate η is large. This is because, in each epoch, the randomly selected proposers will be all slashed when the performance of the aggregated global model does not increase.
+consistently outperforms FedAVG w/ mal. As η increases, the performance of FedAVG w/ mal decreases significantly, with a larger standard deviation and increased instability. In contrast, FedAVG w/ block maintains robust performance, with only slightly lower results compared to FedAVG w/o mal.
+3) Analysis of Token Distributions: Fig. 7, 8 and 9 de- pict the average tokens remaining in honest and malicious proposers during the FL training process. We observe that honest proposers gradually accumulate more tokens while malicious proposers have fewer tokens over sufficient training epochs. Eventually, most malicious proposers lose the ability to participate in staking and are removed from the FL system, as their remaining tokens are insufficient. This meets the expectations of our system design.
+4) Survival Analysis of Clients: As shown in Fig. 10, the anticipated survival time of malicious proposers experiences a decrease as γp increases. This effect can be attributed to the incentive mechanism in place, whereby a higher value of γp results in a greater penalty for proposers who act maliciously. Fig. 11 shows the survival time of honest proposers under different values of γp and exhibits noteworthy behavior. In cases where the malicious ratio η is high, the expected survival time of honest proposers may decrease with a large γp. This is due to the fact that, in each epoch, all randomly selected proposers will be slashed if the performance of the aggregated global model does not show improvement. Therefore, it is worth noting that balancing the token slashing parameter γp is crucial, because setting an excessively high value can harm honest proposers, whereas a small value can lead to slow convergence (see Fig. 6).
+5) Sensitivity to Malicious Client Ratio: The results pre- sented in Fig. 5 demonstrate the robustness of our proposed
+method, FedAVG w/ block, against different malicious client ratios, as its performance remains unaffected even under large η values. However, it is important to note that the malicious client ratio can impact the token distribution and survival time of clients. Specifically, when there are more malicious clients present in the system, honest clients tend to accumulate more assets on average (c.f . Fig. 9(a) - 9(d)). Nevertheless, they also face a higher risk of being slashed during an epoch, which can ultimately shorten their survival time (c.f . Fig. 11(a) - 11(d)). 6) Limitations: In this work, as the experimental results aim to evaluate the robustness of the proposed framework, several practical challenges are simplified, e.g. staleness [44], storage, and privacy [18]. Further, the proposed method requires more computational power than traditional methods due to mining (blockchain computing) and voting. Finally, large models have gained in popularity in practical applications, e.g. ViT [45] and GPT-3 [46]. This raises the question on how to efficiently handle on-chain aggregation for large models. Future work thus will aim to address these limitations to facilitate the research and development of FL with blockchain.
+VI. CONCLUSION
+In this work, we explore an under-explored research di- rection, namely using FL and blockchain to defend against malicious behaviors. The defense mechanism is twofold. We use on-chain smart contracts to replace the traditional central server and propose a stake-based majority voting mechanism to detect client-side malicious behaviors. We not only provide a solution to the problem of interest, an emerging direction on trustworthy ML, but also show the robustness of the proposed method and provide the first empirical understanding of the problem.
+9
+
+
+10
+JOURNAL OF IEEE TRANSACTIONS ON ARTIFICIAL INTELLIGENCE, VOL. 00, NO. 0, MONTH 2020
+ACKNOWLEDGMENT
+The authors would like to thank Shuhao Zheng from the School of Computer Science, McGill University for the dis- cussion in the early stage.
+[23] J. Garay and A. Kiayias, “Sok: A consensus taxonomy in the blockchain era,” in Topics in Cryptology–CT-RSA 2020: The Cryptographers’ Track at the RSA Conference 2020, San Francisco, CA, USA, February 24–28, 2020, Proceedings. Springer, 2020, pp. 284–318.
+[24] J. Bonneau, A. Miller, J. Clark, A. Narayanan, J. A. Kroll, and E. W. Felten, “Sok: Research perspectives and challenges for bitcoin and cryptocurrencies,” in 2015 IEEE Symposium on Security and Privacy. IEEE, 2015, pp. 104–121.
+REFERENCES
+[1] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning for image
+recognition,” in CVPR, 2016, pp. 770–778.
+[2] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, Ł. Kaiser, and I. Polosukhin, “Attention is all you need,” in NIPS, vol. 30, 2017, pp. 6000–6010.
+[3] V. Mnih, K. Kavukcuoglu, D. Silver, A. A. Rusu, J. Veness, M. G. Bellemare, A. Graves, M. Riedmiller, A. K. Fidjeland, G. Ostrovski et al., “Human-level control learning,” Nature, vol. 518, no. 7540, pp. 529–533, 2015.
+through deep reinforcement
+[25] V. Gatteschi, F. Lamberti, C. Demartini, C. Pranteda, and V. Santamar´ıa, “Blockchain and smart contracts for insurance: Is the technology mature enough?” Future Internet, vol. 10, no. 2, p. 20, 2018.
+[26] J. Bao, D. He, M. Luo, and K.-K. R. Choo, “A survey of blockchain applications in the energy sector,” IEEE Systems Journal, vol. 15, no. 3, pp. 3370–3381, 2020.
+[27] A. Reyna, C. Mart´ın, J. Chen, E. Soler, and M. D´ıaz, “On blockchain and its integration with iot. challenges and opportunities,” Future Generation Computer Systems, vol. 88, pp. 173–190, 2018.
+[28] S. M. Werner, D. Perez, L. Gudgeon, A. Klages-Mundt, D. Harz, and
+W. J. Knottenbelt, “Sok: Decentralized finance (defi),” 2022.
+[4] European Commission,
+“General
+regulation,” protection https://ec.europa.eu/info/law/law-topic/
+data
+2016. [Online]. Available: data-protection/data-protection-eu en
+[5] US Department of Health and Human Services, “Health insurance portability and accountability act,” 2017. [Online]. Available: https: //www.cdc.gov/phlp/publications/topic/hipaa.html
+[6] B. McMahan, E. Moore, D. Ramage, S. Hampson, and B. A. y Arcas, “Communication-efficient learning of deep networks from decentralized data,” in AISTATS. PMLR, 2017, pp. 1273–1282.
+[29] P. Kairouz, H. B. McMahan, B. Avent, A. Bellet, M. Bennis, A. N. Bhagoji, K. Bonawitz, Z. Charles, G. Cormode, R. Cummings et al., “Advances and open problems in federated learning,” Foundations and Trends® in Machine Learning, vol. 14, no. 1–2, pp. 1–210, 2021. [30] J. Zhu, J. Cao, D. Saxena, S. Jiang, and H. Ferradi, “Blockchain- empowered federated learning: Challenges, solutions, and future direc- tions,” ACM Computing Surveys, vol. 55, no. 11, pp. 1–31, 2023. [31] H. Kim, J. Park, M. Bennis, and S.-L. Kim, “Blockchained on-device federated learning,” IEEE Communications Letters, vol. 24, no. 6, pp. 1279–1283, 2019.
+[7] M. Li, D. G. Andersen, A. J. Smola, and K. Yu, “Communication efficient distributed machine learning with the parameter server,” in NIPS, 2014, pp. 19–27.
+[8] Y. Qu, M. P. Uddin, C. Gan, Y. Xiang, L. Gao, and J. Yearwood, “Blockchain-enabled federated learning: A survey,” ACM Computing Surveys, vol. 55, no. 4, pp. 1–35, 2022.
+[9] G. Wood, “Ethereum: A secure decentralised generalised transaction ledger,” Ethereum Project Yellow Paper, vol. 151, pp. 1–32, 2014. [10] X. Chen, J. Ji, C. Luo, W. Liao, and P. Li, “When machine learning meets blockchain: A decentralized, privacy-preserving and secure design,” in IEEE International Conference on Big Data. IEEE, 2018, pp. 1178– 1187.
+[11] L. Soltanisehat, R. Alizadeh, H. Hao, and K.-K. R. Choo, “Tech- nical, temporal, and spatial research challenges and opportunities in blockchain-based healthcare: A systematic literature review,” IEEE Transactions on Engineering Management, 2020.
+[32] J. Weng, J. Weng, J. Zhang, M. Li, Y. Zhang, and W. Luo, “Deepchain: Auditable and privacy-preserving deep learning with blockchain-based incentive,” IEEE Transactions on Dependable and Secure Computing, vol. 18, no. 5, pp. 2438–2455, 2019.
+[33] D. C. Nguyen, M. Ding, Q.-V. Pham, P. N. Pathirana, L. B. Le, A. Seneviratne, J. Li, D. Niyato, and H. V. Poor, “Federated learning meets blockchain in edge computing: Opportunities and challenges,” IEEE Internet of Things Journal, vol. 8, no. 16, pp. 12 806–12 825, 2021.
+[34] M. Ali, H. Karimipour, and M. Tariq, “Integration of blockchain and federated learning for internet of things: Recent advances and future challenges,” Computers & Security, vol. 108, p. 102355, 2021.
+[35] D. Li, D. Han, T.-H. Weng, Z. Zheng, H. Li, H. Liu, A. Castiglione, and K.-C. Li, “Blockchain for federated learning toward secure distributed machine learning systems: a systemic survey,” Soft Computing, vol. 26, no. 9, pp. 4423–4440, 2022.
+[12] M. M. Queiroz, R. Telles, and S. H. Bonilla, “Blockchain and supply chain management integration: a systematic review of the literature,” Supply Chain Management: An International Journal, vol. 25, no. 2, pp. 241–254, 2020.
+[13] Y. Li, C. Chen, N. Liu, H. Huang, Z. Zheng, and Q. Yan, “A blockchain- based decentralized federated learning framework with committee con- sensus,” IEEE Network, vol. 35, no. 1, pp. 234–241, 2021.
+[14] E. Bagdasaryan, A. Veit, Y. Hua, D. Estrin, and V. Shmatikov, “How to backdoor federated learning,” in AISTATS, vol. 108. PMLR, 2020, pp. 2938–2948.
+[15] V. Tolpegin, S. Truex, M. E. Gursoy, and L. Liu, “Data poisoning attacks
+against federated learning systems,” in ESORICS, 2020, pp. 480–501.
+[36] K. Toyoda and A. N. Zhang, “Mechanism design for an incentive- aware blockchain-enabled federated learning platform,” in 2019 IEEE International Conference on Big Data.
+IEEE, 2019, pp. 395–403.
+[37] J. Zhang, Y. Wu, and R. Pan, “Incentive mechanism for horizontal fed- erated learning based on reputation and reverse auction,” in Proceedings of the Web Conference 2021, 2021, pp. 947–956.
+[38] N. Dong, M. Kampffmeyer, I. Voiculescu, and E. Xing, “Federated partially supervised learning with limited decentralized medical images,” IEEE TMI, 2022.
+[39] N. Dong, M. Kampffmeyer, and I. Voiculescu, “Learning underrepre- sented classes from decentralized partially labeled medical images,” in MICCAI. Springer, 2022, pp. 67–76.
+[16] S. Bano, A. Sonnino, M. Al-Bassam, S. Azouvi, P. McCorry, S. Meik- lejohn, and G. Danezis, “Sok: Consensus in the age of blockchains,” in ACM Conference on Advances in Financial Technologies, 2019, pp. 183–198.
+[40] I. J. Goodfellow, J. Shlens, and C. Szegedy, “Explaining and harnessing
+adversarial examples,” arXiv preprint arXiv:1412.6572, 2014.
+[41] J. F. Nash, “Non-cooperative games,” Annals of Mathematics, vol. 54,
+no. 2, pp. 286–295, 1951.
+[17] Wikipedia, “The resistance (game),” accessed: 2023-02-12. [Online].
+[42] D. P. Kingma and J. Ba, “Adam: A method for stochastic optimization,”
+Available: https://en.wikipedia.org/wiki/The Resistance (game)
+in ICLR, 2015.
+[18] M. Abadi, A. Chu, I. Goodfellow, H. B. McMahan, I. Mironov, K. Tal- war, and L. Zhang, “Deep learning with differential privacy,” in ACM SIGSAC Conference on Computer and Communications Security, 2016, pp. 308–318.
+[43] A. Paszke, S. Gross, F. Massa, A. Lerer, J. Bradbury, G. Chanan, T. Killeen, Z. Lin, N. Gimelshein, L. Antiga et al., “Pytorch: An imperative style, high-performance deep learning library,” in NIPS, vol. 32, 2019.
+[19] W. Zhuang, X. Gan, Y. Wen, S. Zhang, and S. Yi, “Collaborative unsupervised visual representation learning from decentralized data,” in ICCV, 2021, pp. 4912–4921.
+[44] W. Dai, Y. Zhou, N. Dong, H. Zhang, and E. Xing, “Toward understand- ing the impact of staleness in distributed machine learning,” in ICLR, 2019.
+[20] S. Li, Y. Cheng, W. Wang, Y. Liu, and T. Chen, “Learning to de- tect malicious clients for robust federated learning,” arXiv preprint arXiv:2002.00211, 2020.
+[21] Z. Zhang, X. Cao, J. Jia, and N. Z. Gong, “Fldetector: Defending fed- erated learning against model poisoning attacks via detecting malicious clients,” in ACM SIGKDD, 2022, pp. 2545–2555.
+[22] S. Nakamoto, “Bitcoin: A peer-to-peer electronic cash system,” 2008.
+[45] A. Dosovitskiy, L. Beyer, A. Kolesnikov, D. Weissenborn, X. Zhai, T. Unterthiner, M. Dehghani, M. Minderer, G. Heigold, S. Gelly et al., “An image is worth 16x16 words: Transformers for image recognition at scale,” in ICLR, 2021.
+[46] T. Brown, B. Mann, N. Ryder, M. Subbiah, J. D. Kaplan, P. Dhariwal, A. Neelakantan, P. Shyam, G. Sastry, A. Askell et al., “Language models are few-shot learners,” in NIPS, vol. 33, 2020, pp. 1877–1901.

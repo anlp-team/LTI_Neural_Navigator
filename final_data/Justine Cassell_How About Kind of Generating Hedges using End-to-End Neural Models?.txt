@@ -1,0 +1,330 @@
+3 2 0 2
+n u J
+6 2
+] L C . s c [
+1 v 6 9 6 4 1 . 6 0 3 2 : v i X r a
+How About Kind of Generating Hedges using End-to-End Neural Models?
+Alafate Abulimiti1,2, Chloé Clavel3, Justine Cassell1,4
+1 INRIA, Paris 2 ENS/PSL <alafate.abulimiti@inria.fr> 3 LTCI, Insitut Polytechnique de Paris, Telecom Paris <chloe.clavel@telecom-paris.fr> 4 Carnegie Mellon University <justine@cs.cmu.edu>
+Abstract
+Hedging is a strategy for softening the impact of a statement in conversation. In reducing the strength of an expression, it may help to avoid embarrassment (more technically, “face threat”) to one’s listener. For this reason, it is often found in contexts of instruction, such as tutoring. In this work, we develop a model of hedge generation based on i) fine-tuning state- of-the-art language models trained on human- human tutoring data, followed by ii) reranking to select the candidate that best matches the ex- pected hedging strategy within a candidate pool using a hedge classifier. We apply this method to a natural peer-tutoring corpus containing a significant number of disfluencies, repetitions, and repairs. The results show that generation in this noisy environment is feasible with rerank- ing. By conducting an error analysis for both approaches, we reveal the challenges faced by systems attempting to accomplish both social and task-oriented goals in conversation.
+1
+Introduction
+When people interact, they attend not just to the task at hand, but also to their relationship with their interlocutors (Tracy and Coupland, 1990). One key aspect of the relationship that people attend to, while engaging in contexts as diverse as sales (Gremler and Gwinner, 2008; Planken, 2005), education (Glazier, 2016; Murphy and Rodríguez-Manzanares, 2012) and healthcare (Di- Matteo, 1979; Leach, 2005), is what is referred to as rapport, a sense of harmony and mutual un- derstanding between participants in a conversation (Spencer-Oatey, 2005; Tickle-Degnen and Rosen- thal, 1990). Indeed, higher levels of rapport are cor- related with better performance in each of these do- mains. Zhao et al. (2014) describes rapport as built upon a base of mutual attentiveness, face manage- ment, and coordination. This base is built primarily by conversational strategies, or ways of speaking (including nonverbal and paraverbal behaviors) that
+I think you could add four toboth sides.
+yeah, so it will be ...
+oh no...
+Figure 1: Hedging in peer tutoring
+manage rapport throughout a conversation. Key conversational strategies include self-disclosure, reference to shared experience, praise, and hedging — giving instructions or conveying information in an indirect manner when it might otherwise sound rude or overly demanding.
+End-to-end large language models (LLM), of the kind that are increasingly popular and powerful, do a good job at carrying out the propositional or information-carrying aspects of conversation, and a relatively good job of maintaining the coherence of a conversation, but they are not as good at changing how they say something as a function of a relation- ship with the human user, while humans are, for the most part, quite good at this. However, since saying things in a specific manner - for example, through a hedge - helps task performance, it is an important topic for dialogue systems.
+Linguists define hedges as a way of diminishing face threat (meaning the “positive social value a person effectively claims for himself” (Goffman, 1967) by attenuating the extent or impact of an ex- pression (Brown and Levinson, 1987; Fraser, 2010). Figure 1 shows a typical example of hedging in a peer tutoring setting, where the tutor uses two hedges (“I think” and “could” rather than “should”) to deliver a hint for the next step of solving an algebra equation.
+Tutoring is one context in which hedges are found in abundance and where recognizing them might be important for intelligent tutoring systems, as attested by the number of computational ap-
+
+
+proaches that attempt to do so (see section 2). In- terestingly, even unskilled tutors use them. In fact, research on peer tutoring has shown that when rap- port between a peer tutor and tutee is low, but the tutor is confident in his/her skills, that tutor tends to use more hedges, and this results in more prob- lems attempted by the student and more problems successfully solved (Madaio et al., 2017).
+In this paper, then, we work towards the devel- opment of a generation module for a virtual peer tutor that, like real peer tutors, is able to choose the manner of delivering information in such a way. Specifically, we address two research questions:
+RQ1: How good are end-to-end large language models used alone for generating hedges when fine- tuned on a peer-tutoring dialogue dataset? Are the models able to implicitly learn when and how to generate hedges?
+The first question may be answered by compar- ing the performance of various fine-tuned models. If the end-to-end models cannot learn to hedge im- plicitly, we might attempt to drive the models to generate the utterances by providing the correct labels. We assume that the correct labels can be provided by another module of the system, so we compare the reranking method with the fine-tuning method, as the former is simple, powerful, and widely used for text generation. Consequently, the second question is:
+RQ2: Can we improve these models by using a reranking approach? If so, what are the remaining errors and why do they occur?
+2 Related Work
+Considerably more computational methods exist to determine what a dialogue system should say than how to say it. However, more recently, with the increased power of end-to-end models to find information and convey it accurately, we can now turn to ensuring that the end-to-end model simul- taneously also meets social goals, to increase the impact and acceptability of what is conveyed.
+2.1 Theoretical Approaches to hedges
+As described above, a hedge can soften the impact of an utterance that might otherwise seem rude, such as a demand (“could you pass the salt”) or an instruction (“you might want to pour the coffee over the sink”). Madaio et al. (2017) has attested to the frequent use of hedges in the peer-tutoring setting, and their positive impact on performance,
+perhaps because hedges in this context might re- duce a tutee’s embarrassment at not knowing the correct answer (Rowland, 2007).
+In linguistic terms, hedging is a rhetorical strat- egy that attenuates the full force of an expression (Fraser, 2010) and for this reason, it has been cov- ered in linguistic pragmatics and the study of polite- ness. Two main categories of hedges are identified in the literature: Propositional Hedges and Rela- tional Hedges (Prince et al., 1982). Propositional Hedges (called Approximators by (Prince et al., 1982)) refer to uncertain (Vincze, 2014), fuzzy (Lakoff, 1975) and vague (Williamson, 2002) lan- guage use, such as “kind of”. Relational Hedges (called Shields in Prince et al. (1982)) indicate that the expression is subjective or an opinion, as in “I think that is incorrect”. Attribution Shields are a subtype of relational hedges that attribute the opinion to others, such as “everyone says you should stop smoking”. Apologizers (Raphalen et al., 2022) are apologies that mitigate the strength of an utterance, as in “I’m sorry but you have to do your homework”.
+While the different types of hedges operate in different ways, they all serve the same mitigation functions in conversation. For this reason, in what follows — a first attempt at generating hedges — we collapse the different sub-classes and refer only to hedges and non-hedges.
+2.2 Computational Approaches
+Some prior work has looked at the detection of conversational strategies and in particular work by Zhao and colleagues (Zhao et al., 2014, 2016b,a). Madaio et al. (2017) built a classifier to detect hedg- ing and achieved an accuracy of 81%. Recent work by Raphalen et al. (2022) improved the detection of different types of hedges and achieved a weighted F1 score of 0.97.
+Hedging is a particular kind of indirectness, and therefore as we look at prior work in the area, we include approaches to the generation of indi- rect speech. The plan-based generation of indirect speech acts has existed almost as long as dialogue systems themselves (Clark, 1979; Brown, 1980; Perrault, 1980). More recently, other relevant as- pects of politeness have also been addressed. For example, Porayska-Pomsta and Mellish (2004) op- erationalized the important notion of face in po- liteness theory to generate polite sentences with a template pool. Although contemporary dialogue
+
+
+systems tend to integrate indirect speech (Miehle et al., 2022; Briggs et al., 2017), generating hedges with powerful language models, and particularly as a function of the social context, has not been explored. Our desire to look at the social context leads us to train on spontaneous dialogue that is substantially noisier, owing to natural conversa- tional phenomena such as disfluency. This differs from the majority of prior work, trained on written or acted corpora (Li et al., 2017; Rashkin et al., 2019).
+2.3 Generation Techniques
+Different techniques have been used in the past to generate responses of a particular kind for dialogue systems. Madaan et al. (2020) used n-gram TF- IDF to identify source style words and generate target politeness style utterances by replacing these words. Niu and Bansal (2018) generated politeness formulations by using reinforcement learning with a trained politeness classifier. Similar to our ap- proach, the explicit knowledge of politeness is only given to the classifier. Liu et al. (2021) constructed an emotional support dataset with eight different dialogue strategies and fine-tuned the pre-trained language models by connecting the label tokens to the beginning of each utterance in order to create a dialogue generator that can produce the target responses without focusing on the social context.
+The reranking method is also widely used in text generation tasks. Hossain et al. (2020) used a sim- ple and effective pipeline where they retrieved the original texts from the database, then edited with a Transformer (Vaswani et al., 2017) model, and then reranked the text by generation scores. Soni et al. (2021) first applied reranking to conversa- tional strategy generation by controlling the level of self-disclosure in the outputs of DialoGPT (Zhang et al., 2020b). The authors of LaMDA (Thoppilan et al., 2022) used various classifiers to rerank and filter out inappropriate responses. Recently, Chat- GPT (OpenAI, 2022) used reinforcement learning with human feedback, and has shown impressive performance.
+In the articles above, most algorithms were trained on written dialogue datasets, which facili- tated the task. However, our spontaneous dialogue dataset may lead the way for cutting-edge models trained on a real-world, face-to-face interactional dataset.
+3 Methodology
+3.1 Task Description
+Let D = {d1, d2, d3, ...dn} be a set of dialogues, where each dialogue d = {u1, u2, u3...um} is com- posed of m turns, where ui is a turn. Each tu- tor turn (and each tutee turn, although we will not examine the tutee turns further here) is la- beled as hedge or non-hedge; we call li the la- bel of ui. A fixed window size ω of the dia- logue history is assigned to each utterance: hi = {umax(1,i−ω), ui−ω+1, ...ui−1}. The goal of this work is to train a generator (G) that can produce a tutor’s utterance u′ i that matches a given hedge strategy (i.e., hedge or non-hedge) li, according to the dialogue history hi.
+3.2 Corpus
+The dataset we used in the current work is the same as that used in our prior work (Raphalen et al., 2022; Goel et al., 2019; Zhao et al., 2014). 24 American teenagers aged 12 to 15, half boys and half girls, were assigned to same-gender pairs. They took turns tutoring each other in linear alge- bra once a week for five weeks, for a total of 60 hours of face-to-face interaction. Each interaction was composed of two tutoring periods, where the teens took turns being the tutor, with a social pe- riod at the beginning and between the two tutoring periods. For the purposes of the earlier work the corpus was annotated for hedges, as well as the subcategories of hedges, at the clause level. For our purposes, since generation happens at the level of the turn, we merge the clauses and their labels into speaker turns and turn-level hedge labels (see Appendix A for the merge strategy).
+Our goal is to create a hedge generation mod- ule that can produce an appropriate hedge strategy for a tutor giving an instruction, according to what has been said before as indicated by the dialogue history. For this reason we kept all turns in the dia- logue history, even though our model is trained to generate only the tutor’s turns (and not those of the tutee). There are 6562 turns in these interactions, of which 5626 contain non-hedges and 936 hedges. Being authentic interaction, there are disfluen- cies (“so just yeah just um”), repetitions (“that would be then that would be”), repairs (“oh wait, actually the x would go here”), and other spoken phenomena such as one-word clauses. These phe- nomena make generating hedges challenging since the language models we use are primarily trained
+
+
+on written dialogues, which do not contain most of these features. However, our work allows us to see how far we can go with authentic spoken data.
+3.3 Methods
+We combine two techniques for generating the tu- tor’s turn: Fine-tuning an existing generation model and Re-ranking the generated outputs to match the desired hedge strategy.
+3.3.1 Fine Tuning Method
+First, we want to evaluate how well the model per- forms when hedge information is implicitly taught through fine-tuning. We fine-tuned the generation model with the training set of the peer-tutoring corpus. Each utterance ui = (w1, ..., wn) is com- posed of n tokens, the dialogue history hi as input to the generation model. We apply cross-entropy i, where u′ ∈ R|V |, V is the loss between ui and u′ vocabulary.
+J(ui, u′
+i) = −
+1 n
+j=|V | (cid:88)
+j=1
+ui,j log(u′
+i,j)
+3.3.2 Reranking Method
+Since a hedge classifier was developed for prior work in our lab (Goel et al., 2019; Raphalen et al., 2022), we can use it to determine whether a gen- erated text is a hedge or not and then inform the generator of the decision in order to regulate the output. This is known as reranking, and is what we use here as our second generation strategy.
+1) We first pretrain our generator as in fine tun- ing. We then apply this generator to the test set to generate 501 candidate utterances for each dia- logue history (Figure 2). 2) These candidates are first ranked by their sentence scores (i.e., the final outputted token’s log probability for each sentence). 3) We then use the hedge classifier described above to filter out the utterances that do not match the selected strategy (i.e., hedge or non-hedge). 4) We keep utterances that match the selected hedge strategy. If more than one candidate matches the strategy, we pick the first one that matches, which means the one with the highest sentence score. 5) If none of the candidates matches the selected hedge strategy, we output the one that has the highest sentence score. 1See Appendix C for the details
+(1)
+4 Experimental Setting
+4.1 Data Processing
+We randomly split the final dataset based on a 60:20:20 ratio. Of these, 60% is the training set, 20% is the validation set, and 20% is the test set.
+Since our dataset is highly unbalanced, if we used it as is the results would be too biased towards non-hedges. In that approach the gap between the results of different models would not be clear be- cause non-hedges are so much more frequent. For this reason, we manually balance by randomly se- lecting 235 non-hedge turns to balance the 235 hedges in the test set, and combine the data to form a new balanced test set. On the other hand, in order to have a large enough training set, we retain all tu- tor turns from the complete dataset, which therefore consists of 701 hedge turns and 4455 non-hedge turns, resulting in a dataset that is very skewed, but has more turns.
+While the complete dataset contains a relatively small number of hedge turns, we believe that pre- serving the natural data distribution is crucial for addressing our first research question. Underscor- ing the wisdom of this approach, the results we obtained on perplexity and the BARTscore (that are indicative of fluency in the generated responses, as described below) demonstrate that the models were able to generate responses with reasonable fluency and quality despite the small number of hedge turns.
+4.2 SOTA Pretrained Language Models
+We compare the performance of different state-of- the-art (SOTA) free open-source pretrained mod- els as our generators: BART, DialoGPT, and BlenderBot. BART (Lewis et al., 2020) uses an encoder-decoder architecture, trained on books and Wikipedia data, and performs well on tasks as var- ied as Q&A (SQuAD (Rajpurkar et al., 2016)), text generation, text classification (MNLI (Williams et al., 2018) ), and text summarization tasks (ELI5 (Fan et al., 2019)). It is pretrained by distorting the format of the input text in various ways, and this training helps us to visualize its possible ap- plication to noisy spontaneous spoken dialogues. DialoGPT (Zhang et al., 2020b) is a dialogue ver- sion of GPT-2 (Radford et al., 2019), an autore- gressive language model with a multi-layer Trans- former (Vaswani et al., 2017) decoder as its model architecture. It is trained on 140 million conversa- tional exchanges extracted from Reddit comment
+
+
+GenerationClassi cationReranking
+Tutor
+Generator
+Labeltutor: ...tutee: ..tutor: ...tutee:...tutor: ...
+l'_2
+l_iTest Data
+u'_n
+u'_3
+l_i = true label
+u'_i = best response
+history
+u'_1
+l'_3
+u'_4
+u'_2
+Dialogue History
+Hedge
+Classi er
+l'_4
+Hedging
+l'_n
+l'_1......
+Dialogue
+response
+Figure 2: Reranking method
+threads. BlenderBot (Roller et al., 2021) uses the standard Seq2Seq Transformer architecture, but incorporates a number of dialogue training sets: Empathetic Dialogue (Rashkin et al., 2019), Per- sonaChat (Zhang et al., 2018), ConvAI2 (Dinan et al., 2020), and other datasets that, while largely handcrafted, focus on personality and emotions, enabling it to potentially develop some version of social skills.
+4.3 Evaluation Metrics
+To evaluate performance, we used the most widely used set of reference-based metrics for natural lan- guage generation tasks (Liu et al., 2021; Ziems et al., 2022). Since these metrics have not been used for conversational strategies, we add an un- supervised reference-free metric, the BART score (Yuan et al., 2021). The BART score formulates the evaluation process as a text generation task using a pre-trained model. The score represents the proba- bility of generating a hypothesis given a source text. The higher BART score represents better text from different perspectives (e.g., informativeness, factu- ality). In this paper, we denote the dialogue history as the source text and the generated utterance as the hypothesis. For comparison, we calculate the BART score between the dialogue history and the real response in the test dataset, giving a result of −6.44. We also evaluated the relevance of the generated hedge strategy using an F1 score. The results using these metrics are presented in Table 2. The detailed description of the metrics used is in Appendix B.
+annotation. We therefore asked two annotators to ignore sub-categories and annotate only hedge or non-hedge on each tutor turn of the model’s output, with access to 4 prior turns of the dialogue history. During a training phase the annotators reached an inter-rater reliability of over .7 Kripendoff’s alpha (Krippendorff, 2004) which indicates substantial agreement. One of the annotators then finished the remainder of the annotation. We computed the F1 scores for the label of the generated utterances with respect to the real tutor turn’s label. A higher F1 score indicates that the approach is better suited to generate the correct hedge strategy (see Table 2). We also asked the annotators to pay attention to whether the output was unnatural and to note it if so. The annotators reported no concerns with the naturalness of the generated utterances.
+The concept of fluency has recently gained pop- ularity in the dialogue community (Li et al., 2019; See et al., 2019), but the current definition of flu- ency varies. More fundamentally, evaluations of this kind are more applicable to written text or scripted dialogues (Pang et al., 2020; D’Haro et al., 2019). as they cannot handle disfluencies (e.g., hes- itations, repetitions, false starts) of the kind that are common in spontaneous spoken dialogues, and that may serve to give the speaker time to plan the next utterance (Biber et al., 1999; Thornbury and Slade, 2006). We therefore did not assess fluency in this work.
+5 Results
+4.4 Human Evaluation
+5.1 RQ1: How well do end-to-end models perform alone for generating hedges?
+While the metrics described above are important for comparison with the performance of other work in the field, they do not obviate the need for human
+Table 2 compares the performance of the genera- tion models. BlenderBot outperforms the other 2 models on most metrics,although with similar per-
+
+
+formance to DialoGPT, on BLEU and ROUGE-L. The discrepancy between BlenderBot and BART in each score is relatively wide. This discrepancy is most apparent on measures that compute scores based on n-gram-level overlaps (BLEU, ROUGE). To find the reason for this discrepancy, we calculate the average length of the outputs of the 3 models and observe 5.2 words for BART, 11.8 words for BlenderBot, and 14.5 words for DialoGPT, while the average length of the tutor’s utterances in test data is 15.2 words. The average length of the out- put of DialoGPT is therefore close to that of the test set. This further explains DialoGPT’s strong performance on the BLEU and ROUGE scores. On the other hand, BART tends to generate shorter turns, consequently demonstrating lower scores on metrics that require the calculation of repetition grams to yield scores. Note that in similar tasks, the best model was Blenderbot with a BLEU 2 score of 6.21, in the case of emotional support con- versational strategy generation (Liu et al., 2021), while DialoGPT reached 5.52. The best score in the positive text reframing task, meanwhile, was 11.0 for BLEU 1 (Ziems et al., 2022), while BART reached 10.1 and GPT-2 reached 4.2.
+Table 1 shows that BART has the lowest perplex- ity score, indicating that BART is more adaptive to our dataset compared to the other two models. This may be due to its pre-training approaches (see Section 4.2) that corrupt input texts with an arbi- trary noising function. These approaches enable more accurate predictions in our noisy real-world dataset.
+BART BlenderBot DialoGPT 34.9
+69.3
+72.4
+Table 1: Language Model (LM) Perplexity (the lower is the better
+In response to our first research question, then, the performance of all three models was compara- ble but very limited. This suggests that the fine- tuning approach does not allow language models to learn hedge knowledge implicitly.
+We therefore next turn to an approach that may improve performance by screening utterances with a given label.
+5.2 RQ2: Does reranking improve hedge
+generation?
+Table 2 shows the performance of each model for the reranking method. BlenderBot once again per-
+Models
+Metrics
+BlenderBot DialoGPT BART
+R_BlenderBot R_DialoGPT R_BART
+BLEU_1
+BLEU_2
+ROUGE- L
+11.2 5.8 8.6
+11.4 4.7 9.1
+2.7 1.5 8.1
+12.3 6.2 11.0
+10.9∗ 3.9∗ 8.4
+6.0∗ 3.1∗ 9.7
+CHRF
+BARTScore
+BERTScore
+F1Score (human evaluation)
+17.6 -3.92 39.9 0.54
+17.0 -5.62 38.3 0.41
+9.3 -4.33 38.5 0.44
+17.6∗ -3.98∗ 40.5 0.84
+17.5∗ -4.79 37.5 0.64
+12.2∗ -4.24 39.4 0.85
+Table 2: Results of the fine-tuned models and reranking method applied to the fine-tuned models. ∗means this result is significantly different from the fine-tuning method (p < .05)
+forms well on all metrics and has a virtually identi- cal F1 score to BART. Additionally, we find some interesting similarities among models: 1) Blender- Bot and DialoGPT outperform BART in both the fine-tuning and the reranking methods (Table 2) with respect to reference-based metrics such as BLEU, ROUGE-L, etc., and 2) DialoGPT still underperforms the other two models in terms of F1 score, and in the reranking condition the gap widens.
+This result could suggest that 1) the pretrain- ing of the models (i.e., DialoGPT, BlenderBot) on dialogue datasets may help to generate longer ut- terances, and therefore to improve the reference- based metrics performance, and 2) the autoregres- sive model (e.g., DialoGPT) may not be suitable for the generation of social dialogue such as hedges.
+5.3 Comparing Fine-tuning and Reranking
+To summarize results on the fine-tuning versus re- ranking approaches we observe that: 1) With the help of a hedge classifier, the reranking approach can do a good job at generating hedges, 2) Blender- Bot is better suited to the task of generating long utterances, as described in Section 5.1. This could be because BlenderBot is pretrained with various social dialogue datasets, giving it a certain ability to generate the social aspects of dialogue.
+Table 2 shows that models deployed with the reranking method have relatively higher or com- parable Bart scores, but greatly improved perfor- mance on the F1 score (from .54 to .85). This result, too, underscores the advantages of the reranking method.
+5.4 Error Analysis
+While BlenderBot showed strong performance when using reranking, a certain number of gen- erated utterances still did not match the real tutor
+
+
+labels. When a matching utterance type cannot be found in a limited pool of candidates, we could have chosen to increase the candidate pool to pro- mote the probability of selecting a match. However, in this early effort to generate hedges, we want to ensure sufficient quality in the generated output but also explore the limitations of current language models for generating socially relevant phenomena on the basis of a spontaneous spoken interaction dataset.
+We can learn about the limitations of these mod- els by examining places where the system did not generate the desired strategy (that is, generated a hedge when the real tutor did not or vice versa). We first divide these strategy mismatches into over- generation errors, where the generator generates a hedge where it should not and under-generation errors when it does not generate a hedge but should. Among the 1395 annotated turns outputted by the 3 generators, there are 13.3% of over-generation errors and 86.7% under-generation errors. These errors are particularly interesting in the context of reranking, as it relied strongly on the hedge classi- fier. The hedge classifier selected the most suitable utterances, and yet the model still produced the wrong strategy - or at the very least mismatches with the strategy of the real tutor.
+Therefore, we analyze the generated utterances corresponding to these two types of errors and iden- tify two potential causes.
+First, there are still some places where the model generates a hedge where it should generate a non- hedge. As we mentioned in Section 4.4, we invited humans to annotate the models’ outputs in terms of hedge labels. We compare the human-annotations of the model output (where they labeled the out- put as hedge or non-hedge) with the output of the BERT-based classifier on the same generated utter- ances to calculate the F1 score. We find that there is a difference of about 9 points between the F1 score for human annotation (85%) shown in Table 2, and the F1 score for the same BERT-based hedge classifier (94%) reported in Raphalen et al. (2022). We assume that the classifier we used may have misclassified some generated utterances and we therefore label them as Classification Errors. This category accounts for 92.5% of over-generation er- rors, and 15.3% of under-generation errors.
+Second, the basic functionality of an end-to- end language model of this kind is to produce the most coherent next utterance based on the di-
+alogue history. This may result in the language model privileging coherence of content over style of delivery. That is, the model may not be able to find an appropriate strategy match among the coherent candidates, even when the candidate pool size is 50. We label this a Goal Mismatch as the propositional or content coherence goals of the sys- tem may be trumping the social goals, We found 84.7% in under-generation errors and 7.5% in over- generation errors. 18% of the cases where the pool did not include the right strategy.
+An example of each type of error is given in Fig- ure 3. The first example belongs to the Classifica- tion Error type, where the classifier misclassified the system response (i.e. “We just found that the answer is two x equals three”) as a hedge. In the second example, the tutor is trying to help the tu- tee to approach the answer step by step, but the tutee cannot come up with a worked idea. Here it is clear that the tutee is flailing and it is therefore probably not advisable to increase the student’s stress with a volley of questions that the tutee can clearly not answer. The tutor thus uses a hedge as a response. Conversely, the generator produces a question. The generated utterance is “What do you think we should do, what’s the next step”. This ex- ample corresponds to our Goal Mismatch Error. It shows that the generator may not understand the social context, but is looking for a coherent response.
+The Goal Mismatch Error is perhaps the most interesting of the errors, and thus to verify our hy- pothesis — that the coherence goals of the models may impede the social goals — we looked into the nature of the relationship between rapport (between tutor and tutee) and the generation of hedges. As described above, Madaio et al. (2017) found that hedges are generated when rapport is low. Since our corpus contained rapport annotations for every 30 seconds of the interaction, we looked at the rap- port level in play when the model over-generated and under-generated hedges. Since rapport is anno- tated from 1 to 7 in the dataset, for convenience, we divided it into 3 levels: high (5-7), medium (3-5), and low rapport (1-3), as shown in Table 3.
+Type
+Rapport
+High Medium Low
+Over-generation Under-generation
+0 13
+3 130
+0 75
+Table 3: Goal Mismatch Errors Distribution
+
+
+Tutor: Wait, you're on question three, <laughter> justcheckingTutee: I told you, the answer is two Tutor: We just found outTutee: oh really?Tutor: <laughter> okay problem four is four (non-hedge)System: We just found out the answer is two x equalsthree(hedge)
+Classification Error
+Goal Mismatch Error
+Tutor: mhm, so what are the two things that you can do, there are only two.Tutee: I could move x over to three x.Tutor: Yeah what do you think we should, should we do it now.Tutee: mmm I dont know, do you have the, um, minusTutor: Well the other one would be to divide three by thirty six ...(hedge) System: What do you think we should do, what's the next step (non-hedge)
+Figure 3: Strategy Mismatch Errors for Reranking Method
+As only 3 errors appear in the category of over- generation error, we cannot obtain a meaningful conclusion due to size. However, the generators generate fewer hedges when rapport is low, an under-generation error, in contradiction to stud- ies showing that speakers are more careful about threatening the face of (or embarrassing) their in- terlocutors when the social bond between them is weak (Madaio et al., 2017). We believe that this is because more hedges are found in low rapport interaction. Therefore, we count the hedge distribu- tion of the low and high rapport interaction in the test dataset. 264 hedges are found in low rapport interaction, and 42 in high rapport interaction. This distribution corresponds to the fact that a hedge is most likely to happen in low rapport interactions. The under-generation errors are the cases where there should be hedges but non-hedges were gener- ated. In the test dataset, more hedges occur in low rapport, and the generator under-generates more in low rapport, because there are more hedges that should be generated in low rapport. So, the gener- ators make more errors in low rapport interaction due to an imbalance in hedge distribution between low and high rapport interaction.
+tomatically annotate the utterances generated by models in subcategories of hedges (as defined in Section 2.1), and we compare the models’ and hu- mans’ distributions of different hedge strategies. The rule-based classifier used linguistic patterns to identify each hedge subcategory. We have pre- ferred here to use the rule-based classifier rather than the machine learning classifiers to avoid the dependence on and bias of probabilistic learning- based classifiers. Indeed, learning-based classifiers may be biased towards predicting the categories that are the most frequent in the dataset. Further- more, the rule-based classifier reaches a 94.7 F1 score (Raphalen et al., 2022), which is compara- ble to the best performance (96.7 F1 score) using the Light Gradient-Boosting Machine (LGBM) (Ke et al., 2017) classifier.
+The above results show that the model can spon- taneously learn to use different types of hedges. Indeed, the models are capable of carrying out lin- guistic diversity on hedges based on learning from real human dialogues.
+6 Conclusion and Future Work
+Goal Mismatch error directly addresses our pri- mary question 1: How effectively do end-to-end models perform when generating hedges on their own? Due to this fundamental discrepancy between competing goals, end-to-end language models are unable to inherently learn and discern when to ap- ply hedges appropriately.
+5.4.1 Lexical Diversity of the Generated
+Output
+As we have seen, LLMs can generate a hedge or non-hedge with the help of the reranking method. However, do language models spontaneously use different types of hedges in a human-like way? To investigate this question, we applied the rule-based hedge classifier from (Raphalen et al., 2022) to au-
+In this paper, we have shown that the reranking method helps LLMs to generate hedges — an im- portant social conversational strategy that can avoid face threats towards an interlocutor by attenuating an impact of an expression. We find that an implicit fine-tuning approach (i.e., without any supervision by a hedge label) is not sufficient for generating hedges, but a reranking method significantly im- proves performance in generating hedges, with a final F1 score of .85 for the BART model and .84 for the BlenderBot model. We also performed an er- ror analysis on the generated results and found that two types of errors occur in the reranking method: Classification, and Goal Mismatch. The vast ma- jority of errors fall into the category of Goal Mis- match, indicating an important conflict between
+
+
+contemporary language models’ primary goal of ensuring coherence and the social goal of managing face, which is indispensable for human conversa- tion. While we were able to generate hedges, we were not able to necessarily generate them where they were needed most. That is, conversational strategies are adaptive in the sense that they re- spond to conversational strategies uttered by the previous speaker (Zhao et al., 2014). We conclude that, going forward, we will need a way of adding an underlying representation of the social state of the dialogue to improve dialogue generation.
+In this paper we addressed the question of how to generate hedges, but when to generate hedges remains an important and unexplored question. In future work, we may first explore the temporal re- lationships between the hedge and other conversa- tional information (e.g., other conversational strate- gies, level of rapport) by sequential rule mining techniques, then apply RL-based methods to inves- tigate in a more detailed manner the optimal way to predict where hedges should occur. In this context, we note that ChatGPT can generate a hedge when requested explicitly to do so, but does not generate hedges of its own volition (so to speak), for exam- ple, when face-threatening acts such as instruction are engaged in.
+We began this paper by describing the need for hedges in instructional dialogues such as those engaged in by intelligent tutoring systems. The current dataset consists of authentic real-world tu- toring sessions, but as carried out by untrained teenagers. We note that peer tutoring is a power- ful method of teaching, used in classrooms around the world, and previous work shows that when un- trained peer tutors use hedges, their tutees attempt more problems and solve more problems correctly (Madaio et al., 2017). However, they are inexperi- enced and so in future work it will be important to investigate the interaction between trained tutors and tutee as well, for instance, by using the Teacher- Student Chatroom Corpus (Caines et al., 2020). We believe that the methods and results from the cur- rent work will facilitate the investigation of expert tutors in future research.
+Broader Impact
+Since the 1990s, research has shown the the im- portance of intelligent tutoring systems as effective learning environment,s and supports for classroom learning (Anderson et al., 1995). Peer tutoring
+plays a powerful role as well, as peer tutors can motivate learners to try harder, as well as helping them to succeed, and it is particularly effective for low-achieving learners (Cassell, 2022). But virtual peer tutors have not yet achieved their potential, in part because of the difficulty of generating the social infrastructure of peer learning as well as the content of the matter being tutored. This paper, whose data comes from a corpus of peer tutoring dialogues, should therefore be seen as a step in the right direction.
+Acknowledgments
+We thank the anonymous reviewers for their help- ful feedback. We express sincere gratitude to the members of the ArticuLab at Inria Paris for their invaluable assistance in the successful completion of this research, and to the members of the Articu- Lab at Carnegie Mellon Pittsburgh for answering our questions about their prior work. This study re- ceived support from the French government, admin- istered by the Agence Nationale de la Recherche, as part of the "Investissements d’avenir" program, with reference to ANR-19-P3IA-0001 (PRAIRIE 3IA Institute).
+Limitations
+Several limitations apply to the current study. While research shows that multimodal signals play an important role in conversational strategies (Zhao et al., 2016b), we did not take them into account. It is an open question as to how to render large language models capable of generating multimodal behaviors. A second limitation concerns the recent arrival on the scence of ChatGPT, that has shown impressive performance. However the models are not free, and therefore were not included. As noted above, another important limitation is the untrained status of the tutors in our corpus, who are teenagers, and not trained tutors. Their use of hedges, there- fore, comes from their knowledge of everyday so- cial interaction, and not from expertise in teaching. In looking at the data, we find a few places where, as instructors ourselves, we believe that a hedge is important, even though the real (teenage) tutor did not use one.
+The last limitation is that, while we focused only on generating hedge or non-hedge, there are ac- tually 3 different kinds of hedges, that function differently. We hope to extend this work and take
+
+
+advantage of a text style transfer technique to gen- erate more kinds of hedges in future work.
+Ethical Statement
+The corpus used here comes from earlier work by the last author and her colleagues, and was used in accordance with the original experimenters’ Insti- tutional Review Board (IRB). Those experimenters also anonymised the data, removing any identify- ing information. A pixelated example of the video data is available at github.com/neuromaancer/ hedge_generation. To counteract potential gen- der bias concerning the use of hedges in peer tu- toring, the data was collected from equal number of boys and girls. In text generation tasks, it is important to be aware of the potential risk of gen- erating inappropriate content. We believe that, in fact, hedges used by tutors are perhaps the least likely conversational strategy to be inappropriate, as they are the most polite and “delicate” conver- sational moves. But, more generally, considerable additional work would be needed to filter out all inappropriate language for safe tutoring systems that engage in social and task interaction.
+References
+John R Anderson, Albert T Corbett, Kenneth R Koedinger, and Ray Pelletier. 1995. Cognitive tu- tors: Lessons learned. The journal of the learning sciences, 4(2):167–207.
+Chris Berry and Allen Brizee. 2010. Identifying inde-
+pendent and dependent clauses. Purdue OWL.
+Douglas Biber, Stig Johansson, Geoffrey Leech, Susan Conrad, Edward Finegan, and Randolph Quirk. 1999. Longman grammar of spoken and written English, volume 2. Longman London.
+Gordon Briggs, Tom Williams, and Matthias Scheutz. 2017. Enabling robots to understand indirect speech acts in task-based interactions. Journal of Human- Robot Interaction, 6(1):64–94.
+Gretchen P Brown. 1980. Characterizing indirect speech acts. American Journal of Computational Linguistics, 6(3-4):150–166.
+Penelope Brown and Stephen C. Levinson. 1987. Po- liteness: Some universals in language usage, volume 4. Cambridge university press.
+Andrew Caines, Helen Yannakoudakis, Helena Edmond- son, Helen Allen, Pascual Pérez-Paredes, Bill Byrne, and Paula Buttery. 2020. The teacher-student chat- room corpus. In Proceedings of the 9th Workshop on NLP for Computer Assisted Language Learning, pages 10–20.
+Justine Cassell. 2022. Socially interactive agents as In The Handbook on Socially Interactive peers. Agents: 20 years of Research on Embodied Con- versational Agents, Intelligent Virtual Agents, and Social Robotics Volume 2: Interactivity, Platforms, Application, pages 331–366.
+Stanley F Chen, Douglas Beeferman, and Roni Rosen- feld. 1998. Evaluation metrics for language models.
+Herbert H Clark. 1979. Responding to indirect speech
+acts. Cognitive psychology, 11(4):430–477.
+Luis Fernando D’Haro, Rafael E Banchs, Chiori Hori, and Haizhou Li. 2019. Automatic evaluation of end- to-end dialog systems with adequacy-fluency metrics. Computer Speech & Language, 55:200–215.
+M Robin DiMatteo. 1979. A social-psychological anal- ysis of physician-patient rapport: toward a science of the art of medicine. Journal of Social Issues, 35(1):12–33.
+Emily Dinan, Varvara Logacheva, Valentin Malykh, Alexander Miller, Kurt Shuster, Jack Urbanek, Douwe Kiela, Arthur Szlam, Iulian Serban, Ryan Lowe, et al. 2020. The second conversational in- telligence challenge (convai2). In The NeurIPS’18 Competition: From Machine Learning to Intelligent Conversations, pages 187–208. Springer.
+Angela Fan, Yacine Jernite, Ethan Perez, David Grang- ier, Jason Weston, and Michael Auli. 2019. ELI5: Long form question answering. In Proceedings of the 57th Annual Meeting of the Association for Com- putational Linguistics, pages 3558–3567, Florence, Italy. Association for Computational Linguistics.
+Bruce Fraser. 2010. Pragmatic competence: The case
+of hedging. new approaches to hedging.
+Rebecca A Glazier. 2016. Building rapport to improve retention and success in online classes. Journal of Political Science Education, 12(4):437–456.
+Pranav Goel, Yoichi Matsuyama, Michael Madaio, and Justine Cassell. 2019. i think it might help if we mul- tiply, and not add. In Detecting indirectness in con- versation. In 9th International Workshop on Spoken Dialogue System Technology, page 27–40. Springer.
+Erving Goffman. 1967. Interaction Ritual, chapter On
+Face-Work. Pantheon, New York.
+Dwayne D Gremler and Kevin P Gwinner. 2008. Rapport-building behaviors used by retail employ- ees. Journal of Retailing, 84(3):308–324.
+Nabil Hossain, Marjan Ghazvininejad, and Luke Zettle- moyer. 2020. Simple and effective retrieve-edit- rerank text generation. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, pages 2532–2538, Online. Association for Computational Linguistics.
+
+
+Guolin Ke, Qi Meng, Thomas Finley, Taifeng Wang, Wei Chen, Weidong Ma, Qiwei Ye, and Tie-Yan Liu. 2017. Lightgbm: A highly efficient gradient boost- ing decision tree. Advances in neural information processing systems, 30.
+Klaus Krippendorff. 2004. Reliability in content analy- sis: Some common misconceptions and recommen- dations. Human communication research, 30(3):411– 433.
+George Lakoff. 1975. Hedges: A study in meaning criteria and the logic of fuzzy concepts. In Contem- porary research in philosophical logic and linguistic semantics, pages 221–271. Springer.
+Matthew J Leach. 2005. Rapport: A key to treatment success. Complementary therapies in clinical prac- tice, 11(4):262–265.
+Mike Lewis, Yinhan Liu, Naman Goyal, Marjan Ghazvininejad, Abdelrahman Mohamed, Omer Levy, Veselin Stoyanov, and Luke Zettlemoyer. 2020. BART: Denoising sequence-to-sequence pre-training for natural language generation, translation, and com- prehension. In Proceedings of the 58th Annual Meet- ing of the Association for Computational Linguistics, pages 7871–7880, Online. Association for Computa- tional Linguistics.
+Yanran Li, Hui Su, Xiaoyu Shen, Wenjie Li, Ziqiang Cao, and Shuzi Niu. 2017. DailyDialog: A manually labelled multi-turn dialogue dataset. In Proceedings of the Eighth International Joint Conference on Nat- ural Language Processing (Volume 1: Long Papers), pages 986–995, Taipei, Taiwan. Asian Federation of Natural Language Processing.
+Zekang Li, Cheng Niu, Fandong Meng, Yang Feng, Qian Li, and Jie Zhou. 2019. Incremental transformer with deliberation decoder for document grounded conversations. In Proceedings of the 57th Annual Meeting of the Association for Computational Lin- guistics, pages 12–21.
+Chin-Yew Lin. 2004. ROUGE: A package for auto- matic evaluation of summaries. In Text Summariza- tion Branches Out, pages 74–81, Barcelona, Spain. Association for Computational Linguistics.
+Siyang Liu, Chujie Zheng, Orianna Demasi, Sahand Sabour, Yu Li, Zhou Yu, Yong Jiang, and Minlie Huang. 2021. Towards emotional support dialog systems. In Proceedings of the 59th Annual Meet- ing of the Association for Computational Linguistics and the 11th International Joint Conference on Natu- ral Language Processing (Volume 1: Long Papers), pages 3469–3483, Online. Association for Computa- tional Linguistics.
+Ilya Loshchilov and Frank Hutter. 2018. Decoupled weight decay regularization. In International Confer- ence on Learning Representations.
+Aman Madaan, Amrith Setlur, Tanmay Parekh, Barn- abas Poczos, Graham Neubig, Yiming Yang, Ruslan Salakhutdinov, Alan W Black, and Shrimai Prabhu- moye. 2020. Politeness transfer: A tag and generate approach. In Proceedings of the 58th Annual Meet- ing of the Association for Computational Linguistics, pages 1869–1881, Online. Association for Computa- tional Linguistics.
+Michael Madaio, Justine Cassell, and Amy Ogan. 2017. The impact of peer tutors’ use of indirect feedback and instructions. Philadelphia, PA: International So- ciety of the Learning Sciences.
+Juliana Miehle, Wolfgang Minker, and Stefan Ultes. 2022. When to say what and how: Adapting the elaborateness and indirectness of spoken dialogue systems. Dialogue & Discourse, 13(1):1–40.
+Elizabeth Murphy and María A Rodríguez-Manzanares. 2012. Rapport in distance education. International Review of Research in Open and Distributed Learn- ing, 13(1):167–190.
+Tong Niu and Mohit Bansal. 2018. Polite dialogue generation without parallel data. Transactions of the Association for Computational Linguistics, 6:373– 389.
+OpenAI. 2022. Chatgpt: Optimizing language models
+for dialogue.
+Bo Pang, Erik Nijkamp, Wenjuan Han, Linqi Zhou, Yix- ian Liu, and Kewei Tu. 2020. Towards holistic and automatic evaluation of open-domain dialogue gener- ation. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, pages 3619–3629.
+Kishore Papineni, Salim Roukos, Todd Ward, and Wei- Jing Zhu. 2002. Bleu: a method for automatic evalu- ation of machine translation. In Proceedings of the 40th annual meeting of the Association for Computa- tional Linguistics, pages 311–318.
+C Raymond Perrault. 1980. A plan-based analysis of indirect speech act. American Journal of Computa- tional Linguistics, 6(3-4):167–182.
+Brigitte Planken. 2005. Managing rapport in lingua franca sales negotiations: A comparison of profes- sional and aspiring negotiators. English for Specific Purposes, 24(4):381–400.
+Maja Popovi´c. 2015. chrF: character n-gram F-score for automatic MT evaluation. In Proceedings of the Tenth Workshop on Statistical Machine Translation, pages 392–395, Lisbon, Portugal. Association for Computational Linguistics.
+Ka´ska Porayska-Pomsta and Chris Mellish. 2004. Mod- elling politeness in natural language generation. In International Conference on Natural Language Gen- eration, pages 141–150. Springer.
+
+
+Ellen F. Prince, Joel Frader, and Charles Bosk. 1982. On hedging in physician-physician discourse. Lin- guistics and the Professions, 8(1):83–97.
+Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, Ilya Sutskever, et al. 2019. Language models are unsupervised multitask learners. OpenAI blog, 1(8):9.
+Pranav Rajpurkar, Jian Zhang, Konstantin Lopyrev, and Percy Liang. 2016. SQuAD: 100,000+ questions for machine comprehension of text. In Proceedings of the 2016 Conference on Empirical Methods in Natu- ral Language Processing, pages 2383–2392, Austin, Texas. Association for Computational Linguistics.
+Yann Raphalen, Chloé Clavel, and Justine Cassell. 2022. ”You might think about slightly revising the title”: Identifying hedges in peer-tutoring interactions. In Proceedings of the 60th Annual Meeting of the As- sociation for Computational Linguistics (Volume 1: Long Papers), pages 2160–2174, Dublin, Ireland. As- sociation for Computational Linguistics.
+Hannah Rashkin, Eric Michael Smith, Margaret Li, and Y-Lan Boureau. 2019. Towards empathetic open- domain conversation models: A new benchmark and In Proceedings of the 57th Annual Meet- dataset. ing of the Association for Computational Linguistics, pages 5370–5381.
+Stephen Roller, Emily Dinan, Naman Goyal, Da Ju, Mary Williamson, Yinhan Liu, Jing Xu, Myle Ott, Eric Michael Smith, Y-Lan Boureau, and Jason We- ston. 2021. Recipes for building an open-domain chatbot. In Proceedings of the 16th Conference of the European Chapter of the Association for Compu- tational Linguistics: Main Volume, pages 300–325, Online. Association for Computational Linguistics.
+Tim Rowland. 2007. well maybe not exactly, but it’s around fifty basically? In Vague language in mathe- matics classrooms. In Vague language explored, page 79–96. Springer.
+Abigail See, Stephen Roller, Douwe Kiela, and Jason Weston. 2019. What makes a good conversation? how controllable attributes affect human judgments. In Proceedings of the 2019 Conference of the North American Chapter of the Association for Computa- tional Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers), pages 1702–1723.
+Mayank Soni, Benjamin Cowan, and Vincent Wade. 2021. Enhancing self-disclosure in neural dialog models by candidate re-ranking. ArXiv preprint, abs/2109.05090.
+Helen Spencer-Oatey. 2005. (im)politeness, face and perceptions of rapport: Unpackaging their bases and interrelationships. 1(1):95–119.
+Romal Thoppilan, Daniel De Freitas, Jamie Hall, Noam Shazeer, Apoorv Kulshreshtha, Heng-Tze Cheng, Alicia Jin, Taylor Bos, Leslie Baker, Yu Du, et al. 2022. Lamda: Language models for dialog applica- tions. ArXiv preprint, abs/2201.08239.
+Scott Thornbury and Diana Slade. 2006. Conversation: From description to pedagogy. Cambridge University Press.
+Linda Tickle-Degnen and Robert Rosenthal. 1990. The nature of rapport and its nonverbal correlates. Psy- chological inquiry, 1(4):285–293.
+Karen Tracy and Nikolas Coupland. 1990. Multiple goals in discourse: An overview of issues. Journal of Language and Social Psychology, 9(1-2):1–13.
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Lukasz Kaiser, and Illia Polosukhin. 2017. Attention is all you need. In Advances in Neural Information Pro- cessing Systems 30: Annual Conference on Neural Information Processing Systems 2017, December 4-9, 2017, Long Beach, CA, USA, pages 5998–6008.
+Veronika Vincze. 2014. Uncertainty detection in natural language texts. PhD, University of Szeged, 141.
+Adina Williams, Nikita Nangia, and Samuel Bowman. 2018. A broad-coverage challenge corpus for sen- tence understanding through inference. In Proceed- ings of the 2018 Conference of the North American Chapter of the Association for Computational Lin- guistics: Human Language Technologies, Volume 1 (Long Papers), pages 1112–1122, New Orleans, Louisiana. Association for Computational Linguis- tics.
+Timothy Williamson. 2002. Vagueness. Routledge.
+Weizhe Yuan, Graham Neubig, and Pengfei Liu. 2021. Bartscore: Evaluating generated text as text gener- ation. Advances in Neural Information Processing Systems, 34.
+Saizheng Zhang, Emily Dinan, Jack Urbanek, Arthur Szlam, Douwe Kiela, and Jason Weston. 2018. Per- sonalizing dialogue agents: I have a dog, do you have pets too? In Proceedings of the 56th Annual Meeting of the Association for Computational Lin- guistics (Volume 1: Long Papers), pages 2204–2213, Melbourne, Australia. Association for Computational Linguistics.
+Tianyi Zhang, Varsha Kishore, Felix Wu, Kilian Q. Weinberger, and Yoav Artzi. 2020a. Bertscore: Eval- In 8th Inter- uating text generation with BERT. national Conference on Learning Representations, ICLR 2020, Addis Ababa, Ethiopia, April 26-30, 2020. OpenReview.net.
+Yizhe Zhang, Siqi Sun, Michel Galley, Yen-Chun Chen, Chris Brockett, Xiang Gao, Jianfeng Gao, Jingjing Liu, and Bill Dolan. 2020b. DIALOGPT : Large- scale generative pre-training for conversational re- sponse generation. In Proceedings of the 58th An- nual Meeting of the Association for Computational Linguistics: System Demonstrations, pages 270–278, Online. Association for Computational Linguistics.
+
+
+Ran Zhao, Alexandros Papangelis, and Justine Cassell. 2014. Towards a dyadic computational model of rapport management for human-virtual agent inter- In International conference on intelligent action. virtual agents, pages 514–527. Springer.
+Ran Zhao, Tanmay Sinha, Alan Black, and Justine Cas- sell. 2016a. Automatic recognition of conversational strategies in the service of a socially-aware dialog system. In Proceedings of the 17th Annual Meeting of the Special Interest Group on Discourse and Dia- logue, pages 381–392, Los Angeles. Association for Computational Linguistics.
+Ran Zhao, Tanmay Sinha, Alan W. Black, and Justine Cassell. 2016b. Socially-aware virtual agents: Au- tomatically assessing dyadic rapport from temporal patterns of behavior. In International conference on intelligent virtual agents, page 218–233. Springer.
+Caleb Ziems, Minzhi Li, Anthony Zhang, and Diyi Yang. 2022. Inducing positive perspectives with text reframing. In Proceedings of the 60th Annual Meet- ing of the Association for Computational Linguistics (Volume 1: Long Papers), pages 3682–3700, Dublin, Ireland. Association for Computational Linguistics.
+A Clauses to Turns
+In our task formulation, a dialogue is composed of tutor-tutee turns. However, in the corpus consid- ered for this study, the available annotations are at the clause2 level. The choice of annotation unit was made because the annotation in hedges was part of a larger annotation campaign dedicated to the an- notation of various conversational strategies (e.g., praise) at the clause level. This corpus contains 23 156 clauses, of which 21 192 contain non-hedges and 1 964 hedges. In order to obtain annotations at a turn level, we apply the simplest way to merge the hedge labels. If one or multiple clauses of one turn are annotated as hedges, this turn is labeled as a hedge.
+B Metrics
+BLEU (Papineni et al., 2002) calculates the word overlaps between reference and candidate utter- ances in n-grams (n=1, 2, 3). We do not assume that higher BLEU scores are equivalent to better task completion. Instead, BLEU is used to indicate that the generated utterances retain certain desired keywords.
+ROUGE-L (Lin, 2004) supplements BLEU by computing the longest common subsequence of generated utterances and references, allowing it to
+2A clause consists of a subject and a verb and expresses a
+complete thought (Berry and Brizee, 2010).
+compute overlap measures in longer utterances. To avoid generated utterances that are too long for the BLEU score, we use Rouge-L as a complementary metric.
+CHRF (Popovi´c, 2015) is comparable to BLEU; however, while BLEU is word-level, CHRF is character-level, based on character n-gram com- putation. Our transcribed dataset also shows some disfluencies and repetitions represented by individ- ual characters. Therefore, we expect this metric to result in character-level overlap scores.
+BERTScore (Zhang et al., 2020a) embeds the generated utterances and the reference with word vectors using the BERT model and computes pair- wise cosine similarity for each generated word vec- tor and each word in the reference, then the recall of the generated sequences is calculated. BERTScore is distinct from the previous two metrics in that it computes similarity across semantic space and has been shown to have a strong correlation with human judgment at the segment level.
+BARTScore (Yuan et al., 2021) formulates the text generation evaluation as a text generation task from pretrained language models in an unsuper- vised fashion. When the generated text is better, the training model will get a higher score by convert- ing the generated text to reference or source text. BART score can be applied to different evaluations (e.g., informativeness, coherence, and factuality). Perplexity (Chen et al., 1998) calculates lan- guage model perplexity. Perplexity quantifies the level of uncertainty when an LM generates a new token.
+C Implementation Details
+The implementation of all models was based on the Transformer library3, in addition, the Pytorch- Lightning4 library was used for training control. We apply AdamW (Loshchilov and Hutter, 2018) as our optimizer with a learning rate 10e−5. All the models are trained with 10 epochs but with an Early-stopping mechanism on validation loss, which means when the validation loss remains for 2 epochs, the training will stop to prevent overfit- ting. We use the base version of the BART model, the small version of BlenderBot, and also the small version of DialoGPT. For the reranking method, we use beam search as our decoding strategy. To prevent repetition, we allow the 2 grams to oc-
+3github.com/huggingface/transformers 4github.com/Lightning-AI/lightning
+
+
+50
+70Percentage of labels (%)
+DialoGPT
+IDE
+60
+DialoGPT (Reranking)
+BART
+BART (Reranking)
+10
+0
+30
+BlenderBot (Reranking)
+Percentage of labels per category
+IDS
+Human
+IDA
+IDQ
+40
+BlenderBot
+20
+Figure 4: Hedge subcategories distribution in mod- els’ outputs compared with human. IDA: Apologizer; IDE: Extender; IDQ: Propositional hedges; IDS: Sub- jectivizer (as defined in Section 2.1)
+cur only once, and the repetition penalty = 1.2 is also applied. All models were fine-tuned on an Nvidia Quadro RTX 8000 GPU. A complete con- figuration of the hyperparameters used for each model is reported in the GitHub repository with the code of the paper: github.com/neuromaancer/ hedge_generation.
+Moreover, we apply beam search for the decod- ing strategy, as it reduces the risk of missing hidden high-probability word sequences by retaining the n most likely words in each generation output and ultimately selecting the utterances with the highest overall probability. To avoid repeating the same subsequences, we apply a penalty to the repeated 2-gram unit. In terms of the size of the candidate pool, logically, the more candidates generated, the more chances that one of them is the right hedge strategy (i.e., hedge or non-hedge), so we fix our candidate pool size to 50, as a compromise between the likelihood of obtaining a hedge and the speed of generation.
+D Figures
+Figure 4: Hedge subcategories distribution in mod- els’ outputs compared with human.

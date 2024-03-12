@@ -1,0 +1,262 @@
+3 2 0 2
+l u J
+2 1
+] L C . s c [
+3 v 0 2 3 5 0 . 6 0 3 2 : v i X r a
+KIT’s Multilingual Speech Translation System for IWSLT 2023
+Danni Liu, Thai Binh Nguyen, Sai Koneru, Enes Yavuz Ugan, Ngoc-Quan Pham, Tuan-Nam Nguyen, Tu Anh Dinh, Carlos Mullov, Alexander Waibel, Jan Niehues Karlsruhe Institute of Technology firstname.lastname@kit.edu
+Abstract
+Many existing speech translation benchmarks focus on native-English speech in high-quality recording conditions, which often do not match In this the conditions in real-life use-cases. paper, we describe our speech translation sys- tem for the multilingual track of IWSLT 2023, which evaluates translation quality on scientific conference talks. The test condition features accented input speech and terminology-dense contents. The task requires translation into 10 languages of varying amounts of resources. In absence of training data from the target domain, we use a retrieval-based approach (kNN-MT) for effective adaptation (+0.8 BLEU for speech translation). We also use adapters to easily in- tegrate incremental training data from data aug- mentation, and show that it matches the perfor- mance of re-training. We observe that cascaded systems are more easily adaptable towards spe- cific target domains, due to their separate mod- ules. Our cascaded speech system substantially outperforms its end-to-end counterpart on sci- entific talk translation, although their perfor- mance remains similar on TED talks.1
+1
+Introduction
+This paper summarizes Karlsruhe Institute of Tech- nology’s speech translation system for the multilin- gual track of IWSLT 2023 (Agarwal et al., 2023). In this track, the task is to translate scientific talks in English into 10 languages: Arabic (ar), Chinese (zh), Dutch (nl), French (fr), German (de), Japanese (ja), Persian/Farsi (fa), Portuguese (pt), Russian (ru), Turkish (tr). The talks are from presentations in the 60th Annual Meeting of the Association for Computational Linguistics (ACL 2022) and com- piled by Salesky et al. (2023).
+Translating scientific talks presents several chal- lenges. On the source side, most speakers are non-native, and the recording conditions often vary.
+This requires acoustic robustness to accents and noise. On the target side, domain-specific termi- nologies are frequently used, calling for accurate translation of these words that rarely occur in the training data. The styles of the talks, e.g. formal- ity, also differ from other domains. As no training data from the same domain is provided, effective few-shot or zero-shot adaptation is crucial.
+As the task focuses on one-to-many translation, it is also an interesting testbed for whether mul- tilinguality improves speech translation quality. For text-to-text translation, the gain from multi- linguality is mostly concentrated in many-to-one translation (Aharoni et al., 2019; Fan et al., 2021), i.e., multilinguality on the source side. In con- trast, for X-to-many translation, it remains unclear whether incorporating more target languages im- proves translation quality.
+In this system description paper, we present cascaded and end-to-end systems for the English- to-many speech translation task. We lever- age pretrained models, including WavLM (Chen et al., 2022), mBART50 (Tang et al., 2020), and DeltaLM (Ma et al., 2021). The systems do not use additional data beyond the allowed corpora, and therefore fall under the constrained data condition. For the cascaded system, to handle the unique style of scientific talks, we use kNN-MT (Khan- delwal et al., 2021) to bias the output generation towards the target domain. Moreover, as no target monolingual data is provided, we use data diversi- fication (Nguyen et al., 2020) to enrich the existing parallel data. We also use adapters (Rebuffi et al., 2017; Bapna and Firat, 2019) as a lightweight ap- proach for incremental learning and language adap- tation. For the ASR model, we improve over last year’s performance by using a more recent audio encoder (Chen et al., 2022) and adding a dedicated decoder. To adapt the ASR system to the target domain, we use n-gram re-weighting and synthe- sized data for the target domain. For the end-to-end
+1Code
+available
+at
+https://github.com/
+dannigt/kit-iwslt2023-multilingual
+
+
+system, we use our machine translation model for knowledge distillation. We also ensemble models trained with and without synthesized speech data.
+Our main findings are as follow:
+For cascaded ST systems, we can effectively adapt the model towards a target domain/style using kNN-MT (Khandelwal et al., 2021). A datastore as small as a few hundred sentence pairs was sufficient for achieving consistent gains (avg. +0.8 BLEU over 10 languages).
+Besides the common use-case of adding language-specific capacity, adapters (Bapna and Firat, 2019) is also an effective method when subsequently adding training data. Em- pirically, we show it matches the performance of re-training on all new data.
+For ASR, lexical constraints for domain adap- ation are more easily integrated in CTC mod- els. For encoder-decoder model, the control could be achieved by TTS-synthesized source speech, but it requires more careful tuning.
+2 Data and Preprocessing
+After describing the evaluation data (§2.1), we out- line the training data and preprocessing steps for our automatic speech recognition (ASR; §2.2), ma- chine translation (MT; §2.3), casing/punctuation restoration (§2.4), and speech translation (ST; §2.5) models.
+2.1 Development and Test Data
+In the multilingual track, the testing condition is scientific conference talks. Therefore, we primarily rely on the ACL development (dev) set (Salesky et al., 2023) for validation. It consists of English transcripts of the talks and translations into the 10 target languages. The systems are then evaluated on a blind test set. The dev and test sets consist of 5 talks each. The paper abstracts for all talks are available in English. The talks are pre-segmented. In all experiments, we use the given segmentation. We also report performance on tst-COMMON of MuST-C (Di Gangi et al., 2019), tst2019 and tst2020 from previous years’ evaluations (Anasta- sopoulos et al., 2021, 2022).
+An overview of the development and test data is
+in Table 1.
+Dev/Test set Hours # Utterances
+Domain
+ACL dev tst-COMMON tst2019 tst2020
+1.0 4.9 4.8 4.1
+468 ACL conference talks TED talks 2823 TED talks 2279 TED talks 1804
+Table 1: Overview of development and test data.
+Corpus / Data Source
+Hours
+# Utterances
+Common Voice LibriSpeech MuST-C v2 TED-LIUM v3 VoxPopuli
+1667 963 482 452 501
+1225k 281k 251k 268k 177k
+TTS
+7284
+4.7M
+Table 2: ASR data overview.
+2.2 Speech Recognition Data
+the ASR training, we use Common For Voice (Ardila et al., 2020), LibriSpeech (Panayotov et al., 2015), MuST-C v2 (Di Gangi et al., 2019), TED-LIUM v3 (Hernandez et al., 2018), and VoxPopuli (Wang et al., 2021). The data overview is in Table 2.
+Synthesized Speech Data To adapt the ASR model to the ACL talks, we add synthesized speech created by a text-to-speech (TTS) model. Specifi- cally, from the MT bitext English side (Table 3), we select sentences similar to the ACL domain based on similarity with the provided ACL dev bitext and abstracts. Inspired by data selection strategies for MT (Eck et al., 2005; Koneru et al., 2022), we use n-gram overlap as similarity metric. 4.7M sen- tences are selected and then synthesized to speech by a VITS (Kim et al., 2021) model trained on MuST-C. The synthesized data amount is shown in the last row of Table 2.
+2.3 Machine Translation Data
+The MT training data include the following translation corpora: Europarl v7 text-to-text and v10 (Koehn, 2005), NewsCommentary v16, OpenSubtitles v2018 (Lison and Tiedemann, 2016), Tatoeba (Tiedemann, 2012), and ELRC- CORDIS_News, JParaCrawl (Morishita et al., 2022) for Japanese, and TED2020 (Reimers and Gurevych, 2020) for German2. We also include the text translation part of the following ST cor-
+2This dataset has deplication with past evaluation sets: tst2019 tst2020 and tst-COMMON. The deplications were removed prior to training.
+
+
+pora: MuST-C (Di Gangi et al., 2019), CoVoST v2 (Wang et al., 2020), and Europarl-ST (Iranzo- Sánchez et al., 2020). The aggregated data amount per language is summarized in the “Original” col- umn of Table 3.
+Original
+After Diversification
+Lang.
+# sent. (M)
+# sent. (M)
+# tokens (M)
+ar zh nl fr de ja* fa pt ru tr
+26.0 11.2 33.1 38.9 23.0 2.6 5.8 29.0 22.1 36.7
+65.2 21.5 82.1 91.6 54.4 27.2 11.3 72.3 51.5 89.7
+865.0 254.3 1162.7 1427.8 860.0 832.7 162.1 1024.3 685.3 1021.2
+Total
+228.4
+566.8
+8295.4
+Table 3: MT data overview. *: For ja, the original data of 2.6M sentences did not include JParaCrawl, which was announced later as allowed data.
+As preprocessing, we perform truecasing, dedu- plication, length ratio filtering, and histogram filter- ing using the statistics by Fan et al. (2021). Then we perform subword segmentation using Sentence- piece (Kudo and Richardson, 2018) based on the vocabulary of mBART50 (Tang et al., 2020).
+Data Diversification Different from last years’ shared tasks (Anastasopoulos et al., 2021, 2022), no monolingual (non-English) data is provided. This means conventional data augmentation tech- niques like backward translation are not directly applicable. On the other hand, forward translation from existing English monolingual data may intro- duce undesirable errors in the translation targets, especially on lower-resource languages. In this light, we use data diversification (Nguyen et al., 2020), a data augmentation method that enriches existing parallel data by forward and backward translating the training bitext. As the model has seen the parallel data in training, the synthetic trans- lations are expected to have relatively high quality. Moreover, either the source or target side of the synthetic data is from the original bitext. The di- versified data amount after deduplication is shown in Table 3. Here we perform one round of forward and backward translation, as Nguyen et al. (2020) have empirically shown further rounds do not lead to substantial gains.
+2.4 Casing/Punctuation Restoration Data
+The ASR outputs are lower-cased and unpunctu- ated, while the MT model expects cased and punc- tuated inputs. We randomly sample 1.5 million En- glish sentences from the MT training data (Table 3), and remove the casing and punctuation marks as training source data. We then train a model to re- store the casing and punctuation marks.
+2.5 Speech Translation Data
+The speech translation data are shown in Ta- ble 4. We additionally use our trained MT model to create forward translations based on the fol- lowing transcript-only datasets: Common Voice, TEDLIUM, and VoxPopuli. The TTS data de- scribed in §2.2 is also used.
+Lang. Corpus / Data Source Hours
+# Utterances
+ar
+zh
+nl
+fr
+de
+ja
+fa
+pt
+ru
+CoVoST MuST-C TTS CoVoST MuST-C TTS MuST-C europarl-ST TTS MuST-C europarl-ST TTS CoVoST MuST-C europarl-ST TTS CoVoST MuST-C TTS CoVoST MuST-C TTS MuST-C europarl-ST TTS MuST-C TTS CoVoST MuST-C TTS
+429 463 283 429 596 204 434 75 1138 485 76 1768 429 440 77 1891 429 541 73 429 347 89 377 75 1678 482 331 429 446 428
+289k 212k 203k 289k 358k 183k 248k 32k 713k 275k 32k 998k 289k 269k 33k 779k 289k 329k 56k 289k 182k 88k 206k 32k 639k 265k 331k 289k 236k 511k
+tr
+all
+Common Voice TEDLIUM VoxPopuli
+1488 453 502
+948k 268k 177k
+Table 4: ST data overview. The last section “all” indi- cates forward translated synthetic targets from transcript- only corpora, which are available for all 10 languages.
+3 Cascaded System
+For the cascaded system, we introduce our ASR (§3.1) and MT (§3.2) models.
+
+
+3.1 Automatic Speech Recognition Module
+Baseline Models The first baseline is our ASR model for last year’s offline track (Pham et al., 2022). It is a Wav2vec 2.0 (Baevski et al., 2020) with LARGE configuration pretrained on 960 hours of Librispeech data. This year, after seeing ini- tial favourable results compared to Wav2vec, we opt for WavLM (Chen et al., 2022) as audio en- coder. We use the LARGE configuration with 24 layers. We use the mBART50 (Tang et al., 2020) decoder along with the WavLM encoder. As the ASR model only needs to transcribe English3, we trim the mBART50 vocabulary from 256k down to 62k tokens by removing all non-alphabetic tokens.
+In-Domain TTS Data We also use the synthe- sized TTS data. Compared to the same model without TTS data, the word error rate (WER) im- proves from 11.6% to 10.7% on ACL dev, but de- grades from 8.4% to 9.0% on the TEDLIUM test set. There are two potential explanations: First, the noisy TTS speech may be helpful for handling the non-native utterances prominent in the ACL dev set. Second, the target side of the TTS data is more relevant to the ACL domain, as we selected them based on n-gram overlap with ACL data. This in turn improves ASR performance on the ACL dev set.
+As shown in Table 5, compared to last year’s sub- mission, this year’s ASR model achieves consistent gains across domains on ACL dev, tst-COMMON, and tst2020.
+Model
+ACL dev tstCom. tst2020
+ASR 2022 (Pham et al., 2022) WavLM + mBART50
+12.5 10.7
+5.4 3.9
+5.6 4.8
+Table 5: ASR results in WER(↓) in comparison to our submission last year (Pham et al., 2022) which used Wav2vec trained with CTC and a 5-gram LM. By using WavLM audio encoder and the mBART decoder, we achieve consistent gains across domains (ACL and TED, i.e., tst*).
+Language Model (LM) Adaptation Aside from using TTS data, we also investigate other meth- ods to adapt towards the ACL domain using the provided paper abstracts. On preliminary experi- ments with Connectionist Temporal Classification (CTC) + n-gram LM models, we integrate ACL
+3BART, the English-only predecessor of mBART, is not
+among the allowed pretrained models.
+abstract 5-grams statistics into the language mod- els. As shown in the upper section of Table 6, this improves on ACL dev (WER 13.8% → 13.0%) while preserving the performance on TED talks (tst-COMMON WER stays at 7.6%).
+As our final system is an encoder-decoder model (WavLM + mBART50), adapting the LM alone is less straightforward. We create pseudo ASR training data with ACL data on the transcript side. Specifically, we use our TTS model to synthesize speech from the ACL dev and test abstracts. As the amount of ACL abstract data is very limited (less than 100 sentences in total), we heavily upsampled them, so that they consist of 60% of the training data. As shown in the lower section of Table 6, this leads to a minor improvement of WER for ACL dev. However, the gain does not carry over to ST performance when later cascading with our MT model. Therefore, our final ASR system did not use the abstracts. The lack of improvement could be related to the low amount of ACL abstract data, which requires heavy upsampling of the TTS data, and as a result hinders the ability of transcribing real speech.
+The contrast between the two sets of experiments may be related to diminishing gains as WER im- proves, i.e., for the Wav2vec + CTC + LM model, gaining over a WER of 13.8% is easier than starting from a 10.7% WER. Another interpretation of the difference could be that adding specific constraints to “end-to-end” ASR models is more challenging than the counterparts with separate LMs.
+Model
+ACL dev tst-COMMON
+Wav2vec + CTC + 5-gram + ACL abstract 5-gram
+13.8 13.0
+7.6 7.6
+WavLM + mBART50 + ACL abstract TTS (upsampled)
+10.7 10.5
+3.9 4.3
+Table 6: ASR adaptation results in WER(↓). On prelim- inary experiments with Wav2vec + CTC + LM models, we improve ASR performance on ACL dev by integrat- ing n-gram statistics from the ACL abstracts. For the WavLM + mBART 50 model, adding synthesized audio- transcript data based ACL dev abstracts does not give consistent gain.
+Casing/Punctuation Restoration We take a sequence-to-sequence approach to the casing and punctuation restoration problem. Specifically, we train a punctuation model initializing from DeltaLM-base (Ma et al., 2021) to restore the cas-
+
+
+ACL dev (en→X)
+TED (en→de)
+ID
+de
+ja
+zh
+ar
+nl
+fr
+fa
+pt
+ru
+tr Avg.
+tst2019 tst2020
+From ground-truth transcripts (MT alone) (1) base (2) data divers. all (3) (1) + data divers.; adapter (4) ensemble (2) + (3) (5) (4) + kNN-MT
+39.8 44.2 47.4 30.4 45.7 48.9 23.6 51.1 19.5 22.9 37.4 41.6 44.5 49.8 33.6 50.7 51.1 25.4 52.5 21.5 24.6 39.5 41.4 45.8 48.8 33.3 49.8 51.5 25.2 54.1 21.9 24.1 39.6 41.7 46.1 49.6 33.7 50.8 52.1 25.9 54.3 23.1 24.8 40.2 43.7 47.3 49.8 35.4 52.3 52.8 27.2 55.3 23.9 27.1 41.5
+29.5 30.0 29.5 30.4 30.4
+32.9 33.7 33.2 33.7 33.4
+From ASR outputs (cascaded ST) (1) base (2) data divers. all (3) (1) + data divers.; adapter (4) ensemble (2) + (3) (5) (4) + kNN-MT
+34.3 38.2 41.6 25.3 36.6 39.9 19.1 40.7 16.7 18.9 31.1 35.4 38.6 44.3 26.8 39.2 41.5 20.5 42.6 18.7 19.5 32.7 35.5 39.0 43.6 26.4 38.9 41.9 20.2 43.0 19.3 19.6 32.7 36.1 39.8 44.4 26.9 39.8 42.3 20.7 43.5 19.2 19.7 33.2 36.8 40.2 44.6 28.2 40.8 42.0 21.8 44.5 19.7 21.1 34.0
+26.5 27.0 26.7 26.9 26.9
+28.0 29.3 28.3 28.7 28.5
+End-to-end ST (6) WavLM + mBART50 decoder 31.7 29.2 40.7 25.0 36.7 40.5 19.5 43.0 16.9 18.5 30.2 (7) (6) + TTS 33.2 29.2 40.5 25.5 37.9 41.0 20.1 43.9 16.5 18.9 30.7 (8) ensemble (6) + (7) 34.0 29.9 41.7 25.5 38.2 42.0 20.2 44.4 18.3 20.2 31.4
+27.0 27.0 27.3
+29.3 29.1 29.6
+Table 7: MT and ST results in BLEU(↑). We evaluated against the original references without NFKC normalization, although the hypotheses are normalized by the default “NMT_NFKC” rule in SentencePiece (Kudo and Richardson, 2018).
+ing and punctuation information, using the training data described in §2.4.
+3.2 Machine Translation Module
+Baseline Model We start with the pretrained DeltaLM (Ma et al., 2021) with LARGE configura- tion. The pretrained model has 24 and 12 encoder and decoder Transformer layers respectively. It uses postnorm layer normalization. It is a fully multilingual model where all parameters are shared across languages. The target language tokens are prepended to the source target sentences. We use temperature-based sampling (Arivazhagan et al., 2019) with τ = 5.0 to counteract the data imbal- ance between languages. When training, we use a relatively large effective batch size of 128k as preliminary experiments with smaller batch sizes showed more instabilities in training. This might be a side effect of the postnorm layer normaliza- tion (Nguyen and Salazar, 2019). The results of the baseline are shown in Row (1) of Table 7, with an average score of 37.4 BLEU4 on ACL dev.
+Data Diversification As motivated in §2.3, we use data diversification as an alternative data aug- mentation method in absence of monolingual target data for backtranslation. As data diversification needs forward and backward translations on the training data, we additionally train a 10-to-English
+4By default using tok.13a from sacreBLEU (Post, 2018), except for zh and ja where we use tok.zh and tok.ja-mecab-0.996-IPA.
+model to create the backward translations. Row (2) of Table 7 shows the results after data diversifica- tion on all languages pairs. On average, this data augmentation approach improves MT quality by 2.1 BLEU and (37.4 → 39.5), and ST quality by 1.6 BLEU (31.1 → 32.7).
+Adapters for Incremental Data Retraining on the new training data after diversification (Row (2) of Table 7) is time-consuming and costly. To adapt the initial model (Row (1) of Table 7) rapidly towards to the augmented data, we use adapters (Bapna and Firat, 2019; Philip et al., 2020). the adapters are target-language- In this case, specific. The adapters are inserted after each en- coder and decoder layer. We initialize from the trained baseline (Row (1) in Table 7), freeze trained parameters and update the adapters only. We use the efficient implementation from Baziotis et al. (2022). As shown in Row (3) of Table 7, only train- ing the adapters on the new diversified training data performs on par with the re-training setup in Row (2) (39.6 on MT and 32.7 on ST on average for ACL dev). These results demonstrate that adapters are suitable for fast and effective incremental learn- ing when additional training data emerges later.
+To our surprise, adding adapters to the model trained with full data diversification (Row (2) from Table 7) does not bring further gain. A similar observation was reported by Pires et al. (2023), who opted for training the full network from scratch along with adapters instead. In our case, it therefore
+
+
+would be interesting to see the impact of training on data diversification with adapters from scratch.
+Multilingual vs Bilingual To investigate the im- pact of interference from multiple target languages, in preliminary experiments, we also compare the multilingual and bilingual translation performance for selected language pairs. As shown in Table 8, compared to bilingual models, the multilingual model lags behind especially on higher-resource languages. Adding the adapters partly closes this gap. Note the score difference to main result table (Table 7) is because the preliminary experiments did not fully use diversified data for all languages.
+Model
+ACL dev
+tst-COMMON
+en-de en-ru en-fa
+en-de en-ru en-fa
+bilingual multilingual + adapters
+41.0 39.8 40.9
+20.0 19.5 20.2
+24.2 23.6 23.7
+34.3 34.1 34.7
+22.7 21.9 22.2
+16.0 15.9 16.3
+Table 8: Comparison of bilingual vs multilingual trans- lation performance in BLEU (↑) on German (de), Rus- sian (ru), Farsi (fa), which are high-, mid-, low-resource in the training data (Table 3). Multilingual system falls behind bilingual system, while adapters partly closes the gap. Note the score difference to main result table (Table 7) is because the experiments here did not fully use diversification.
+Ensemble Although the models in Row (2) and (3) in Table 7 are trained on the same data and share the same base architecture, we expect their representations to be sufficiently different, as (3) additionally uses adapters. We therefore ensemble these two models. The results are in Row (4) of Ta- ble 7. On MT and ST, for ACL, ensembling shows an improvement of 0.6 and 0.5 BLEU respectively over the single models in Row (2) and (3). On TED, however, ensembling does not seem to im- pact the scores compared to the single models. One explanation is that the adapter model from Row (3) performs worse than its non-adapter counter- part (Row (2)) on TED, which limits the overall effectiveness of ensembling.
+kNN-MT We also adapt the MT model to the tar- get domain of scientific talks. A challenge is that we do not have sufficient training data to fully fine- tune the MT model towards the desired domain or style. In this case, we use kNN-MT (Khandelwal et al., 2021) to adapt the model at inference time. In kNN-MT, bitexts are passed through a trained
+Source (ASR output): ... in a zero shot evaluation setup, meaning that pre trained word embedding models are ap- plied out of the box without any additional fine tuning w/o kNN-MT (Table 7 row (4)): in einer Null-Shot-Bewertungs-Setup (zero-shot evaluation setup), was bedeutet, dass vorgebildete (pre-educated) Wort- Einbettungsmodelle ohne zusätzliche Feinabstimmung di- rekt angewendet werden. w/ kNN-MT (Table 7 row (5)): ... in einer Null-Shot- Bewertung (zero-shot evaluation), was bedeutet, dass vortrainierte (pretrained) Wort-Einbettungsmodelle ohne zusätzliche Feinabstimmung direkt angewendet werden.
+...
+Source (ASR output): Hello. My name is Ramachandra, and I will present our paper. w/o kNN-MT (Table 7 row (4)): 你好 (Hello; addressing a single person),我叫拉玛钱德拉 我要发表 (publish)我 们的论文 w/ kNN-MT (Table 7 row (5)): 大家好 (Hi all; addressing a group of audience),我叫拉玛钱德拉, 我要介绍 (intro- duce)我们的论文。
+Table 9: Examples of kNN-MT improving transla- tion quality for en→de (upper) and en→zh (lower). kNN-MT creates more accurate terminology transla- tions (“pre trained” for en→de) and create more context- appropriate translation (“Hello” for en→zh).
+MT model. For each target token, its decoder hid- den state is stored in a datastore. At inference time, based on the current decoder hidden state, k candi- date target tokens are retrieved from the datastore using a nearest neighbor lookup. The retrieved to- ken distribution is then interpolated with the MT target distribution, which in turn generates the out- put tokens. Hyperparameters for kNN-MT include the number of retrieved neighbors k, the tempera- ture for smoothing the kNN distribution T , and the interpolation weight w.
+In our experiments, we use systems (2) and (3) from Table 7 for creating the datastores. As differ- ent models’ hidden states (which serve as keys in the datastore) also differ substantially, the datastore is MT-model-dependent. To use kNN-MT when ensembling systems (2) and (3), we therefore need two datastores for systems (2) and (3) respectively. The kNN-MT candidate tokens are interpolated with the output vocabulary distribtuion before the ensembling operation.
+We use hyperparameters k = 8, T = 50, w = 0.3, after an initial search with T ∈ [10, 50, 100], w ∈ [0.1, 0.3, 0.5]. Our implemen- tation mostly follows Zheng et al. (2021), which uses the FAISS toolkit (Johnson et al., 2019) for efficient kNN operations. Comparing the infer- ence speed of system (4) and (5), with the same
+
+
+batch size of 64 sentences5, using kNN-MT takes roughly 50% more time on a Nvidia Titan RTX GPU with 24GB memory.
+Naively using all ACL dev bitext as datastore would lead the model to copying the oracle targets. To simulate the scenario on the blind test set, when translating the i-th talk, we use the other jj̸=i ∈ [n] talks’ bitext as datastore, where n is the total number of talks.
+As shown in Row (5) of Table 7, kNN-MT brings an additional gain of 1.3 BLEU on MT and 0.8 BLEU on ST. These results shows a datastore as small as hundreds of sentence pairs can be effec- tively used for inference-time domain adaptation. Table 9 shows two examples of kNN-MT im- proving translation quality, apart from generic im- provements in fluency and accuracy, in these ex- amples kNN-MT also helps generate correct termi- nologies and context-appropriate greetings.
+4 End-to-End System
+For the end-to-end system, similar to our ASR model, after seeing initial favourable results of WavLM over Wav2vec, we choose WavLM as the audio encoder. Following last year’s submis- sion (Pham et al., 2022), we use the mBART50 decoder. The results are shown in Row (6) of Ta- ble 7. Contrasting Row (6) and (7) reveals that adding the TTS data does not substantially change ST performance. However, ensembling the two models trained with and without TTS data (Row (8)) improves over the single models (on average +0.7 for ACL, +0.4 for TED), despite them having the identical architecture.
+Compared to the strongest cascaded system (Row (5)), the end-to-end system falls behind 2.6 BLEU on ACL dev. On TED, however, it appears to slightly outperform the cascaded system. One explanation is that the MT model of the cascaded system has not been separately adapted to TED texts (although parts of the full training data do cover TED data), which was shown essential in im- proving performance on TED test sets (Zhang et al., 2022; Pham et al., 2022). The end-to-end system, on the other hand, has seen a larger proportion of TED data in training (Table 4).
+Similar to the previous year (Polák et al., 2022), we also adapt our end-to-end offline model for si-
+5System (5) requires more GPU memory than system (4). The latter would be able to use a larger batch size of 128 sentences, making the realistic speed difference slightly larger.
+multaneous track (Polák et al., 2023).
+5 Conclusion
+In this paper, we described our systems for the mul- tilingual speech translation track of IWSLT 2023, which translates English speech into 10 target lan- guages. To tackle the task of translating scien- tific conference talks, which feature non-native in- put speech and terminology-dense contents, our systems have several novelties. Lacking suitable training data for the target domain, we used kNN- MT for inference-time adaptation and showed an improvement of +0.8 BLEU for cascaded speech translation system. We also used adapters to in- tegrate incremental data from augmentation, and achieved performance on-par with re-training on all data. In our experiments, we observed that cas- caded systems are more easily adaptable towards desired target domains due to their separate mod- ules. Our cascaded speech system outperforms its end-to-end counterpart on scientific talk transla- tion, although their performance remains similar on TED talks. For future work, we are interested in the feasibility of applying the adaptation approaches shown effective on MT to end-to-end ST.
+Acknowledgement We thank the anonymous re- viewers for detailed and insightful feedback. Part of this work was performed on the HoreKa su- percomputer funded by the Ministry of Science, Research and the Arts Baden-Württemberg and by the Federal Ministry of Education and Research of Germany. Part of this work was supported by the Federal Ministry of Education and Research of Germany under grant agreement 01EF1803B (RELATER).
+References
+Milind Agarwal, Sweta Agrawal, Antonios Anasta- sopoulos, Ondˇrej Bojar, Claudia Borg, Marine Carpuat, Roldano Cattoni, Mauro Cettolo, Mingda Chen, William Chen, Khalid Choukri, Alexandra Chronopoulou, Anna Currey, Thierry Declerck, Qian- qian Dong, Yannick Estéve, Kevin Duh, Marcello Federico, Souhir Gahbiche, Barry Haddow, Benjamin Hsu, Phu Mon Htut, Hirofumi Inaguma, Dávid Ja- vorský, John Judge, Yasumasa Kano, Tom Ko, Rishu Kumar, Pengwei Li, Xutai Ma, Prashant Mathur, Evgeny Matusov, Paul McNamee, John P. McCrae, Kenton Murray, Maria Nadejde, Satoshi Nakamura, Matteo Negri, Ha Nguyen, Jan Niehues, Xing Niu, Atul Ojha Kr., John E. Ortega, Proyag Pal, Juan Pino, Lonneke van der Plas, Peter Polák, Elijah Rippeth,
+
+
+Elizabeth Salesky, Jiatong Shi, Matthias Sperber, Se- bastian Stüker, Katsuhito Sudoh, Yun Tang, Brian Thompson, Kevin Tran, Marco Turchi, Alex Waibel, Mingxuan Wang, Shinji Watanabe, and Rodolfo Ze- vallos. 2023. Findings of the IWSLT 2023 Evaluation Campaign. In Proceedings of the 20th International Conference on Spoken Language Translation (IWSLT 2023). Association for Computational Linguistics.
+Roee Aharoni, Melvin Johnson, and Orhan Firat. 2019. Massively multilingual neural machine translation. In Proceedings of the 2019 Conference of the North American Chapter of the Association for Computa- tional Linguistics: Human Language Technologies, Volume 1 (Long and Short Papers), pages 3874–3884, Minneapolis, Minnesota. Association for Computa- tional Linguistics.
+Antonios Anastasopoulos, Loïc Barrault, Luisa Ben- tivogli, Marcely Zanon Boito, Ondˇrej Bojar, Roldano Cattoni, Anna Currey, Georgiana Dinu, Kevin Duh, Maha Elbayad, Clara Emmanuel, Yannick Estève, Marcello Federico, Christian Federmann, Souhir Gahbiche, Hongyu Gong, Roman Grundkiewicz, Barry Haddow, Benjamin Hsu, Dávid Javorský, V˘era Kloudová, Surafel Lakew, Xutai Ma, Prashant Mathur, Paul McNamee, Kenton Murray, Maria Nˇadejde, Satoshi Nakamura, Matteo Negri, Jan Niehues, Xing Niu, John Ortega, Juan Pino, Eliz- abeth Salesky, Jiatong Shi, Matthias Sperber, Se- bastian Stüker, Katsuhito Sudoh, Marco Turchi, Yo- gesh Virkar, Alexander Waibel, Changhan Wang, and Shinji Watanabe. 2022. Findings of the IWSLT 2022 evaluation campaign. In Proceedings of the 19th International Conference on Spoken Language Translation (IWSLT 2022), pages 98–157, Dublin, Ireland (in-person and online). Association for Com- putational Linguistics.
+Antonios Anastasopoulos, Ondˇrej Bojar, Jacob Bremer- man, Roldano Cattoni, Maha Elbayad, Marcello Fed- erico, Xutai Ma, Satoshi Nakamura, Matteo Negri, Jan Niehues, Juan Pino, Elizabeth Salesky, Sebas- tian Stüker, Katsuhito Sudoh, Marco Turchi, Alexan- der Waibel, Changhan Wang, and Matthew Wiesner. 2021. FINDINGS OF THE IWSLT 2021 EVAL- UATION CAMPAIGN. In Proceedings of the 18th International Conference on Spoken Language Trans- lation (IWSLT 2021), pages 1–29, Bangkok, Thailand (online). Association for Computational Linguistics.
+Rosana Ardila, Megan Branson, Kelly Davis, Michael Kohler, Josh Meyer, Michael Henretty, Reuben Morais, Lindsay Saunders, Francis M. Tyers, and Gregor Weber. 2020. Common voice: A massively- multilingual speech corpus. In Proceedings of The 12th Language Resources and Evaluation Confer- ence, LREC 2020, Marseille, France, May 11-16, 2020, pages 4218–4222. European Language Re- sources Association.
+Naveen Arivazhagan, Ankur Bapna, Orhan Firat, Dmitry Lepikhin, Melvin Johnson, Maxim Krikun, Mia Xu Chen, Yuan Cao, George F. Foster, Colin Cherry, Wolfgang Macherey, Zhifeng Chen, and
+Yonghui Wu. 2019. Massively multilingual neural machine translation in the wild: Findings and chal- lenges. CoRR, abs/1907.05019.
+Alexei Baevski, Yuhao Zhou, Abdelrahman Mohamed, and Michael Auli. 2020. wav2vec 2.0: A framework for self-supervised learning of speech representations. In Advances in Neural Information Processing Sys- tems 33: Annual Conference on Neural Information Processing Systems 2020, NeurIPS 2020, December 6-12, 2020, virtual.
+Ankur Bapna and Orhan Firat. 2019. Simple, scal- able adaptation for neural machine translation. In Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Lan- guage Processing (EMNLP-IJCNLP), pages 1538– 1548, Hong Kong, China. Association for Computa- tional Linguistics.
+Christos Baziotis, Mikel Artetxe, James Cross, and Shruti Bhosale. 2022. Multilingual machine trans- In Proceedings of the lation with hyper-adapters. 2022 Conference on Empirical Methods in Natu- ral Language Processing, pages 1170–1185, Abu Dhabi, United Arab Emirates. Association for Com- putational Linguistics.
+Sanyuan Chen, Chengyi Wang, Zhengyang Chen, Yu Wu, Shujie Liu, Zhuo Chen, Jinyu Li, Naoyuki Kanda, Takuya Yoshioka, Xiong Xiao, Jian Wu, Long Zhou, Shuo Ren, Yanmin Qian, Yao Qian, Jian Wu, Michael Zeng, Xiangzhan Yu, and Furu Wei. 2022. Wavlm: Large-scale self-supervised pre-training for full stack speech processing. IEEE J. Sel. Top. Signal Process., 16(6):1505–1518.
+Mattia A. Di Gangi, Roldano Cattoni, Luisa Bentivogli, Matteo Negri, and Marco Turchi. 2019. MuST-C: a Multilingual Speech Translation Corpus. In Proceed- ings of the 2019 Conference of the North American Chapter of the Association for Computational Lin- guistics: Human Language Technologies, Volume 1 (Long and Short Papers), pages 2012–2017, Min- neapolis, Minnesota. Association for Computational Linguistics.
+Matthias Eck, Stephan Vogel, and Alex Waibel. 2005. Low cost portability for statistical machine transla- tion based on n-gram frequency and TF-IDF. In Proceedings of the Second International Workshop on Spoken Language Translation, Pittsburgh, Penn- sylvania, USA.
+Angela Fan, Shruti Bhosale, Holger Schwenk, Zhiyi Ma, Ahmed El-Kishky, Siddharth Goyal, Mandeep Baines, Onur Celebi, Guillaume Wenzek, Vishrav Chaudhary, Naman Goyal, Tom Birch, Vitaliy Liptchinsky, Sergey Edunov, Michael Auli, and Ar- mand Joulin. 2021. Beyond english-centric multilin- gual machine translation. The Journal of Machine Learning Research, 22:107:1–107:48.
+François Hernandez, Vincent Nguyen, Sahar Ghannay, Natalia A. Tomashenko, and Yannick Estève. 2018.
+
+
+TED-LIUM 3: Twice as much data and corpus repar- tition for experiments on speaker adaptation. In Speech and Computer - 20th International Confer- ence, SPECOM 2018, Leipzig, Germany, September 18-22, 2018, Proceedings, volume 11096 of Lecture Notes in Computer Science, pages 198–208. Springer.
+Javier Iranzo-Sánchez, Joan Albert Silvestre-Cerdà, Javier Jorge, Nahuel Roselló, Adrià Giménez, Al- bert Sanchís, Jorge Civera, and Alfons Juan. 2020. Europarl-st: A multilingual corpus for speech transla- tion of parliamentary debates. In 2020 IEEE Interna- tional Conference on Acoustics, Speech and Signal Processing, ICASSP 2020, Barcelona, Spain, May 4-8, 2020, pages 8229–8233. IEEE.
+Jeff Johnson, Matthijs Douze, and Hervé Jégou. 2019. IEEE
+Billion-scale similarity search with GPUs. Transactions on Big Data, 7(3):535–547.
+Urvashi Khandelwal, Angela Fan, Dan Jurafsky, Luke Zettlemoyer, and Mike Lewis. 2021. Nearest neigh- bor machine translation. In 9th International Confer- ence on Learning Representations, ICLR 2021, Vir- tual Event, Austria, May 3-7, 2021. OpenReview.net.
+Jaehyeon Kim, Jungil Kong, and Juhee Son. 2021. Conditional variational autoencoder with adversar- ial learning for end-to-end text-to-speech. In Pro- ceedings of the 38th International Conference on Machine Learning, ICML 2021, 18-24 July 2021, Vir- tual Event, volume 139 of Proceedings of Machine Learning Research, pages 5530–5540. PMLR.
+Philipp Koehn. 2005. Europarl: A parallel corpus for In Proceedings of statistical machine translation. Machine Translation Summit X: Papers, pages 79–86, Phuket, Thailand.
+Sai Koneru, Danni Liu, and Jan Niehues. 2022. Cost- effective training in low-resource neural machine translation. CoRR, abs/2201.05700.
+Taku Kudo and John Richardson. 2018. SentencePiece: A simple and language independent subword tok- enizer and detokenizer for neural text processing. In Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing: System Demonstrations, pages 66–71, Brussels, Belgium. Association for Computational Linguistics.
+Pierre Lison and Jörg Tiedemann. 2016. OpenSub- titles2016: Extracting large parallel corpora from movie and TV subtitles. In Proceedings of the Tenth International Conference on Language Resources and Evaluation (LREC’16), pages 923–929, Portorož, Slovenia. European Language Resources Association (ELRA).
+Shuming Ma, Li Dong, Shaohan Huang, Dong- dong Zhang, Alexandre Muzio, Saksham Sing- hal, Hany Hassan Awadalla, Xia Song, and Furu Wei. 2021. Deltalm: Encoder-decoder pre-training for language generation and translation by aug- menting pretrained multilingual encoders. CoRR, abs/2106.13736.
+Makoto Morishita, Katsuki Chousa, Jun Suzuki, and Masaaki Nagata. 2022. JParaCrawl v3.0: A large- In Pro- scale English-Japanese parallel corpus. ceedings of the Thirteenth Language Resources and Evaluation Conference, pages 6704–6710, Marseille, France. European Language Resources Association.
+Toan Q. Nguyen and Julian Salazar. 2019. Transformers without tears: Improving the normalization of self- attention. In Proceedings of the 16th International Conference on Spoken Language Translation, IWSLT 2019, Hong Kong, November 2-3, 2019. Association for Computational Linguistics.
+Xuan-Phi Nguyen, Shafiq R. Joty, Kui Wu, and Ai Ti Aw. 2020. Data diversification: A simple strategy for neural machine translation. In Advances in Neural Information Processing Systems 33: Annual Confer- ence on Neural Information Processing Systems 2020, NeurIPS 2020, December 6-12, 2020, virtual.
+Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur. 2015. Librispeech: An ASR corpus based on public domain audio books. In 2015 IEEE International Conference on Acoustics, Speech and Signal Processing, ICASSP 2015, South Brisbane, Queensland, Australia, April 19-24, 2015, pages 5206–5210. IEEE.
+Ngoc-Quan Pham, Tuan Nam Nguyen, Thai-Binh Nguyen, Danni Liu, Carlos Mullov, Jan Niehues, and Alexander Waibel. 2022. Effective combination of pretrained models - KIT@IWSLT2022. In Proceed- ings of the 19th International Conference on Spoken Language Translation (IWSLT 2022), pages 190–197, Dublin, Ireland (in-person and online). Association for Computational Linguistics.
+Jerin Philip, Alexandre Berard, Matthias Gallé, and Laurent Besacier. 2020. Monolingual adapters for zero-shot neural machine translation. In Proceed- ings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 4465–4470, Online. Association for Computational Linguistics.
+Telmo Pessoa Pires, Robin M. Schmidt, Yi-Hsiu Liao, and Stephan Peitz. 2023. Learning language-specific layers for multilingual machine translation. CoRR, abs/2305.02665.
+Peter Polák, Danni Liu, Ngoc-Quan Pham, Jan Niehues, Alexander Waibel, and Ondˇrej Bojar. 2023. Towards efficient simultaneous speech translation: CUNI- KIT system for simultaneous track at IWSLT 2023. In Proceedings of the 20th International Confer- ence on Spoken Language Translation (IWSLT 2023), Toronto, Canada (in-person and online). Association for Computational Linguistics.
+Peter Polák, Ngoc-Quan Pham, Tuan Nam Nguyen, Danni Liu, Carlos Mullov, Jan Niehues, Ondˇrej Bo- jar, and Alexander Waibel. 2022. CUNI-KIT system for simultaneous speech translation task at IWSLT 2022. In Proceedings of the 19th International Con- ference on Spoken Language Translation (IWSLT
+
+
+2022), pages 277–285, Dublin, Ireland (in-person and online). Association for Computational Linguis- tics.
+Matt Post. 2018. A call for clarity in reporting BLEU scores. In Proceedings of the Third Conference on Machine Translation: Research Papers, pages 186– 191, Brussels, Belgium. Association for Computa- tional Linguistics.
+Sylvestre-Alvise Rebuffi, Hakan Bilen, and Andrea Vedaldi. 2017. Learning multiple visual domains with residual adapters. In Advances in Neural Infor- mation Processing Systems 30: Annual Conference on Neural Information Processing Systems 2017, De- cember 4-9, 2017, Long Beach, CA, USA, pages 506– 516.
+Nils Reimers and Iryna Gurevych. 2020. Making monolingual sentence embeddings multilingual us- In Proceedings of the ing knowledge distillation. 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 4512–4525, Online. Association for Computational Linguistics.
+Elizabeth Salesky, Kareem Darwish, Mohamed Al- Badrashiny, Mona Diab, and Jan Niehues. 2023. Evaluating Multilingual Speech Translation Under Realistic Conditions with Resegmentation and Ter- minology. In Proceedings of the 20th International Conference on Spoken Language Translation (IWSLT 2023). Association for Computational Linguistics.
+Yuqing Tang, Chau Tran, Xian Li, Peng-Jen Chen, Na- man Goyal, Vishrav Chaudhary, Jiatao Gu, and An- gela Fan. 2020. Multilingual translation with exten- sible multilingual pretraining and finetuning. CoRR, abs/2008.00401.
+Jörg Tiedemann. 2012. Parallel data, tools and inter- In Proceedings of the Eighth In- faces in OPUS. ternational Conference on Language Resources and Evaluation (LREC’12), pages 2214–2218, Istanbul, Turkey. European Language Resources Association (ELRA).
+Changhan Wang, Morgane Riviere, Ann Lee, Anne Wu, Chaitanya Talnikar, Daniel Haziza, Mary Williamson, Juan Pino, and Emmanuel Dupoux. 2021. VoxPop- uli: A large-scale multilingual speech corpus for rep- resentation learning, semi-supervised learning and interpretation. In Proceedings of the 59th Annual Meeting of the Association for Computational Lin- guistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers), pages 993–1003, Online. Association for Computational Linguistics.
+Changhan Wang, Anne Wu, and Juan Miguel Pino. 2020. Covost 2: A massively multilingual speech-to-text translation corpus. CoRR, abs/2007.10310.
+Weitai Zhang, Zhongyi Ye, Haitao Tang, Xiaoxi Li, Xinyuan Zhou, Jing Yang, Jianwei Cui, Pan Deng, Mohan Shi, Yifan Song, Dan Liu, Junhua Liu, and
+Lirong Dai. 2022. The USTC-NELSLIP offline speech translation systems for IWSLT 2022. In Pro- ceedings of the 19th International Conference on Spoken Language Translation (IWSLT 2022), pages 198–207, Dublin, Ireland (in-person and online). As- sociation for Computational Linguistics.
+Xin Zheng, Zhirui Zhang, Junliang Guo, Shujian Huang, Boxing Chen, Weihua Luo, and Jiajun Chen. 2021. Adaptive nearest neighbor machine translation. In Proceedings of the 59th Annual Meeting of the Asso- ciation for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 2: Short Papers), pages 368–374, Online. Association for Computational Linguistics.

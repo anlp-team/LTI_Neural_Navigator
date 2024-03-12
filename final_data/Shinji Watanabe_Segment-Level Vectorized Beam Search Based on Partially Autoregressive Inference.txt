@@ -1,0 +1,206 @@
+3 2 0 2
+t c O 1
+] S A . s s e e [
+2 v 2 2 9 4 1 . 9 0 3 2 : v i X r a
+SEGMENT-LEVEL VECTORIZED BEAM SEARCH BASED ON PARTIALLY AUTOREGRESSIVE INFERENCE
+Masao Someki1, Nicholas Eng2, Yosuke Higuchi3, Shinji Watanabe4
+1IBM Japan Ltd., Japan
+2The University of Auckland, New Zealand
+3Waseda University, Japan
+4Carnegie Mellon University, USA
+ABSTRACT
+Attention-based encoder-decoder models with autoregressive (AR) decoding have proven to be the dominant approach for automatic speech recognition (ASR) due to their superior accuracy. However, they often suffer from slow inference. This is primarily attributed to the incremental calculation of the decoder. This work proposes a partially AR framework, which employs segment-level vectorized beam search for improving the inference speed of an ASR model based on the hybrid connectionist temporal classification (CTC) attention-based architecture. It first generates an initial hypothe- sis using greedy CTC decoding, identifying low-confidence tokens based on their output probabilities. We then utilize the decoder to perform segment-level vectorized beam search on these tokens, re-predicting in parallel with minimal decoder calculations. Ex- perimental results show that our method is 12 to 13 times faster in inference on the LibriSpeech corpus over AR decoding whilst preserving high accuracy.
+Index Terms— Decoding algorithm, autoregressive, semi-
+autoregressive, hybrid CTC/attention, beam search
+1. INTRODUCTION
+Due to recent advances in deep learning, automatic speech recog- nition (ASR) has witnessed remarkable achievements [1–3]. ASR plays an essential role in facilitating human-computer interaction by providing an interface for converting audio to text and demonstrat- ing substantial applicability in real-world scenarios. In particular, the RNN-Transducer model [4], which operates relatively fast and can be extended to streaming speech recognition, is widely used in real-world applications. Recent research in ASR has also made significant progress in achieving higher accuracy through Attention- based Encoder-Decoder (AED) models [5, 6]. AED models have also been utilized in models such as Whisper [7] and speech transla- tion [8], and their usefulness has been reevaluated. However, there are various trade-offs that can potentially limit its application in cer- tain scenarios. For example, one can construct an ASR system with high accuracy through large and complex models, but this comes at the expense of increased computational cost and inference time.
+time compared to AR models [17]. However, it remains a challenge to achieve the same level of recognition accuracy as AR models. In addition, NAR models require a complex model structure or a unique training strategy for the successful implementation of parallel generation during inference [17].
+Regarding AR decoding, the decoder is trained to learn linguis- tic information. This allows us to utilize the relationship between the current token and the previous token. Furthermore, it is common to enhance accuracy by implementing the beam search algorithm, which is a heuristic search for the best hypothesis. However, be- cause AR requires the previous tokens to estimate the next token, it is not possible to parallelize the inference of a single audio. As a consequence, achieving NAR-level speed through inference paral- lelization is challenging.
+In this paper, we focus on the difference in trade-off balance be- tween AR and NAR, and propose a new decoding method, the par- tially autoregressive (PAR) method as a fast and accurate decoding method. By utilizing the NAR approach and segment-level vector- ized beam search, we can compensate for the weaknesses of both AR and NAR. This results in a better trade-off between accuracy and latency. In particular, we show that by optimizing the inference operations of the pre-trained hybrid connectionist temporal classifi- cation (CTC) and attention model, we are able to achieve NAR-level inference speed while maintaining its high accuracy, as well as not needing additional training of the model.
+In this paper, we make the following contributions: • We propose a new decoding framework that combines AR
+and NAR.
+We demonstrate a better balance of accuracy-latency trade-off without additional training.
+2. RELATED WORKS
+Numerous studies have been conducted to balance the accuracy- latency trade-off. In general, there are two main approaches; reduc- ing latency while preserving good accuracy or improving accuracy while preserving fast inference speed.
+There has been extensive research devoted to alleviating the In- trade-off between recognition accuracy and inference speed. spired by the great success in neural machine translation [9, 10], non-autoregressive (NAR) models have been actively studied in the context of ASR, with the aim of achieving fast inference [11–14]. Compared to the conventional autoregressive (AR) models [15, 16], which generates output at each step conditioned on the previously generated outputs, NAR models can produce multiple outputs si- multaneously. This parallel computation accelerates the inference process of ASR, resulting in a significant reduction in inference
+To reduce latency, there are several methods to lower the com- putational cost during inference. One such method is the pruning technique [18–20], which reduces the number of parameters in a trained model by identifying subnetworks with better performance and fewer parameters. Another method is knowledge distillation [21, 22], which trains a smaller model to reduce the number of param- eters required during inference. To further reduce the number of search iterations, hypotheses can be predicted in a batch [23], or the search process can be stopped prematurely [24]. In addition, other approaches focus on utilizing machine resources more effi- ciently [25–27], rather than relying solely on the model architecture,
+979-8-3503-0689-7/23/$31.00 ©2023 IEEE
+
+
+(a) Autoregressive (AR)
+(b) Non-autoregressive (NAR)
+(c) Partially autoregressive (PAR)
+Fig. 1: Overview and comparison of AR, NAR, and PAR decoding. <sos> denotes the “start-of-sequence” symbol,and the mask token is denoted by # or red characters. PAR is a hybrid of AR and NAR methods, in which the masking process is applied first, followed by segment-level vectorized beam search.
+to achieve faster processing. In this study, we parallelized the AR decoding of single audio to achieve high-speed processing. The pro- cess is similar to batch processing of hypotheses, but in this case, the audio is segmented and parallelized in addition to the hypotheses.
+On the other hand, we can also improve the accuracy of a low- latency model, such as a non-autoregressive (NAR) model, though at a lower accuracy than typical AR models. For example, by replac- ing and inserting the model output with a mask sequence [11–13,28], NAR can more accurately predict the target sequence compared to a standard NAR model. We can also improve the accuracy by utilizing an external language model [29, 30]. Additionally, several investiga- tions have been undertaken to improve both the inference speed and accuracy, such as parallelizing the decoding process in the stream- ing situation [31]. In our work, it is not possible to perform parallel processing of all tokens as investigated above. However, high accu- racy can still be achieved by utilizing AR decoding in areas where parallel processing leads to decreased accuracy.
+Research has investigated the combination of AR and NAR methods [32]. The researchers trained a dual-mode Transformer decoder that can be used for both NAR and AR-style processes. They first applied NAR-style decoding to generate several hypothe- ses, then used AR-style rescoring to select the best hypothesis. Our approach indeed uses AR decoding after NAR decoding. However, we utilize NAR decoding in our work to parallelize AR decoding within a single audio, so the purpose of NAR decoding is different.
+(a) AR
+3. BACKGROUND
+In this section, to provide a clear understanding of how the pro- posed approach combines the benefits of autoregressive (AR) and non-autoregressive (NAR) decoding, we begin with a brief overview of the conventional encoder-decoder-based models, including hybrid CTC-attention [33] and Mask-CTC [13]. Additionally, we investi- gate the role of each encoder and decoder in influencing the overall inference time for each model.
+(b) NAR
+3.1. Autoregressive ASR with Hybrid CTC/Attention
+Fig. 2: Average inference time and proportion of time spent on the encoder, decoder, and CTC computation for (a) AR, as well as the encoder and decoder computation for (b) NAR architectures.
+AR decoding is a recursive method for estimating target sequences. In the example shown in Fig. 1a, the token s is estimated first and
+
+
+Table 1: Decoding example from the LibriSpeech test-clean set (1089-134686-0002). The target sequence is initially predicted by gCTC and replaced with masks (“#”). Consecutive masks are merged into one mask. Red tokens indicate the best hypotheses from the segment-level vectorized beam search at each iteration. We set max iteration to 5 and have five sentences for this sample. However, we only show iterations 1 and 2 since there is no difference from the third iteration.
+Masked sequence iteration=1 iteration=2 Ground truth
+after early night# the yellow lamps would light up here and there the squalid quarter of the#el# after early nightfall the yellow lamps would light up here and there the squalid quarter of the braels after early nightfall the yellow lamps would light up here and there the squalid quarter of the brothels after early nightfall the yellow lamps would light up here and there the squalid quarter of the brothels
+then used to estimate the next token, e. This simple left-to-right beam search similar to [15] is widely used in ASR to search for the most likely transcriptions [16].
+4. PARTIALLY AUTOREGRESSIVE FRAMEWORK
+4.1. Partially Autoregressive Inference
+However, due to the iterative nature of beam search, this can greatly slow the inference time of AR decoding. For example, using the hybrid CTC/attention architecture, the beam search requires de- coder computation and CTC rescoring process for each search itera- tion, hence inference time increases if the search process is iterated a large number of times. This effect is shown in Fig. 2a, which shows the proportion of time spent on the encoder and decoding process, including decoder and CTC prefix score computation, as well as the average time spent during inference for various lengths of audio in- put. This shows that as the audio length and inference time increase, the proportion of time spent in the decoding process also increases.
+To address the issues inherent in AR and NAR decoding, we pro- pose a partially autoregressive (PAR) decoding method. Both AR and NAR models use the CTC and decoder components, but there is a significant difference in the trade-off balance based on usage. AR uses an iterative process to predict the target sequence, so it does not have an accuracy issue with target sequence length. NAR first uses gCTC results to reduce the number of tokens that need to be predicted with the decoder, resulting in fast inference. In PAR, we combine NAR-style CTC usage and AR-style decoder usage to uti- lize these two advantages fully.
+3.2. Non-autoregressive ASR with Mask-CTC
+NAR decoding is a method that avoids recursively estimating the tar- get sequences to address the problem of slow inference. There are various architectures for this method [17], but this work focuses on the Mask-CTC [13] model. In the Mask-CTC model, we first esti- mate the target sequences with greedy CTC decoding (gCTC) out- put, and then a mask is applied based on the CTC probabilities for each token. As illustrated in Fig. 1b, the token e, a, and m is masked due to its lower probability. Then, the masked token # is estimated using the masked language model decoder. Since the decoder is only required for the masked token, and the number of decoder calcula- tions is fixed, the number of decoder computations is significantly reduced compared to the AR method.
+Fig. 2b illustrates the proportion of time spent on the encoder and decoder, and the inference time for the Mask-CTC model. We set the number of the decoder iterations to 10 for measurement. Compared to Fig. 2a, we can see that the encoder’s share of NAR is larger than AR. Considering the number of encoder computations is always 1, a large encoder’s share means a shorter computation time. As audio length increases, the inference time also increases, but the impact on inference time is small. Therefore the difference in inference time between AR and NAR can be seen as the difference in the proportion of the encoder and decoding process.
+However, there is an accuracy issue with the Mask-CTC-based NAR decoding. If the number of masked tokens is different from the actual number of tokens, the accuracy degrades significantly. For ex- ample, if the correct sequence is s, e, a and the masked sequence is s, #, #, a, the result of Mask-CTC becomes incorrect, since it tends to assign the same numbers of tokens to the masks, e.g., s, e, e, a or s, e, a, a. Similarly, if the masked sequence is s, e, #, a, it will have an insertion error. In our preliminary experiments, we observed that almost 40% of the masked sequences do not match the proper length. Additionally, we have observed that insertion errors caused by the absence of a target token, occur with a probability of 2%.
+The architecture of PAR is illustrated in Fig. 1c. PAR first gen- erates a sequence of tokens by gCTC approach, then apply the mask process using the Mask-CTC method [13]. Finally, it predicts the tokens corresponding to a mask token using beam search, similarly to the AR approach. To reduce the computational complexity, we propose the segment-level vectorized beam search, which signifi- cantly reduces the number of search iterations. By applying this beam search, we can solve the NAR accuracy issue related to the incorrect target length.
+As an example, let us focus on a case where only one mask is in the sequence for simplicity, and let the Pthres represent the threshold value ranging from 0 to 1. Initially, we use the gCTC result, obtained without the AR process. However, the resulting text can contain errors due to the conditional independence assumption. We expect these errors can be corrected by the AR process, where we utilize the pre-trained decoder and beam search. To determine which tokens to update using the AR process, we use Pthres as a filter for posterior probability. Tokens with probability less than Pthres will be consid- ered less confident and replaced with the mask token. Consecutive mask tokens are merged into a single mask because we will estimate the sequences in the AR process. Finally, we use beam search to estimate the tokens.
+We iterate the beam search for max iteration times for any audio length, where max iteration denotes the maximum number of tokens for one mask. The value of max iteration is highly dependent on the threshold Pthres, where a higher value is required when Pthres is closer to 1 and more tokens are replaced with mask tokens.
+4.2. Segment-level Vectorized Beam Search
+The beam search process explained in the previous section focused on the case where there is a single mask token. However, in practice, multiple mask tokens may exist for a given sequence. To handle multiple masks, we parallelize the decoding of masks by extending the vectorized beam search [23]. The vectorized beam search is an extension of traditional beam search that allows for the calculation of B beams simultaneously. In an offline scenario, it can also be extended to the parallel computation of S utterances. In other words,
+
+
+Algorithm 1 Segment-level Vectorized Beam Search
+Beam size: B and the number of masks: S Encoder output: X Initialize decoder cache: C Initialize a S-length list for ended hypotheses: FS Initialize hypotheses YS,B and end-of-sequences ES for i = 1 to max iteration do
+Calculate probability prob = Decoder(YS,B, X, C) Update hypotheses YS,B by top-k method. for s = 1 to S do
+for b = 1 to B do
+if last token of Ys,b is Es then
+Fs.push(Ys,b)
+end if
+end for
+end for
+end for for s = 1 to S do
+Replace s-place mask in the masked sequence with best hy-
+pothesis in Fs end for
+S × B hypotheses can be calculated as a single batch at each step. In our work, we treat the value S as the number of masks to enable parallel computation of all mask tokens.
+The overview of the proposed segment-level vectorized beam search is described in Algorithm 1. First, we initialize S × B hy- potheses YS,B from the gCTC result and masked sequence. Initially, there is only one hypothesis, so Ys,1 contains the gCTC result up to the corresponding mask as the hypothesis. The rest of the hy- potheses, from Ys,2 to Ys,B, are initialized with dummy hypotheses. Additionally, we store the next token for each mask in an end-of- sequence list, ES. Next, we calculate the probabilities of the next token for each hypothesis and update YS,B. We then check, for each mask s, if Es is predicted as the next token for each of the hypothesis from Ys,1 to Ys,B. We push the ended hypothesis to the list of ended hypotheses, Fs. Finally, after iterating max iteration times, we replace each mask token with the best hypothesis in Fs. To simplify the implementation, we apply padding to the missing hypotheses so that the number of hypotheses remains constant, similar to [34].
+Table 1 shows an example of the decoding process of a sample in the LibriSpeech test-clean set. After calculating the gCTC result and merging the consecutive masks, there are three masks in this exam- ple. Since the beam size B is set to 10, there are 30 hypotheses. In the first iteration, we correctly estimated the first and third mask to- kens. Since we used the BPE token for this model, the red characters fall, bra, and s were estimated in a single iteration. In the second iteration, we successfully predicted the second mask, which has two corresponding tokens: bro and th. This example demonstrates that it is possible to predict multiple tokens from a single mask token, en- abling us to handle the accuracy issue in NAR due to incorrect target length. Moreover, the overall number of iterations in beam search is significantly lower than in AR by utilizing the segment-level vec- torized beam search, indicating that PAR is effective in avoiding AR issues.
+We determine whether to end the beam search by observing the next token of the mask token. For example, in the example in Fig. 1c, when the first mask detects a space token _ and the second mask detects b, the hypothesis is terminated and pruned from the overall search.
+5. EXPERIMENT
+5.1. Experimental setup
+5.1.1. Models
+To test the effectiveness of PAR, we compare both its performance and inference speeds of various algorithms to AR and NAR. As PAR decoding can be seen as an optimization of AR decoding, PAR can be tested using pre-trained AR models. As a result, for both AR and PAR inference, we used E-Branchformer models [6] that were pre-trained on the following datasets and are publicly avail- able on the HuggingFace hub: AISHELL-11, JSUT2 LibriSpeech- 100h3, LibriSpeech-960h4, TED-LIUM25. Note that we used two types of models trained with LibriSpeech: a model trained with the entire dataset of 960 hours of audio (LS-960), and another model trained with the subset of 100 hours of audio (LS-100). The model trained with the LS-100 dataset is considered less accurate than the one trained with LS-960, so we used LS-100 to investigate the effect of gCTC accuracy on PAR decoding. For comparison against NAR decoding, we trained models using the Conformer [5] architecture on LS-100. We prepared AR and NAR models with approximately 30 million parameters for a fair evaluation. We used the Conformer model to test if there would be any differences caused by encoder architecture. All the models were trained and evaluated using the ESPnet toolkit [35].
+5.1.2. Decoding setup
+For AR decoding, we set the beam size to 10, the CTC weight to 0.3, and employed the vectorized beam search [23]. For PAR decoding, the beam size is set to 10, but note that for PAR inference, we do not compute the CTC prefix score, so the CTC weight is set to 0. We also set the Pthres to 0.95 and max iteration to 5 for PAR decoding. The decoding speed was measured using a single RTX 2080 Ti.
+5.1.3. Evaluation Datasets
+We used several datasets of different languages for evaluation, described in Table 2. For this study, we used LibriSpeech and TED-LIUM2 as English datasets, JSUT as a Japanese dataset, and AISHELL-1 as a Mandarin dataset. For LibriSpeech, we evaluated dev and test sets, each containing clean and other sets. Each of the five evaluation datasets was evaluated using the AR/PAR model trained on the equivalent dataset. For example, the E-branchformer model pre-trained on the AISHELL-1 dataset was evaluated using the AISHELL-1 evaluation set.
+5.1.4. Metrics
+We evaluated accuracy with word error rate (WER) or character error rate (CER) according to the dataset. We used the real-time factor (RTF) to measure the inference speed. The maximum memory usage of the GPU during inference is also measured to observe the effect of mask parallel decoding. For the RTF and memory usage, we took the mean of all evaluation sets. The speedup column compares the RTF values with PAR compared to AR.
+1https://huggingface.co/pyf98/aishell e branchformer 2https://huggingface.co/pyf98/jsut e branchformer 3https://huggingface.co/pyf98/librispeech 100 e branchformer 4https://huggingface.co/asapp/e branchformer librispeech 5https://huggingface.co/pyf98/tedlium2 e branchformer
+
+
+Table 2: Dataset descriptions. The order of evaluation sets corresponds to the error results in Table 3. †Data split based on ESPnet [35].
+Dataset
+Language Hours
+Token Metric
+Evaluation Sets
+AISHELL-1 [36] JSUT [37] LS-100 [38] LS-960 [38] TED-LIUM2 [39]
+zh ja en en en
+170 10 100 960 210
+CER char char CER BPE WER BPE WER BPE WER
+dev / test dev / test (†) dev-{clean,other} / test-{clean,other} dev-{clean,other} / test-{clean,other} dev / test
+Table 3: Comparison of WER, CER, RTF, elapsed time, and memory usage for each model. RTF, inference time, and memory usage compare mean and standard deviation (in brackets) values. The symbols (↓) and (↑) indicate a lower or higher number is preferable, respectively.
+AR
+PAR
+Dataset
+RTF (↓)
+Error [%] (↓)
+Memory Usage [MB]
+RTF (↓)
+Error [%] (↓)
+Memory Usage [MB] Speedup (↑)
+AISHELL-1 JSUT LS-100 LS-960 TED-LIUM2
+0.027 (0.006) 0.129 (0.021) 0.111 (0.038) 0.110 (0.039) 0.182 (0.060)
+4.6 / 5.0 11.8 / 13.2 6.2 / 16.8 / 6.4 / 17.1 2.2 / 5.2 / 2.5 / 5.2 7.3 / 7.1
+176.3 (4.2) 208.4 (6.2) 197.5 (25.3) 528.4 (44.8) 281.1 (47.7)
+0.010 (0.006) 0.018 (0.008) 0.009 (0.006) 0.008 (0.006) 0.012 (0.008)
+4.6 / 4.9 12.0 / 13.3 6.5 / 17.2 / 6.7 / 17.7 2.2 / 5.5 / 2.5 / 5.6 7.6 / 7.3
+176.3 (5.9) 199.4 (6.4) 210.6 (81.6) 550.5 (132.6) 474.8 (298.9)
+2.70× 7.17× 12.33× 13.75× 15.17×
+encoder ratio is significantly reduced. Furthermore, we can observe that the increase in inference time with respect to audio length is small, similar to that of NAR. This is because, in this work, we set the max iteration to 5, which means that the number of beam search iterations is limited to a maximum of 5. Moreover, if there are no masks, the inference is simply a gCTC result, where we do not run decoder computation. Therefore, the AR process does not have a high computational cost for long audio inputs. We can confirm that the inference speed of PAR depends on the computation speed of each model, such as the encoder or decoder, considering that the in- ference time slightly increases with audio length and the number of search iterations is fixed. The computation speed of the encoder or decoder depends on the audio length, but its impact on the overall inference speed is small.
+Fig. 3: Average inference time and proportion of time spent on the encoder and decoder computation during PAR decoding. The de- coder’s share is greatly reduced from AR.
+5.2. Results
+5.2.1. AR and PAR
+The evaluation results comparing AR and PAR are shown in Table 3. Focusing on accuracy, it is evident that compared to AR, PAR shows a similar WER or CER for all models and evaluation datasets. The beam search process can properly update the tokens that gCTC can- not accurately estimate. While the accuracy has slightly degraded, this is due to the accuracy of the gCTC result. We will explain it fur- ther in detail in the following limitations section 5.3.1. In terms of the RTF, we have achieved approximately 10 times faster inference compared to AR. In particular, since the inference speed does not largely depend on the audio length, the standard deviation is approx- imately 17.5% of that of AR decoding. This feature is more effec- tive for longer audio and in the test-clean dataset, and we observed 89.7× speed up for 29 second audio as the maximum speedup. Note that this speedup depends on several factors, such as the number of masks or input audio length.
+Fig. 3 shows the proportion of time spent on the encoder and decoder process and the inference time for each audio length, eval- uated on the LS-960 dataset. Compared to Fig. 2a, the decoder-to-
+We investigated the correlation between the WER and RTF as shown in Fig. 4, by changing the beam size from 1 to 20, and measured the WER and RTF using the test-clean dataset from Librispeech on the E-Branchformer based pre-trained models for LS-100 and LS-960 datasets. Comparing the AR models, the RTF differs greatly because the model sizes are different, however, the RTF of the PAR method remained almost the same. This is because the inference time of PAR depends on the computation time of the models itself. Therefore, the PAR curves have a significantly lower RTF compared to the AR curves, and the change in RTF is negligible as the beam-size changes, hence the narrower width. Although the RTF remains constant, we still see the differences in WER for the PAR models, especially with the pre-trained model of the LS-100 dataset compared to the model for the LS-960 dataset. This is due to the accuracy degradation problem we mention in Section 5.3.1.
+5.2.2. NAR and PAR
+Comparing NAR and PAR, we can see that PAR is not as fast as NAR, as shown in Table 4. The number of decoder iterations is 10, which is larger than max iteration for PAR, but it performs faster than PAR. One reason for this is that the size of the decoder input is different. In this work, we added a dummy hypothesis as men- tioned in Section 4.2. As a result, the batch size of decoder input for PAR decoding is S × B, where the batch size for NAR decoding is S. Therefore, it seems that the computation time per decoder is
+
+
+Fig. 4: The comparison of WER and RTF measured using the AR and PAR methods. We used the models trained with LS-100 and LS-960 datasets and measured by changing the beam size between 1 and 20.
+shorter for Mask-CTC NAR, and the resulting decoder processing time becomes faster.
+In terms of accuracy, we can see that PAR outperforms NAR. Improvement in performance is similar to that of E-branchformer models in both RTF and WER, and it was confirmed that there was no difference in improvement due to architecture differences. From these results, it is evident that applying the PAR method can solve the built-in accuracy issue for the NAR method we mentioned in Section 3.2. In particular, we can confirm that PAR obtains a speed between AR and NAR but achieves similar accuracy to AR. There- fore, a new trade-off balance that is not present in AR and NAR has been realized.
+Table 4: Comparison with NAR. The speedup shows the speedup from the AR decoding.
+Model
+RTF (↓)
+WER [%] (↓)
+Speedup (↑)
+AR
+NAR
+PAR
+CTC/Attention CTC Mask-CTC CTC/Attention
+0.198 (0.080) 0.005 (0.004) 0.008 (0.005) 0.014 (0.009)
+6.7 / 18.3 / 7.0 / 18.6 7.7 / 21.0 / 7.9 / 21.4 7.1 / 20.8 / 7.5 / 21.0 6.2 / 18.5 / 6.6 / 18.7
+1.00× 39.60× 24.75× 14.14×
+5.3. Limitations
+5.3.1. Accuracy with PAR
+The accuracy of PAR can be degraded if the gCTC result is not ac- curate. If the result of gCTC is incorrect with high confidence, we cannot use the AR process to refine the gCTC result. From the com- parison of the LS-100 and LS-960 models in Table 3, we can see that more accuracy degradation can occur with the LS-100 model.
+The accuracy may also degrade at a higher Pthres because the number of target tokens per mask may exceed max iteration. Since we stop the beam search after max iteration iterations, if the number of target tokens exceeds max iteration, we cannot predict the entire sequence for one mask. Therefore, the accuracy may be degraded if the Pthres is closer to 1.0. Fig. 5 describes the relationship between WER and Pthres for max iteration. Using a max iteration of 5, we observe the accuracy degrades at higher Pthres levels. This issue is caused by the lack of beam search iterations, so to solve this prob- lem, we need to increase the max iteration. In Fig. 5, we increased the max iteration to 8 and observed a more accurate result.
+Fig. 5: The relationship between the WER and Pthres. We evalu- ated by changing the Pthres from 0.95 to 0.999. We used the E- Branchformer-based pre-trained model for LS-960.
+5.3.2. Memory usage
+It is important to note the standard deviation of memory usage in Table 3 increases greatly compared to AR. Since the decoder process in PAR is computed simultaneously for all masks, we need more GPU memory if there are many masks. Therefore if the number of masks increases due to long audio inputs, high Pthres, or low accuracy of the gCTC result, we may get an out-of-memory error as GPU memory is exceeded during inference. Considering that the inference of all masks does not depend on each other, it is possible to alleviate this issue by using multiple GPUs to perform inference.
+5.3.3. Segment-level Vectorized Beam Search
+If a masked sequence contains multiple masks, the predicted tokens for the second or later masks may not be accurate due to the inac- curacy of the tokens predicted for the first mask. For example, in Fig. 1c, the masked sequence is se#_cuc#ber, where we have two masks at the positions of tokens e and am. Since we use the gCTC result to predict masked tokens, the decoder input for estimat- ing the mask for the am part becomes see_cuc, which is incorrect, instead of the correct sea_cuc. This incorrect decoder input might impact the accuracy of the prediction. However, considering that even the AR decode may also have an incorrect decoder input, we believe PAR can search the same hypothesis with AR by utilizing the beam search.
+6. CONCLUSION
+In this work, we propose a partially autoregressive framework to ob- tain a new trade-off balance between accuracy and latency. With our novel architecture design to compensate for the weakness inherent in each NAR and AR, PAR is a decoding method that takes advan- tage of the strengths of these two methods. In our experiments, we observed that the AR model can be inferred at NAR-level speeds without sacrificing accuracy. Notably, the LS-960 pre-trained model achieved a 13.75× speedup with the same WER on the test-clean set. We believe that using PAR can significantly improve the usabil- ity of the traditional hybrid CTC/Attention model. Our framework has limitations, such as memory usage issues, that restrict the scenar- ios where PAR can be applied. In future work, we plan to extend our framework to edge devices with limited computational resources.
+
+
+7. REFERENCES
+[1] Geoffrey Hinton, Li Deng, Dong Yu, George E. Dahl, Abdel- rahman Mohamed, Navdeep Jaitly, Andrew Senior, Vincent Vanhoucke, Patrick Nguyen, Tara N. Sainath, and Brian Kings- bury, “Deep neural networks for acoustic modeling in speech recognition: The shared views of four research groups,” IEEE Signal Process. Mag., vol. 29, no. 6, pp. 82–97, 2012.
+[2] Alex Graves, Abdelrahman Mohamed, and Geoffrey Hinton, “Speech recognition with deep recurrent neural networks,” in Proc. ICASSP, 2013, pp. 6645–6649.
+[3] Rohit Prabhavalkar, Takaaki Hori, Tara N Sainath, Ralf Schl¨uter, and Shinji Watanabe, “End-to-end speech recogni- tion: A survey,” arXiv preprint arXiv:2303.03329, 2023.
+[4] Alex Graves, “Sequence transduction with recurrent neural
+networks,” in Proc. ICML, 2012.
+[5] Anmol Gulati, James Qin, Chung-Cheng Chiu, Niki Par- mar, Yu Zhang, Jiahui Yu, Wei Han, Shibo Wang, Zheng- dong Zhang, Yonghui Wu, and Ruoming Pang, “Conformer: Convolution-augmented transformer for speech recognition,” in Proc. Interspeech, 2020, pp. 5036–5040.
+[6] Kwangyoun Kim, Felix Wu, Yifan Peng, Jing Pan, Prashant Sridhar, Kyu J. Han, and Shinji Watanabe, “E-Branchformer: Branchformer with enhanced merging for speech recognition,” in Proc. SLT, 2023, pp. 84–91.
+[7] Alec Radford, Jong Wook Kim, Tao Xu, Greg Brockman, “Robust speech
+Christine McLeavey, and Ilya Sutskever, recognition via large-scale weak supervision,” 2022.
+[8] Hirofumi Inaguma, Shun Kiyono, Kevin Duh, Shigeki Karita, Nelson Yalta, Tomoki Hayashi, and Shinji Watanabe, “ESPnet- ST: All-in-one speech translation toolkit,” in Proc. ACL, On- line, 06 2020, pp. 302–311, Association for Computational Linguistics.
+[9] Jiatao Gu, James Bradbury, Caiming Xiong, Victor OK Li, and Richard Socher, “Non-autoregressive neural machine transla- tion,” in Proc. ICML, 2018.
+[10] Yisheng Xiao, Lijun Wu, Junliang Guo, Juntao Li, Min Zhang, Tao Qin, and Tie-yan Liu, “A survey on non-autoregressive generation for neural machine translation and beyond,” IEEE Transactions on Pattern Analysis and Machine Intelligence, 2023.
+[11] Nanxin Chen, Shinji Watanabe, Jes´us Villalba, Piotr ˙Zelasko, and Najim Dehak, “Non-autoregressive transformer for speech recognition,” IEEE Signal Processing Letters, vol. 28, pp. 121– 125, 2021.
+[12] William Chan, Chitwan Saharia, Geoffrey Hinton, Mohammad Norouzi, and Navdeep Jaitly, “Imputer: Sequence modelling via imputation and dynamic programming,” in Proc. ICML, 2020, pp. 1403–1413.
+[13] Yosuke Higuchi, Shinji Watanabe, Nanxin Chen, Tetsuji Ogawa, and Tetsunori Kobayashi, “Mask CTC: Non- Autoregressive End-to-End ASR with CTC and Mask Predict,” in Proc. Interspeech, 2020, pp. 3655–3659.
+[14] Ethan A Chi, Julian Salazar, and Katrin Kirchhoff, “Align- Refine: Non-autoregressive speech recognition via iterative re- alignment,” in Proc. NAACL-HLT, 2021, pp. 1920–1927.
+[15] Ilya Sutskever, Oriol Vinyals, and Quoc V Le, “Sequence to sequence learning with neural networks,” in Proc. NeurIPS, Z. Ghahramani, M. Welling, C. Cortes, N. Lawrence, and K.Q. Weinberger, Eds. 2014, vol. 27, Curran Associates, Inc.
+[16] William Chan, Navdeep Jaitly, Quoc Le, and Oriol Vinyals, “Listen, attend and spell: A neural network for large vocab- ulary conversational speech recognition,” in Proc. ICASSP, 2016, pp. 4960–4964.
+[17] Yosuke Higuchi, Nanxin Chen, Yuya Fujita, Hirofumi In- aguma, Tatsuya Komatsu, Jaesong Lee, Jumon Nozaki, Tianzi Wang, and Shinji Watanabe, “A comparative study on non- autoregressive modelings for speech-to-text generation,” in Proc. ASRU, 2021, pp. 47–54.
+[18] Yann LeCun, John Denker, and Sara Solla, “Optimal brain damage,” in Proc. NeurIPS, 01 1989, vol. 2, pp. 598–605.
+[19] Frankle Jonathan and Carbin Michael, “The lottery ticket hy- pothesis: Finding sparse, trainable neural networks,” in Proc. ICLR, 2019.
+[20] Cheng-I Jeff Lai, Yang Zhang, Alexander H Liu, Shiyu Chang, Yi-Lun Liao, Yung-Sung Chuang, Kaizhi Qian, Sameer Khu- rana, David Cox, and Jim Glass, “PARP: Prune, adjust and re- prune for self-supervised speech recognition,” Proc. NeurIPS, vol. 34, pp. 21256–21272, 2021.
+[21] Geoffrey Hinton, Oriol Vinyals, and Jeffrey Dean, “Distilling the knowledge in a neural network,” in NIPS Deep Learning and Representation Learning Workshop, 2015.
+[22] Heng-Jui Chang, Shu-wen Yang, and Hung-yi Lee, “Distil- HuBERT: Speech representation learning by layer-wise distil- lation of hidden-unit bert,” in Proc. ICASSP, 2022, pp. 7087– 7091.
+[23] Hiroshi Seki, Takaaki Hori, Shinji Watanabe, Niko Moritz, and Jonathan Le Roux, “Vectorized beam search for CTC- in Proc. Interspeech, attention-based speech recognition,” 2019, pp. 3825–3829.
+[24] Jiahui Yu, Chung-Cheng Chiu, Bo Li, Shuo yiin Chang, Tara N Sainath, Yanzhang (Ryan) He, Arun Narayanan, Wei Han, An- mol Gulati, Yonghui Wu, and Ruoming Pang, “FastEmit: Low- latency streaming ASR with sequence-level emission regular- ization,” in Proc. ICASSP, 2021.
+[25] Zhuoyuan Yao, Di Wu, Xiong Wang, Binbin Zhang, Fan Yu, Chao Yang, Zhendong Peng, Xiaoyu Chen, Lei Xie, and Xin Lei, “WeNet: Production oriented streaming and non- streaming end-to-end speech recognition toolkit,” in Proc. In- terspeech, 2021, pp. 4054–4058.
+[26] Binbin Zhang, Di Wu, Zhendong Peng, Xingchen Song, Zhuoyuan Yao, Hang Lv, Lei Xie, Chao Yang, Fuping Pan, and Jianwei Niu, “WeNet 2.0: More productive end-to-end speech recognition toolkit,” in Proc. Interspeech, 2022, pp. 1661–1665.
+[27] Masao Someki, Yosuke Higuchi, Tomoki Hayashi, and Shinji Watanabe, “Espnet-ONNX: Bridging a gap between research and production,” in Proc. APSIPA ASC, 2022, pp. 420–427.
+[28] Yosuke Higuchi, Hirofumi Inaguma, Shinji Watanabe, Tetsuji Ogawa, and Tetsunori Kobayashi, “Improved Mask-CTC for non-autoregressive end-to-end ASR,” in Proc. ICASSP, 2021, pp. 8363–8367.
+
+
+[29] Hayato Futami, Hirofumi Inaguma, Sei Ueno, Masato Mimura, Shinsuke Sakai, and Tatsuya Kawahara, “Non-autoregressive error correction for CTC-based ASR with phone-conditioned masked LM,” in Proc. Interspeech, 2022, pp. 3889–3893.
+[30] Yosuke Higuchi, Brian Yan, Siddhant Arora, Tetsuji Ogawa, “BERT meets Tetsunori Kobayashi, and Shinji Watanabe, CTC: New formulation of end-to-end speech recognition with in Proc. Findings of pre-trained masked language model,” EMNLP, 2022, pp. 5486–5503.
+[31] Jay Mahadeokar, Yangyang Shi, Ke Li, Duc Le, Jiedan Zhu, Vikas Chandra, Ozlem Kalinli, and Michael L. Seltzer, “Streaming parallel transducer beam search with fast-slow cas- caded encoders,” in Proc. Interspeech, 2022.
+[32] Zhengkun Tian, Jiangyan Yi, Jianhua Tao, Shuai Zhang, and Zhengqi Wen, “Hybrid autoregressive and non-autoregressive transformer models for speech recognition,” IEEE Signal Pro- cess. Lett., vol. 29, pp. 762–766, 2022.
+[33] Shinji Watanabe, Takaaki Hori, Suyoun Kim, John R Hershey, and Tomoki Hayashi, “Hybrid CTC/attention architecture for end-to-end speech recognition,” IEEE Journal of Selected Top- ics in Signal Processing, vol. 11, no. 8, pp. 1240–1253, 2017.
+“Journey to [34] Liu Xiaoyu, Lin Eric, and Ning Emma, inference with optimize large scale transformer model ONNX runtime,” https://cloudblogs.microsoft. com/opensource/2021/06/30/journey-to- optimize-large-scale-transformer-model- inference-with-onnx-runtime, 2021, Accessed on June-27-2023].
+[Online;
+[35] Shinji Watanabe, Takaaki Hori, Shigeki Karita, Tomoki Hayashi, Jiro Nishitoba, Yuya Unno, Nelson Enrique Yalta So- plin, Jahn Heymann, Matthew Wiesner, Nanxin Chen, Adithya Renduchintala, and Tsubasa Ochiai, “ESPnet: End-to-end in Proc. Interspeech, 2018, pp. speech processing toolkit,” 2207–2211.
+[36] Hui Bu, Jiayu Du, Xingyu Na, Bengu Wu, and Hao Zheng, “AISHELL-1: An open-source Mandarin speech corpus and a speech recognition baseline,” in Proc. O-COCOSDA, 2017, pp. 1–5.
+[37] Ryosuke Sonobe, Shinnosuke Takamichi,
+and Hiroshi Saruwatari, “JSUT corpus: free large-scale Japanese speech arXiv preprint corpus for end-to-end speech synthesis,” arXiv:1711.00354, 2017.
+[38] Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur, “Librispeech: An ASR corpus based on public domain audio books,” in Proc. ICASSP, 2015, pp. 5206–5210.
+[39] Anthony Rousseau, Paul Del´eglise, and Yannick Est`eve, “En- hancing the TED-LIUM corpus with selected data for language modeling and more TED talks,” in Proc. LREC, 2014, pp. 3935–3939.

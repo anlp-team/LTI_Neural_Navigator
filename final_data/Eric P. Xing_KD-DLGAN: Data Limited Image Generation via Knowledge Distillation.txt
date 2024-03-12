@@ -1,0 +1,446 @@
+3 2 0 2
+r a
+M 0 3
+]
+V C . s c [
+1 v 8 5 1 7 1 . 3 0 3 2 : v i X r a
+KD-DLGAN: Data Limited Image Generation via Knowledge Distillation
+Kaiwen Cui1, Yingchen Yu1, Fangneng Zhan2, Shengcai Liao3, Shijian Lu1*, Eric Xing4 1 Nanyang Technological University, 2 Max Planck Institute for Informatics 3 Inception Institute of Artiﬁcial Intelligence 4 Mohamed bin Zayed University of Artiﬁcial Intelligence {Kaiwen.Cui, Yingchen.Yu, Shijian.Lu}@ntu.edu.sg, fzhan@mpi-inf.mpg.de
+shengcai.liao@inceptioniai.org, Eric.Xing@mbzuai.ac.ae
+Abstract
+Generative Adversarial Networks (GANs) rely heavily on large-scale training data for training high-quality im- age generation models. With limited training data, the GAN discriminator often suffers from severe overﬁtting which di- rectly leads to degraded generation especially in genera- tion diversity. Inspired by the recent advances in knowledge distillation (KD), we propose KD-DLGAN, a knowledge- distillation based generation framework that introduces pre-trained vision-language models for training effective data-limited generation models. KD-DLGAN consists of two innovative designs. The ﬁrst is aggregated generative KD that mitigates the discriminator overﬁtting by challeng- ing the discriminator with harder learning tasks and dis- tilling more generalizable knowledge from the pre-trained models. The second is correlated generative KD that im- proves the generation diversity by distilling and preserv- ing the diverse image-text correlation within the pre-trained models. Extensive experiments over multiple benchmarks show that KD-DLGAN achieves superior image generation with limited training data. In addition, KD-DLGAN com- plements the state-of-the-art with consistent and substantial performance gains. Note that codes will be released.
+10% data
+2.5% data
+FID() with ImageNet Data
+DA
+80
+KD-DLGAN
+60
+5% data
+BigGAN
+40
+DA + KD
+LeCam-GAN
+100
+120
+20
+Figure 1. With limited training samples, state-of-the-art GANs such as BigGAN suffer from clear discriminator overﬁtting which directly leads to degraded generation. The recent work attempts to mitigate the overﬁtting via mass data augmentation in DA [53] or regularization in LeCam-GAN [40]. The proposed KD-DLGAN distills the rich and diverse text-image knowledge from the power- ful visual-language model to the discriminator which greatly mit- igates the discriminator overﬁtting. Additionally, KD-DLGAN is designed speciﬁcally for image generation tasks, which also out- performs the vanilla knowledge distillation (DA+KD) greatly.
+1. Introduction
+Generative Adversarial Networks (GANs) [12] have be- come the cornerstone technique in various image generation tasks. On the other hand, effective training of GANs relies heavily on large-scale training images that are usually labo- rious and expensive to collect. With limited training data, the discriminator in GANs often suffers from severe over- ﬁtting [40, 53], leading to degraded generation as shown in Fig. 1. Recent works attempt to address this issue from two major perspectives: i) massive data augmentation that aims
+corresponding author.
+to expand the distribution of the limited training data [53]; ii) model regularization that introduces regularizers to mod- ulate the discriminator learning [40]. We intend to mitigate the discriminator overﬁtting from a new perspective.
+Recent studies show that knowledge distillation (KD) from powerful vision-language models such as CLIP [36] can effectively relieve network overﬁtting in visual recog- nition tasks [2, 9, 29, 42]. Inspired by these prior studies, we explore KD for data-limited image generation, aiming to mitigate the discriminator overﬁtting by distilling the rich
+
+
+image-text knowledge from vision-language models. One intuitive approach is to adopt existing KD methods [17, 37] for training data-limited GANs, e.g., by forcing the discrim- inator to mimic the representation space of vision-language models. However, such approach does not work well as most existing KD methods are designed for visual recogni- tion instead of GANs as illustrated in DA+KD in Fig. 1.
+We propose KD-DLGAN, a knowledge-distillation based image generation framework that introduces the idea of generative KD for training effective data-limited GANs. KD-DLGAN is designed based on two observations in data- limited image generation: 1) the overﬁtting is largely at- tributed to the simplicity of the discriminator task, i.e., the discriminator can easily memorize the limited training sam- ples and distinguish them with little efforts; 2) the degra- dation in data-limited generation is largely attributed to poor generation diversity, i.e., the trained data-limited GAN models tend to generate similar images.
+Inspired by the two observations, we design two gen- erative KD techniques that jointly distill knowledge from CLIP [36] to the GAN discriminator for effective training of data-limited GANs. The ﬁrst is aggregated generative KD (AGKD) that challenges the discriminator by forcing fake samples to be similar to real samples while mimicking CLIP’s visual feature space. It mitigates the discriminator overﬁtting by aggregating features of real and fake samples and distilling generalizable CLIP knowledge concurrently. The second is correlated generative KD (CGKD) that strives to distill CLIP image-text correlations to the GAN discrim- inator. It improves the generation diversity by enforcing the diverse correlations between images and texts, ultimately improving the generation performance. The two designs distill the rich yet diverse CLIP knowledge which effec- tively mitigates the discriminator overﬁtting and improve the generation as illustrated in KD-DLGAN in Fig. 1.
+The main contributions of this work can be summarized in three aspects. First, we propose KD-DLGAN, a novel image generation framework that introduces knowledge dis- tillation for effective GAN training with limited training data. To the best of our knowledge, this is the ﬁrst work that exploits the idea of knowledge distillation in data-limited image generation. Second, we design two generative KD techniques including aggregated generative KD and corre- lated generative KD that mitigate the discriminator overﬁt- ting and improves the generation performance effectively. Third, extensive experiments over multiple widely adopted benchmarks show that KD-DLGAN achieves superior im- age generation and it also complements the state-of-the-art with consistent and substantial performance gains.
+2. Related Works
+Generative Adversarial Network: Generative adver- sarial network [12] (GAN) has achieved signiﬁcant progress
+in automated image generation and editing [23, 34, 47, 49]. Following the idea in [12], quite a few generation applica- tions have been developed in the past few years. They in- tend to generate more realistic images from different aspects by adopting novel training objectives [3, 13, 30], design- ing more advanced networks [31, 32, 50], introducing elab- orately designed training strategies [20, 27, 51], etc. On the contrary, most existing GANs rely heavily on large-scale training samples. With only limited samples, they often suffer from clear discriminator overﬁtting and severe gen- eration degradation.
+We target data-limited image generation, which intends to train effective GAN models with limited number of sam- ples yet without sacriﬁcing much generation performance. Data-Limited Image Generation: Data-limited image generation is a challenging yet meaningful task for circum- venting the laborious image collection process. Prior stud- ies [14, 43] suggest that one of the main obstacles of train- ing effective data-limited GAN lies with the overﬁtting of GAN discriminator. Recent studies [10,18,19,21,40,44,53] attempt to mitigate the overﬁtting issue mainly through massive data augmentation or model regularization. For example, [53] introduces different types of differentiable augmentation to improve the generation performance. [21] presents an adaptive augmentation mechanism that prevents undesirable leaking of augmentation to the generated im- ages. [40] introduces a regularization scheme to modulate the discriminator. Several studies instead employ external knowledge for data-limited image generation. For exam- ple, [33] pretrains the GAN model on a larger dataset. [25] employs off-the-shelf models as additional discriminators to improve the data-limited GAN performance.
+We target to tackle the discriminator overﬁtting issue from a new perspective of knowledge distillation and de- sign two generative knowledge distillation techniques to ef- fectively distill knowledge from a powerful vision-language model to the GAN discriminator.
+Knowledge Distillation: Knowledge distillation is a general technique for supervising the training of student networks by transferring the knowledge of trained teacher networks. Knowledge distillation is initially designed for model compression [6] via mimicking the output of an en- semble of models. [4] further compresses deep networks into shallower but wider ones via mimicking the logits. [17] presents a more general knowledge distillation technique by applying the prediction of the teacher model as a soft la- bel. [41] measures the similarity between pairs of instances in the teacher’s feature space and encourages the student to mimic the pairwise similarity. Leveraging on these ideas, Knowledge distillation has recently been widely explored and adopted in various applications such as image classi- ﬁcation [48, 54], domain adaptation [1, 15] , object detec- tion [7, 8], semantic segmentation [28, 45], etc.
+
+
+DfB!TK
+IB!T1
+Correlated Generative Knowledge Distill
+𝔃)𝑫𝐟(𝒙)Aggregated Generative Knowledge Distill
+T1
+GeneratorG
+TImageEncoderTextEncoder
+CLIP
+L1 Loss
+IB
+G
+Sample
+Visual FeatureDiscriminator FeatureTIDI
+Limited DataI(G(𝔃))/I(𝒙)G(𝔃)𝒙𝐃𝐟(G(𝔃))/𝐃𝐟(𝒙)
+𝔃)
+“A Photo of Car”…
+…
+…
+…
+DiscriminatorD
+𝔃
+Df1!TK
+Df1!T1
+…
+𝐈(𝐆
+DfB
+“A Photo of Dog”
+…
+…
+…
+…
+…
+Df1
+IB!TK
+I1!T1
+I1!TK
+DfB!T1
+…
+…
+…
+TK
+PairwiseDiverse Loss
+“A Photo of Bird”
+…
+I1
+𝐈(𝒙)𝐃𝐟(𝑮
+Figure 2. Architecture of the proposed KD-DLGAN: KD-DLGAN distills knowledge from the powerful vision-language model CLIP [36] to the discriminator for effective GAN training with limited training data. We design two generative knowledge distillation techniques that work orthogonally, including aggregated generative knowledge distillation and correlated generative knowledge distillation. Aggregated generative knowledge distillation mitigates the discriminator overﬁtting with harder learning tasks and distills general knowledge from the pretrained model. Correlated generative knowledge distillation improves the generation diversity by distilling and preserving the diverse image-text correlation within the pretrained model.
+We introduce knowledge distillation into the data-limited image generation task for mitigating its overﬁtting issue. To the best of our knowledge, this is the ﬁrst work that explores knowledge distillation in data-limited image generation.
+3.2. Problem Deﬁnition
+GANs greatly change the paradigm of image generation. Each GAN consists of a discriminator D and a generator G. The general loss function for discriminator and generator is formulated as:
+3. Method
+3.1. Overview
+We describes the detailed methodology of the proposed KD-DLGAN in this section. As shown in Fig. 2, we in- troduce knowledge distillation for data-limited image gen- eration. Speciﬁcally, leveraging CLIP [36] as the teacher model, we design two generative knowledge distillation techniques, including aggregated generative knowledge dis- tillation that leads to less distinguishable real-fake sam- ples for the discriminator while distilling more generaliz- able knowledge from the pretrained model, and correlated generative knowledge distillation that encourages the dis- criminator to mimic the diverse vision-language correlation in CLIP. The ensuing subsections will describe the problem deﬁnition of data-limited image generation, details of the proposed aggregated generative knowledge distillation and correlated generative knowledge distillation, and the overall training objective, respectively.
+Ld(D; x, G(z)) = E[log(D(x))] + E[log(1 − D(G(z))] (1) (2)
+Lg(D; G(z)) = E[log(1 − D(G(z))]
+where Ld and Lg denote the general discriminator loss and generator loss, respectively. x denotes a training sample and z is randomly sampled from Gaussian Distribution.
+In data-limited image generation, the discriminator in GANs tends to memorize the exact training data and is prone to suffer from overﬁtting, leading to sub-optimal im- age generation. Recent studies show that knowledge distil- lation from powerful and generalizable models can relieve overﬁtting [2, 9, 29, 42] effectively. However, these state- of-the-art knowledge distillation methods are mainly de- signed for visual recognition tasks, which cannot be naively adapted to the image generation tasks. We design two novel knowledge distillation techniques that can greatly improve data-limited image generation, more details to be presented in the following subsections.
+
+
+3.3. Aggregated Generative Knowledge Distillation
+We design aggregated generative knowledge distilla- tion (AGKD) to mitigate the discriminator overﬁtting by distilling more generalizable knowledge from the pretrained CLIP [36] model. Thus, we force the discriminator feature space to mimic CLIP visual feature space. Speciﬁcally, for real samples x, we distill knowledge from CLIP visual fea- ture of x (denoted by I(x)) to the discriminator feature of x (last layer feature, which is denoted by Df (x)) with L1 loss. Similarly, for generated samples G(z), we also dis- till knowledge from CLIP visual feature I(G(z)) to the dis- criminator feature Df (G(z)). The knowledge distillation loss LKD AGKD in AKGD can thus be formulated by:
+LKD
+AGKD = |I(x) − Df (x)| + |I(G(z)) − Df (G(z))|
+AGKD also mitigates the discriminator overﬁtting by ag- gregating features of real and fake samples to challenge the discriminator learning. Speciﬁcally, we match the CLIP vi- sual feature of real samples I(x) and discriminator features of fake samples Df (G(z)), as well as CLIP visual feature of fake samples I(G(z)) and discriminator features of real samples Df (x) by the L1 loss. Such design lowers the real-fake discriminability and makes it harder to distinguish real-fake samples for the discriminator. The aggregated loss LAGG
+AGKD can be formulated by:
+LAGG
+AGKD = |I(x) − Df (G(z))| + |I(G(z)) − Df (x)|
+For effective GAN training, the designed aggregated loss LAGG AGKD is controlled by a hyper-parameter p, where the loss is applied with probability p or skipped with probability 1-p. We empirically set p at 0.7 in our trained networks. Thus, the aggregated loss L(cid:48)AGG AGKD can be re-formulated by:
+L(cid:48)AGG
+AGKD =
+(cid:26) LAGG 0,
+AGKD,
+if q ≤ p, if q > p,
+where q is a random number sampled between 0 and 1.
+The overall AGKD loss LAGKD can be formulated by:
+AGKD + L(cid:48)AGG
+LAGKD = LKD
+AGKD
+3.4. Correlated Generative Knowledge Distillation
+Correlated generative knowledge distillation (CGKD) aims to improve the generation diversity by two steps: 1) it enforces the diverse correlations between generated images and texts in CLIP with a pairwise diversity loss (LP D CGKD); 2) it distills the diverse correlations from CLIP to the GAN discriminator with a distillation loss (LKD
+CGKD).
+To achieve diverse image-text correlations, it ﬁrst builds the correlations (indicated by inner products) between CLIP visual features of generated images I(G(z)) ∈ RB×M and CLIP texts features T ∈ RK×M . Here, B is the batch size
+(3)
+of generated images, K is the number of texts and M is the features dimension for each text feature or each image fea- ture. For conditional datasets and unconditional datasets, we employ the corresponding image labels as input texts and predeﬁne a set of relevant text labels as input texts, respectively. Details of text selection for our datasets are introduced in the supplementary material. Thus, the cor- relation CT ∈ RB×K between I(G(z)) and T (i.e., their L2-normalized inner products) can be deﬁned as follows:
+CT =
+I(G(z)) · T (cid:48) ||I(G(z)) · T (cid:48)||2
+,
+where T (cid:48) is the transpose of T .
+With the deﬁned correlation, the diverse CLIP image- text correlations can be extracted in a pairwise manner. Speciﬁcally, for each image-text correlation CT [i, :] ∈ RK, we diversify it with another image-text correlation CT [j, : ] ∈ RK by minimizing the cosine similarity between them. Note [i,:] or [j,:] denotes the i-th or j-th row in CT and j (cid:54)= i. The pairwise diversity loss LP D CGKD can thus be de- ﬁned as the sum of the cosine similarity of all pairs:
+LP D
+CGKD =
+K (cid:88)
+K (cid:88)
+Cos(CT [i, :], CT [j, :]),
+i=1
+j=1,j(cid:54)=i
+−→ b ) indicates the cosine similarity between
+where Cos(−→a , the two vectors −→a and
+−→ b .
+Then, the obtained diverse correlations are distilled from CLIP to the GAN discriminator, aiming to improve the generation diversity. We build the correlations CS ∈ RB×K between discriminator features of generated samples Df (G(z)) ∈ RB×M and CLIP text features T ∈ RK×M as follows:
+CS =
+Df (G(z)) · T (cid:48) ||Df (G(z)) · T (cid:48)||2
+The correlation distillation from CT to CS is deﬁned by the L1 loss between them:
+LKD
+CGKD = |CT − CS|
+The overall CGKD loss LCGKD can thus be deﬁned by:
+LCGKD = LP D
+CGKD + LKD
+CGKD
+3.5. Overall Training Objective
+The overall
+training objective of the proposed KD-
+DLGAN can thus be formulated by:
+min G
+max D
+LG + LD
+where LG = Lg as introduced in Eq. 2 and LD = Ld + LAGKD + LCGKD as introduced in Eqs. 1, 3 and 4.
+(4)
+(5)
+
+
+Methods
+100-shot
+AFHQ
+Obama
+Grumpy Cat
+Panda
+Cat
+Dog
+DA [53] + KD (CLIP [36])
+45.22
+25.62
+11.24
+38.31
+55.13
+DA [53] (Baseline) + KD-DLGAN (Ours)
+46.87 31.54 ± 0.27
+27.08 20.13 ± 0.13
+12.06 8.93 ± 0.06
+42.44 32.99 ± 0.10
+58.85 51.63 ± 0.17
+LeCam-GAN [40] + KD-DLGAN (Ours)
+33.16 29.38 ± 0.15
+24.93 19.65 ± 0.17
+10.16 8.41 ± 0.05
+34.18 31.89 ± 0.09
+54.88 50.22 ± 0.16
+InsGen [44] + KD-DLGAN (Ours)
+45.85 38.28 ± 0.25
+27.48 22.16 ± 0.12
+12.13 9.51 ± 0.07
+41.33 32.39 ± 0.08
+55.12 50.13 ± 0.12
+APA [19] + KD-DLGAN (Ours)
+43.75 34.68 ± 0.21
+28.49 23.14 ± 0.14
+12.34 8.70 ± 0.05
+39.13 31.77 ± 0.09
+54.15 51.23 ± 0.13
+ADA [21] + KD-DLGAN (Ours)
+45.69 31.78 ± 0.22
+26.62 19.76 ± 0.11
+12.90 8.85 ± 0.05
+40.77 32.81 ± 0.10
+56.83 51.12 ± 0.15
+Table 1. Comparison with the state-of-the-art over 100-shot and AFHQ: KD-DLGAN outperforms and complements the state-of-the-art data-limited image generation approaches consistently. In addition, KD-DLGAN outperforms vanilla knowledge distillation in DA + KD (CLIP [36]) consistently. All the compared methods employ StyleGAN-v2 [22] as backbone. We report FID(↓) averaged over three runs.
+Panda
+DAObamaGrumpy CatKD-DLGAN
+Figure 3. Qualitative comparison with the state-of-the-art over 100-shot: Samples generated by KD-DLGAN are clearly more realistic than those generated by DA [53], the state-of-the-art data-limited generation approach.
+4. Experiments
+4.2. Experiments with StyleGAN-v2
+In this section, we conduct extensive experiments to evaluate our KD-DLGAN. We ﬁrst introduce the datasets and the evaluation metrics used in our experiments. We then benchmark KD-DLGAN with StyleGAN-v2 [22] and Big- GAN [5]. Moreover, we conduct extensive ablation studies and discussions to support our designs.
+Table 1 shows unconditional image generation results over 100-shot and AFHQ datasets, where we employ StyleGAN-v2 [22] as the backbone. Following the data settings in DA [53], the models are trained with 100 sam- ples (100-shot Obama, Grumpy Cat, Panda), 160 samples (AFHQ Cat) and 389 samples (AFHQ Dog), respectively.
+4.1. Datasets and Evaluation Metrics
+We conduct experiments over the following datasets: CI- FAR [24], ImageNet [11], 100-shot [53] and AFHQ [39]. Datasets details are provided in the supplementary mate- rial. We perform evaluations with Frechet Inception Dis- tance (FID) [16] and inception score (IS) [38].
+As Row 3 of Table 1 shows, including the proposed KD-DLGAN into DA [53] achieves superior performance across all data settings consistently as compared with DA alone (in Row 2), demonstrating the complementary rela- tion between KD-DLGAN and DA [53]. In addition, the vanilla knowledge distillation in DA + KD (CLIP [36]) (Row 1) trains the GAN discriminator to mimic the visual feature representation of CLIP. We can observe that KD-
+
+
+Method
+CIFAR-10
+CIFAR-100
+100% Data
+20% Data
+10% Data
+100% Data
+20% Data
+10% Data
+DA [53] + KD (CLIP [36])
+8.70 ± 0.02
+13.70 ± 0.08
+22.03 ± 0.07
+11.74 ± 0.02
+21.76 ± 0.06
+33.93 ± 0.09
+DA [53] (Baseline) + KD-DLGAN (Ours)
+8.75 ± 0.03 8.42 ± 0.01
+14.53 ± 0.10 11.01 ± 0.07
+23.34 ± 0.09 14.20 ± 0.06
+11.99 ± 0.02 10.28 ± 0.03
+22.55 ± 0.06 15.60 ± 0.08
+35.39 ± 0.08 18.03 ± 0.11
+APA [19] + KD-DLGAN (Ours)
+8.28 ± 0.02 8.26 ± 0.02
+15.31 ± 0.04 11.15 ± 0.06
+25.98 ± 0.06 13.86 ± 0.07
+11.42 ± 0.04 10.23 ± 0.02
+23.50 ± 0.06 19.22 ± 0.07
+45.79 ± 0.15 27.11 ± 0.10
+LeCam-GAN [40] + KD-DLGAN (Ours)
+8.46 ± 0.06 8.19 ± 0.01
+14.55 ± 0.08 11.45 ± 0.07
+16.69 ± 0.02 13.22 ± 0.03
+11.20 ± 0.09 10.12 ± 0.03
+22.45 ± 0.09 18.70 ± 0.05
+27.28± 0.05 22.40 ± 0.06
+ADA [21] + KD-DLGAN (Ours)
+8.99 ± 0.03 8.46 ± 0.02
+19.87 ± 0.09 14.12 ± 0.10
+30.58 ± 0.11 16.88 ± 0.08
+12.22 ± 0.02 10.48 ± 0.04
+22.65 ± 0.10 19.26 ± 0.06
+27.08 ± 0.15 20.62 ± 0.09
+Table 2. Comparison with the state-of-the-art over CIFAR-10 and CIFAR 100: KD-DLGAN outperforms and complements the state-of- the-art clearly. KD-DLGAN also performs better than vanilla knowledge distillation in DA + KD (CLIP [36]) consistently as well. All the compared methods employ BigGAN [5] as backbone. And we report FID(↓) averaged over three runs.
+Method
+10% training data
+5% training data
+2.5% training data
+DA [53] + KD (CLIP [36])
+IS↑ 13.29 ± 0.50
+FID↓ 26.58 ± 0.21
+IS↑ 11.63 ± 0.29
+FID↓ 38.11 ± 0.33
+IS↑ 9.43 ± 0.25
+FID↓ 57.95 ± 0.41
+DA [53] (Baseline) + KD-DLGAN (Ours)
+12.76 ± 0.34 14.25 ± 0.66
+32.82 ± 0.18 19.99 ± 0.11
+9.63 ± 0.21 12.71 ± 0.34
+56.75 ± 0.35 24.70 ± 0.14
+8.17 ± 0.28 13.45 ± 0.51
+63.49 ± 0.51 30.27 ± 0.16
+LeCam-GAN [40] + KD-DLGAN (Ours)
+11.59 ± 0.44 13.98 ± 0.23
+30.32 ± 0.24 22.12 ± 0.12
+10.53 ± 0.22 13.86 ± 0.45
+39.33 ± 0.27 23.85 ± 0.21
+9.99 ± 0.26 13.22 ± 0.44
+54.55 ± 0.46 31.33 ± 0.15
+ADA + KD-DLGAN (Ours)
+12.67 ± 0.31 14.14 ± 0.32
+31.89 ± 0.17 20.32 ± 0.10
+9.44 ±0.25 14.06 ± 0.39
+43.21 ± 0.37 22.35 ± 0.11
+8.54 ± 0.26 14.65 ± 0.47
+56.83 ± 0.48 28.79 ± 0.14
+Table 3. Comparison with the state-of-the-art over ImageNet [11]: KD-DLGAN achieves the best performance consistently and comple- ments the state-of-the-art. Besides, KD-DLGAN outperforms vanilla knowledge distillation in DA + KD (CLIP [36]) consistently as well. All the compared methods employ BigGAN [5] as backbone. We report IS(↑) and FID(↓) averaged over three runs.
+DLGAN outperforms DA + KD (CLIP [36]) consistently as well, indicating that the performance gain in KD-DLGAN is largely attributed to our generative knowledge distillation designs instead of solely from the powerful vision-language model. Table 1 also tabulates the results of KD-DLGAN when implementing over four state-of-the-art data-limited generation approaches including LeCam-GAN [40], Ins- Gen [44], APA [19] and ADA [21]. We can see that KD- DLGAN complement all the state-of-the-art consistently, demonstrating the superior generalization and complemen- tary property of our proposed KD-DLGAN.
+Fig. 3 shows qualitative comparison with DA [53]. It can be observed that KD-DLGAN clearly outperforms the state-of-the-art in the data-limited generation, especially in term of the generated shapes and textures.
+4.3. Experiments with BigGAN
+Table 2 and Table 3 show the conditional image gener- ation results on CIFAR-10, CIFAR-100 and ImageNet, re- spectively. All models employ BigGAN [5] as the back-
+bone. CIFAR-10 and and CIFAR-100 are trained with 100% (50K images), 20% (10K images) or 10% (5K im- ages) training data where the FIDs are evaluated over the validation sets (10K images). ImageNet is trained with 10% (~100K images), 5% (~50K images) and 2.5% (~25K im- ages), where the evaluations are performed over the whole training set (~1.2M images).
+The experiments show that our KD-DLGAN outper- forms the state-of-the-art substantially. The superior per- formance is largely attributed to our designed generative knowledge distillation techniques in KD-DLGAN, which mitigates the discriminator overﬁtting and improves the generation performance effectively. We also show the re- sults of vanilla knowledge distillation from the powerful vision-language model CLIP [36] in Row 1 of Table 2 and Table 3. We can see that KD-DLGAN outperforms the vanilla knowledge distillation method by a large margin, in- dicating that the performance gain is largely attributed to our generative knowledge distillation design instead of the powerful vision-language model. In addition, Table 2 and
+
+
+Method
+AGKD CGKD
+CIFAR-10
+20% data
+10% data
+Obama
+100-shot
+Grumpy Cat
+DA [53] (Baseline)
+14.53
+23.34
+46.87
+27.08
+(cid:88)
+(cid:88)
+12.97 ± 0.08 12.77 ± 0.08
+15.85 ± 0.06 18.66 ± 0.09
+35.51± 0.25 36.18 ± 0.22
+23.24 ± 0.16 23.17 ± 0.11
+Ours
+(cid:88)
+(cid:88)
+11.01 ± 0.07
+14.20 ± 0.06
+31.54 ± 0.27
+20.13 ± 0.13
+Table 4. Quantitative ablation study of KD-DLGAN: AGKD and CGKD in KD-DLGAN both improves the generation performance over the baseline DA [53]. KD-DLGAN performs the best as AGKD and CGKD complement each other. The FIDs (↓) are averaged over three runs.
+DAAGKDCGKDKD-DLGAN
+Figure 4. Qualitative ablation study over 100-shot Obama: AGKD (Row 2) and CGKD (Row 3) can generate more realistic images than the baseline DA [53] (Row 1), the state-of-the-art in data- limited image generation. KD-DLGAN combining AGKD and CGKD generates the most realistic images.
+Table 3 also show the results of KD-DLGAN when imple- menting over the state-of-the-art data-limited image gener- ation approaches. KD-DLGAN complements the state-of- the-art and improves the generation performance greatly.
+the two KD techniques complement each other.
+Qualitative ablation studies in Fig. 4 show that the pro- posed AGKD and CGKD can produce clearly more realistic generation than the baseline, demonstrating the effective- ness of these two generative knowledge distillation tech- niques. In addition, KD-DLGAN combining AGKD and CGKD performs the best, which further veriﬁes that AGKD and CGKD are complementary to each other.
+4.5. Discussion
+In this subsection, we analyze our KD-DLGAN from several perspectives. All the experiments are based on the CIFAR-10 and CIFAR-100 dataset with 10% data.
+Generation Diversity: The proposed KD-DLGAN im- proves the generation diversity by enforcing the diverse cor- relation between images and texts, which eventually im- proves the generation performance. In this subsection, we evaluate the generation diversity with LPIPS [52]. Higher LPIPS means better diversity of generated images. As Ta- ble 5 shows, the proposed KD-DLGAN outperforms the baseline DA [53], the state-of-the-art in data-limited image generation, demonstrating the effectiveness of KD-DLGAN in improving generation diversity. We also show the re- sults of KD-DLGAN without CGKD; it further veriﬁes that the improved generation diversity is largely attributed to the CGKD, which distills diverse image-text correlation from CLIP [36] to the discriminator, ultimately improving the generation performance. Note we choose Alexnet model with linear conﬁguration for LPIPS evaluation.
+4.4. Ablation study
+The proposed KD-DLGAN consists of two generative knowledge distillation (KD) techniques, namely, AGKD and CGKD. The two techniques are separately evaluated to demonstrate their contributions to the overall generation performance. As Table 4 shows, including either AGKD or CGKD clearly outperforms DA [53], the state-of-the-art in data-limited image generation, demonstrating the effec- tiveness of the proposed AGKD and CGKD in mitigating the discriminator overﬁtting and improving the generation performance. In addition, combining AGKD and CGKD leads to the best generation performance which shows that
+Generalization of KD-DLGAN: We study the general- ization of our KD-DLGAN by performing experiments with different GAN architectures, generation tasks and the num- ber of training samples. Speciﬁcally, as shown in Table 1- 3, we perform extensive evaluations over BigGAN and StyleGAN-v2. Meanwhile, we benckmark KD-DLGAN on object generation tasks with CIFAR and ImageNet and face generation tasks with 100-shot and AFHQ. Besides, we per- form extensive evaluations on 100-shot and AFHQ with few hundred samples, CIFAR with 100%, 20% and 10% data, ImageNet with 10%, 5% and 2.5% data.
+
+
+Method
+CIFAR-10 CIFAR-100 10% data 10% data
+DA [53] (Baseline) KD-DLGAN w/o CKGD KD-DLGAN
+0.202 0.204 0.221
+0.236 0.237 0.264
+Table 5. KD-DLGAN improves the generation diversity clearly. And the improvement is largely attributed to CGKD, which distills diverse image-text correlations from CLIP [36] to the discrimina- tor. We report LPIP (↑) averaged over three runs.
+Method
+CIFAR-10 10% data
+CIFAR-100 10% data
+DA [53] (Baseline) Fitnets [37] Label Distillation [17] PKD [35] SPKD [41] KD-DLGAN (Ours)
+23.34 ± 0.09 22.03 ± 0.07 20.46 ± 0.10 21.34 ± 0.08 19.11 ± 0.07 14.20 ± 0.06
+35.39 ± 0.08 33.93 ± 0.09 34.14 ± 0.11 32.15 ± 0.13 31.97 ± 0.10 18.03 ± 0.11
+Table 6. KD-DLGAN outperforms the state-of-the-art knowledge distillation methods by large margins, demonstrating the effective- ness of the two generative knowledge distillation techniques de- signed speciﬁcally for data-limited image generation. We report FID(↓) averaged over three runs.
+Comparison with state-of-the-art knowledge distilla- tion methods: KD-DLGAN is the ﬁrst to explore the idea of knowledge distillation in data-limited image generation. To validate the superiority of our designs, we compare KD- DLGAN with state-of-the-art knowledge distillation meth- ods designed for other tasks in Table 6. It shows that our KD-DLGAN outperforms the state-of-the-art knowl- edge distillation approaches consistently by large margins. The superior generation performance demonstrates the ef- fectiveness of our designed generative knowledge distilla- tion techniques for data-limited image generation.
+Comparison with other Vision-Language teacher models: KD-DLGAN adopted CLIP [36] as the teacher model for knowledge distillation. We perform experiments to study how different vision-language models affect the generation performance. As shown in Table 7, different vision-language models produce quite similar FIDs. We conjecture that these pertrained models provide sufﬁcient vision-language information for distillation and the perfor- mance gain mainly comes from our designed generative knowledge distillation techniques instead of the selected teacher model.
+Comparison with other CLIP-based methods: KD- DLGAN distills knowledge from CLIP [36] to the dis- criminator with two novelly designed generative knowledge distillation techniques while Vision-aided GAN [25] em- ploys off-the-shelf models as additional discriminators for data-limited generation. Table 8 compares KD-DLGAN
+Method
+CIFAR-10 10% data
+CIFAR-100 10% data
+DA [53] (Baseline) + TCL [46] + BLIP [26] + CLIP [36] (Ours)
+23.34 ± 0.09 14.98 ± 0.09 15.74 ± 0.10 14.20 ± 0.06
+35.39 ± 0.08 18.43 ± 0.12 18.88 ± 0.11 18.03 ± 0.11
+Table 7. Employing different pretrained vision-language models as teacher models, the results are similar. We report FID(↓) aver- aged over three runs.
+Method
+CIFAR-10 10% data
+CIFAR-100 10% data
+DA [53] (Baseline) Vision-aided GAN [25] KD-DLGAN (Ours)
+23.34 ± 0.09 16.24 ± 0.08 14.20 ± 0.06
+35.39 ± 0.08 19.11 ± 0.10 18.03 ± 0.11
+Table 8. KD-DLGAN outperforms CLIP-based Vision-add GAN [25], demonstrating the effectiveness of our KD-DLGAN in mitigating discriminator overﬁtting and improving the generation performance. We report FID(↓) averaged over three runs.
+with Vision-aided GAN. We can observe that KD-DLGAN outperforms CLIP-based Vision-aided GAN consistently, demonstrating its effectiveness in mitigating discriminator overﬁtting and improving generation performance.
+5. Conclusion
+In this paper, we present KD-DLGAN, a novel data- limited image generation framework that introduces knowl- edge distillation for effective GAN training with limited data. We design two novel generative knowledge distil- lation techniques, including aggregated generative knowl- edge distillation (AGKD) and correlated generative knowl- edge distillation (CGKD). AGKD mitigates the discrimina- tor overﬁtting by forcing harder learning tasks and distilling more general knowledge from CLIP. CGKD improves the generation diversity by distilling and preserving the diverse image-text correlation within CLIP. Extensive experiments show that both AGKD and CGKD can improve the gen- eration performance and combining them leads to the best performance. We also show that KD-DLGAN complements the state-of-the-art data-limited generation methods consis- tently. Moving forward, we will explore KD-DLGAN in more tasks such as image translation and editing.
+Acknowledgement
+This study is funded by the Ministry of Education Sin- gapore, under the Tier-1 scheme with a project number RG94/20, as well as cash and in-kind contribution from Singapore Telecommunications Limited (Singtel), through Singtel Cognitive and Artiﬁcial Intelligence Lab for Enter- prises (SCALE@NTU).
+
+
+References
+[1] Unsupervised multi-target domain adaptation through In Proceedings of the IEEE/CVF knowledge distillation. Winter Conference on Applications of Computer Vision, pages 1339–1347, 2021. 2
+[2] Alex Andonian, Shixing Chen, and Raffay Hamid. Robust cross-modal representation learning with progressive self- In Proceedings of the IEEE/CVF Conference distillation. on Computer Vision and Pattern Recognition (CVPR), pages 16430–16441, June 2022. 1, 3
+[3] Martin Arjovsky, Soumith Chintala, and Léon Bottou. In Interna- Wasserstein generative adversarial networks. tional conference on machine learning, pages 214–223. PMLR, 2017. 2
+[4] Jimmy Ba and Rich Caruana. Do deep nets really need to be deep? Advances in neural information processing systems, 27, 2014. 2
+[5] Andrew Brock, Jeff Donahue, and Karen Simonyan. Large scale gan training for high ﬁdelity natural image synthesis. arXiv preprint arXiv:1809.11096, 2018. 5, 6
+[6] Cristian Bucilua, Rich Caruana, and Alexandru Niculescu- Mizil. Model compression. In Proceedings of the 12th ACM SIGKDD international conference on Knowledge discovery and data mining, pages 535–541, 2006. 2
+[7] Akshay Chawla, Hongxu Yin, Pavlo Molchanov, and Jose Alvarez. Data-free knowledge distillation for object detec- tion. In Proceedings of the IEEE/CVF Winter Conference on Applications of Computer Vision, pages 3289–3298, 2021. 2 [8] Guobin Chen, Wongun Choi, Xiang Yu, Tony Han, and Man- mohan Chandraker. Learning efﬁcient object detection mod- els with knowledge distillation. Advances in neural informa- tion processing systems, 30, 2017. 2
+[9] Ruizhe Cheng, Bichen Wu, Peizhao Zhang, Peter Vajda, and Joseph E. Gonzalez. Data-efﬁcient language-supervised In Proceedings of zero-shot learning with self-distillation. the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) Workshops, pages 3119–3124, June 2021. 1, 3
+[10] Kaiwen Cui, Jiaxing Huang, Zhipeng Luo, Gongjie Zhang, Fangneng Zhan, and Shijian Lu. Genco: generative co- training for generative adversarial networks with limited In Proceedings of the AAAI Conference on Artiﬁcial data. Intelligence, volume 36, pages 499–507, 2022. 2
+[11] Jia Deng, Wei Dong, Richard Socher, Li-Jia Li, Kai Li, and Li Fei-Fei. Imagenet: A large-scale hierarchical image database. In 2009 IEEE conference on computer vision and pattern recognition, pages 248–255. Ieee, 2009. 5, 6 [12] Ian Goodfellow, Jean Pouget-Abadie, Mehdi Mirza, Bing Xu, David Warde-Farley, Sherjil Ozair, Aaron Courville, and Yoshua Bengio. Generative adversarial nets. Advances in neural information processing systems, 27, 2014. 1, 2 [13] Ishaan Gulrajani, Faruk Ahmed, Martin Arjovsky, Vincent Improved training of Dumoulin, and Aaron Courville. wasserstein gans. arXiv preprint arXiv:1704.00028, 2017. 2
+[14] Ishaan Gulrajani, Colin Raffel, and Luke Metz. Towards gan benchmarks which require generalization. arXiv preprint arXiv:2001.03653, 2020. 2
+[15] Saurabh Gupta, Judy Hoffman, and Jitendra Malik. Cross modal distillation for supervision transfer. In Proceedings of the IEEE conference on computer vision and pattern recog- nition, pages 2827–2836, 2016. 2
+[16] Martin Heusel, Hubert Ramsauer, Thomas Unterthiner, Bernhard Nessler, and Sepp Hochreiter. Gans trained by a two time-scale update rule converge to a local nash equilib- rium. In Advances in neural information processing systems, pages 6626–6637, 2017. 5
+[17] Geoffrey Hinton, Oriol Vinyals, Jeff Dean, et al. Distill- arXiv preprint
+ing the knowledge in a neural network. arXiv:1503.02531, 2(7), 2015. 2, 8
+[18] Jiaxing Huang, Kaiwen Cui, Dayan Guan, Aoran Xiao, Fangneng Zhan, Shijian Lu, Shengcai Liao, and Eric Xing. Masked generative adversarial networks are data-efﬁcient generation learners. In Advances in Neural Information Pro- cessing Systems. 2
+[19] Liming Jiang, Bo Dai, Wayne Wu, and Chen Change Loy. Deceive d: Adaptive pseudo augmentation for gan training with limited data. Advances in Neural Information Process- ing Systems, 34:21655–21667, 2021. 2, 5, 6
+[20] Tero Karras, Timo Aila, Samuli Laine, and Jaakko Lehtinen. Progressive growing of gans for improved quality, stability, and variation. arXiv preprint arXiv:1710.10196, 2017. 2 [21] Tero Karras, Miika Aittala, Janne Hellsten, Samuli Laine, Training generative arXiv preprint
+Jaakko Lehtinen, and Timo Aila. adversarial networks with limited data. arXiv:2006.06676, 2020. 2, 5, 6
+[22] Tero Karras, Samuli Laine, Miika Aittala, Janne Hellsten, Jaakko Lehtinen, and Timo Aila. Analyzing and improv- In Proceedings of the ing the image quality of stylegan. IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 8110–8119, 2020. 5
+[23] Ali Koksal and Shijian Lu. Rf-gan: A light and reconﬁg- urable network for unpaired image-to-image translation. In Proceedings of the Asian Conference on Computer Vision, 2020. 2
+[24] Alex Krizhevsky, Geoffrey Hinton, et al. Learning multiple
+layers of features from tiny images. 2009. 5
+[25] Nupur Kumari, Richard Zhang, Eli Shechtman, and Jun-Yan Zhu. Ensembling off-the-shelf models for gan training. In Proceedings of the IEEE/CVF Conference on Computer Vi- sion and Pattern Recognition (CVPR), pages 10651–10662, June 2022. 2, 8
+[26] Junnan Li, Dongxu Li, Caiming Xiong, and Steven Hoi. Blip: Bootstrapping language-image pre-training for uni- ﬁed vision-language understanding and generation. arXiv preprint arXiv:2201.12086, 2022. 8
+[27] Steven Liu, Tongzhou Wang, David Bau, Jun-Yan Zhu, and Antonio Torralba. Diverse image generation via self- In Proceedings of the IEEE/CVF Con- conditioned gans. ference on Computer Vision and Pattern Recognition, pages 14286–14295, 2020. 2
+[28] Yifan Liu, Ke Chen, Chris Liu, Zengchang Qin, Zhenbo Luo, and Jingdong Wang. Structured knowledge distillation for
+
+
+In Proceedings of the IEEE/CVF semantic segmentation. Conference on Computer Vision and Pattern Recognition, pages 2604–2613, 2019. 2
+[29] Zongyang Ma, Guan Luo, Jin Gao, Liang Li, Yuxin Chen, Shaoru Wang, Congxuan Zhang, and Weiming Hu. Open- vocabulary one-stage detection with hierarchical visual- In Proceedings of the language knowledge distillation. IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pages 14074–14083, June 2022. 1, 3
+[30] Xudong Mao, Qing Li, Haoran Xie, Raymond YK Lau, Zhen Wang, and Stephen Paul Smolley. Least squares genera- tive adversarial networks. In Proceedings of the IEEE inter- national conference on computer vision, pages 2794–2802, 2017. 2
+[31] Takeru Miyato, Toshiki Kataoka, Masanori Koyama, and Yuichi Yoshida. Spectral normalization for generative ad- versarial networks. arXiv preprint arXiv:1802.05957, 2018. 2
+[32] Takeru Miyato and Masanori Koyama. cgans with projection discriminator. arXiv preprint arXiv:1802.05637, 2018. 2 [33] Sangwoo Mo, Minsu Cho, and Jinwoo Shin. Freeze discrim- inator: A simple baseline for ﬁne-tuning gans. arXiv preprint arXiv:2002.10964, 2020. 2
+[34] Kamyar Nazeri, Eric Ng, Tony Joseph, Faisal Z Qureshi, and Mehran Ebrahimi. Edgeconnect: Generative image inpainting with adversarial edge learning. arXiv preprint arXiv:1901.00212, 2019. 2
+[35] Nikolaos Passalis and Anastasios Tefas. Learning deep rep- resentations with probabilistic knowledge transfer. In Pro- ceedings of the European Conference on Computer Vision (ECCV), pages 268–284, 2018. 8
+[36] Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learn- ing transferable visual models from natural language super- vision. In International Conference on Machine Learning, pages 8748–8763. PMLR, 2021. 1, 2, 3, 4, 5, 6, 7, 8
+[37] Adriana Romero, Nicolas Ballas, Samira Ebrahimi Kahou, Antoine Chassang, Carlo Gatta, and Yoshua Bengio. Fitnets: Hints for thin deep nets. arXiv preprint arXiv:1412.6550, 2014. 2, 8
+[38] Tim Salimans, Ian Goodfellow, Wojciech Zaremba, Vicki Cheung, Alec Radford, and Xi Chen. Improved techniques In Advances in neural information pro- for training gans. cessing systems, pages 2234–2242, 2016. 5
+[39] Zhangzhang Si and Song-Chun Zhu. Learning hybrid image templates (hit) by information projection. IEEE Transactions on pattern analysis and machine intelligence, 34(7):1354– 1367, 2011. 5
+[40] Hung-Yu Tseng, Lu Jiang, Ce Liu, Ming-Hsuan Yang, and Weilong Yang. Regularizing generative adversarial networks under limited data. 2021. 1, 2, 5, 6
+[41] Frederick Tung and Greg Mori. Similarity-preserving knowl- edge distillation. In Proceedings of the IEEE/CVF Interna- tional Conference on Computer Vision, pages 1365–1374, 2019. 2, 8
+[42] Suchen Wang, Yueqi Duan, Henghui Ding, Yap-Peng Tan, Kim-Hui Yap, and Junsong Yuan. Learning transferable
+human-object interaction detector with natural language su- pervision. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR), pages 939–948, June 2022. 1, 3
+[43] Ryan Webster, Julien Rabin, Loic Simon, and Frédéric Ju- rie. Detecting overﬁtting of deep generative networks via la- tent recovery. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 11273– 11282, 2019. 2
+[44] Ceyuan Yang, Yujun Shen, Yinghao Xu, and Bolei Zhou. Data-efﬁcient instance generation from instance discrimina- tion. Advances in Neural Information Processing Systems, 34:9378–9390, 2021. 2, 5, 6
+[45] Chuanguang Yang, Helong Zhou, Zhulin An, Xue Jiang, Yongjun Xu, and Qian Zhang. Cross-image relational knowl- edge distillation for semantic segmentation. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pat- tern Recognition, pages 12319–12328, 2022. 2
+[46] Jinyu Yang, Jiali Duan, Son Tran, Yi Xu, Sampath Chanda, Liqun Chen, Belinda Zeng, Trishul Chilimbi, and Junzhou Huang. Vision-language pre-training with triple contrastive In Proceedings of the IEEE/CVF Conference on learning. Computer Vision and Pattern Recognition, pages 15671– 15680, 2022. 8
+[47] Yingchen Yu, Fangneng Zhan, Rongliang Wu, Jiahui Zhang, Shijian Lu, Miaomiao Cui, Xuansong Xie, Xian-Sheng Hua, and Chunyan Miao. Towards counterfactual image manipu- lation via clip. In Proceedings of the 30th ACM International Conference on Multimedia, pages 3637–3645, 2022. 2 [48] Sukmin Yun, Jongjin Park, Kimin Lee, and Jinwoo Shin. Regularizing class-wise predictions via self-knowledge dis- In Proceedings of the IEEE/CVF conference on tillation. computer vision and pattern recognition, pages 13876– 13885, 2020. 2
+[49] Fangneng Zhan, Yingchen Yu, Kaiwen Cui, Gongjie Zhang, Shijian Lu, Jianxiong Pan, Changgong Zhang, Feiying Ma, Xuansong Xie, and Chunyan Miao. Unbalanced feature transport for exemplar-based image translation. In Proceed- ings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 15028–15038, 2021. 2
+[50] Han Zhang, Ian Goodfellow, Dimitris Metaxas, and Augus- tus Odena. Self-attention generative adversarial networks. In International conference on machine learning, pages 7354– 7363. PMLR, 2019. 2
+[51] Han Zhang, Tao Xu, Hongsheng Li, Shaoting Zhang, Xiao- gang Wang, Xiaolei Huang, and Dimitris N Metaxas. Stack- gan: Text to photo-realistic image synthesis with stacked generative adversarial networks. In Proceedings of the IEEE international conference on computer vision, pages 5907– 5915, 2017. 2
+[52] Richard Zhang, Phillip Isola, Alexei A Efros, Eli Shecht- man, and Oliver Wang. The unreasonable effectiveness of deep features as a perceptual metric. In Proceedings of the IEEE conference on computer vision and pattern recogni- tion, pages 586–595, 2018. 7
+[53] Shengyu Zhao, Zhijian Liu, Ji Lin, Jun-Yan Zhu, and Song Han. Differentiable augmentation for data-efﬁcient gan
+
+
+training. Advances in Neural Information Processing Sys- tems, 33:7559–7570, 2020. 1, 2, 5, 6, 7, 8
+[54] Xiatian Zhu, Shaogang Gong, et al. Knowledge distillation by on-the-ﬂy native ensemble. Advances in neural informa- tion processing systems, 31, 2018. 2

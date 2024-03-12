@@ -1,0 +1,541 @@
+3 2 0 2
+r a
+M 3 2
+]
+R
+I . s c [
+1 v 0 5 7 6 1 . 3 0 3 2 : v i X r a
+A Gold Standard Dataset for the Reviewer Assignment Problem
+Ivan Stelmakh, John Wieting, Graham Neubig, Nihar B. Shah∗
+Abstract
+Many peer-review venues are either using or looking to use algorithms to assign submissions to reviewers. The crux of such automated approaches is the notion of the “similarity score”—a numerical estimate of the expertise of a reviewer in reviewing a paper—and many algorithms have been proposed to compute these scores. However, these algorithms have not been subjected to a principled comparison, making it diﬃcult for stakeholders to choose the algorithm in an evidence-based manner. The key challenge in comparing existing algorithms and developing better algorithms is the lack of the publicly available gold-standard data that would be needed to perform reproducible research. We address this challenge by collecting a novel dataset of similarity scores that we release to the research community. Our dataset consists of 477 self-reported expertise scores provided by 58 researchers who evaluated their expertise in reviewing papers they have read previously.
+We use this data to compare several popular algorithms currently employed in computer science
+conferences and come up with recommendations for stakeholders. Our three main ﬁndings are:
+All algorithms make a non-trivial amount of error. For the task of ordering two papers in terms of their relevance for a reviewer, the error rates range from 12%-30% in easy cases to 36%-43% in hard cases, thereby highlighting the vital need for more research on the similarity-computation problem. • Most existing algorithms are designed to work with titles and abstracts of papers, and in this regime the Specter+MFR algorithm performs best.
+To improve performance, it may be important to develop modern deep-learning based algorithms that can make use of the full texts of papers: the classical TD-IDF algorithm enhanced with full texts of papers is on par with the deep-learning based Specter+MFR that cannot make use of this information.
+We encourage researchers to use this dataset for developing and evaluating better similarity-computation algorithms.
+1
+Introduction
+Assigning papers to reviewers with appropriate expertise is the key prerequisite for high-quality reviews (Thurner and Hanel, 2011; Black et al., 1998; Bianchi and Squazzoni, 2015). Even a small fraction of incorrect reviews can negatively impact the quality of the published scientiﬁc standard (Thurner and Hanel, 2011) and hurt careers of researchers (Merton, 1968; Squazzoni and Gandelli, 2012; Thorngate and Chowdhury, 2014). Quoting Triggle and Triggle (2007):
+“An incompetent review may lead to the rejection of the submitted paper, or of the grant applica- tion, and the ultimate failure of the career of the author.”
+Conventionally, the selection of reviewers for a submission was the task of a journal editor or a program committee of a conference. However, the rapid growth in the number of submissions to many publication venues (Shah, 2022) has made the manual selection of reviewers extremely challenging. As a result, many peer-review venues in computer science as well as other ﬁelds are either using or looking to use algorithms to
+∗Corresponding author: nihars@cs.cmu.edu
+1
+
+
+assist organizers in assigning submissions to reviewers (Garg et al., 2010; Charlin and Zemel, 2013; Kobren et al., 2019; Kerzendorf et al., 2020; Stelmakh et al., 2021; OpenReview, 2022).
+The key component of existing automated approaches for assigning reviewers to submissions is the “sim- ilarity score”. For any reviewer-submission pair, the similarity score is a number that captures the expertise of the reviewer in reviewing the submission. The assignment process involves ﬁrst computing the similarity score for each submission-reviewer pair, and then using these scores to assign the reviewers to submis- sions (Shah, 2022, Section 3). The similarity scores are typically computed by matching the text of the submission with the proﬁle (e.g., past papers) of the reviewer, which is the primary focus of this paper. Additionally, these scores may also be augmented by manually selected subject areas or reviewer-provided manual preferences (“bids”).
+Several algorithms for computing similarity scores have been already proposed and used in practice (we review these algorithms in Sections 2 and 5). However, there are two key challenges in designing and using such algorithms in a principled manner. First, there is no publicly available gold standard data that can be used for algorithm development. Second, despite the existence of many similarity-computation algorithms, the absence of the gold standard data prevents principled comparison of these algorithms. As a result, three ﬂagship machine learning conferences—ICML, NeurIPS, and ACL—rely on three diﬀerent similarity- computation algorithms, and the diﬀerences in performance of these algorithms are not well understood.
+In this work, we address the aforementioned challenges and collect a dataset of reviewers’ expertise that can facilitate the progress in the reviewer assignment problem. Speciﬁcally, we conduct a survey of computer science researchers whose experience level ranges from graduate students to senior professors. In the survey, we ask participants to report their expertise in reviewing computer science papers they read over the last year.
+Contributions Overall, our contributions are threefold:
+First, we collect and release a high-quality dataset of reviewers’ expertise that can be used for training and/or evaluation of similarity-computation algorithms. The dataset can be found on the project’s GitHub page: https://github.com/niharshah/goldstandard-reviewer-paper-match
+Second, we use the collected dataset to compare existing similarity-computation algorithms and inform organizers in making a principled choice for their venue. Speciﬁcally, we observe that when all algorithms operate with titles and abstracts of papers, the most advanced Specter+MFR algorithm performs best. However, when the much simpler TPMS is additionally provided with full texts of papers, it achieves the same level of performance as Specter+MFR.
+Third and ﬁnally, we conduct an exploratory analysis that highlights areas of improvement for existing algorithms and our insights can be used to develop better algorithms to improve peer review. For example, we believe that an important direction is to develop deep-learning algorithms that employ full texts of papers to improve performance.
+Overall, we observe that all current algorithms exhibit non-trivial amounts of error. When tasked to compare a pair of papers in terms of the expertise of a given reviewer, all algorithms make 12%-30% mistakes even when two papers are selected to have a large diﬀerence in reviewer’s expertise. On a more challenging task of comparing two high-expertise papers, the algorithms err with probability 36%-43%. This observation underscores the vital need to design better algorithms for matching reviewers to papers.
+Let us now make two important remarks. First, while our dataset comprises researchers and papers from computer science and closely-related ﬁelds, other communities may also use it to evaluate existing or develop new similarity-computation algorithms. To evaluate an algorithm from another domain on our data, researchers can ﬁne-tune their algorithm on proﬁles of computer science scientists crawled from Semantic Scholar and then evaluate it on our dataset.
+Second, in this work we release an initial version of the dataset consisting of 477 data points contributed by 58 researchers. Thus, our dataset is not set in stone and we encourage researchers to participate in our
+2
+
+
+survey and contribute their data to the dataset. By collecting more samples, we enable more ﬁne-grained comparisons and also improve the diversity of the dataset in terms of both population of participants and subject areas of papers. The survey is available at:
+https://forms.gle/SP1Rh8eivGz54xR37
+and we will be updating the released version regularly.
+2 Related literature
+In this section, we discuss relevant past studies. We begin with an overview of works that report comparisons of diﬀerent similarity-computation algorithms. We then provide a brief discussion of the commonly used procedure for computing similarity scores, which are ultimately utilized to assign reviewers to submissions. Finally, we conclude with a list of works that design algorithms to automate other aspects of reviewer assignment.
+Evaluation of similarity-computation algorithms The OpenReview platform (OpenReview, 2022) uses an approach of predicting authorship as a proxy to measuring the quality of the similarity scores computed by any algorithm. Speciﬁcally, they consider papers authored by a number of researchers, remove one of these papers from the corpus, and predict expertise of each researcher in reviewing the selected paper. The performance of an algorithm then is measured as a fraction of times the author of the selected paper is predicted to be among the top reviewers for this paper. This authorship proxy, however, may not be representative of the actual task of similarity computation as algorithms that accurately predict the authorship relationship (and hence do well according to this approach) are not guaranteed to accurately estimate expertise in reviewing submissions authored by other researchers.
+Mimno and McCallum (2007) collected a dataset with external expertise judgments. Speciﬁcally, they used 148 papers accepted to the NeurIPS 2006 conference and 364 reviewers from the NeurIPS 2005 confer- ence and ask human annotators – independent established researchers – to evaluate expertise for a selected subset of 650 (paper, reviewer) pairs. While this approach results in a publicly available dataset, we note that external expertise judgments may also be noisy as judges may have incomplete information about the expertise of reviewers.
+Dumais and Nielsen (1992), Rodriguez and Bollen (2008) and Anjum et al. (2019) obtain more accu- rate expertise judgments by relying on self reports of expertise evaluations from reviewers. In more detail, Dumais and Nielsen (1992) and Rodriguez and Bollen (2008) rely on ex-ante bids—preferences of reviewers in reviewing submissions made in advance of reviewing. In contrast, Anjum et al. (2019) rely on ex-post evaluations of expertise made by reviewers after reviewing the submissions. These works construct datasets that can be used to evaluate algorithms: Dumais and Nielsen (1992) employ 117 papers and 15 reviewers, Rodriguez and Bollen (2008) employ 102 papers and 69 reviewers and Anjum et al. (2019) employ 20 pa- pers and 33 reviewers. However, Rodriguez and Bollen (2008) and Anjum et al. (2019) use sensitive data that cannot be released without compromising the privacy of reviewers. Furthermore, ex-ante evaluations of Dumais and Nielsen (1992) and Rodriguez and Bollen (2008) may not have a high accuracy as (i) bids may contaminate expertise judgments with willingness to review submissions, and (ii) bids are based on a very brief acquaintance with papers. On the other hand, ex-post data by Anjum et al. (2019) is collected for papers assigned to reviewers using a speciﬁc similarity-computation algorithm. Thus, while collected evalu- ations have high precision, they may also have low recall if the employed similarity-computation algorithm erroneously assigned low expertise scores to some (paper, reviewer) pairs as evaluations of expertise for such papers were not observed.
+In this work, we collect a novel dataset of reviewer expertise that (i) can be released publicly, and (ii) contains accurate self-evaluations of expertise that are based on a deep understanding of the paper and are not biased towards any existing similarity-computation algorithm.
+3
+
+
+Similarity scores in conferences combining two types of input:
+In modern conferences, similarity scores are typically computed by
+Initial automated estimates. First, a similarity-computation algorithm is used to compute initial es- timates. Many algorithms have been proposed for this task (Mimno and McCallum, 2007; Rodriguez and Bollen, 2008; Charlin and Zemel, 2013; Liu et al., 2014; Tran et al., 2017; Anjum et al., 2019; Kerzendorf et al., 2020; OpenReview, 2022) and we provide more details on several algorithms used in ﬂagship computer science conferences in Section 5.
+Human corrections. Second, automated estimates are corrected by reviewers who can read abstracts of submissions and report bids—preferences in reviewing the submissions. A number of works focus on the bidding stage and (i) explore the optimal strategy to assist reviewers in navigating the pool of thousands of submissions (Fiez et al., 2020; Meir et al., 2020) or (ii) protect the system from strategic bids made by colluding reviewers willing to get assigned to each other’s paper (Jecmen et al., 2020; Wu et al., 2021; Boehmer et al., 2021; Jecmen et al., 2022).
+Combining these two types of input in a principled manner is a non-trivial task. As a result, diﬀerent conferences use diﬀerent strategies (Shah et al., 2018; Leyton-Brown et al., 2022) and there is a lack of empirical or theoretical evidence that would guide venue organizers in their decisions.
+Automation of the assignment stage At a high level, automated assignment stage consists of two steps: ﬁrst, similarity scores are computed; second, reviewers are allocated to submissions such that some notion of assignment quality (formulated in terms of the similarity scores) is maximized. In this work, we focus on the ﬁrst step of the process. However, for completeness, we now mention several works that design algorithms for the second step.
+A popular notion of assignment quality is the cumulative similarity score, that is, the sum of the similarity scores across all assigned reviewers and papers. An algorithm pursuing such an objective is implemented in the widely employed TPMS assignment algorithm (Charlin and Zemel, 2013) and similar ideas are explored in many papers (Goldsmith and Sloan, 2007; Tang et al., 2010; Long et al., 2013). While the cumulative objective is a natural choice, it has been noted that it may discriminate against certain submissions by allo- cating all irrelevant reviewers to a subset of submissions, even when a more balanced assignment exists (Garg et al., 2010). Thus, a number of works has explored the idea of assignment fairness, aiming at producing more balanced assignments (Kobren et al., 2019; Stelmakh et al., 2021). Finally, other works explore the ideas of envy-freeness (Tan et al., 2021; Payan, 2022), resistance to lone-wolf strategic behavior (Xu et al., 2019; Dhull et al., 2022), and encouraging various types of diversity (Li et al., 2015; Leyton-Brown et al., 2022).
+3 Data collection pipeline
+In this section, we describe the process of data collection. This work was performed under the approval of the Institutional Review Board (IRB) of Carnegie Mellon University.
+Gold standard data In this study, we aim to collect a dataset of self-evaluations of reviewers’ expertise that satisﬁes two desiderata: (D1) The dataset should comprise evaluations of expertise for papers participants read to a reasonable
+extent.
+(D2) The dataset should be released publicly without disclosing any sensitive information.
+Let us now discuss our approach to recruiting participants and obtaining accurate estimates of their
+expertise in reviewing papers included in the dataset.
+4
+
+
+Participant recruiting We recruited participants using a combination of several channels that are typi- cally employed to recruit reviewers for computer science conferences:
+Mailing lists. First, we sent recruiting emails to relevant mailing lists of several universities and research departments of companies
+Social media. Second, two authors of this paper posted a call for participation on their Twitter accounts • Personal communication. Third, we sent personal invites to researchers from our professional network
+We had a screening criterion requiring that prospective participants have at least one paper published in the broad area of computer science. Overall, for the version of the dataset we release in this paper, we managed to recruit 58 participants, all of whom passed the screening.
+Expertise evaluations The key idea of our approach to expertise evaluation is to ask participants to evaluate their expertise in reviewing papers they read in the past. After reading a paper, a researcher is in the best possible position to evaluate whether they have the right background—both in terms of the techniques used in the paper and in terms of the broader research area of the paper—to judge the quality of the paper. With this motivation, we asked participants to:
+Recall 5-10 papers in their broad research area that they read to a reasonable extent in the last year and tell us their expertise in reviewing these papers.
+In more detail, the choice of papers was constrained by two minor conditions: • The papers reported by a participant should not be authored by them • The papers reported by a participant should be freely available online
+In addition to these constraints, we gave several recommendations to the participants in order to make
+the dataset more diverse and useful for the research purposes:
+First, we asked participants to choose papers that cover the whole spectrum of their expertise with some papers being well-separated (e.g., very high expertise and very low expertise) and some papers being nearly-tied (e.g., two high-expertise papers).
+Second, we recommended participants to avoid ties in their evaluations. To help participants comply with this recommendation, we implemented evaluation on a scale of 1 (“I am not qualiﬁed to review this paper”) to 5 (“I have background necessary to evaluate all the aspects of the paper”) with a 0.25 step size, enabling participants to report papers with small diﬀerences in expertise.
+Third, we asked participants to come up with papers that they think may be tricky for existing similarity- computation algorithms. For this, we relied on the commonsense understanding and did not instruct participants on the inner-workings of these algorithms. Overall, the time needed for participants to contribute to the dataset was estimated to be 5–10 minutes.
+The full instructions of the survey are available in Appendix A.
+Data release Following the procedure outlined above, we collected responses from 58 researchers. These responses constitute an initial version of the dataset that we release in this work. Each entry in the dataset corresponds to a participant and comprises evaluations of their expertise in reviewing papers of their choice. For each paper and each participant, we provide representations that are suﬃcient to start working on our dataset:
+Participant. Each participant is represented by their Semantic Scholar ID and complete bibliography crawled from Semantic Scholar on May 1, 2022.
+Paper. Each paper, including papers from participants’ bibliographies, is represented by its Semantic Scholar ID, title, abstract, list of authors, publication year, and arXiv identiﬁer. Additionally, papers from participants’ responses are supplied with links to freely available PDFs (whenever available).
+5
+
+
+Total number of participants: 58
+Characteristic Quantity
+Value
+Gender
+% Male
+78
+Affiliation
+% Carnegie Mellon University
+40
+Country
+% USA
+74
+Position
+% PhD student % Faculty % Post-PhD (non-faculty)
+45 28 12
+Experience
+Min # publications Max # publications Mean # publications Median # publications
+2 492 54 20
+Table 1: Demography of participants. For the ﬁrst four characteristics, quantities represent percentages of the one or more most popular classes in the dataset. Note that classiﬁcation is done manually based on publicly available information and may not be free of error. For the last characteristic, quantities are computed based on Semantic Scholar proﬁles.
+4 Data exploration
+In this section we explore the collected data and present various characteristics of the dataset. The subsequent sections then detail the results of using this data to benchmark various popular similarity-computation algorithms.
+4.1 Participants
+We begin with a discussion of the pool of the survey participants: Table 1 displays its key characteristics. First, we note that all participants work in the broad area of computer science and have rich publication proﬁles (at least two papers published, with the mean of 54 papers and the median of 20 papers). In many subareas of computer science, including machine learning and artiﬁcial intelligence, having two papers is usually suﬃcient to join the reviewer pool of ﬂagship conferences. Given that approximately 85% of participants either have PhD or are in the process of getting the degree, we conclude that most of the researchers who contributed to our dataset are eligible to review for machine learning and artiﬁcial intelligence conferences.
+Second, we caveat that most of the participants are male researchers aﬃliated with US-based organi- zations, with about 40% of all participants being aﬃliated with Carnegie Mellon University. Hence, the population of participants is not necessarily representative of the general population of the machine learning and computer science communities. We encourage researchers to be aware of this limitation when using our dataset. We note that the data collection process does not conclude with the publication of the present paper and we will be updating the dataset as new responses come. We also encourage readers to contribute 5–10 minutes of their time to ﬁll out the survey https://forms.gle/SP1Rh8eivGz54xR37 and make the dataset more representative.
+4.2 Papers
+We now describe the set of papers that constitute our dataset. Overall, participants evaluated their expertise in reviewing 463 unique papers. Out of these 463 papers, 12 papers appeared in reports of two participants, 1 paper was mentioned by three participants, and the remaining papers were mentioned by one participant each.
+6
+
+
+Total number of papers: 463
+Characteristic
+Quantity
+Value
+Open Access
+# On semantic scholar # On arXiv # PDF available
+462 411 457
+Research Areas
+# Computer science
+459
+Publication Year
+% Before 2020 % 2020 or later
+25 75
+Table 2: Characteristics of the 463 papers in the released dataset. Most of the papers are freely available online and belong to the broad area of computer science.
+Table 2 presents several characteristics of the pool of papers in our dataset. First, we note that all but one of the papers are listed on Semantic Scholar, enabling similarity-computation algorithms developed on the dataset to query additional information about the papers from the Semantic Scholar database. For the paper that does not have a Semantic Scholar proﬁle, we construct such a proﬁle manually and keep this paper in the dataset. Additionally, most of the papers (99%) have their PDFs freely available online, thereby allowing algorithms to use full texts of papers to compute similarities.
+Semantic Scholar has a built-in tool to identify broad research areas of papers (Wade, 2022). According to this tool, 99% of the papers included to our dataset belong to the broad area of computer science—the target area for our data-collection procedure. The remaining four papers belong to the neighboring ﬁelds of mathematics, philosophy, and the computational branch of biology. Finally, approximately 75% of all papers in our dataset are published in or after 2020, ensuring that our dataset contains recent papers that similarity-computation algorithms encounter in practice.
+4.3 Evaluations of expertise
+Finally, we proceed to the key aspect of our dataset—evaluations of expertise in reviewing the papers reported by participants. All but one participant reported expertise in reviewing at least 5 papers with the mean number of papers per participant being 8.2 and the total number of expertise evaluations being 477.
+Figure 1 provides visualization of expertise evaluations made by participants. First, Figure 1a displays the histogram of expertise values. About two-thirds of the reported papers belong to the expertise area
+125
+(2, 3]
+(4, 5]Value of expertise
+150
+(3, 4]
+175Count
+75
+25
+100
+50
+[1, 2]
+0
+50
+0
+3
+200
+250
+100
+150
+1
+0
+300Count
+4Difference in expertise
+2
+(a) Histogram of expertise values.
+(b) Histogram of diﬀerences in expertise evaluations.
+Figure 1: Distribution of expertise scores reported by participants.
+7
+
+
+of participants (expertise score larger than 3), and about one-third evaluations are made for papers that reviewers are not competent in (expertise score 3 or lower), thereby yielding a good spread.
+Second, Figure 1b shows the distributions of pairwise diﬀerences in expertise evaluations made by the same reviewer. To construct this ﬁgure, for each participant we considered all pairs of papers in their report. Next, we pooled the absolute values of the pairwise diﬀerences in expertise across participants. We then plotted the histogram of these diﬀerences in the ﬁgure. Observe that the distribution in Figure 1b has a heavy tail, suggesting that our dataset is suitable for evaluating the accuracy of similarity-computation methods both at a coarse level (large diﬀerences between the values of expertise) and at a ﬁne level (small diﬀerences between the values of expertise).
+5 Experimental setup
+We now describe the setup of experiments on our dataset.
+5.1 Metric
+We begin with deﬁning a main metric that we use in this work to evaluate performance of the algorithms. For this, we rely on the Kendall’s Tau distance that is closely related to the widely used Kendall’s Tau (Kendall, 1938) rank correlation coeﬃcient. We introduce the metric and the algorithms in this section, followed by the results in Section 6. Subsequently in Section 7, we provide additional evaluations separating out hard and easy instances.
+Intuition Before we introduce the metric in full details, let us provide some intuition behind it. Consider a pair of papers and a participant who evaluated their expertise in reviewing these papers. We say that a similarity-computation algorithm makes an error if it fails to correctly predict the paper for which the participant reported the higher value of expertise.
+Of course, some pairs of papers are harder to resolve than others (e.g., it is harder to resolve papers with expertise scores 4.0 and 4.25 than 4.0 and 1.0). To capture this intuition, whenever an algorithm makes an error, we penalize it by the absolute diﬀerence in the expertise values reported by the participant. Overall, the loss of the algorithm is the sum of losses across all pairs of papers evaluated by participants normalized to take values between 0 and 1 (the lower the better).
+Formal deﬁnition The intuition behind the metric that we have just introduced should be suﬃcient to interpret the results of our study so the reader may skip the rest of this section and move directly to Section 5.2. However, for the sake of rigor, we now introduce our metric more formally.
+Consider any algorithm that produces real-valued predictions of reviewers’ expertise in reviewing a given set of papers. We call these predictions the “similarity scores” given by the algorithm. We assume that a higher value of a similarity score means that the algorithm predicts a better expertise. The metric we deﬁne below is agnostic to the range or exact values of predicted similarity scores; it only relies on the relative values across diﬀerent papers.
+Now consider any participant r in our study. We let mr denote the number of papers for which participant r , . . . , p(mr) } denote this set of mr papers. For every r ∈ {1, 1.25, 1.5, . . . , 5} denote the expertise self-reported by participant r for paper r denote the real-valued similarity score given by the algorithm
+r reports their expertise. We let Pr = {p(1) i ∈ {1, . . . , mr}, we let ε(i) p(i) r . Next, for every i ∈ {1, . . . , mr}, we let s(i) to the pair (reviewer r, paper p(i)
+r , p(2)
+r
+r ).
+Having set up this notation, we now deﬁne the ‘unnormalized’ loss of the algorithm with respect to
+participant r as:
+8
+
+
+Lr =
+mr(cid:88)
+i,j=1 i<j
+(cid:32) I
+(cid:124)
+(cid:110)
+(s(i)
+r − s(j)
+r )×(ε(i) (cid:123)(cid:122) error
+r − ε(j)
+r ) < 0
+(cid:111) ×(cid:12) (cid:125)
+(cid:12)ε(i)
+r − ε(j) r
+(cid:12) (cid:12) + I (cid:124)
+(cid:110)
+(s(i)
+r − s(j)
+r )×(ε(i) (cid:123)(cid:122) tie
+r − ε(j)
+r ) = 0
+(cid:111)
+× (cid:125)
+1 2
+(cid:12) (cid:12)ε(i)
+r − ε(j) r
+In words, for each pair of papers (p(i)
+r , p(j)
+r ) reported by participant r, the algorithm is not penalized when the ordering of papers induced by the similarity scores {s(i) r } agrees with the ground truth expertise- based ordering {ε(i) r }. When two orderings disagree (that is, the algorithm makes an error), the algorithm is penalized by the diﬀerence of expertise reported by the participant (|ε(i) r |). Finally, when scores computed by the algorithm indicate a tie while expertise scores are diﬀerent, the algorithm is penalized by half the diﬀerence in expertise (1/2|ε(i)
+r , s(j)
+r , ε(j)
+r − ε(j)
+r − ε(j)
+r |).
+Having the unnormalized loss with respect to a participant deﬁned, we now compute the overall loss L ∈ [0, 1] of the algorithm. For this, we take the sum of unnormalized losses across all participants and normalize this sum by the loss achieved by the adversarial algorithm that reverses the ground-truth ordering of expertise (that is, sets s = −ε) and achieves the worst possible performance on the task. More formally,
+L =
+(cid:80) r
+(cid:80) r (cid:12) (cid:12)ε(i)
+Lr
+mr(cid:80) i,j=1 i<j
+r − ε(j) r
+(cid:12) (cid:12)
+.
+Overall, our loss L takes values from 0 to 1 with lower values indicating better performance.
+5.2 Algorithms
+In this work, we evaluate several algorithms that we now discuss. All of these algorithms operate with (i) the list of submissions for which similarity scores need to be computed and (ii) reviewers’ proﬁles comprising past publications of reviewers. Conceptually, all algorithms predict reviewers’ expertise by evaluating textual overlap between each submission and papers in each reviewer’s publication proﬁle. Let us now provide more detail on how this idea is implemented in each of the algorithms under consideration.
+Trivial baseline First, we consider a trivial baseline that ignores the content of submissions and reviewers’ proﬁles when computing the assignment scores: for each (participant, paper) pair, the Trivial algorithm predicts the score s to be 1.
+Toronto Paper Matching System (TPMS) The TPMS algorithm (Charlin and Zemel, 2013), which is based on TF-IDF similarities, is widely used by ﬂagship conferences such as ICML and AAAI. While an exact implementation is not publicly available, in our experiments we use an open-source version by Xu et al. (2019) which implements the basic TF-IDF logic of TPMS. We also note that this method is rediscovered independently by Kerzendorf et al. (2020).
+As a technical remark, in our implementation we use reviewers’ proﬁles and all reported papers to compute the IDF part of the TF-IDF model. In principle, one may be able to get a better performance by using a larger set of papers from the respective ﬁeld (e.g., all submissions to the last edition of the conference) to compute IDF.
+OpenReview algorithms OpenReview is a conference-management system used by machine learning conferences such as NeurIPS and ICLR. It oﬀers a family of deep-learning algorithms for measuring expertise of reviewers in reviewing submissions. In this work, we evaluate the following algorithms which are used to compute aﬃnity scores between submissions and reviewers:
+9
+(cid:33) (cid:12) (cid:12)
+.
+
+
+ELMo. This algorithm relies on general-purpose Embeddings from Language Models (Peters et al.,
+2018) to compute textual similarities between submissions and reviewers’ past papers.
+Specter. This algorithm employs more specialized document-level embeddings of scientiﬁc docu- ments (Cohan et al., 2020). Speciﬁcally, Specter explores the citation graph to construct embeddings that are useful for a variety downstream tasks, including the similarity computation we focus on in this work.
+Specter+MFR. Finally, Specter+MFR further enhances Specter (Chang and McCallum, 2021). Instead of constructing a single embedding of each paper, it constructs multiple embeddings that correspond to diﬀerent facets of the paper. These embeddings are then used to compute the similarity scores.
+We use implementations of these methods that are available on the OpenReview GitHub page1 and
+execute them with default parameters.
+ACL paper matching The Association for Computational Linguistics (ACL) is a community of re- searchers working on computational problems involving natural language. The association runs multiple publication venues, including the ﬂagship ACL conference, and has its own method to compute expertise between papers and reviewers.2 This algorithm is trained on 45,309 abstracts of papers found in the ACL anthology (https://aclanthology.org) downloaded in November 2019. The key idea of the model training is to split each abstract into two non-contiguous parts and treat two parts of the same abstract as a positive example and highly similar parts of diﬀerent abstracts as negative examples. The algorithm uses ideas from the work of Wieting et al. (2019, 2022) to learn a simple and eﬃcient similarity function that separates positive examples from negative examples. This function is eventually used to compute similarity scores between papers and reviewers. More details on the ACL algorithm are provided in Appendix B.
+We note that the ACL algorithm is trained on the domain of computational linguistics and hence may suﬀer from a distribution shift when applied to the general machine learning domain. That said, in line with ELMo, Specter, and Specter+MFR, we use the ACL algorithm without additional ﬁne-tuning.
+The algorithm used by ACL is developed by a subset of authors of this paper (JW, GN) and we use this implementation in our experiments. Importantly, we note that JW and GN executed the algorithm without having access to the ground truth expertise, and the predicted similarities were independently evaluated by another author of this paper (IS).
+6 Results
+In this section, we report the results of evaluation of algorithms described in Section 5.2. First, we juxtapose all algorithms on our data (Section 6.1). Second, we use the TPMS algorithm to explore various aspects of the similarity-computation problem (Section 6.2).
+6.1 Comparison of the algorithms
+Our ﬁrst set of results compares the performance of the existing similarity-computation algorithms. To run these algorithms on our data, we need to make some modeling choices faced by conference organizers in practice:
+Paper representation. First, in their inner-workings, similarity-computation algorithms operate with some representation of the paper content. Possible choices of representations include: (i) title of the paper, (ii) title and abstract, and (iii) full text of the paper. We choose option (ii) as this option is often used in real conferences and is supported by all algorithms we consider in this work. Thus, to predict 1https://github.com/openreview/openreview-expertise 2https://github.com/acl-org/reviewer-paper-matching
+10
+
+
+expertise, algorithms are provided with the title and abstract of each paper (both papers submitted to the conference and papers in reviewers’ publication proﬁles).
+Reviewer proﬁles. The second important parameter is the choice of papers to include in reviewers’ proﬁles. In real conferences, this choice is often left to reviewers who can manually select the papers they ﬁnd representative of their expertise. In our experiments, we construct reviewer proﬁles automatically by using the 20 most recent papers from their Semantic Scholar proﬁles. If a reviewer has less than 20 papers published, we include all of them in their proﬁle. Our choice of the reviewer proﬁle size is governed by the observation that the mean length of the reviewer proﬁle in the NeurIPS 2022 conference is 16.5 papers. By setting the maximum number of papers to 20, we achieve the mean proﬁle length of 14.8, thereby operating with the amount of information close to that available to algorithms in real conferences.
+Statistical aspects To build reviewer proﬁles, we use publication years to order papers by recency, where we break ties uniformly at random. Thus, the content of reviewer proﬁles depends on randomness. To average this randomness out, we repeat the procedure of proﬁle construction and similarity prediction 10 times, and report the mean loss over these iterations. That said, we note that the observed variability due to the randomness in the construction of reviewer proﬁles is negligible, with a standard deviation over all iterations is less than 0.005.
+The pointwise performance estimates obtained by the procedure above depend on the selection of par- ticipants who contributed to our dataset. To quantify the associated level of uncertainty, we compute 95% conﬁdence intervals as follows. For 1,000 iterations, we create a new reviewer pool by sampling participants with replacement and recomputing the loss of each algorithm on the bootstrapped set of reviewers. To save computation time, we do not reconstruct reviewer proﬁles for each of these iterations as the uncertainty associated with the construction of reviewer proﬁles is small. Instead, we reuse proﬁles constructed to obtain pointwise estimates.
+Finally, we also build conﬁdence intervals for the diﬀerence in the performance of the algorithms. We do so in addition to the aforementioned procedure since even when the losses of the algorithms ﬂuctuate with the choice of the bootstrapped dataset, the relative diﬀerence in performance of a pair of algorithms may be stable. Speciﬁcally, we use the procedure above to build conﬁdence intervals for the diﬀerence in performance between the TPMS algorithm and each of the more advanced algorithms. TPMS is chosen as a baseline for this comparison due to its simplicity.
+Results of the comparison Table 3 displays results of the comparison. The ﬁrst pair of columns presents the loss of each algorithm on our dataset and the associated conﬁdence intervals. The third and the forth columns investigate the relative diﬀerence in performance between the non-trivial algorithms: they display the diﬀerences in performance between TPMS and each of the more advanced algorithms (OpenReview algo- rithms and ACL) together with the associated conﬁdence intervals. We make several important observations from Table 3:
+First, we note that all algorithms we consider in this work considerably outperform the Trivial baseline, conﬁrming that content of papers is useful in evaluating expertise.
+Second, comparing three algorithms from the OpenReview toolkit, we note that Specter+MFR and Specter outperform ELMo. The former two algorithms rely on domain-speciﬁc embeddings3 while ELMo uses general-purpose embeddings. Thus, the nature of the text similarity computation task in the academic context may be suﬃciently diﬀerent from that in other domains.
+Third, we note that under modeling choices (paper representation and length of reviewers’ proﬁles) that mimic choices that have been made in real conferences, the Specter+MFR algorithm performs best. • The fourth ﬁnding is the most surprising. Observe that TPMS algorithm is much simpler than in contrast to ELMo, Specter, Specter+MFR, and ACL, it does 3Specter+MFR and Specter are initialized with SciBERT Beltagy et al. (2019)
+11
+
+
+Algorithm
+Trivial
+Loss
+0.50
+95% CI for Loss ∆ with TPMS
+—
+—
+95% CI for ∆ —
+TPMS
+0.28
+[0.23, 0.33]
+—
+—
+ELMo 0.34 Specter 0.27 Specter+MFR 0.24 ACL
+0.30
+[0.29, 0.40] [0.21, 0.34] [0.18, 0.30]
+[0.25, 0.35]
++0.06 −0.01 −0.04
++0.01
+[0.00, 0.13] [−0.06, 0.04] [−0.09, 0.01]
+[−0.03, 0.06]
+Table 3: Comparison of similarity-computation algorithms on the collected data. All algorithms operate with reviewer proﬁles consisting of the 20 most recent papers and use titles and abstracts of papers. Lower values of loss are better. A positive (respectively, negative) value of ∆ indicates that the algorithm performs worse (respectively, better) than TPMS.∗ ∗In Table 4 we evaluate TPMS algorithm when full texts of papers are additionally provided and observe that TPMS closes the gap with Specter+MFR when using this information.
+not rely on carefully learned embeddings. However, TPMS is competitive against complex Specter and Specter+MFR and even outperforms ELMo and ACL. Moreover, TPMS is the only algorithm that can make use of the full text of the papers. In Section 6.2, we ﬁnd that when TPMS uses the full text of all papers (including reviewers’ past papers), it closes the gap with Specter+MFR.
+Note that the performance of advanced algorithms could be improved by ﬁne-tuning in a dataset-speciﬁc manner, or by leveraging larger pre-trained models like T5 (Raﬀel et al., 2020) with added ﬁne-tuning in the scientiﬁc domain. However, our observation suggests that the oﬀ-the-shelf performance of the best algorithm (Specter+MFR) is comparable to that of much simpler TPMS algorithm.
+Finally, we note that some of the conﬁdence intervals for the performance of the diﬀerent algorithms, as well as for the relative diﬀerences, are overlapping. It is, therefore, crucial to increase the size of our dataset to enable more ﬁne-grained comparisons between the algorithms.
+6.2 The role of modeling choices
+In the beginning of Section 6.1 we made two modeling choices pertaining to (i) representations of the papers provided to similarity-computation algorithms, and (ii) the size of reviewers’ proﬁles used by these algorithms. In this section, we investigate these two questions in more detail.
+Question 1 (paper representation). Some similarity-computation algorithms are designed to work with titles and/or abstracts of papers (e.g., Specter) while others can also incorporate the full texts of the manuscripts (e.g., TPMS). Consequently, there is a potential trade-oﬀ between accuracy and compu- tation time. Richer representations are envisaged to result in higher accuracy, but are also associated with an increased demand for computational power. As with the choice of the algorithm itself, there is no guidance on what amount of information should be supplied to the algorithm as the gains from using more information are not quantiﬁed. With this motivation, our ﬁrst question is: What are the beneﬁts of providing richer representations of papers to similarity-computation algorithms?
+Question 2 (reviewer proﬁle). The second important choice is the size of reviewers’ proﬁles. On the one hand, by including only very recent papers in reviewers’ proﬁles, conference organizers are at risk of not using enough data to obtain accurate values of expertise. On the other hand, old papers may not accurately represent the current expertise of researchers and hence may result in noise when used to compute expertise. Thus, our second question is:
+12
+
+
+10
+full text
+1
+title+abstract
+0.3
+0.2
+0.1
+0.0
+20Number of papers in reviewer profile
+title
+0.5Loss
+15
+0.4
+5
+Paper content
+Figure 2: Impact of diﬀerent choices of parameters on the quality of predicted similarities. Conﬁdence intervals are not shown (see Table 4).
+What is the optimal number of the most recent papers to include in the proﬁles of reviewers?
+To investigate these questions, we choose the TPMS algorithm as the workhorse to perform experiments. We make this choice for two reasons. First, TPMS can work with all possible choices of the paper represen- tation: title only, title and abstract, and full text of the paper. In contrast, other methods do not support using the full text of the papers. Second, TPMS is fast to execute, enabling us to compute expertise for hundreds of conﬁgurations in a reasonable time.
+With the algorithm chosen, we vary the number of papers in the reviewers’ proﬁles from 1 to 20. For each value of the proﬁle length, we consider three representations of the paper content: title, title+abstract, and full text of the paper. For each combination of parameters, we construct reviewer proﬁles and predict similarities using the approach introduced in Section 6.1. The only exception is that we repeat the procedure for averaging out the randomness in the proﬁle creation 5 times (instead of 10) to save the computation time.
+Papers and reviewer proﬁles Before presenting the results, we note that in this section, we conduct all evaluations focusing on papers that have PDFs freely available. To this end, we remove 6 papers from the dataset as they are not freely available online (see Table 2). Similarly, we limit reviewer proﬁles to papers whose semantic scholar proﬁles contain links to arXiv. One of the participants did not have any such papers, so we exclude them from the dataset.
+Results Figure 2 and Table 4 provide answers to the questions we study in this section. Figure 2 shows the pointwise loss of the TPMS algorithm for each choice of parameters. To save computation time, we do not build conﬁdence intervals for each combination of parameters. Instead, Table 4 sets the number of papers in reviewers’ proﬁles to 20 (consistent with Table 3) and presents conﬁdence intervals for losses incurred by the algorithm under diﬀerent choices of paper representations. We now make two observations.
+First, paper abstracts are very useful in improving the quality of expertise prediction as compared to titles alone (the improvement of 0.07). Including full texts of the papers in reviewers’ and papers’ proﬁles results in additional improvement (0.03). Overall, ignoring the minor diﬀerences in the datasets between this section and Section 6.1, we observe that TPMS with titles, abstracts, and full texts of papers demonstrates the same performance as Specter+MFR which cannot handle the full texts of papers. Thus, it may be of interest to develop modern deep-learning based algorithms to incorporate full texts of papers and further boost performance on the similarity-computation task.
+Second, the loss curves plateau once reviewer proﬁles include 8 or more of their most recent papers. Additional increase of the proﬁle length does not impact the quality of predictions. Thus, in practice,
+13
+
+
+Paper Representation Loss
+95% CI for Loss ∆ with Title+Abstract
+95% CI for ∆
+Title Title+Abstract Full Text
+0.33 0.27 0.24
+[0.29, 0.38] [0.22, 0.32] [0.19, 0.30]
++0.07 — −0.03
+[0.02, 0.12] — [−0.09, 0.03]
+Table 4: Performance of the TPMS algorithm with 20 most recent papers included in reviewers’ proﬁles and with diﬀerent choices of the paper representation. Lower values of loss are better. A positive (respectively, negative) value of ∆ indicates that the corresponding choice of the paper representation leads to a weaker (respectively, stronger) performance.
+reviewers may be instructed to include 10 representative papers to their proﬁle, which for many active researchers amounts to the number of papers published in 1-3 years.
+7 Additional evaluations
+Recall that our loss metric (see Section 5) assigns diﬀerent weights to errors of an algorithm: errors on pairs with similar values of reviewer’s expertise are penalized less than errors on well-separated pairs. The overall performance of the algorithm is then captured in a single number (loss) which does not characterize the type of mistakes made by the algorithm.
+To provide deeper characterization of the algorithm performance, we now conduct additional evaluations. In these evaluations, we focus on two important regions of the similarity-computation problem. Speciﬁcally, from all expertise evaluations made by participants, we select two groups of triples, where each triple consists of a participant r and two papers (p1, p2) evaluated by this participant:
+“Easy” triples. The ﬁrst group comprises 261 triples where a participant reported high expertise (greater than or equal to four) in one paper and low expertise (less than or equal to two) in another. We call these triples “easy” as the gap in the expertise between the two papers is large. Note that in real conferences it is important to resolve the easy triples correctly to ensure that reviewers do not get assigned irrelevant papers.
+“Hard” triples. The second group comprises 417 triples where a participant reported high expertise (greater than or equal to four) in both papers and the values of expertise are diﬀerent for the two papers. We call these triples “hard” as the gap in the expertise between the papers is small. That said, we note that resolving hard triples in practice is also very important: in real conferences, we want to assign papers to the most suitable reviewers and we need to be able to distinguish two papers with high but not equal values of expertise to achieve this goal.
+Note that by focusing on these two groups, we exclude regions of the problem which may be considered less important. For example, the ability of an algorithm to correctly order two low-expertise papers is less crucial as long as the algorithm can reliably distinguish these papers from the high-expertise papers.
+We now study the performance of the algorithms introduced in Section 5.2 on the easy and hard groups of triples. For all algorithms we use titles and abstracts of papers as the data source and include 20 papers in the reviewers’ proﬁles. Speciﬁcally, for each triple we compare the ordering of papers predicted by an algorithm with the expertise-induced ordering. We then compute the accuracy of each algorithm as the fraction of triples correctly resolved by the algorithm (from 0 to 1, larger values are better). In addition, we also evaluate TPMS in the full text regime to estimate the eﬀect of papers’ texts on the accuracy of the similarity-computation algorithms.4
+4TPMS in the full text regime is evaluated on a slightly diﬀerent dataset as explained in Section 6.2.
+14
+
+
+Algorithm
+Easy triples (n = 261) Hard triples (n = 417) Accuracy
+95% CI
+Accuracy
+95% CI
+TPMS (T+A) TPMS (Full Text)
+0.80 0.84
+[0.72, 0.87] [0.76, 0.91]
+0.62 0.64
+[0.54, 0.69] [0.56, 0.70]
+ELMo Specter Specter+MFR
+0.70 0.85 0.88
+[0.62, 0.78] [0.76, 0.92] [0.81, 0.94]
+0.57 0.57 0.60
+[0.51, 0.63] [0.50, 0.63] [0.53; 0.66]
+ACL
+0.78
+[0.69; 0.86]
+0.62
+[0.55; 0.68]
+Table 5: Results of additional evaluations. Higher values of accuracy are better. Specter+MFR demon- strates the best performance on easy triples and TPMS (Full Text) has the highest accuracy on hard triples.
+Table 5 demonstrates the results of additional evaluations. First, note that all algorithms have moderate to high accuracy in resolving the easy triples. All of the algorithms except ELMo detect papers that reviewers have low expertise in with probability close to or above 80%, with Specter+MFR reaching nearly 90% accuracy. However, we note that in a non-trivial amount of cases (more than 10%), the algorithms are unable to distinguish a paper that a reviewer is well-qualiﬁed to review versus a paper the reviewer does not have necessary background to evaluate. Thus, there is a vital need to improve the similarity-computation algorithms.
+Getting to the hard triples, we observe a signiﬁcant drop in performance with all algorithms being a bit better than random: the best-performing algorithm (TPMS) reaches 62% accuracy in the title+abstract regime and 64% in the full text regime. Perhaps surprisingly, while Specter+MFR and Specter outper- form TPMS on easy triples, they are not better than TPMS on hard triples (we caveat though that error bars are too wide to make a decisive comparison). This observation suggests that there may be a value in additionally ﬁne-tuning these advanced algorithms on hard triples to improve their practical performance.
+Finally, we observe that on both easy and hard triples, full texts of the papers are instrumental in improving performance of the TPMS algorithm. This observation supports our intuition that similarity- computation algorithms do indeed beneﬁt from employing full texts of papers.
+With these remarks, we conclude evaluations of algorithms on the dataset we collected. The dataset and associated code are released on the project’s GitHub page5 and we encourage readers to experiment with additional evaluations on our data.
+8 Discussion
+In this work, we collect a novel dataset of reviewers’ expertise in reviewing papers. In contrast to datasets collected in previous works, our dataset (i) is released publicly, and (ii) contains evaluations of expertise made by scientists who have actually read the papers for their own research purposes. We use this dataset to compare several existing expertise-estimation algorithms and help venue organizers in choosing an algorithm in an evidence-based manner.
+Most importantly, we ﬁnd that current algorithms make a large number of errors. Given the growing number of submissions in many ﬁelds of research, the need for automation in reviewer assignments is only growing. There is thus an urgent and vital need to develop signiﬁcantly improved algorithms to match reviewers to papers, thereby in turn making the peer-review process considerably better.
+Our dataset can be used to develop as well as evaluate new expertise-estimation algorithms. We encourage researchers from the natural language processing and other communities to use our data in order to improve peer review.
+5https://github.com/niharshah/goldstandard-reviewer-paper-match
+15
+
+
+Limitations. Finally, we mention several caveats that researchers should be aware of when working with our dataset and interpreting the results of our experiments. First, our dataset comprises evaluations of expertise in reviewing papers that were written some time ago. In contrast, in real conferences, many papers are recent and not available online. Thus, incoming citations to papers included in our dataset may constitute information that is not available to the algorithms in real life. While the algorithms we evaluate in this work do not rely on the citation relationship, this caveat may be important for future work.
+Second, the experiments we conduct in this work rely on Semantic Scholar proﬁles. These proﬁles are constructed automatically and may not be accurate. Thus, mistakes of the algorithms we observe in this work can be partially due to the noise in the proﬁle creation.
+Finally, we reiterate that the present version of the dataset was constructed by participants who col- lectively are not representative of the general computer science community. For example, about 40% of participants are aﬃliated with CMU. To alleviate this issue, we continue the data collection process and encourage the readers of this paper to contribute their data points to the dataset:
+https://forms.gle/SP1Rh8eivGz54xR37
+Acknowledgments
+We sincerely thank all participants of our survey for their contribution to the dataset. This work was supported by NSF CAREER 1942124 and NSF 1763734.
+References
+Anjum, O., Gong, H., Bhat, S., Hwu, W.-M., and Xiong, J. (2019). PaRe: A paper-reviewer matching approach using a common topic space. In Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP), pages 518–528, Hong Kong, China. Association for Computational Linguistics.
+Beltagy, I., Lo, K., and Cohan, A. (2019). SciBERT: A pretrained language model for scientiﬁc text. In Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing (EMNLP-IJCNLP), pages 3615–3620, Hong Kong, China. Association for Computational Linguistics.
+Bianchi, F. and Squazzoni, F. (2015). Is three better than one? Simulating the eﬀect of reviewer selection and behavior on the quality and eﬃciency of peer review. In Proceedings of the 2015 Winter Simulation Conference, pages 4081–4089. IEEE Press.
+Black, N., Van Rooyen, S., Godlee, F., Smith, R., and Evans, S. (1998). What makes a good reviewer and
+a good review for a general medical journal? Jama, 280(3):231–233.
+Boehmer, N., Bredereck, R., and Nichterlein, A. (2021). Combating collusion rings is hard but possible.
+arXiv preprint arXiv:2112.08444.
+Chang, H.-S. and McCallum, A. (2021). Cold-start paper recommendation using multi-facet embedding. Overleaf preprint. https://www.overleaf.com/project/5f359923225f06000134ea95 [Last Accessed: 3/15/2023].
+Charlin, L. and Zemel, R. S. (2013). The Toronto Paper Matching System: An automated paper-reviewer
+assignment system.
+Cohan, A., Feldman, S., Beltagy, I., Downey, D., and Weld, D. S. (2020). Specter: Document-level repre-
+sentation learning using citation-informed transformers.
+Dhull, K., Jecmen, S., Kothari, P., and Shah, N. B. (2022). Strategyprooﬁng peer assessment via partitioning:
+The price in terms of evaluators’ expertise. In HCOMP.
+16
+
+
+Dumais, S. T. and Nielsen, J. (1992). Automating the assignment of submitted manuscripts to reviewers. In Proceedings of the 15th annual international ACM SIGIR conference on Research and development in information retrieval, pages 233–244.
+Fiez, T., Shah, N., and Ratliﬀ, L. (2020). A SUPER* algorithm to optimize paper bidding in peer review.
+In Conference on Uncertainty in Artiﬁcial Intelligence.
+Garg, N., Kavitha, T., Kumar, A., Mehlhorn, K., and Mestre, J. (2010). Assigning papers to referees.
+Algorithmica, 58(1):119–136.
+Goldsmith, J. and Sloan, R. (2007). The AI conference paper assignment problem. AAAI Workshop -
+Technical Report, WS-07-10:53–57.
+Jecmen, S., Yoon, M., Conitzer, V., Shah, N. B., and Fang, F. (2022). A dataset on malicious paper bidding
+in peer review.
+Jecmen, S., Zhang, H., Liu, R., Shah, N. B., Conitzer, V., and Fang, F. (2020). Mitigating manipulation in
+peer review via randomized reviewer assignments. In NeurIPS.
+Kendall, M. G. (1938). A new measure of rank correlation. Biometrika, 30(1/2):81–93.
+Kerzendorf, W. E., Patat, F., Bordelon, D., van de Ven, G., and Pritchard, T. A. (2020). Distributed peer
+review enhanced with natural language processing and machine learning.
+Kobren, A., Saha, B., and McCallum, A. (2019). Paper matching with local fairness constraints. In ACM
+SIGKDD International Conference on Knowledge Discovery & Data Mining.
+Kudo, T. and Richardson, J. (2018). SentencePiece: A simple and language independent subword tokenizer and detokenizer for neural text processing. In Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing: System Demonstrations, pages 66–71, Brussels, Belgium. Association for Computational Linguistics.
+Leyton-Brown, K., Mausam, Nandwani, Y., Zarkoob, H., Cameron, C., Newman, N., Raghu, D., et al.
+(2022). Matching papers and reviewers at large conferences. arXiv preprint arXiv:2202.12273.
+Li, L., Wang, Y., Liu, G., Wang, M., and Wu, X. (2015). Context-aware reviewer assignment for trust
+enhanced peer review. PLOS ONE, 10(6):1–28.
+Liu, X., Suel, T., and Memon, N. (2014). A robust model for paper reviewer assignment. In Proceedings of the 8th ACM Conference on Recommender Systems, RecSys ’14, pages 25–32, New York, NY, USA. ACM.
+Long, C., Wong, R., Peng, Y., and Ye, L. (2013). On good and fair paper-reviewer assignment. In Proceedings
+IEEE International Conference on Data Mining, ICDM, pages 1145–1150.
+Meir, R., Lang, J., Lesca, J., Kaminsky, N., and Mattei, N. (2020). A market-inspired bidding scheme for
+peer review paper assignment. In Games, Agents, and Incentives Workshop at AAMAS.
+Merton, R. K. (1968). The Matthew eﬀect in science. Science, 159:56–63.
+Mimno, D. and McCallum, A. (2007). Expertise modeling for matching papers with reviewers. In Proceedings of the 13th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, KDD ’07, pages 500–509, New York, NY, USA. ACM.
+OpenReview (2022). Paper-reviewer aﬃnity modeling for openreview. https://github.com/openreview/
+openreview-expertise.
+Payan, J. (2022). Fair allocation problems in reviewer assignment. In Proceedings of the 21st International Conference on Autonomous Agents and Multiagent Systems, AAMAS ’22, page 1857–1859, Richland, SC. International Foundation for Autonomous Agents and Multiagent Systems.
+17
+
+
+Peters, M. E., Neumann, M., Iyyer, M., Gardner, M., Clark, C., Lee, K., and Zettlemoyer, L. (2018). Deep contextualized word representations. In Proceedings of the 2018 Conference of the North American Chapter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long Papers), pages 2227–2237, New Orleans, Louisiana. Association for Computational Linguistics.
+Raﬀel, C., Shazeer, N., Roberts, A., Lee, K., Narang, S., Matena, M., Zhou, Y., Li, W., and Liu, P. J. (2020). Exploring the limits of transfer learning with a uniﬁed text-to-text transformer. Journal of Machine Learning Research, 21:1–67.
+Rodriguez, M. A. and Bollen, J. (2008). An algorithm to determine peer-reviewers. In Proceedings of the 17th ACM Conference on Information and Knowledge Management, CIKM ’08, pages 319–328, New York, NY, USA. ACM.
+Shah, N. B. (2022). An overview of challenges, experiments, and computational solutions in peer review. Communications of the ACM (to appear). Preprint available at http://bit.ly/PeerReviewOverview.
+Shah, N. B., Tabibian, B., Muandet, K., Guyon, I., and Von Luxburg, U. (2018). Design and analysis of the
+NIPS 2016 review process. The Journal of Machine Learning Research, 19(1):1913–1946.
+Squazzoni, F. and Gandelli, C. (2012). Saint Matthew strikes again: An agent-based model of peer review
+and the scientiﬁc community structure. Journal of Informetrics, 6(2):265–275.
+Stelmakh, I., Shah, N., and Singh, A. (2021). PeerReview4All: Fair and accurate reviewer assignment in
+peer review. Journal of Machine Learning Research, 22(163):1–66.
+Tan, M., Dai, Z., Ren, Y., Walsh, T., and Aleksandrov, M. (2021). Minimal-envy conference paper assign- ment: Formulation and a fast iterative algorithm. In 2021 5th Asian Conference on Artiﬁcial Intelligence Technology (ACAIT), pages 667–674.
+Tang, W., Tang, J., and Tan, C. (2010). Expertise matching via constraint-based optimization. In Proceed- ings of the 2010 IEEE/WIC/ACM International Conference on Web Intelligence and Intelligent Agent Technology - Volume 01, WI-IAT ’10, pages 34–41, Washington, DC, USA. IEEE Computer Society.
+Thorngate, W. and Chowdhury, W. (2014). By the numbers: Track record, ﬂawed reviews, journal space,
+and the fate of talented authors. In Advances in Social Simulation, pages 177–188. Springer.
+Thurner, S. and Hanel, R. (2011). Peer-review in a world with rational scientists: Toward selection of the
+average. The European Physical Journal B, 84(4):707–711.
+Tran, H. D., Cabanac, G., and Hubert, G. (2017). Expert suggestion for conference program committees. In 2017 11th International Conference on Research Challenges in Information Science (RCIS), pages 221–232.
+Triggle, C. and Triggle, D. (2007). What is the future of peer review? why is there fraud in science? is plagiarism out of control? why do scientists do bad things? is it all a case of: ” all that is necessary for the triumph of evil is that good men do nothing?”. Vascular health and risk management, 3:39–53.
+Wade, A. D. (2022). The semantic scholar academic graph (S2AG). In Companion Proceedings of the Web
+Conference 2022 (WWW’22 Companion).
+Wieting, J., Gimpel, K., Neubig, G., and Berg-Kirkpatrick, T. (2019). Simple and eﬀective paraphrastic similarity from parallel translations. In Proceedings of the 57th Annual Meeting of the Association for Computational Linguistics, pages 4602–4608, Florence, Italy. Association for Computational Linguistics.
+Wieting, J., Gimpel, K., Neubig, G., and Berg-kirkpatrick, T. (2022). Paraphrastic representations at scale. In Proceedings of the 2022 Conference on Empirical Methods in Natural Language Processing: System Demonstrations, pages 379–388, Abu Dhabi, UAE. Association for Computational Linguistics.
+18
+
+
+Wu, R., Guo, C., Wu, F., Kidambi, R., Van Der Maaten, L., and Weinberger, K. (2021). Making paper reviewing robust to bid manipulation attacks. In Meila, M. and Zhang, T., editors, Proceedings of the 38th International Conference on Machine Learning, volume 139 of Proceedings of Machine Learning Research, pages 11240–11250. PMLR.
+Xu, Y., Zhao, H., Shi, X., and Shah, N. (2019). On strategyproof conference review. In IJCAI.
+19
+
+
+Appendices
+We now provide additional discussion.
+A More details on the survey used for data collection
+In this section we provide full instructions that were given to the participants of our data-collection procedure.
+Dataset of Reviewing Expertise The goal of this experiment is to collect a dataset to help researchers design better algorithms for computing similarities between papers and reviewers: these algorithms will help to improve matching of reviewers to papers in many conferences like NeurIPS, AAAI, ACL, etc.
+WHAT DO YOU NEED TO DO? ***Recall 5-10 papers in your broad research area that you read to a reasonable extent in the last year and tell us your expertise in reviewing these papers.*** (HINT: To quickly recall what papers you read recently, you can search for arxiv.org or an analogous website in your browser history.)
+WHICH PAPERS TO REPORT?
+Papers should not be authored by you • Papers should be freely available online (preferably arXiv, but other open sources are also fine)
+**Suggestions**
+Try to choose a set of papers such that some pairs are well-separated and some are very close in terms of your expertise
+Please try to avoid ties in the expertise ratings you provide • Try to think of some papers that are less famous to make the dataset more diverse • Try to provide some examples that are not obvious and may be tricky for the For example, a naive computation of similarity
+WHAT PARTS OF DATA YOU PROVIDE WILL BE RELEASED? To facilitate the development of better algorithms for similarity computation (trained to perform well on your data!), we will publicly release data collected in this survey (except email addresses) in a non-anonymized form.
+Your email will not be released.
+WHO IS RUNNING THIS SURVEY? The survey is organized by Graham Neubig, Nihar Shah, Ivan Stelmakh (CMU), and John Wieting (CMU -> Google Research). Contact Ivan at stiv@cs.cmu.edu if you have any questions.
+[...]
+List up to 10 papers in your broad research area that you read to a reasonable extent in the last year and tell us your expertise in reviewing these papers. Please try to enter at least 5 papers.
+20
+
+
+Link to Paper 1: Expertise in reviewing Paper 1:
+1.0 (I am not qualified to review this paper) • 1.25 • 1.5 • 1.75 • 2.0 (I can review some aspects of the paper, but can’t make a reliable overall judgment)
+... • 3.0 (I can provide an adequate review, but a substantial part of the paper is outside of my expertise)
+... • 4.0 (I have background in most aspects of the paper, but some minor aspects are beyond my expertise)
+... • 5.0 (I have background necessary to evaluate all the aspects of the paper)
+[...]
+B More details on the ACL algorithm
+In this section, we provide more details on the ACL algorithm that we evaluate in this paper.
+Training The model is trained on a large corpus of 45,309 abstracts from the ACL anthology and is inspired by the work of Wieting et al. (2019, 2022). Speciﬁcally, the model optimizes a max-margin contrastive learning objective which is deﬁned as follows. First, we split each abstract ai from the corpus into two disjoint segments of text uniformly at random. These segments are then uniformly at random allocated into two equally-sized groups: a(1) Second, we construct positive and negative examples: • Positive example: For each abstract ai, pair (a(1) • Negative example: For each passage a(1)
+i ∈ A1 and a(2)
+i ∈ A2.
+, a(2) i
+) constitutes a positive example.
+i
+i ∈ A1, a counterpart ti (cid:54)= a(2)
+from A2 is selected to maximize
+i
+the notion of cosine similarity
+fθ(a(1) i
+, ti) = cos
+(cid:16) g(a(1) i
+, θ), g(ti, θ)
+(cid:17)
+,
+where g is the sentence encoder with parameters θ. Pair (a(1)
+i
+, ti) constitutes a negative example.
+Finally, with this procedure to build positive and negative examples, we can deﬁne the objective of the ACL algorithm:
+min θ
+(cid:88)
+i
+(cid:104)
+δ−fθ(a(1)
+i
+, a(2) i
+) + fθ(a(1)
+i
+(cid:105) , ti))
++
+6
+Inner-working of the algorithm relies on sentencepiece embeddings7 (Kudo and Richardson, 2018) with di- mension of 1,024 and vocabulary size of 20,000. The encoder, g, simply mean pools the learned sentencepiece embeddings, making for eﬃcient encoding, even on CPU.8 In the training procedure, a batch size of 64 is used and the model is trained for 20 epochs. The margin, δ, is set to 0.4.
+6We use [·]+ to denote function h : h(x) = max(x, 0). 7https://github.com/google/sentencepiece 8See Wieting et al. (2019, 2022) for more details on encoding speed.
+21
+
+
+Inference At the inference stage, for a given pair of a submission and a reviewer, we deﬁne the similarity score as a combination of cosine similarities between the submission’s abstract and three most-similar ab- stracts from the reviewer’s proﬁle. Speciﬁcally, let s1, s2 and s3 be the top-3 cosine similarities between the submission’s abstract and abstracts from the reviewer’s proﬁle. The similarity score between the submission and the reviewer is then deﬁned as follows:
+s = s1 +
+s2 2
++
+s3 3
+.
+If a reviewer has less than three abstracts in the proﬁle, we set the corresponding cosine similarity scores si to be zero.
+22

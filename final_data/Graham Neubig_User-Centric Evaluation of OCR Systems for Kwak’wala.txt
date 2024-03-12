@@ -1,0 +1,230 @@
+3 2 0 2
+b e F 6 2
+] L C . s c [
+1 v 0 1 4 3 1 . 2 0 3 2 : v i X r a
+User-Centric Evaluation of OCR Systems for Kwak’wala
+Shruti Rijhwani,1 Daisy Rosenblum,2 Michayla King,3 Antonios Anastasopoulos,4 Graham Neubig1 1Language Technologies Institute, Carnegie Mellon University 2University of British Columbia
+3K ¯
+’wa ¯
+la Language Program
+4Department of Computer Science, George Mason University srijhwan@cs.cmu.edu, daisy.rosenblum@ubc.ca, michayla.g3@gmail.com antonis@gmu.edu, gneubig@cs.cmu.edu
+Abstract
+There has been recent interest in improving op- tical character recognition (OCR) for endan- gered languages, particularly because a large number of documents and books in these lan- guages are not in machine-readable formats. The performance of OCR systems is typi- cally evaluated using automatic metrics such as character and word error rates. While er- ror rates are useful for the comparison of dif- ferent models and systems, they do not mea- sure whether and how the transcriptions pro- duced from OCR tools are useful to down- stream users. In this paper, we present a human-centric evaluation of OCR systems, fo- cusing on the Kwak’wala language as a case study. With a user study, we show that utiliz- ing OCR reduces the time spent in the man- ual transcription of culturally valuable docu- ments – a task that is often undertaken by en- dangered language community members and researchers – by over 50%. Our results demon- strate the potential beneﬁts that OCR tools can have on downstream language documentation and revitalization efforts.1
+1
+Introduction
+Documentation and revitalization efforts for en- dangered languages frequently lead to the creation of textual documents in these languages. These include cultural materials such as folk tales and poetry; linguistic documentation like speech tran- scriptions and vocabulary lists; and other archival material (Himmelmann, 1998; Grenoble and Wha- ley, 2005). However, even though a substantial number of such documents have been created for endangered languages around the globe, the vast majority are not widely accessible because they exist only as printed books and handwritten notes.
+Although some of these documents are digitally available as scanned images, the text contained in the images is not machine-readable, inhibiting sev- eral use cases that are important to communities that speak endangered languages. For example, (1) the text is not searchable for speakers and re- searchers of these languages; (2) it cannot be refor- matted, indexed, or adapted to various needs; and (3) it cannot be used to build datasets for training NLP models. Machine-readable transcriptions of documents are typically produced by a human tran- scriber, who looks at the document and retypes the text present in it. Like other manual transcription tasks (e.g., speech transcription), this process is time-consuming and requires signiﬁcant effort.
+That said, there are computational approaches to producing machine-readable text from scanned documents, speciﬁcally through optical character recognition (OCR). Training a high-performance OCR system is challenging given the small amount of data that is typically available in endangered languages. However, there has been recent inter- est (Rijhwani et al., 2020, 2021; Tjuatja et al., 2021; Disbray et al., 2022) in improving OCR even in very low-resourced settings using the technique of automatic post-correction. Post-correction models correct errors in existing OCR transcriptions (Ko- lak and Resnik, 2005; Dong and Smith, 2018; Kr- ishna et al., 2018). The post-correction methods presented in Rijhwani et al. (2021) demonstrated substantial performance gains for multiple low- resourced endangered languages – reducing char- acter error rates (CER) by 32–58% and word error rates (WER) by 29–59% relative to off-the-shelf OCR systems.2
+1Code, models, and datasets are available at https://
+shrutirij.github.io/ocr-el/.
+2Character error rate (CER) and word error rate (WER) are based on edit distance and are standard metrics for evaluating OCR systems (Berg-Kirkpatrick et al., 2013; Schulz and Kuhn, 2017). CER is the edit distance between the predicted and
+
+
+While error rates are useful to quantify the per- formance of various OCR technologies, they do not measure whether the produced transcriptions are useful to the primary audience for these tran- scriptions: community language learners, teachers, and researchers. In this paper, we look beyond error rates and take a human-centered approach to evaluating OCR and understanding whether the automatically produced transcriptions are beneﬁ- cial to downstream users. More speciﬁcally, we analyze whether OCR is effective in lowering the time and effort spent in manually creating accu- rate transcriptions of scanned documents which, as discussed above, is a task that is frequently under- taken in language documentation and preservation programs.
+As a case study, we focus on Kwak’wala, an endangered language spoken in North America, be- cause of its long tradition of written documentation and active community engagement in accessing the knowledge contained in these texts (detailed in Section 2). We conduct a user study where we compare the time spent by human transcribers on producing an accurate transcription of typewritten Kwak’wala documents with and without the use of an OCR system.3 We demonstrate that there is a statistically signiﬁcant reduction in the time needed for manual transcription when an OCR system is used beforehand. Our results indicate that further research and development of improved OCR tools for endangered languages can add valuable efﬁ- ciency to language preservation and revitalization efforts.
+2 Documents in the Kwak’wala
+Language
+To conduct our proposed human-centric evaluation of OCR, we focus on documents in the Kwak’wala language, while noting that our user study does not involve any language-speciﬁc components and can be extended to other languages.
+Kwak’wala is a member of the Wakashan lan- guage family spoken on the Northwest North Amer-
+the gold transcriptions of the document, divided by the total number of characters in the gold transcription. WER is similar but is calculated at the word level.
+3Similar user studies have been carried out to determine the effectiveness of machine translation in reducing human post- editing effort (Specia and Farzindar, 2010; Gaspari et al., 2014; Koponen, 2016), but none for OCR or endangered languages, to the best of our knowledge. Kettunen et al. (2022) measure user-perceived (qualitative) utility of OCR transcripts based on information gain, as opposed to our quantitative study on reducing transcription time.
+Figure 1: An excerpt from the Hunt-Boas publica- tions documenting the community’s method for pick- ing viburnum berries. As seen, the Hunt-Boas orthogra- phy is complex – it uses several digraphs and diacritics that are challenging for an OCR system to recognize.
+ican Coast. Heritage learners and teachers are ac- tively engaged in the revitalization of Kwak’wala. Written documentation of the language extends back over 120 years, including a collection of doc- uments produced by anthropologist Franz Boas in collaboration with George Hunt, a native speaker of Kwak’wala (Boas, 1897; Boas and Hunt, 1902; Boas, 1911; Boas and Hunt, 1921; Boas, 1934, inter alia). The Hunt-Boas documents include 14 published volumes and several more unpub- lished manuscripts. The documents encompass a grammar of the language; word lists; stories; recipes; procedural texts; descriptions of prac- tices, beliefs, and customs; descriptions of di- alectal differences; maps and lists of placenames; and more. For Kwak’wala communities and lan- guage researchers today, these texts are rich troves containing knowledge that has special value to community-led projects focused on teaching, learn- ing, strengthening, and reclaiming their language, cultural practices, and territorial sovereignty (Law- son, 2004).
+However, to the extent the Hunt-Boas docu- ments have been digitized, they are still ‘trapped’ in scanned images. The texts are not searchable and researchers potentially need to look at tens or hundreds of images to locate relevant information. Moreover, the Hunt-Boas orthography is technical and somewhat idiosyncratic and is primarily used in archival research contexts – because the texts are not machine-readable, they cannot be automatically transliterated to modern, community-preferred or- thographies. Researchers who draw on these mate- rials often resort to retyping excerpts (sometimes into a different writing system), a time-consuming
+
+
+process that introduces a tight bottleneck to sharing and accessing this knowledge.
+Therefore, extracting the Hunt-Boas texts into a machine-readable format can serve the community in many ways. Our user study, thus, focuses on evaluating the utility of existing OCR techniques as applied to these culturally important documents. We select OCR systems based on the experiments in Rijhwani et al. (2021) which describe two mod- els that worked particularly well on the challenging Hunt-Boas orthography (Figure 1 has an example):
+Ocular is an unsupervised OCR system that uses a generative model to transcribe scanned documents (Berg-Kirkpatrick et al., 2013; Gar- rette et al., 2015). Ocular’s transcription model relies on a character n-gram language model trained on the target language. Ri- jhwani et al. (2021) use a small amount of Kwak’wala text data to train the language model and show that Ocular’s OCR system resulted in a CER of 7.90% and a WER of 38.22% on the Hunt-Boas texts.
+Post-correction involves correcting the er- rors made by an existing OCR system to improve overall accuracy. Rijhwani et al. (2021) present a neural encoder-decoder model (Bahdanau et al., 2015) trained with semi-supervised learning to improve post- correction performance in low-resource sce- narios. Relative to Ocular, the post-correction method reduces the CER by 52% and the WER by 41% on the Kwak’wala data.
+In the following sections, we describe a user study focused on evaluating the two OCR pipelines (Ocular and post-correction) to understand whether the automatically produced transcriptions are bene- ﬁcial to downstream users that access the informa- tion in the Hunt-Boas publications.
+3 Evaluation with a User Study
+Traditionally, accurate transcriptions of the Hunt- Boas documents are produced by a human tran- scriber (often a Kwak’wala community member, linguistic researcher, or archivist). The transcriber looks at the scanned image of each document and types out the text present in it – a time-consuming process. To evaluate the utility of the outputs from OCR models, we conduct a user study where we compare the time spent by transcribers on produc- ing an accurate transcription in various settings
+with and without the use of an OCR system. We attempt to answer two primary questions:
+1. Is it faster for a human transcriber to correct the errors in an OCR output as compared to typing out the text from scratch?
+2. Does adding a post-correction model affect transcription speed beyond existing off-the- shelf OCR tools such as Ocular?
+We design controlled experiments to measure hu- man transcription speed on a subset of images from the Hunt-Boas texts and evaluate how the speed is affected in various settings to understand whether there is utility in introducing OCR into the process. Additionally, we obtain subjective feedback on how having OCR outputs affected the transcription task through a survey sent to participating transcribers after tasks were completed.
+3.1 Participants
+We employed nine participants for the user study, all of whom had some transcription experience. Of the nine, two participants had familiarity with the Kwak’wala language as well as the Hunt-Boas texts and the orthography – one is a heritage Kwak’wala language learner and the other is an academic lin- guist working with Kwak’wala language materials. We also employed seven participants that had no experience or familiarity with Kwak’wala. Three of these participants are computer science graduate students at a university and four participants were employed through Upwork,4 a marketplace for free- lance professionals. We selected them based on prior transcription experience, knowledge about data annotation for machine learning, and linguistic training as well as a high job success rate on the Up- work platform.5 Including participants with vary- ing degrees of prior knowledge of the Kwak’wala language also allowed us to evaluate whether this is a factor that affects transcription speed and the overall experience with the user study tasks.
+3.2 Transcription Interface and Keyboard We use Label Studio,6 an open-source data annota- tion interface for setting up transcription tasks for the user study. We customized the interface for the
+4https://www.upwork.com/ 5Full IRB approval was obtained for the user study; all participants signed a consent form before working on the transcription tasks; and all data collected was anonymized.
+6https://labelstud.io
+
+
+Figure 2: Practice task for transcribers to become familiar with the Boas keyboard. We included eight practice tasks in the Label Studio interface to cover all special character combinations in the Boas orthography multiple times. Users could repeat tasks as many times as they wanted to before moving on to the main transcription task.
+Figure 3: Transcription task interface, designed in Label Studio. The interface displays the image of a page and a text box to enter the transcription. It also has zoom and pan tools for the image, allowing users to zoom in on characters that might be hard to identify. The ﬁgure depicts a cropped image for clarity. When an OCR system is used before the manual transcription task, the text box on the right is pre-ﬁlled with the output transcription from the model and the user’s task is to correct any remaining errors.
+transcription task and additionally modiﬁed it to record information necessary for our analysis of transcription speed, including timestamps for when transcribers operate on each task.
+Many characters and diacritics in the Hunt-Boas orthography are not present on a standard computer keyboard. To increase transcription efﬁciency, we used Keyman Developer7 (an open-source toolkit) to create a keyboard for representing the characters in the orthography. The keyboard maps standard US English keyboard keystrokes to characters in the Hunt-Boas orthography. A detailed description of the keyboard layout and usage is in Section A.1. All participants were required to use this virtual keyboard to ensure consistency in terms of typing efﬁciency across all transcribers.
+presents a few sentences of text in the Hunt-Boas orthography that the transcriber has to type using the keyboard. The practice texts were selected such that all the different diacritic and digraph keystroke combinations were covered multiple times. The practice tasks were also added to the Label Studio web interface – a screenshot of the interface for the practice task is shown in Figure 2. Participants were able to repeat the practice tasks as many times as needed to gain familiarity with the keyboard. Additionally, we added keystroke mapping infor- mation to the interface for all tasks (transcription and practice tasks) for users to quickly reference.
+3.3 Transcription Task Settings
+To train participants before the user study experi- ments, we designed a keyboard practice task, which
+7https://keyman.com/developer/
+The primary objective for the participants was to produce an accurate transcription of the image pre- sented to them in each task. In the Label Studio interface, as seen in Figure 3, the image is dis-
+
+
+played alongside a text box for the user to enter the transcription. To evaluate whether using OCR is useful in reducing transcription speed, we have three different setups for the tasks:
+Baseline: This setup does not include the use of any OCR system. The transcriber must type out the text seen in the image from scratch – they are presented with the image and an empty text box in the interface (see Figure 3). This setup represents our baseline for measur- ing transcription speed, as this is the method currently used by Kwak’wala researchers and community members.
+Ocular: In this setup, we use the off-the-shelf OCR tool Ocular on the image for each task before manual annotation. The transcriber is presented with the image and a text box containing the OCR output – that is, the text box on the right in Figure 3 will be pre-ﬁlled with the OCR output. The task here involves looking at the text present in the image (which is the target text) and editing the OCR output in the text box to correct all the errors and produce an accurate transcription.
+Post-correction: This is similar to the previ- ous setup, but we use a pipeline that includes applying the OCR post-correction method from Rijhwani et al. (2021), and as described in Section 2), it improves OCR performance (CER and WER) on Kwak’wala text as com- pared to Ocular. The transcriber is presented with the image alongside a text box containing the post-corrected transcription. The task is to correct any remaining errors.
+3.4 Experiment Design
+While measuring transcription speed for a sin- gle page is relatively straightforward, determining whether there is a statistically signiﬁcant differ- ence in speed between the three different setups described above requires consideration of several factors. For example, a single transcriber cannot be assigned the same page multiple times with differ- ent setups as they would become familiar with the page’s content, potentially leading to incorrect es- timation of speed differences. Additionally, some participants may be faster at transcription in gen- eral and some pages in the document may be more challenging than others – these factors need to be
+A B C D B C D A C D A B D A B C
+A B C D B A D C C D B A D C A B
+Figure 4: Two 4x4 Latin Squares. Each symbol appears only once in each row and each column. The num- ber of symbols is the same as the number of rows and columns. Figure adapted from Dean and Voss (1999).
+accounted for when measuring transcription time across the task setups.
+In statistics, such factors are known as sources of variability (or nuisance factors). We design the transcription tasks to control the variability intro- duced by these factors using the Latin Square De- sign (Dean and Voss, 1999) to assign tasks to each transcriber. The Latin Square has the same number of rows and columns (square-shaped), with a spe- ciﬁc symbol appearing exactly once in each row and exactly once in each column; Figure 4 shows two examples of a Latin Square design that has 4 rows and 4 columns. This design allows control of two sources of variability – one along the rows and one along the columns.
+Since we have three task setups, we choose a 3x3 Latin Square – each setup appears only once in each row and column. The two sources of variability we control are (1) the user doing the transcription and (2) the page being transcribed. We randomly divide the nine participants into three groups of three users each (to ﬁt the 3x3 square) and choose a ﬁxed set of nine pages from the documents that all participants will transcribe in their tasks. For each group of three users, we form three squares (since we have nine pages). The task setups – i.e., baseline, Ocular, post-correction – are randomly assigned within the Latin Square constraints. Adding randomization for all factors (user, page, task setup) is aimed at spreading out the effect of undetectable or unsus- pected characteristics. An example of task setup assignments for one group of three users for the nine pages is in Figure 5.8
+Therefore, each user has nine transcription tasks with the task setups evenly distributed so all users are sufﬁciently timed on each setup. The user does not transcribe the same page more than once, but all users transcribe the same set of nine pages (with
+8We
+follow https://online.stat.psu.edu/ stat503/lesson/4/4.4 and randomize Latin Squares separately for each group of users and each set of pages, so task setup assignments may not look identical across groups.
+
+
+user1 user2 user3
+page1 ocu post base
+page2 base ocu post
+page3 post base ocu
+page4 ocu base post
+page5 post ocu base
+page6 base post ocu
+page7 post base ocu
+page8 ocu post base
+page9 base ocu post
+Figure 5: Task setup assignments for a group of three users using the Latin Square design. We use 3x3 Latin Squares because we have three task setups: Baseline (base), Ocular (ocu), and post-correction (post). We need three squares for each group of users because we have nine pages for transcription. All users transcribe the same set of pages, but with the Latin Square framework, they have different task setups for each page which helps control sources of variability. All user identiﬁers and page identiﬁers are randomized before applying the Latin Square design.
+varied task setups). The Latin Square Design, thus, introduces randomness across the factors to reduce variance and improve the generalization of the sta- tistical analysis.
+Dataset selection We selected nine pages from the Hunt-Boas volumes for the user study ex- periments, which were randomly chosen from a larger subset of 50 pages that community-based researchers deemed representative of the volumes and important to transcribe.
+We also obtained qualitative feedback through a short survey that the participants ﬁlled out after completing the transcriptions. The survey asked several questions about the experience with the user study, including if the transcribers found spe- ciﬁc tasks more difﬁcult than others, whether they preferred typing from scratch or correcting OCR outputs (and which they thought was faster) as well as general feedback on the task and interface.
+3.6 Quantitative Analysis
+3.5 Evaluation Procedure
+The nine transcription tasks were designed to take approximately 7 hours to complete. The partici- pants accessed the Label Studio interface remotely through any web browser and ﬁrst completed the keyboard practice tasks described above. Then, the participants began the transcription tasks and the interface recorded all timestamps for when tran- scriptions were edited and submitted. After the participants completed all tasks, we collected the timestamp information and computed how long it took to complete each task – with nine users tran- scribing nine pages each, we have 81 measurements of transcription speed to be used for quantitatively evaluating the utility of the OCR systems. We also calculated the character error rate (CER) of each transcription with respect to the transcription for the same page by our most experienced participant (a Kwak’wala heritage language learner who is very familiar with the orthography and had tran- scribed parts of the Hunt/Boas volumes before the user study), and discarded time measurements for transcriptions with CER ≥ 1%. Across all 81 tran- scriptions, only one had an error rate higher than this threshold, and thus, the quantitative analysis below is conducted with 80 time measurements.9
+To quantify the effect of introducing OCR into the transcription process, we analyze the measure- ments of transcription speed that were collected from the user study tasks. As stated previously, we cannot use the time values directly to make a gener- alized conclusion because transcription time is not independent of the sources of variability. Instead, we use the statistical technique of Linear Mixed Effects (LME) modeling (Bates, 2007) to describe the relationship between the response variable (the transcription time) and the factors that contribute to variance. The term “mixed effects” refers to a combination of random effects and ﬁxed effects. We have two random effects:
+1. transcriber identity, which can take values from user1 to user9;
+2. page number, which can take values from page1 to page9.
+We also have two ﬁxed effects:
+1. transcriber group, which can either be yes or no indicating prior familiarity with the Kwak’wala language or not;
+9There was no statistical difference between character er- ror rates of from-scratch and corrected transcriptions as well as between participants with and without prior knowledge of
+Kwak’wala. The participants chosen for the user study had ex- perience in transcription tasks, and all except one transcription were highly accurate (CER < 1%).
+
+
+Task Setup Time Est. (min.)
+p-value
+Baseline With OCR
+61.65 28.21
+3.04e-07 * 4.80e-08 *
+Table 1: Per-page transcription time estimates in min- utes from the LME model comparing the baseline, which does not use any OCR, with the task setups that use some form of OCR (either Ocular or post- correction). The time estimate for producing an accu- rate transcription of a page is reduced by 33.44 minutes when OCR technologies are used beforehand. The p- value is < 0.05, indicating statistical signiﬁcance (*).
+2. task setup, which can be one of the three se- tups described above – baseline, Ocular, or post-correction.
+The LME estimation models the transcription time as a function of the above random and ﬁxed effects. Using the estimations, our primary analysis attempts to identify whether the task setup affects transcription time in a statistically signiﬁcant man- ner. We additionally look at whether the transcriber group (i.e., whether the participant has prior knowl- edge of Kwak’wala) plays a role in how fast the user completes tasks.
+Does having some form of OCR help reduce transcription time? In Table 1, we present tran- scription time estimates from the LME model com- paring two settings: (1) the baseline setup which does not use any OCR and the user types the tran- scription from scratch, and (2) having some form of OCR before the transcription process which the user can correct to produce error-free text (either Ocular or post-correction). As is evident from the results, having some form of OCR greatly improves transcription speed, reducing the time estimate by over 50% (from 61.65 to 28.21 minutes) and con- sequently, reducing the manual effort needed to produce an accurate machine-readable version of the documents.
+Does post-correction help reduce transcription time beyond using an off-the-shelf OCR tool? From the previous results, it is evident that using OCR is beneﬁcial in reducing manual transcrip- tion time. We also evaluate whether using the post-correction model is useful or just using an off-the-shelf tool like Ocular is sufﬁciently useful for transcribers. The LME model estimates for this comparison are in Table 2. We see that using post- correction, as proposed in Rijhwani et al. (2021),
+Task Setup
+Time Est. (min.)
+p-value
+Ocular Post-correction
+31.67 24.98
+2.55e-05 * 0.0121 *
+Table 2: Per-page transcription time estimates in min- utes from the LME model comparing task setups us- ing an off-the-shelf OCR system (Ocular) with an OCR post-correction method. The time estimate is reduced by 6.69 minutes for a page, indicating the utility of post- correction to downstream users over using Ocular. The p-value is < 0.05, indicating statistical signiﬁcance (*).
+Group
+Time Est. (min.)
+p-value
+Not familiar Familiar
+43.60 25.74
+8.12e-05 * 0.228
+Table 3: Per-page transcription time estimates in min- utes from the LME model comparing transcribers that had prior familiarity with Kwak’wala with those that did not. The time estimate is reduced by 17.86 minutes for a page when the user is familiar with Kwak’wala, indicating that target knowledge language might be use- ful to have in image transcription tasks. The p-value is > 0.05 for the estimate, which indicates that it is not statistically signiﬁcant, likely because we only had two users that were familiar with the language.
+in the transcription pipeline reduces manual cor- rection time by 21%, indicating its utility to the downstream task of manually correcting the text.
+Does prior familiarity with Kwak’wala and the Boas script affect transcription time? Beyond our primary analysis of the effect of using OCR, we also try to evaluate the extent to which the user’s knowledge of the Kwak’wala language affects the speed of transcription. Table 3 demonstrates this comparison with results across all three task se- tups. The estimates show that this factor does play a role with the LME model estimate with a 40% reduction in transcription time for the group famil- iar with Kwak’wala. However, the p-value of this estimate is > 0.05, indicating that the result is not statistically signiﬁcant – this is likely because only two transcribers in the user study had prior knowl- edge of the language and more data is needed to draw a statistically signiﬁcant conclusion.
+3.7 Subjective Feedback
+After participants completed the transcription tasks, we asked them to ﬁll out a short survey to de- scribe their experience with the task. Note that,
+
+
+to avoid any bias, the participants were not told which OCR setup (Ocular or post-correction) was used for each task. Therefore, the survey focused on understanding whether users observed any dif- ferences between typing from scratch or correcting transcriptions, but the questions did not distinguish between the two OCR-based setups. The full list of questions contained in the survey is in Section A.2. We asked which of the setups led to faster com- pletion of the tasks, and 100% of the participants perceived that correcting an OCR output was faster than typing the transcription from scratch. Some participants also provided feedback:
+“Correcting is faster, as there is much less typing involved which requires most of the time” (user7, from Upwork, not familiar with Kwak’wala)
+“Correcting felt far more efﬁcient!”
+(user2, linguistic researcher, familiar
+with Kwak’wala)
+However, even though it was slower, two out of the nine participants preferred typing out the text without the aid of an OCR output:
+“I preferred typing the text from scratch, as searching for any editable text is difﬁ- cult. You need more effort for editing.” (user8, from Upwork, not familiar with Kwak’wala)
+However, the remaining seven transcribers pro- vided strong feedback that correcting OCR outputs was the preferable task setup, for various reasons:
+“I vastly preferred correcting OCR out- puts. It was so much faster, and also required less investment of attention.”
+(user2, linguistic researcher, familiar
+with Kwak’wala)
+“I preferred correcting text - it’s much faster. I can spend more mental energy making sure the characters are correct rather than wasting time on transcribing trivially-easy letters.”
+(user5, computer science student, not
+familiar with Kwak’wala)
+“I prefer correcting text because typing from scratch is somehow tricky to follow line by line.” (user9, from Upwork, not familiar with Kwak’wala)
+Overall, transcribers participating in the user study identiﬁed a reduction in time spent when the OCR outputs were utilized and the majority preferred the task setup not only because of the speed improvement but also because the OCR out- puts allowed them to zoom in and ﬁx speciﬁc errors rather than spending time on the entire image.
+Additionally, we asked participants if any tasks seemed to be easier or more difﬁcult than others. While several described correction as easier than typing from scratch, some transcribers focused on interesting language-speciﬁc and document- speciﬁc challenges:
+“A few alphabets were difﬁcult to anno- tate from the images. For example, it was difﬁcult to differentiate between l and ł.” (user6, from Upwork, not familiar with Kwak’wala)
+“image text was with small fonts.”
+(user4, computer science student, not
+familiar with Kwak’wala)
+“the hardest thing for me was identify- ing a particular character (ł) that is very faint in the original PDF. It is often difﬁ- cult to tell if a character is ł or l. Because I have some knowledge of the language, I relied on that background knowledge at times, but this slowed down the correc- tion process.”
+(user2, linguistic researcher, familiar
+with Kwak’wala)
+In giving feedback about the keyboard practice tasks, all participants indicated that the practice task helped them learn the Hunt-Boas orthography and the keystroke mappings. Moreover, 100% of the participants stated that as they completed more tasks, they became faster at transcription. One par- ticipant (user7, from Upwork, not familiar with Kwak’wala) stated “After transcribing a few pages, I became faster at typing with the keyboard and noticing the different accents and letters.” While the ordering of the tasks was not taken into account
+
+
+in our LME model because of the small amount of data in the current user study, we hope to under- stand the effect of task order on transcription time in future, larger-scale research.
+4 Conclusion
+In this paper, we evaluate the utility of OCR and post-correction models in a user-centric manner. We conduct a case study on Kwak’wala, an endan- gered language with a long history of written docu- mentation that is currently not widely accessible to community-based speakers and researchers. With a user study, we highlight the utility of incorporat- ing OCR to make these texts easier to manually transcribe into machine-readable formats. Our sta- tistical analysis shows that OCR can reduce the time taken by a human transcriber in producing an accurate retyping of the texts by over 50%. While we focus on a single language in this case study, our results demonstrate the immense potential impact that OCR technologies can have on global language documentation and revitalization efforts. Our work, however, is limited in scale and scope – we do not make statistically signiﬁcant conclusions on the ef- fect of prior knowledge of the language; whether the order of pages transcribed has an impact on measured time; and the effect of general familiar- ity with computers and technology. In the future, we hope to conduct a larger-scale evaluation that accounts for these factors; includes transcriptions from a variety of state-of-the-art OCR systems; and expands to more languages, documents, and orthographies.
+Acknowledgements
+This work was supported by the US National En- dowment for the Humanities grant PR-276810-21 (“Unlocking Endangered Language Resources") as well as the Government of Canada Social Sci- ences and Humanities Research Council Insight nts a ’otłax Development grant GR002807 “K ¯ ¯ ¯ A wis (Knowing our land)”. We are very ¯ grateful to the transcribers for their participation in the user study and to the reviewers for their helpful feedback.
+’a ¯
+nk ¯
+wi’nag ¯
+References
+Dzmitry Bahdanau, Kyunghyun Cho, and Yoshua Ben- gio. 2015. Neural machine translation by jointly In 3rd Inter- learning to align and translate.
+national Conference on Learning Representations, ICLR 2015.
+Douglas Bates. 2007. Linear mixed model implemen- tation in lme4. Manuscript, University of Wisconsin, 15.
+Taylor Berg-Kirkpatrick, Greg Durrett, and Dan Klein. 2013. Unsupervised transcription of historical docu- ments. In Proceedings of the 51st Annual Meeting of the Association for Computational Linguistics (Vol- ume 1: Long Papers), pages 207–217, Soﬁa, Bul- garia. Association for Computational Linguistics.
+Franz Boas. 1897. The Social Organization and the Secret Societies of the Kwakiutl Indians: Smithso- nian Institution. United States National Museum. By Franz Boas. With 51 Plates. Washington: G.P.O.
+Franz Boas. 1911. “Kwakiutl.” Pp. 423–557 in Hand- book of American Indian Languages, vol. 40.1, Bu- reau of American Ethnology Bulletin, edited by Franz Boas. Washington: G.P.O.
+Franz Boas. 1934. Geographical Names of the Kwaki- utl Indians. New York: Columbia University Press.
+Franz Boas and George Hunt. 1902. Kwakiutl Texts. Leiden, New York: E.J. Brill; G.E. Stechert & Co.
+Franz Boas and George Hunt. 1921. Ethnology of the Kwakiutl: Based on Data Collected by George Hunt. Washington: G.P.O.
+Angela Dean and Daniel Voss. 1999. Design and anal-
+ysis of experiments. Springer.
+Samantha Disbray, Ben Foley, Shruti Rijhwani, and Meladel Mistica. 2022. Reading it right: A case In Digital Approaches to study in pintupi-luritja. Multilingual Text Analysis.
+Rui Dong and David Smith. 2018. Multi-input atten- tion for unsupervised OCR correction. In Proceed- ings of the 56th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Pa- pers), pages 2363–2372, Melbourne, Australia. As- sociation for Computational Linguistics.
+Dan Garrette, Hannah Alpert-Abrams, Taylor Berg- Kirkpatrick, and Dan Klein. 2015. Unsupervised code-switching for multilingual historical document In Proceedings of the 2015 Confer- transcription. ence of the North American Chapter of the Associ- ation for Computational Linguistics: Human Lan- guage Technologies, pages 1036–1041, Denver, Col- orado. Association for Computational Linguistics.
+Federico Gaspari, Antonio Toral, Sudip Kumar Naskar, Declan Groves, and Andy Way. 2014. Perception vs. reality: measuring machine translation post-editing productivity. In Proceedings of the 11th Conference of the Association for Machine Translation in the Americas, pages 60–72, Vancouver, Canada. Asso- ciation for Machine Translation in the Americas.
+
+
+Lenore A Grenoble and Lindsay J Whaley. 2005. Sav- ing languages: An introduction to language revital- ization. Cambridge University Press.
+Nikolaus P Himmelmann. 1998. Documentary and de-
+scriptive linguistics.
+Kimmo Kettunen, Heikki Keskustalo, Sanna Kumpu- lainen, Tuula Pääkkönen, and Juha Rautiainen. 2022. Ocr quality affects perceived usefulness of historical newspaper clippings–a user study. arXiv preprint arXiv:2203.03557.
+Okan Kolak and Philip Resnik. 2005. OCR post- In Proceed- processing for low density languages. ings of Human Language Technology Conference and Conference on Empirical Methods in Natural Language Processing, pages 867–874, Vancouver, British Columbia, Canada. Association for Compu- tational Linguistics.
+Maarit Koponen. 2016.
+Is machine translation post- editing worth the effort? a survey of research into post-editing and effort. The Journal of Specialised Translation, 25:131–148.
+Amrith Krishna, Bodhisattwa P. Majumder, Rajesh Bhat, and Pawan Goyal. 2018. Upcycle your OCR: Reusing OCRs for post-OCR text correction in Ro- manised Sanskrit. In Proceedings of the 22nd Con- ference on Computational Natural Language Learn- ing, pages 345–355, Brussels, Belgium. Association for Computational Linguistics.
+Kimberley L. Lawson. 2004. Precious fragments: First Nations materials in archives, libraries and muse- ums. Ph.D. thesis, University of British Columbia.
+Shruti Rijhwani, Antonios Anastasopoulos, and Gra- ham Neubig. 2020. OCR Post Correction for Endan- gered Language Texts. In Proceedings of the 2020 Conference on Empirical Methods in Natural Lan- guage Processing (EMNLP), pages 5931–5942, On- line. Association for Computational Linguistics.
+Shruti Rijhwani, Daisy Rosenblum, Antonios Anas- Lexi- tasopoulos, and Graham Neubig. 2021. cally aware semi-supervised learning for OCR post- correction. Transactions of the Association for Com- putational Linguistics, 9:1285–1302.
+Sarah Schulz and Jonas Kuhn. 2017. Multi-modular In Proceed- domain-tailored OCR post-correction. ings of the 2017 Conference on Empirical Methods in Natural Language Processing, pages 2716–2726, Copenhagen, Denmark. Association for Computa- tional Linguistics.
+Lucia Specia and Atefeh Farzindar. 2010. Estimating machine translation post-editing effort with hter. In Proceedings of the Second Joint EM+/CNGL Work- shop: Bringing MT to the User: Research on Inte- grating MT in the Translation Industry, pages 33– 43.
+Lindia Tjuatja, Shruti Rijhwani, and Graham Neubig. 2021. Explorations in transfer learning for ocr post- In Fifth Widening Natural Language correction. Processing Workshop (WiNLP).
+A Appendix
+A.1 Keyboard for the Boas/Hunt
+Orthography
+For the user study described in Section 3, we de- signed a keyboard for the Boas/Hunt orthography to make transcription more efﬁcient.
+The keyboard is developed using open-source software Keyman10 and it maps characters in the Boas orthography to the user’s computer keyboard. Keyman also provides an on-screen keyboard to see the mapped layout. We brieﬂy describe the layout and usage of the keyboard below:
+Standard English keyboard alphabet and num- bers remain in the same position (A-Z, a-z, 0-9) because the Boas orthography uses sev- eral Latin script characters.
+The special characters, diacritics, and di- graphs of the Boas orthography have been assigned to various punctuation keys accord- ing to their frequency of use, estimated with a small sample of manually transcribed text (10 pages from Boas and Hunt (1921)).
+All accents are typed after the base character. Examples are shown below:
+(cid:63) ä is typed a then square bracket ] (cid:63) k· is typed k then slash / (cid:63) ¯o is typed o then single quote ’ (cid:63) â is typed a then shift + comma , (cid:63) ˘a is typed a then shift + period . (cid:63) g. is typed g then shift + square bracket ] (cid:63) q´ is typed q then option (alt key) + 1
+Other special characters are:
+(cid:63) ď is assigned to semicolon ; (cid:63) ł is assigned to square bracket [ (cid:63) Ł is assigned to shift + square bracket [ (cid:63) E is assigned to option (alt key) + e (cid:63) u is assigned to option (alt key) + u (cid:63) Ï is assigned to option (alt key) + l
+10https://keyman.com/developer/
+
+
+All changed punctuation keys can type their original value by holding down the Alt or Op- tion key. For example, to get the original value of the square bracket [, type Alt + [ (Windows) or Option + [ (Mac).
+A.2 Kwak’wala Transcription:
+Post-Completion Survey
+In Section 3, we describe a user study to evaluate the utility of OCR and post-correction models in reducing the time and effort needed for manual transcription. After participants completed tran- scriptions tasks, we also asked them to ﬁll out a survey to get subjective feedback on their experi- ence with the tasks. Discussion and analysis of the answers from the survey are in Section 3.7. We provide a complete list of the questions asked in the survey here:
+1. Were there speciﬁc tasks you found easier or more difﬁcult to annotate?
+2. Did you prefer typing the text from scratch or correcting predictions from a model? Why?
+3. If you are a Kwak’wala language learner, did the annotation help your language learning? How?
+4. Did the practice task help you become familiar with the keyboard?
+5. After annotating a few pages, do you feel like you become faster at annotation?
+6. Which do you feel is faster: scratch or correcting predictions?
+6. Which do you feel is faster: scratch or correcting predictions?
+7. Any other feedback or thoughts on the task?

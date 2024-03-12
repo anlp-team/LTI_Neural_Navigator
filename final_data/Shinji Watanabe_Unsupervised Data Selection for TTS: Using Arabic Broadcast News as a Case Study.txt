@@ -1,0 +1,162 @@
+3 2 0 2
+n a J
+6 2
+] L C . s c [
+2 v 9 9 0 9 0 . 1 0 3 2 : v i X r a
+UNSUPERVISED DATA SELECTION FOR TTS: USING ARABIC BROADCAST NEWS AS A CASE STUDY
+Massa Baali1, Tomoki Hayashi2,3, Hamdy Mubarak3, Soumi Maiti4, Shinji Watanabe4, Wassim El-Hajj5, Ahmed Ali3
+1KANARI AI , California, USA, 4Carnegie Mellon University, Pittsburgh, USA 3Qatar Computing Research Institute, HBKU, Doha, Qatar 2Nagoya University, Japan, 3Human Dataware Lab. Co., Ltd., Japan 5American University of Beirut, Computer Science Department, Beirut, Lebanon
+ABSTRACT
+Several high-resource Text to Speech (TTS) systems currently pro- duce natural, well-established human-like speech. In contrast, low-resource languages, including Arabic, have very limited TTS systems due to the lack of resources. We propose a fully unsuper- vised method for building TTS, including automatic data selection and pre-training/ﬁne-tuning strategies for TTS training, using broad- cast news as a case study. We show how careful selection of data, yet smaller amounts, can improve the efﬁciency of TTS system in generating more natural speech than a system trained on a big- ger dataset. We adopt to propose different approaches for the: 1) data: we applied automatic annotations using DNSMOS, auto- matic vowelization, and automatic speech recognition (ASR) for ﬁxing transcriptions’ errors; 2) model: we used transfer learning from high-resource language in TTS model and ﬁne-tuned it with one hour broadcast recording then we used this model to guide a FastSpeech2-based Conformer model for duration. Our objective evaluation shows 3.9% character error rate (CER), while the ground truth has 1.3% CER. As for the subjective evaluation, where 1 is bad and 5 is excellent, our FastSpeech2-based Conformer model achieved a mean opinion score (MOS) of 4.4 for intelligibility and 4.2 for naturalness, where many annotators recognized the voice of the broadcaster, which proves the effectiveness of our proposed unsupervised method. Index Terms— Text-to-Speech, TTS, low resources, speech recog- nition
+In [10], they proposed to use semi-supervised training frame- work by allowing Tacotron to utilize textual and acoustic knowl- edge contained in large corpora. They condition the Tacotron en- coder by embedding input text into word vectors. The Tacotron decoder was then pre-trained in the acoustic domain using an un- paired speech corpus. In [9], authors introduce cross-lingual trans- fer learning for low-resource languages to build end-to-end TTS. To tackle input space mismatch across languages, authors proposed a phonetic transformation network model by mapping between source and target linguistic symbols according to their pronunciation. An- other approach for cross-lingual transfer learning presented by [11] initializes the phoneme embeddings from scratch for low-resource languages and discards the pre-trained phoneme embeddings. There has been some work on data efﬁciency in TTS, researchers in [12] used vector-quantization variational-Autoencoder to extract the un- supervised linguistic units from large untranscribed speech then ﬁne- tune it on labeled speech. Others [13] described a new unsupervised speaker selection method based on clustering per-speaker acoustic representations.
+In this work, we describe a fully unsupervised framework to build a low-resource TTS system in Arabic using broadcast news recordings. This is an interesting case study for low-resource TTS as we use Arabic Aljazeera Broadcast news data from QASR cor- pus [14] as our data source. Broadcast news recordings are widely available for various languages and possibly for large number of hours [15, 16]. Though such broadcast news data is not very high- quality as TTS studio recordings.
+1. INTRODUCTION
+Great progress in deep learning and neural end-to-end approaches have lowered the barrier to build high quality TTS systems [1, 2, 3]. However, training end-to-end TTS systems requires a large amount of high-quality paired text and audio, which are expensive and time consuming to build. Most of the recent TTS systems require sizable amounts of data; More than 260 hours by professional voice actors [4], 25 hours [5], 585 hours constructed from 2, 456 speakers [1] and 24 hours [2, 6]. Unlike the data collection in building ASR systems, TTS needs careful recording control, since the TTS performance is tied to professional speaker and high-quality sizable recordings. Thus where high-resource languages such as English, Japanese, and Mandarin [1, 7, 8] has reached almost human-like performance in TTS, limited attention is given to under-resource languages [9] or resource efﬁciency of TTS [10].
+In this paper, we utilize a different data-selection strategy, text processing and speech synthesis method. First, in data-selection we show that with expert human annotations we can select 1-hour sub- set of high-quality data. We also show with automatic annotations using DNSMOS [17] we can also achieve very close performance to expert labelled data, character error rate (CER) of 4.0% compared to CER of 3.9% with manual labels. Second, in text-processing, we show that using vowelization we can reduce CER from 32.2% to 3.9%. Finally, in speech synthesis we show that using transfer learning from high-resource language in TTS model and using this autoregressive (AR) TTS model to guide a non-autoregressive (non- AR) TTS model for duration, we can achieve naturalness score of 4.2 and intelligibility score of 4.4 using only 1 hour data. The re- producible recipe have been shared with the community through the ESPnet-TTS project 1.
+1https://github.com/espnet/espnet/tree/master/egs2/qasr_tts/tts1
+
+
+2. BUILDING TTS CORPUS FROM NEWS RECORDING
+As per our knowledge there is no standard TTS corpus for our low- resource language Arabic. Hence, we use the MGB-2 corpus [16] obtained from the Aljazeera Broadcast news channel, this data was initially optimized for ASR. Collected data spans over 11 years from 2004 until 2015. It contains more than 4,000 episodes from 19 differ- ent programs covering different domains like politics, society, econ- omy, sports, science, etc. For each episode, Aljazeera provided the following: (i) audio sampled at 16KHz; (ii) manual transcription; and (iii) metadata for most of the recordings. Metadata contains fol- lowing information: program name, episode title and date, speaker names and topics of the episode. Also no alignment information is provided with the textual transcriptions. The quality of the tran- scription varied signiﬁcantly; the most challenge is conversational programs with overlapping speech and dialectal usage; and ﬁnally metadata is not always available or standardized.
+2.1. Speaker Identiﬁcation and Speaker Linking
+Majority of metadata information appears in the beginning of the ﬁle. However, some of them are embedded inside the episode tran- scription. One of the main challenges is the inconsistency in speaker names, e.g. Barack Obama appeared in 9 different forms (Barack Obama, Barack Obama/the US President, Barack Obama/President of USA,etc.). The list of guest speakers and episode topics are not comprehensive, with many spelling mistakes in the majority of meta- data ﬁeld names and attributes. To overcome these challenges, we applied several iterations of automatic parsing and extraction fol- lowed by manual veriﬁcation and standardization. This data is pub- licly available 2.
+2.2. Data Selection for TTS Corpus
+Our next step in building the TTS corpus is selecting anchor speak- ers from the MGB-2 dataset. We picked recordings from two an- chors as our main speakers, one male and one female. Intuitively, anchor speakers will be speaking clearly, and most of the time, their recordings will be done in a high-quality studio with less noisy envi- ronment. Unlike an interviewee over the phone or an audio reporter covering events outside the studio. By investigating some record- ings, we can identify the following six classes and only the last one is our desired data:
+Background music normally happens at the beginning or at the end of each episode;
+Wrong transcription often happens due to the fact that broad- cast human transcription is not verbatim, e.g. sometimes some spoken words were dropped due to repetition, correc- tion or rephrasing;Manual dataset classiﬁcation
+Overlap speech occurs mainly in debates and talk-shows; • Wrong speaker label when there is a problem in the meta-data (speaker linking results);
+Bad recording quality happens when the anchor speaker re- ports from a noisy environment, far-ﬁeld microphone, or call- ing over the phone..etc; and
+Good recording, none of the above.
+2.2.1. Manual dataset classiﬁcation
+To classify the good recordings we hired a professional linguist to listen to all segments from the selected best two anchor speakers and
+2https://arabicspeech.org/qasr_tts
+classify them into these aforementioned six-classes. The biggest two challenges are bad recordings (40%) and overlapped speech (33%). Out of this task, we were able to manually label about one hour per speaker, which we studied for building a TTS system. We ran exper- iments on these two different datasets mainly to assess the quality of the proposed recipe in the experimental part.
+2.2.2. Automatic dataset classiﬁcation
+The second approach we investigated to choose the good samples is automatic data classiﬁcation because manual labelling is time con- suming. We use three different methods MOSNet, wv-MOS, and DNSMOS.
+MOSNet [18] is a deep learning-based assessment model to predict human ratings of converted speech. They adopted the convolutional and recurrent neural network models to build a mean opinion score (MOS) predictor.
+wv-MOS [19] Due to the limitations of MOSNet’s ability to detect obvious distortions they trained a modern neural net- work model wav2vec2.0 on the same data as MOSNet. They found that the wv-MOS was an effective predictor of subjec- tive speech quality.
+DNSMOS [17] is a Convolutional Neural Network (CNN) based model that is trained using the ground truth human rat- ings obtained using ITU-T P.808 [20, 21]. It can be applied to stack rank various Deep Noise Suppression (DNS) methods based on MOS estimates with great accuracy.
+Our input to the proposed methods are the wav ﬁles and the output is MOS score ranging from 1 to 5, with lowest score of 1 and high- est score of 5. We considered all the MOS scores that are above 4 as excellent samples. In Table 1 we shows various challenges in random 10 hours for the selected two anchor speakers with man- ual selection. Additionally, we present the labeled good segments from the automatic selection. We investigated the MOS score pre- diction for each approach by analyzing the common good samples chosen by the manual annotators. We found that DNSMOS & wv- MOS achieved high correlation with human annotators ratings for the good segments. However, such MOS rating evaluations solely took into account the quality of the speech, regardless of any tran- scription errors. In order to consider the good samples with wrong transcriptions and achieve our goal of building a fully unsupervised TTS, we used the Arabic ASR in [22] to ﬁx the spelling mistakes.
+Table 1. Details of the TTS. Segments(Seg.) and Duration (Dur.) in minutes for each class
+Class Background music Wrong transcription Overlapped speech Wrong speaker Bad recordings Good Segments DNSMOS MOSNet wv-MOS
+Male # Seg. Dur. 631 134 1,860 22 2,200 1,200 687 1209 1315
+70 15 200 3 240 60 53 70 63
+Female # Seg. Dur. 131 1,586 62 930 260 4,028 12 292 105 1,312 70 1,094 97 1,241 87 1334 44 933
+2.2.3. Vowelized Text
+Our text was without vowelization (aka diacritization) which makes the problem very challenging. In order to diacritize a text, a complex system that considers linguistic rules and statistics is needed [23].
+
+
+Furthermore, there are differences between diacritizing a transcribed speech and a normal written text such as correction, hesitation, and repetition. That further needs more attention from the current text di- acritizers. Additionally, the diacritized text should match the speak- ers’ actual pronunciation of words even if they are not grammatically correct. In the experimental part, we will see the impact of the vow- elization on affecting the quality of the produced results.
+3. ARCHITECTURE
+In this section, we will introduce the architecture of text-to-mel mod- els and vocoder models used in the evaluation. We employed AR and non-AR text-to-mel models to compare the performance with a small amount of training data.
+3.1. Autoregressive models
+We trained Tacotron2 [24] and Transformer-TTS [25] as our AR text-to-mel model. Tacotron2, is a recurrent neural network (RNN)- It consists of a bi-directional based sequence-to-sequence model. Long short-term memory (LSTM)-based encoder and a unidirec- tional LSTM-based decoder with location sensitive attention [26]. After the decoder, the convolutional PostNet reﬁnes the predicted sequence by predicting a residual component of the target sequence. Transformer-TTS adopts a multi-headed self-attention mechanism by replacing the RNNs with the parallelizable self-attention struc- ture. This enables faster and more efﬁcient training while maintain- ing the high perceptual quality comparable to the Tacotron2 [25]. We additionally used the guided attention loss [3] to help the learning of diagonal attention weights for both AR models.
+Since our training data was limited, it was challenging for the model to learn the alignment between the input sequence and the target sequence from one hour of speech. To address this issue, at ﬁrst, we performed pre-training on the LJSpeech dataset [27], which consists of 24 hours of single-female English speech. After pre- training, we ﬁne-tuned the pre-trained model using a small amount of Arabic training data. We initialized the network parameters except for the token embedding layer because of the mismatch in languages.
+3.2. Non-autoregressive models
+We trained FastSpeech2 [6] based on Conformer [28] as our non-AR text-to-mel model, which uses the Conformer block instead of the Transformer block. It consists of a Conformer-based encoder, a du- ration predictor, a pitch predictor, an energy predictor, a length regu- lator, a Conformer-based decoder, and PostNet. The duration predic- tor is a convolutional network that predicts the duration of each input token from the hidden representation of the encoder. The pitch and energy predictors are convolutional networks that predict pitch and energy sequences from the encoder hidden representation, respec- tively. Instead of pitch and energy sequences of the target speech, token-averaged sequences are used to avoid over-ﬁtting [29]. Their embedding is added to the encoder hidden representation. The length regulator replicates each frame of the encoder hidden representation using each input token’s duration to match the time-resolution with the target mel-spectrogram. Finally, the decoder converts the up- sampled hidden representation into the target mel-spectrogram, and PostNet reﬁnes it.
+We did not perform pre-training for FastSpeech2 as we found that the non-AR model does not require a large amount of training data. As a result we train it from scratch with much smaller training data compared to the AR model.
+3.3. Synthesis
+We used the Grifﬁn–Lim algorithm (GL) [30] and Parallel Wave- GAN (PWG) [31] to generate speech from the predicted mel- spectrogram. In the case of GL, the sequence of the predicted mel-spectrogram was converted to a linear spectrogram with the inverse mel-basis, and then GL was applied to the spectrogram. In the case of PWG, we trained the model from scratch with the same training data as the mel-spectrogram generation networks. We used the ground-truth of mel-spectrogram in training while using the predicted one in inference.
+4. EXPERIMENTS
+We conducted experiments to test our proposed methodologies with LJSpeech English 24-hours of speech from single speaker, then ﬁne- tuned with one hour in Arabic. The audio quality is evaluated by human testers. One of the common problems of E2E-TTS is that the generated speech sometimes includes the deletion and/or repetition of words in the input text due to alignment errors. To address this issue, we evaluated the word error rate (WER) and CER of gener- ated speech using pre-trained ASR models and then automatically detected the deletion and/or repetition of words. We also experi- mented with the automatic data selection, as discussed in Section 2.2.2 to construct the TTS corpus.
+4.1. Experimental Conditions
+Our training process requires ﬁrst training the text-to-mel prediction network on its own, followed by training a PWG independently on the outputs generated by the ﬁrst network. We investigated the per- formance with the combinations of the following three conditions:
+Model architecture: To check the difference among the model architectures, we compared three architectures: Tacotron2, Transformer-TTS, and Fastspeech2, as described in Section 3. The AR models were pre-trained 3 as the character-based model with the LJSpeech dataset. We used 12,600 utterances for the training and 250 utterances for the validation in pre-training. After pre-training, we ﬁne-tuned the model using Arabic corpus as describe in Section 2. We used 25 utterances for development and 25 for testing and the rest for training. For non-AR models, we extracted the ground- truth duration of each input token from the attention weights of the teacher model with teacher forced prediction [2]. We employed both Tacotron2 and Transformer-TTS as the teacher model and compared the performance. Then, we trained the non-AR model from scratch using only Arabic data, with the same split of data as the AR models. Vowelization: Vowelization of the input transcription is impor- tant to solve the mismatch between the input text and the output pro- nunciation. We performed the vowelization, as described in section 2.2.3. We compared the case of w/ and w/o vowelization to check the effectiveness.
+Reduction factor: The reduction factor [5] is a common pa- rameter of text-to-mel models to decide the number of output frames at each time step. This plays an important role in achieving stable training, especially when using a limited amount of training data. We compared the reduction factor 1 and 3 for each condition.
+3https://zenodo.org/record/4925105
+
+
+Table 2. Objective evaluation results for the male speaker, where “R” repre- sents the reduction factor, “Vowel.” represents whether to vowelize the input text, and the name in paraphrases (·) represents the teacher model used for the extraction of ground-truth durations.
+ID 1V 1 2V 2 3V 3 4V 4 5V FastSpeech2 (Taco2) FastSpeech2 (Taco2) 5 6V FastSpeech2 (Taco2) FastSpeech2 (Taco2) 6 7V FastSpeech2 (Trans.) FastSpeech2 (Trans.) 7 8V FastSpeech2 (Trans.) FastSpeech2 (Trans.) 8 Ground-truth -
+Model Tacotron2 Tacotron2 Tacotron2 Tacotron2 Transformer-TTS Transformer-TTS Transformer-TTS Transformer-TTS
+R 1 1 3 3 1 1 3 3 1 1 3 3 1 1 3 3 N/A
+Vowel. WER[%] CER[%] MCD[dB] 10.1 ± 2.4 8.5 ± 1.4 10.5 ± 2.9 8.9 ± 1.6 8.6 ± 1.7 9.0 ± 1.9 8.8 ± 0.9 8.6 ± 1.7 8.3 ± 1.6 8.5 ± 1.4 8.3 ± 1.1 8.9 ± 1.6 8.8 ± 0.9 9.6 ± 1.5 9.0 ± 1.0 9.2 ± 1.1 N/A
+X
+14.0 29.8 14.1 27.2 9.7 21.6 5.5 9.6 4.4 7.0 4.4 9.6 3.9 32.3 5.7 14.7 1.3
+34.0 54.4 35.3 51.1 20.4 45.2 15.4 19.9 9.5 22.8 10.8 26.1 9.1 53.9 14.1 34.0 3.0
+X
+X
+X
+X
+X
+X
+X
+N/A
+Table 3. The comparison of detailed CER for the male speaker between w/ or w/o vowelization. The model was FastSpeech2 with the Transformer-TTS as the teacher model and the reduction factor was set to 1.
+ID 7V 7
+Model w/ vowelization w/o vowelization
+Sub. 11 160
+Ins. Del. CER [%]
+2 45
+32 170
+3.9 32.3
+4.2. Results and Analysis
+4.2.1. Objective Evaluation
+For objective evaluation, we reported the Mel-Cepstral Distortion (MCD) [dB]. We also reported Word Error Rate (WER) and CER on a single speaker using the large vocabulary speech recognition Arabic end-to-end transformer system in [22].
+The objective evaluation in Table 2 shows that vowelization im- proved results considerably. Table 3 shows the impact of voweliza- tion for the FastSpeech2 models. The generated speech in the un- vowelized text compared to the vowelized text includes a lot of dele- tion of characters in the input text. Usually, the model with a larger reduction factor achieves faster training convergence and easier at- tention alignment. However, as we can see from the results produced that it reduces the quality of the predicted frames. 1V and 3V showed reasonable performance in this particular task, but the 5V and 7V outperformed the two models even without the pre-training. This re- sult indicated that the amount of training data required for non-AR models is much smaller than AR models.
+We notice that WER for the ground-truth is very low compared to any other representative test set. This can be owed to the fact that anchor speaker speaks clearly and recording setup is very good.
+To check the quality of the automatic labeling done by MOSNet, wv-MOS, and DNSMOS (Section 2.2.2) vs. manual labeling pro- vided by the annotators, we trained a FastSpeech2 model with the ﬁne-tuned Transformers as a teacher model. Table 4 shows a com- parison between the efﬁciency of the four models trained on differ- ent samples, which shows that the manual labeling slightly outper- formed the automatic labeling. However the DNSMOS shows a very promising results as its slightly worse than the manual selection.
+For checking the efﬁciency of the data selection and the perfor- mance of the mechanism presented, we trained a FastSpeech2 model with the ﬁne-tuned Tacotron2 as a teacher model for both the male and the female speaker dataset. Table 5 shows a comparison between the results of each dataset using the same model. This shows that the male speaker dataset has higher quality.
+Table 4. Comparison between the manual and the automatic labeling re- sults for the male speaker. The model was FastSpeech2 with the Transformers as the teacher model. The reduction factor was set to 1 and vowelization was performed. ID 10 10V 11 7V
+Model MOSNet wv-MOS DNSMOS w/ manual labels
+WER [%] CER [%] MCD [dB] 12.6 ± 1.1 10.0 10.9 ± 1.0 7.0 11.2 ± 0.65 4.0 8.8 ± 0.9 3.9
+22.0 18.0 11.0 9.13
+Table 5. Objective evlaution using FastSpeech2 with the Tacotron2 as the teacher model with vowelization. ID 5V 11V
+Dataset WER [%] CER [%] MCD [dB] 8.3 ± 1.6 7.9 ± 1.3
+Male Female
+9.5 13.0
+4.4 7.0
+Table 6. Subjective evaluation results with 95% conﬁdence interval, where reduction factor “R”, intelligibility “Int.” and naturalness “Nat.”. ID 7V 7 8V 12 -
+Model FastSpeech2 (Trans.) FastSpeech2 (Trans.) FastSpeech2 (Trans.) FastSpeech2 (Trans.) w/ PWG Ground-truth
+R 1 1 3 1 N/A
+Vowel. X
+Int. 4.1 ± 0.06 3.5 ± 0.08 3.9 ± 0.07 4.4 ± 0.06 4.9 ± 0.05
+Nat. 4.0 ± 0.06 3.2 ± 0.08 3.8 ± 0.07 4.2 ± 0.06 4.9 ± 0.05
+X X N/A
+4.2.2. Subjective Evaluation
+Finally, we conducted the subjective evaluation using MOS on nat- uralness and intelligibility. We compared the following four models trained on the male dataset: 7V, 7, 8V, and 7V with PWG. For a reference, we also used ground-truth samples in the evaluation. We used 100 sentences of evaluation data for the subjective evaluation. Each subject evaluated 100 samples of each model (in total 400 sam- ples) and rated the intelligibility and naturalness of each sample on a 5-point scale: 5 for excellent, 4 for good, 3 for fair, 2 for poor, and 1 for bad. The number of subjects was ten.
+Table 6 shows that with reduction factor 1, vowelization signif- icantly improved both intelligibility and naturalness, revealing the effectiveness of vowelization. We can conﬁrm that a larger reduc- tion factor did not improve the performance, although it accelerated the training speed. Finally, the result with PWG showed that ap- plying the neural vocoder brought a signiﬁcant improvement of the naturalness and the intelligibility. We can also conclude from the high results presented in the ground-truth that people are very famil- iar with the tone of the speakers in the broadcast news.
+5. CONCLUSION
+This paper introduced a method for building TTS in an unsupervised way, including data selection and pre-training/ﬁne-tuning strategies for TTS training, using Arabic broadcast news as a case study. We explained the pipeline that involves data collection, adaptation of AR models, training of non-AR models, and training PWG. Our ap- proach resulted in MOS of 4.4/5 for intelligibility (almost excellent) and 4.2/5 for naturalness (almost very good). For future work, we plan to automate the process for all the speakers in the QASR [14] corpus. Finally, we also consider applying our pipeline on another language, such as the BBC in the MGB-1.
+
+
+6. REFERENCES
+[1] H. Zen, V. Dang, R. Clark, Y. Zhang, Ron J Weiss, Y. Jia, Z. Chen, and Y. Wu, “LibriTTS: A corpus derived from Lib- rispeech for text-to-speech,” Proc. Interspeech 2019.
+[2] Y. Ren, Y. Ruan, X. Tan, T. Qin, S. Zhao, Z. Zhao, and T. Liu, “Fastspeech: Fast, robust and controllable text to speech,” Ad- vances in neural information processing systems, 2019.
+[3] H. Tachibana, K. Uenoyama, and S. Aihara, “Efﬁciently train- able text-to-speech system based on deep convolutional net- works with guided attention,” in ICASSP, 2018.
+[4] Je. Donahue, S. Dieleman, M. Bi´nkowski, E. Elsen, and K. Si- Interna-
+monyan, tional Conference on Learning Representations, 2020.
+“End-to-end adversarial text-to-speech,”
+[5] Y. Wang, R. Skerry-Ryan, D. Stanton, Y. Wu, R. Weiss, N. Jaitly, Z. Yang, Y. Xiao, Z. Chen, S. Bengio, et al., “Tacotron: Towards end-to-end speech synthesis,” Proc. In- terspeech 2017.
+[6] Y. Ren, C. Hu, T. Qin, S. Zhao, Z. Zhao, and T. Liu, “Fast- speech 2: Fast and high-quality end-to-end text-to-speech,” In- ternational Conference on Learning Representations, 2020.
+[7] R. Sonobe, S. Takamichi, and H. Saruwatari, “JSUT corpus: free large-scale japanese speech corpus for end-to-end speech synthesis,” arXiv:1711.00354, 2017.
+[8] T. Hayashi, R. Yamamoto, K. Inoue, T. Yoshimura, S. Watan- abe, T. Toda, K. Takeda, Y. Zhang, and X. Tan, “Espnet-tts: Uniﬁed, reproducible, and integratable open source end-to-end text-to-speech toolkit,” in ICASSP, 2020.
+[9] T. Tu, Y. Chen, C. Yeh, and H. Lee, “End-to-end text-to-speech for low-resource languages by cross-lingual transfer learning,” Proc. Interspeech 2019.
+[10] Y. Chung, Y. Wang, W. Hsu, Y. Zhang, and R. Skerry-Ryan, “Semi-supervised training for improving data efﬁciency in end-to-end speech synthesis,” in ICASSP, 2019.
+[11] J. Xu, X. Tan, Y. Ren, T. Qin, J. Li, S. Zhao, and T. Y. Liu, “Lr- speech: Extremely low-resource speech synthesis and recogni- tion,” in Proceedings of the 26th ACM SIGKDD International Conference on Knowledge Discovery and Data Mining, 2020.
+[12] H. Zhang and Y. Lin, “Unsupervised learning for sequence- to-sequence text-to-speech for low-resource languages,” Proc. Interspeech 2020.
+[13] P. Gallegos, J. Williams, J. Rownicka, and S. King, “An un- supervised method to select a speaker subset from large multi- speaker speech synthesis datasets,” Interspeech, 2020.
+[14] H. Mubarak, A. Hussein, S. Chowdhury, and A. Ali, “QASR: QCRI Aljazeera speech resource–a large scale annotated Ara- bic speech corpus,” ACL, 2021.
+[15] P. Bell, M. Gales, T. Hain, J. Kilgour, P. Lanchantin, X. Liu, A. McParland, S. Renals, Os. Saz, M. Wester, et al., “The MGB challenge: Evaluating multi-genre Broadcast media recogni- tion,” in ASRU, 2015.
+[16] A. Ali, P. Bell, J. Glass, Y. Messaoui, H. Mubarak, S. Renals, and Y. Zhang, “The MGB-2 challenge: Arabic multi-dialect broadcast media recognition,” in SLT, 2016.
+[17] C. K. Reddy, V. Gopal, and R. Cutler,
+“Dnsmos: A non- intrusive perceptual objective speech quality metric to evaluate noise suppressors,” in ICASSP 2021.
+[18] C. Lo, S. Fu, W. Huang, X. Wang, J. Yamagishi, Y. Tsao, and H. Wang, “Mosnet: Deep learning based objective assessment for voice conversion,” in Interspeech 2019.
+[19] P. Andreev, A. Alanov, O. Ivanov, and D. Vetrov, “Hiﬁ++: a uniﬁed framework for neural vocoding, bandwidth extension and speech enhancement,” arXiv:2203.13086, 2022.
+[20] B. Naderi and R. Cutler,
+“An open source implementation of itu-t recommendation p. 808 with validation,” Proc. Inter- speech 2020.
+[21] C. K. Reddy, V. Gopal, R. Cutler, E. Beyrami, R. Cheng, H. Dubey, S. Matusevych, R. Aichner, A. Aazami, S. Braun, et al., “The interspeech 2020 deep noise suppression challenge: Datasets, subjective testing framework, and challenge results,” Proc. Interspeech 2020.
+[22] A. Hussein, S. Watanabe, and A. Ali, “Arabic speech recogni- tion by end-to-end, modular systems and human,” Computer Speech & Language, 2021.
+[23] A. Abdelali, K. Darwish, N. Durrani, and H. Mubarak, in The “Farasa: A fast and furious segmenter for Arabic,” North American chapter of the association for computational linguistics: Demonstrations, 2016.
+[24] J. Shen, R. Pang, R. Weiss, M. Schuster, N. Jaitly, Z. Yang, Z. Chen, Y. Zhang, Y. Wang, R. Skerrv-Ryan, et al., “Natural TTS synthesis by conditioning wavenet on mel spectrogram predictions,” in ICASSP, 2018.
+[25] N. Li, S. Liu, Y. Liu, S. Zhao, and M. Liu, “Neural speech
+synthesis with transformer network,” in AAAI, 2019.
+[26] J. Chorowski, D. Bahdanau, D. Serdyuk, K. Cho, and Y. Ben- gio, “Attention-based models for speech recognition,” NIPS, 2015.
+[27] K. Ito and L. Johnson,
+“The lj speech dataset,” Online:
+https://keithito. com/LJ-Speech-Dataset, 2017.
+[28] P. Guo, F. Boyer, X. Chang, T. Hayashi, Y. Higuchi, H. In- aguma, N. Kamo, C. Li, D. Garcia-Romero, J. Shi, et al., “Re- cent developments on ESPnet toolkit boosted by conformer,” ICASSP, 2021.
+[29] A. Ła´ncucki, “Fastpitch: Parallel text-to-speech with pitch pre-
+diction,” ICASSP, 2021.
+[30] N. Perraudin, P. Balazs, and P. L. Søndergaard, “A fast grifﬁn- lim algorithm,” in 2013 IEEE Workshop on Applications of Signal Processing to Audio and Acoustics.
+[31] R. Yamamoto, E. Song, and J. Kim, “Parallel wavegan: A fast waveform generation model based on generative adversar- ial networks with multi-resolution spectrogram,” in ICASSP, 2020.

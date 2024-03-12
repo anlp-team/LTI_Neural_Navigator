@@ -1,0 +1,1084 @@
+3 2 0 2
+b e F 1 2
+]
+R
+I . s c [
+1 v 6 5 8 0 1 . 2 0 3 2 : v i X r a
+Overview of the TREC 2021 Fair Ranking Track
+Michael D. Ekstrand michaelekstrand@boisestate.edu
+Graham McDonald graham.mcdonald@glasgow.ac.uk
+Amifa Raj amifaraj@u.boisestate.edu
+Isaac Johnson isaac@wikimedia.org
+February 22, 2023
+1
+Introduction
+The TREC Fair Ranking Track aims to provide a platform for participants to develop and evaluate novel retrieval algorithms that can provide a fair exposure to a mixture of demographics or attributes, such as ethnicity, that are represented by relevant documents in response to a search query. For example, particular demographics or attributes can be represented by the documents’ topical content or authors.
+The 2021 Fair Ranking Track adopted a resource allocation task. The task focused on supporting Wikipedia editors who are looking to improve the encyclopedia’s coverage of topics under the purview of a WikiProject.1 WikiProject coordinators and/or Wikipedia editors search for Wikipedia documents that are in need of editing to improve the quality of the article. The 2021 Fair Ranking track aimed to ensure that documents that are about, or somehow represent, certain protected characteristics receive a fair exposure to the Wikipedia editors, so that the documents have an fair opportunity of being improved and, therefore, be well-represented in Wikipedia. The under-representation of particular protected characteristics in Wikipedia can result in systematic biases that can have a negative human, social, and economic impact, particularly for disadvantaged or protected societal groups [3, 5].
+2 Task Deﬁnition
+The 2021 Fair Ranking Track used an ad hoc retrieval protocol. Participants were provided with a corpus of documents (a subset of the English language Wikipedia) and a set of queries. A query was of the form of a short list of search terms that represent a WikiProject. Each document in the corpus was relevant to zero to many WikiProjects and associated with zero to many fairness categories.
+There were two tasks in the 2021 Fair Ranking Track. In each of the tasks, for a given query, participants
+were to produce document rankings that are:
+1. Relevant to a particular WikiProject.
+2. Provide a fair exposure to articles that are associated to particular protected attributes.
+The tasks shared a topic set, the corpus, the basic problem structure and the fairness objective. However, they diﬀered in their target user persona, system output (static ranking vs. sequences of rankings) and evaluation metrics. The common problem setup was as follows:
+Queries were provided by the organizers and derived from the topics of existing or hypothetical WikiProjects.
+1https://en.wikipedia.org/wiki/WikiProject
+1
+
+
+Documents were Wikipedia articles that may or may not be relevant to any particular WikiProject that is represented by a query.
+Rankings were ranked lists of articles for editors to consider working on.
+Fairness of exposure was achieved with respect to the geographic location of the articles (geographic location annotations were provided). For the evaluation topics, in addition to geographic fairness, to the extent that biographical articles are relevant to the topic, the rankings should have also been fair with respect to an undisclosed demographic attribute of the people that the biographies cover, which was gender.
+2.1 Task 1: WikiProject Coordinators
+The ﬁrst task focused on WikiProject coordinators as users of the search system; their goal is to search for relevant articles and produce a ranked list of articles needing work that other editors can then consult when looking for work to do.
+Output: The output for this task was a single ranking per query, consisting of 1000 articles.
+Evaluation was a multi-objective assessment of rankings by the following two criteria:
+Relevance to a WikiProject topic. Relevance assessments were provided for articles for the train- ing queries derived from existing Wikipedia data; evaluation query relevance were assessed by NIST assessors. Ranking relevance was computed with nDCG, using binary relevance and logarithmic decay.
+Fairness with respect to the exposure of diﬀerent fairness categories in the articles returned in response to a query.
+Section 4.2 contains details on the evaluation metrics.
+2.2 Task 2: Wikipedia Editors
+The second task focused on individual Wikipedia editors looking for work associated with a project. The conceptual model is that rather than maintaining a ﬁxed work list as in Task 1, a WikiProject coordinator would create a saved search, and when an editor looks for work they re-run the search. This means that diﬀerent editors may receive diﬀerent rankings for the same query, and diﬀerences in these rankings may be leveraged for providing fairness.
+Output: The output of this task is 100 rankings per query, each consisting of 50 articles.
+Evaluation was a multi-objective assessment of rankings by the following three criteria:
+Relevance to a WikiProject topic. Relevance assessments were provided for articles for the train- ing queries derived from existing Wikipedia data; evaluation query relevance was assessed by NIST assessors. Ranking relevance was computed with nDCG.
+Work needed on the article (articles needing more work preferred). We provided the output of an article quality assessment tool for each article in the corpus; for the purposes of this track, we assumed lower-quality articles need more work.
+Fairness with respect to the exposure of diﬀerent fairness categories in the articles returned in response to a query.
+2
+
+
+The goal of this task was not to be fair to work-needed levels; rather, we consider work-needed and topical relevance to be two components of a multi-objective notion of relevance, so that between two documents with the same topical relevance, the one with more work needed is more relevant to the query in the context of looking for articles to improve.
+This task used expected exposure to compare the exposure article subjects receive in result rankings to the ideal (or target) exposure they would receive based on their relevance and work-needed [1]. This addresses fundamental limits in the ability to provide fair exposure in a single ranking by examining the exposure over multiple rankings.
+For each query, participants provided 100 rankings, which we considered to be samples from the distribu- tion realized by a stochastic ranking policy (given a query q, a distribution πq over truncated permutations of the documents). Note that this is how we interpret the queries, but it did not mean that a stochastic policy is how the system should have been implemented — other implementation designs were certainly possible. The objective was to provide equitable exposure to documents of comparable relevance and work-needed, aggregated by protected attribute. Section 4.3 has details on the evaluation metrics.
+3 Data
+This section provides details of the format of the test collection, topics and ground truth. Further details about data generation and limitations can be found in Section 5.2.
+3.1 Obtaining the Data
+The corpus and query data set is distributed via Globus, and can be obtained in two ways. First, it can be obtained via Globus, from our repository at https://boi.st/TREC2021Globus. From this site, you can log in using your institution’s Globus account or your own Google account, and synchronize it to your local Globus install or download it with Globus Connect Personal.2 This method has robust support for restarting downloads and dealing with intermittent connections. Second, it can be downloaded directly via HTTP from: https://data.boisestate.edu/library/Ekstrand-2021/TRECFairRanking2021/.
+The runs and evaluation qrels will be made available in the ordinary TREC archives.
+3.2 Corpus
+The corpus consisted of articles from English Wikipedia. We removed all redirect articles, but left the wikitext (markup Wikipedia uses to describe formatting) intact. This was provided as a JSON ﬁle, with one record per line, and compressed with gzip (trec corpus.json.gz). Each record contains the following ﬁelds:
+id The unique numeric Wikipedia article identiﬁer.
+title The article title.
+url The article URL, to comply with Wikipedia licensing attribution requirements.
+text The full article text.
+The contents of this corpus were prepared in accordance with, and licensed under, the CC BY-SA 3.0 license.3 The raw Wikipedia dump ﬁles used to produce this corpus are available in the source directory; this is primarily for archival purposes, because Wikipedia does not publish dumps indeﬁnitely.
+2https://www.globus.org/globus-connect-personal 3https://creativecommons.org/licenses/by-sa/3.0/
+3
+
+
+3.3 Topics
+Each of the track’s training topics is based on a single Wikiproject. The topic is also GZIP-compressed JSON lines (ﬁle trec topics.json.gz), with each record containing:
+id A query identiﬁer (int)
+title The Wikiproject title (string)
+keywords A collection of search keywords forming the query text (list of str)
+scope A textual description of the project scope, from its project page (string)
+homepage The URL for the Wikiproject. This is provided for attribution and not expected to be used by
+your system as it will not be present in the evaluation data (string)
+rel docs A list of the page IDs of relevant pages (list of int)
+The keywords are the primary query text. The scope is there to provide some additional context and
+potentially support techniques for reﬁning system queries.
+In addition to topical relevance, for Task 2: Wikipedia Editors (Section 2.2), participants were also ex- pected to return relevant documents that need more editing work done more highly than relevant documents that need less work done.
+3.4 Annotations
+NIST assessors annotated the retrieved documents with binary relevance score for given topics. We provided additional options like unassessable and skip if the document-topic pair is diﬃcult to assess or the assessor is not familiar with the topic. The annotations are incomplete, for reasons including:
+Task 2 requires sequence of rankings which results a large number of dataset, thus it was not possible to annotate all the retrieved documents.
+Some documents were not complete and did not have enough information to match with the topic.
+We obtained assessments through tiered pooling, with the goal of having assessments for a coherent
+subset of rankings that are as complete as possible. We have assessments for the following tiers:
+The ﬁrst 20 items of all rankings for Task 1 (all queries).
+The ﬁrst 5 items of the ﬁrst 25 rankings from every submission to Task 2 (about 75% of the queries).
+Details are included with the annotations and metric code.
+3.5 Metadata and Fairness Categories
+For training data, participants were provided with a geographical fairness ground truth. For the evaluation data, submitted systems were evaluated on how fair their rankings are to the geographical fairness category and an undisclosed personal demographic attribute (gender).
+We also provided a simple Wikimedia quality score (a ﬂoat between 0 and 1 where 0 is no content on the page and 1 is high quality) for optimizing for work-needed in Task 2. Work-needed was operationalized as the reverse—i.e. 1 minus this quality score. The discretized quality scores were used as work-needed for ﬁnal system evaluation.
+This data was provided together in a metadata ﬁle (trec metadata.json.gz), in which each line is the
+metadata for one article represented as a JSON record with the following keys:
+4
+
+
+page id Unique page identiﬁer (int)
+quality score Continuous measure of article quality with 0 representing low quality and 1 representing high
+quality (ﬂoat in range [0, 1])
+quality score disc Discrete quality score in which the quality score is mapped to six ordinal categories
+from low to high: Stub, Start, C, B, GA, FA (string)
+geographic locations Continents that are associated with the article topic. Zero or many of: Africa, Antarctica, Asia, Europe, Latin America and the Caribbean, Northern America, Oceania (list of string)
+gender For articles with a gender, the gender of the article’s subject, obtained from WikiData.
+3.6 Output
+For Task 1, participants outputted results in rank order in a tab-separated ﬁle with two columns:
+id The query ID for the topic
+page id ID for the recommended article
+For Task 2, this ﬁle had 3 columns, to account for repeated rankings per query:
+id Query ID
+rep number Repeat Number (1-100)
+page id ID for the recommended article
+4 Evaluation Metrics
+Each task was evaluated with its own metric designed for that task setting. The goal of these metrics was to measure the extent to which a system (1) exposed relevant documents, and (2) exposed those documents in a way that is fair to article topic groups, deﬁned by location (continent) and (when relevant) the gender of the article’s subject.
+This faces a problem in that Wikipedia itself has well-documented biases: if we target the current group distribution within Wikipedia, we will reward systems that simply reproduce Wikipedia’s existing biases instead of promoting social equity. However, if we simply target equal exposure for groups, we would ignore potential real disparities in topical relevance. Due to the biases in Wikipedia’s coverage, and the inability to retrieve documents that don’t exist to ﬁll in coverage gaps, there is not good empirical data on what the distribution for any particular topic should be if systemic biases did not exist in either Wikipedia or society (the “world as it could and should be” [2]). Therefore, in this track we adopted a compromise: we averaged the empirical distribution of groups among relevant documents with the world population (for location) or equality (for gender) to derive the target group distribution.
+Code to implement the metrics is found at https://github.com/fair-trec/trec2021-fair-public.
+4.1 Preliminaries The tasks were to retrieve documents d from a corpus D that are relevant to a query q. rq ∈ [0, 1]|D| is a vector of relevance judgements for query q. We denote a ranked list by L; Li is the document at position i (starting from 1), and L−1 is the rank of document d. For Task 1, each system returned a single ranked list; d for Task 2, it returned a sequence of rankings L.
+5
+
+
+We represented the group alignment of a document d with an alignment vector ad ∈ [0, 1]|G|. adg is document d’s alignment with group g. A ∈ [0, 1]|D|×|G| is the alignment matrix for all documents. aworld denotes the distribution of the world.4
+We considered fairness with respect to two group sets, Ggeo and Ggender. We operationalized this inter- sectional objective by letting G = Ggeo × Ggender, the Cartesian product of the two group sets. Further, alignment under either group set may be unknown; we represented this case by treating “unknown” as its own group (g?) in each set. In the product set, a document’s alignment may be unknown for either or both groups.
+In all metrics, we use log discounting to compute attention weights:
+vi =
+log
+2
+1
+max(i, 2)
+Task 2 also considered the work each document needs, represented by wd ∈ {1, 2, 3, 4}.
+4.2 Task 1: WikiProject Coordinators (Single Rankings)
+For the single-ranking Task 1, we adopted attention-weighted rank fairness (AWRF), ﬁrst described by Sapiezynski et al. [6] and named by Raj et al. [4]. AWRF computes a vector dL of the cumulated exposure a ; we then compared these with the Jenson-Shannon divergence: list gives to each group, and a target vector d∗ q
+d0 L
+= X i
+viaLi
+cumulated attention
+dL = d0 L kd0 Lk1 1 (cid:0)ATrq + aworld 2 AWRF(L) = 1 − dJS(dL, d∗ q
+d∗ q
+=
+)
+(cid:1)
+normalize to a distribution
+For Task 1, we ignored documents that are fully unknown for the purposes of computing dL and d∗ q
+do not contribute exposure to any group.
+The resulting metric is in the range [0, 1], with 1 representing a maximally-fair ranking (the distance
+from the target distribution is minimized). We combined it with an ordinary nDCG metric for utility:
+NDCG(L) =
+P
+i virqd ideal
+M1(L) = AWRF(L) × NDCG(L)
+To score well on the ﬁnal metric M1, a run must be both accurate and fair.
+4.3 Task 2: Wikipedia Editors (Multiple Rankings)
+For Task 2, we used Expected Exposure [1] to compare the exposure each group receives in the sequence of rankings to the exposure it would receive in a sequence of rankings drawn from an ideal policy with the following properties:
+Relevant documents come before irrelevant documents
+Relevant documents are sorted in nonincreasing order of work needed
+4Obtained from https://en.wikipedia.org/wiki/List_of_continents_and_continental_subregions_by_population
+6
+(1)
+; they
+(2)
+(3)
+
+
+Within each work-needed bin of relevant documents, group exposure is fairly distributed according to the average of the distribution of relevant documents and the distribution of global population (the same average target as before).
+We have encountered some confusion about whether this task is requiring fairness towards work-needed; as we have designed the metric, work-needed is considered to be a part of (graded) relevance: a document is more relevant if it is relevant to the topic and needs signiﬁcant work. In the Expected Exposure framework, this combined relevance is used to derive the target policies.
+To apply expected exposure, we ﬁrst deﬁne the exposure (cid:15)d a document d receives in sequence L:
+(cid:15)d =
+1
+|L|
+X
+L∈L
+wL−1
+d
+This forms an exposure vector (cid:15) ∈ R|D|.
+It is aggregated into a group exposure vector γ, including
+“unknown” as a group:
+γ = AT(cid:15)
+Our implementation rearranges the mean and aggregate operations, but the result is mathematically
+equivalent.
+We then compare these system exposures with the target exposures (cid:15)∗ for each query. This starts with the per-document ideal exposure; if mw is the number of relevant documents with work-needed level w ∈ {1, 2, 3, 4}, then according to Diaz et al. [1] the ideal exposure for document d is computed as:
+(cid:15)∗ d
+=
+1 mwd
+m≥wdX
+i=m>wd +1
+vi
+We use this to compute the non-averaged target distribution ˜γ∗:
+˜γ∗ = AT(cid:15)∗
+Since we include “unknown” as a group, we have a challenge with computing the target distribution by averaging the empirical distribution of relevant documents and the global population — global population does not provide any information on the proportion of relevant articles for which the fairness attributes are relevant. Our solution, therefore, is to average the distribution of known-group documents with the world population, and re-normalize so the ﬁnal distribution is a probability distribution, but derive the proportion of known- to unknown-group documents entirely from the empirical distribution of relevant documents. Extended to handle partially-unknown documents, this procedure proceeds as follows:
+Average the distribution of fully-known documents (both gender and location are known) with the global intersectional population (global population by location and equality by gender).
+Average the distribution of documents with unknown location but known gender with the equality gender distribution.
+Average the distribution of documents with unknown gender but known location with the world pop- ulation.
+The result is the target group exposure γ∗. We use this to measure the expected exposure loss:
+M2(Lq) = kγ − γ∗k2
+= γ · γ − 2γ · γ∗ + γ∗ · γ∗
+EE-D(Lq) = γ∗ · γ∗ EE-R(Lq) = γ · γ∗
+7
+(4)
+(5)
+(6)
+(7)
+(8)
+(9)
+(10)
+
+
+nDCG AWRF
+Score
+95% CI
+UoGTrDExpDisT1 UoGTrDRelDiT1 UoGTrDivPropT1 UoGTrDExpDisLT1 RUN1 UoGTrRelT1 RMITRet 1step pair 2step pair 1step pair list 2step pair list RMITRetRerank 1 RMITRetRerank 2
+0.2071 0.2001 0.2157 0.1776 0.2169 0.2120 0.2075 0.0838 0.0824 0.0820 0.0786 0.0035 0.0035
+0.8299 0.8072 0.7112 0.8197 0.6627 0.6559 0.6413 0.6940 0.6943 0.6908 0.6912 0.6180 0.6158
+0.1761 0.1639 0.1532 0.1459 0.1425 0.1373 0.1317 0.0648 0.0638 0.0623 0.0607 0.0026 0.0026
+(0.145, 0.212) (0.138, 0.193) (0.128, 0.184) (0.122, 0.173) (0.119, 0.172) (0.113, 0.165) (0.110, 0.159) (0.046, 0.090) (0.045, 0.089) (0.045, 0.085) (0.044, 0.083) (0.001, 0.009) (0.001, 0.009)
+Table 1: Task 1 runs. Higher score is better (for all metrics).
+Lower M2 is better. It decomposes into two submetrics, the expected exposure disparity (EE-D) that measures overall inequality in exposure independent of relevance, for which lower is better; and the expected exposure relevance (EE-L) that measures exposure/relevance alignment, for which higher is better [1].
+5 Results
+This year four diﬀerent teams submitted a total of 24 runs. All four teams participated in Task 1: Single Rankings (13 runs total), while only three of the four groups participated in Task 2: Multiple Rankings (11 runs total).
+5.1 Task 1: WikiProject Coordinators (Single Rankings)
+Approaches for Task 1 included:
+RoBERTa model to compute embeddings for text ﬁelds.
+A ﬁltering approach to select top ranked documents from either competing rankers or the union of rankers.
+BM25 ranking from pyserini and re-ranked using MMR implicit diversiﬁcation (without explicit fairness groups). Lambda varied between runs.
+BM25 initial ranking with iterative reranking using fairness calculations to select documents to add to the ranking.
+Relevance ranking using Terrier plus a fairness component that aims to be fair to both the geographic location attribute and an inferred demographic attribute through tailored diversiﬁcation plus data fusion.
+Optimisation to consider a protected group’s distribution in the background collection and the total predicted relevance of the group in the candidate results set.
+Allocating positions in the generated ranking to a protected group proportionally with respect to the total relevance score of the group within the candidate results set.
+8
+
+
+0.15
+0.05
+0.80
+0.85AWRF
+0.70
+0.75
+0.60
+0.10
+0.20nDCG
+0.65
+0.00
+Figure 1: Task 1 submissions by individual component metrics (NDCG and AWRF). Higher values are better for both metrics.
+Relevance-only approaches.
+Table 1 shows the submitted systems ranked by the oﬃcial Task 1 metric M1 and its component parts nDCG and AWRF. Figure 1 plots the runs with the component metrics on the x and y axes. Notably, each of the approaches from a participating team are clustered in terms of the component metrics and the oﬃcial M1 metric.
+5.2 Task 2: Wikipedia Editors (Multiple Rankings)
+Approaches for Task 2 included:
+A randomized method with BERT and a two-staged Plackett-Luce sampling where relevance scores are combined with work needed.
+An iterative approach that uses RoBERTa and computes a score for each of the top-K documents in the current state, based on the expected exposure of each group so far and the original estimated relevance score, integrating an article’s quality score.
+BM25 plus re-ranking iteratively selecting documents by combining relevance, fairness and quality scores.
+Relevance ranking using Terrier plus a fairness component that aims to be fair to both the geographic location attribute and an inferred demographic attribute through tailored diversiﬁcation plus data fusion to prioritise highly relevant documents while matching the distributions of the protected groups in the generated ranking to their distributions in the background population.
+Minimising the predicted divergence, or skew, in the distributions of the protected groups over all of the rankings within a sequence, compared to the background population.
+Minimising the disparity between a group’s expected and actual exposures and learning the importance of the group relevance and background distributions.
+9
+
+
+EE-R
+EE-D
+EE-L
+EE-L 95% CI
+RUN task2 pl control 0.6 UoGTrRelT2 pl control 0.8 pl control 0.92 PL IRLab 07 PL IRLab 05 UoGTrDivPropT2 UoGTrDRelDiT2 UoGTrDExpDisT2 UoGTrLambT2
+9.5508 8.8091 11.8281 8.6654 8.4802 5.2790 4.9331 4.9372 3.4770 3.7459 2.2447
+4.1557 3.2733 9.4609 3.2550 3.1486 1.5327 1.4029 7.1005 5.5891 6.1356 3.4644
+14.9007 15.5017 15.6514 15.7708 16.0348 20.8213 21.3832 27.0726 28.4816 28.4903 28.8216
+(12.303, 19.946) (12.552, 20.477) (13.057, 20.148) (12.746, 21.251) (12.820, 21.158) (16.283, 28.089) (16.579, 28.293) (21.098, 35.870) (22.366, 37.739) (22.571, 37.548) (22.799, 37.718)
+Table 2: Task 2 runs. Lower EE-L is better.
+Relevance-only ranking.
+Table 2 shows the submitted systems ranked by the oﬃcial Task 2 metric EE-L and its component parts EE-D and EE-R. Figure 2 plots the runs with the component metrics on the x and y axes. Overall, the submitted systems generally performed better for one of the component metrics than they did for the other. There are, however, a cluster of four points in Figure 2 that make headway in the trade-oﬀ between EE-D and EE-L.
+6 Limitations
+The data and metrics in this task address a few speciﬁc types of unfairness, and do so partially. This is fundamentally true of any fairness intervention, and does not in any way diminish the value of the eﬀort — it is impossible for any data set, task deﬁnition, or metric to fully capture fairness in a universal way, and all data and analyses have limitations.
+Some of the limitations of the data and task include:
+Fairness criteria
+– Geography: For each Wikipedia article, we ascertained which, if any, continents are relevant to the content.5 This was determined by directly looking up several community-maintained (Wiki- data) structured data statements about the article. These properties were checked for the presence of countries, which were then mapped to continents via the United Nation’s geoscheme.6 While this data must meet Wikidata’s veriﬁability guidelines,7 it does suﬀer from varying levels of incom- pleteness. For example, only 73% of people on Wikidata have a country of citizenship property.8 Furthermore, structured data is itself limited—e.g., country of citizenship does not appropriately capture people who are considered stateless though these people may have many strong ties to a country. It is not easy to evaluate whether this data is missing at random or biased against certain regions of the world. Care should be taken when interpreting the absence of associated continents in the data. Further details can be found in the code repository.9
+5Code: https://github.com/geohci/wiki-region-groundtruth/blob/main/wiki-region-data.ipynb 6https://en.wikipedia.org/wiki/United_Nations_geoscheme 7https://www.wikidata.org/wiki/Wikidata:Verifiability 8https://humaniki.wmcloud.org/gender-by-country 9https://github.com/geohci/wiki-region-groundtruth
+10
+
+
+8
+8
+6
+6
+4
+12EE-R
+0
+2
+10
+4
+10EE-D
+2
+Figure 2: Task 2 submissions by expected exposure subcomponents. Lower EE-D is better; higher EE-R is better.
+– Gender: For each Wikipedia article, we also ascertained whether it is a biography, and, if so, which gender identity can be associated with the person it is about.10 This data is also directly determined via Wikidata based on the instance-of property indicating the article is about a human (P31:Q5 in Wikidata terms) and then collecting the value associated with the sex-or- gender property (P21). Coverage here is much higher at 99.98% of biographies on Wikipedia having associated gender data on Wikidata. Assigning gender identities to people is not a process without errors, biases, and ethical concerns. Since we are using it to calculate aggregate statistics, we judged it to be less problematic than it would be if we were making decisions about individuals. The process for assigning gender is subject to some community-deﬁned technical limitations11 and the Wikidata policy on living people12. While a separate project, English Wikipedia’s policies on gender identity13 likely inform how many editors handle gender; in particular, this policy explicitly favors the most recent reliably-sourced self-identiﬁcation for gender, so misgendering a biography subject is a violation of Wikipedia policy; there may be erroneous data, but such data seems to be a violation of policy instead of a policy decision. Wikidata:WikiProject LGBT has documented some clear limitations of gender data on Wikidata and a list of further discussions and considerations.14 In our analysis (see Appendix A), we handle nonbinary gender identities by using 4 gender cate- gories: unknown, male, female, and third. We advise great care when working with the gender data, particularly outside the immediate context of the TREC task (either its original instance or using the data to evaluate comparable systems).
+10Code:
+https://github.com/geohci/miscellaneous-wikimedia/blob/master/wikidata-properties-spark/wikidata_
+gender_information.ipynb
+11https://www.wikidata.org/wiki/Property_talk:P21#Documentation 12https://www.wikidata.org/wiki/Wikidata:Living_people 13https://en.wikipedia.org/wiki/Wikipedia:Manual_of_Style/Gender_identity 14https://www.wikidata.org/wiki/Wikidata:WikiProject_LGBT/gender
+11
+
+
+Relevance Criteria
+– WikiProject Relevance: For the training queries, relevance was obtained from page lists for existing WikiProjects. While WikiProjects have broad coverage of English Wikipedia and we selected for WikiProjects that had tagged new articles in the recent months in the training data as a proxy for activity, it is certain that almost all WikiProjects are incomplete in tagging relevant content (itself a strong motivation for this task). While it is not easy to measure just how incomplete they are, it should not be assumed that content that has not been tagged as relevant to a WikiProject in the training data is indeed irrelevant.15 Evaluation query relevance was assessed by NIST assessors, but the large sets of relevant documents and limited budget for working through the pool mean these lists are also incomplete.
+– Work-needed: Our proxy for work-needed is a coarse proxy. It is based on just a few simple features (page length, sections, images, and references) and does not reﬂect the nuances of the work needed to craft a top-quality Wikipedia article.16 A fully-ﬂedged system for supporting Wikiprojects would also include a more nuanced approach to understanding the work needed for each article and how to appropriately allocate this work.
+Task Deﬁnition
+– Existing Article Bias: The task is limited to topics for which English Wikipedia already has articles. These tasks are not able to counteract biases in the processes by which articles come to exist (or are deleted [7])—recommending articles that should exist but don’t is an interesting area for future study.
+– Fairness constructs: we focus on gender and geography in this challenge as two metrics for which there is high data coverage and clearer expectations about what ”fairer” or more representative coverage might look like. That does not mean these are the most important constructs, but others—e.g., religion, sexuality, culture, race—generally are either more challenging to model or map to fairness goals [5].
+References
+[1] F. Diaz, B. Mitra, M. D. Ekstrand, A. J. Biega, and B. Carterette. Evaluating stochastic rankings with
+expected exposure. In Proc. CIKM ’20, 2020. URL https://arxiv.org/abs/2004.13157.
+[2] S. Mitchell, E. Potash, S. Barocas, A. D’Amour, and K. Lum. Algorithmic fairness: Choices, as- sumptions, and deﬁnitions. Annual Review of Statistics and Its Application, 8, Nov. 2020. doi: 10.1146/annurev-statistics-042720-125902. URL https://www.annualreviews.org/doi/abs/10.1146/ annurev-statistics-042720-125902.
+[3] D. Pedreshi, S. Ruggieri, and F. Turini. Discrimination-aware data mining. In Proceedings of the 14th ACM SIGKDD international conference on Knowledge discovery and data mining, pages 560–568, 2008.
+[4] A. Raj, C. Wood, A. Montoly, and M. D. Ekstrand. Comparing fair ranking metrics. Sept. 2020. URL
+http://arxiv.org/abs/2009.01311.
+[5] M. Redi, M. Gerlach, I. Johnson, J. Morgan, and L. Zia. A taxonomy of knowledge gaps for wikimedia
+projects (ﬁrst draft). arXiv preprint arXiv:2008.12314, 2020.
+15Current Wikiproject tags were extracted from the database tables maintained by the PageAssessments extension: https:
+//www.mediawiki.org/wiki/Extension:PageAssessments
+16For
+see: Language-Agnostic_Quality#V1
+further details,
+https://meta.wikimedia.org/wiki/Research:Prioritization_of_Wikipedia_Articles/
+12
+
+
+[6] P. Sapiezynski, W. Zeng, R. E Robertson, A. Mislove, and C. Wilson. Quantifying the impact of user attentionon fair group representation in ranked lists. In Companion Proceedings of The 2019 World Wide Web Conference, pages 553–562, 2019.
+[7] F. Tripodi. Ms. categorized: Gender, notability, and inequality on wikipedia. New Media & Society, page
+14614448211023772, 2021.
+A Alignments
+This appendix provides further details on how the page alignments and target distributions are computed. It is a Jupyter notebook analyzes page alignments and prepares metrics for ﬁnal use. It needs to be run to create the serialized alignment data ﬁles the metrics require; it is available in the code that goes with the appendix.
+Its ﬁnal output is pickled metric objects: an instance of the Task 1 and Task 2 metric classes, serialized
+to a compressed ﬁle with binpickle.
+A.1 Setup
+We begin by loading necessary libraries:
+from pathlib import Path import pandas as pd import xarray as xr import numpy as np import matplotlib.pyplot as plt import seaborn as sns import gzip import pickle import binpickle from natural.size import binarysize
+We’re going to use ZStandard compression to save our metrics, so let’s create a codec object:
+codec = binpickle.codecs.Blosc('zstd')
+Set up progress bar and logging support:
+from tqdm.auto import tqdm tqdm.pandas(leave=False)
+import sys, logging logging.basicConfig(level=logging.INFO, stream=sys.stderr) log = logging.getLogger('alignment')
+Import metric code:
+%load ext autoreload %autoreload 1
+%aimport metrics from trecdata import scan runs
+13
+
+
+A.2 Loading Data
+We ﬁrst load the page metadata:
+pages = pd.read json('data/trec metadata eval.json.gz', lines=True) pages = pages.drop duplicates('page id') pages.info()
+<class ’pandas.core.frame.DataFrame’> Int64Index: 6023415 entries, 0 to 6023435 Data columns (total 5 columns):
+Column --- ------
+#
+0 1 2 3 4
+page_id quality_score quality_score_disc geographic_locations gender
+Dtype ----- int64 float64 object object object
+dtypes: float64(1), int64(1), object(3) memory usage: 275.7+ MB
+Now we will load the evaluation topics:
+eval topics = pd.read json('data/eval-topics-with-qrels.json.gz', lines=True) eval topics.info()
+<class ’pandas.core.frame.DataFrame’> RangeIndex: 49 entries, 0 to 48 Data columns (total 5 columns):
+Column --- ------ id title rel_docs assessed_docs max_tier
+#
+0 1 2 3 4
+Non-Null Count -------------- 49 non-null 49 non-null 49 non-null 49 non-null 49 non-null
+Dtype ----- int64 object object object int64
+dtypes: int64(2), object(3) memory usage: 2.0+ KB
+train topics = pd.read json('data/trec topics.json.gz', lines=True) train topics.info()
+<class ’pandas.core.frame.DataFrame’> RangeIndex: 57 entries, 0 to 56 Data columns (total 6 columns):
+Non-Null Count Column -------------- --- ------ 57 non-null id title 57 non-null keywords 57 non-null scope 57 non-null homepage 57 non-null rel_docs 57 non-null
+#
+0 1 2 3 4 5
+Dtype ----- int64 object object object object object
+dtypes: int64(1), object(5) memory usage: 2.8+ KB
+14
+
+
+Train and eval topics use a disjoint set of IDs:
+train topics['id'].describe()
+count mean std min 25% 50% 75% max Name: id, dtype: float64
+57.000000 29.000000 16.598193 1.000000 15.000000 29.000000 43.000000 57.000000
+eval topics['id'].describe()
+count mean std min 25% 50% 75% max Name: id, dtype: float64
+49.000000 125.346939 14.687794 101.000000 113.000000 125.000000 138.000000 150.000000
+This allows us to create a single, integrated topics list for convenience:
+topics = pd.concat([train topics, eval topics], ignore index=True) topics['eval'] = False topics.loc[topics['id'] >= 100, 'eval'] = True topics.head()
+0 1 2 3 4
+keywords id 1 Agriculture [agriculture, crops, livestock, forests, farming] 2 Architecture [architecture, skyscraper, landscape, building... 3 [athletics, player, sports, game, gymnastics] Aviation [aviation, aircraft, airplane, airship, pilot,... 4 [baseball] Baseball 5
+title
+Athletics
+scope \
+0 This WikiProject strives to develop and improv... 1 This WikiProject aims to: 1. Thoroughly explor... 2 WikiProject Athletics, a project focused on im... 3 The project generally considers any article re... 4 Articles pertaining to baseball including base...
+homepage 0 https://en.wikipedia.org/wiki/Wikipedia:WikiPr... 1 https://en.wikipedia.org/wiki/Wikipedia:WikiPr... 2 https://en.wikipedia.org/wiki/Wikipedia:WikiPr... 3 https://en.wikipedia.org/wiki/Wikipedia:WikiPr... 4 https://en.wikipedia.org/wiki/Wikipedia:WikiPr...
+\
+15
+\
+
+
+rel_docs assessed_docs max_tier NaN NaN NaN NaN NaN
+0 [572, 627, 903, 1193, 1542, 1634, 3751, 3866, ... 1 [682, 954, 1170, 1315, 1322, 1324, 1325, 1435,... 2 [5729, 8490, 9623, 10391, 12231, 13791, 16078,... 3 [849, 852, 1293, 1902, 1942, 2039, 2075, 2082,... 4 [1135, 1136, 1293, 1893, 2129, 2140, 3797, 380...
+NaN NaN NaN NaN NaN
+eval 0 False 1 False 2 False 3 False 4 False
+Finally, a bit of hard-coded data - the world population:
+world pop = pd.Series({
+'Africa': 0.155070563, 'Antarctica': 1.54424E-07, 'Asia': 0.600202585, 'Europe': 0.103663858, 'Latin America and the Caribbean': 0.08609797, 'Northern America': 0.049616733, 'Oceania': 0.005348137,
+}) world pop.name = 'geography'
+And a gender global target:
+gender tgt = pd.Series({ 'female': 0.495, 'male': 0.495, 'third': 0.01
+}) gender tgt.name = 'gender' gender tgt.sum()
+1.0
+Xarray intesectional global target:
+geo tgt xa = xr.DataArray(world pop, dims=['geography']) gender tgt xa = xr.DataArray(gender tgt, dims=['gender']) int tgt = geo tgt xa * gender tgt xa int tgt
+<xarray.DataArray (geography: 7, gender: 3)> array([[7.67599287e-02, 7.67599287e-02, 1.55070563e-03], [7.64398800e-08, 7.64398800e-08, 1.54424000e-09], [2.97100280e-01, 2.97100280e-01, 6.00202585e-03], [5.13136097e-02, 5.13136097e-02, 1.03663858e-03], [4.26184951e-02, 4.26184951e-02, 8.60979700e-04],
+16
+\
+
+
+[2.45602828e-02, 2.45602828e-02, 4.96167330e-04], [2.64732781e-03, 2.64732781e-03, 5.34813700e-05]])
+Coordinates:
+geography (geography) object ’Africa’ ’Antarctica’ ... ’Oceania’ * gender (gender) object ’female’ ’male’ ’third’
+And the order of work-needed codes:
+work order = [ 'Stub', 'Start', 'C', 'B', 'GA', 'FA',
+]
+Now all our background data is set up.
+A.3 Query Relevance
+We now need to get the qrels for the topics. This is done by creating frames with entries for every relevant document; missing documents are assumed irrelevant (0).
+In the individual metric evaluation ﬁles, we will truncate each run to only the assessed documents (with
+a small amount of noise), so this is a safe way to compute.
+First the training topics:
+train qrels = train topics[['id', 'rel docs']].explode('rel docs', ignore index=True) train qrels.rename(columns={'rel docs': 'page id'}, inplace=True) train qrels['page id'] = train qrels['page id'].astype('i4') train qrels = train qrels.drop duplicates() train qrels.head()
+0 1 2 3 4
+id page_id 572 627 903 1193 1542
+1 1 1 1 1
+eval qrels = eval topics[['id', 'rel docs']].explode('rel docs', ignore index=True) eval qrels.rename(columns={'rel docs': 'page id'}, inplace=True) eval qrels['page id'] = eval qrels['page id'].astype('i4') eval qrels = eval qrels.drop duplicates() eval qrels.head()
+id page_id 915 2948 9110 9742 10996
+0 101 1 101 2 101 3 101 4 101
+And concatenate:
+qrels = pd.concat([train qrels, eval qrels], ignore index=True)
+17
+
+
+A.4 Page Alignments
+All of our metrics require page ”alignments”: the protected-group membership of each page.
+A.4.1 Geography
+Let’s start with the straight page geography alignment for the public evaluation of the training queries. The page metadata has that; let’s get the geography column.
+page geo = pages[['page id', 'geographic locations']].explode('geographic locations', ignore index=True) page geo.head()
+0 1 2 3 4
+page_id geographic_locations NaN NaN NaN NaN Northern America
+12 25 39 290 303
+And we will now pivot this into a matrix so we get page alignment vectors:
+page geo align = page geo.assign(x=1).pivot(index='page id', columns='geographic locations', values='x') page geo align.rename(columns={np.nan: 'Unknown'}, inplace=True) page geo align.fillna(0, inplace=True) page geo align.head()
+geographic_locations Unknown page_id 12 25 39 290 303
+1.0 1.0 1.0 1.0 0.0
+Africa
+0.0 0.0 0.0 0.0 0.0
+Antarctica
+0.0 0.0 0.0 0.0 0.0
+Asia
+0.0 0.0 0.0 0.0 0.0
+Europe
+0.0 0.0 0.0 0.0 0.0
+\
+geographic_locations Latin America and the Caribbean page_id 12 25 39 290 303
+0.0 0.0 0.0 0.0 0.0
+Northern America
+0.0 0.0 0.0 0.0 1.0
+\
+geographic_locations Oceania page_id 12 25 39 290 303
+0.0 0.0 0.0 0.0 0.0
+And convert this to an xarray for multidimensional usage:
+page geo xr = xr.DataArray(page geo align, dims=['page', 'geography']) page geo xr
+18
+
+
+<xarray.DataArray (page: 6023415, geography: 8)> array([[1., 0., 0., ..., 0., 0., 0.], [1., 0., 0., ..., 0., 0., 0.], [1., 0., 0., ..., 0., 0., 0.], ..., [1., 0., 0., ..., 0., 0., 0.], [1., 0., 0., ..., 0., 0., 0.], [1., 0., 0., ..., 0., 0., 0.]])
+Coordinates:
+page * geography (geography) object ’Unknown’ ’Africa’ ... ’Oceania’
+(page) int64 12 25 39 290 ... 67268663 67268668 67268699 67268751
+binarysize(page geo xr.nbytes)
+’385.50 MiB’
+A.4.2 Gender
+The ”undisclosed personal attribute” is gender. Not all articles have gender as a relevant variable - articles not about a living being generally will not.
+We’re going to follow the same approach for gender:
+page gender = pages[['page id', 'gender']].explode('gender', ignore index=True) page gender.fillna('unknown', inplace=True) page gender.head()
+0 1 2 3 4
+page_id
+gender 12 unknown 25 unknown 39 unknown 290 unknown 303 unknown
+We need to do a little targeted repair - there is an erroneous record of a gender of ”Taira no Kiyomori”
+is actually male. Replace that:
+page gender = page gender.loc[page gender['gender'] != 'Taira no Kiyomori']
+Now, we’re going to do a little more work to reduce the dimensionality of the space. Points:
+1. Trans men are men 2. Trans women are women 3. Cisgender is an adjective that can be dropped for the present purposes
+The result is that we will collapse ”transgender female” and ”cisgender female” into ”female”. The downside to this is that trans men are probabily signiﬁcantly under-represented, but are now being
+collapsed into the dominant group.
+pgcol = page gender['gender'] pgcol = pgcol.str.replace(r'(?:tran|ci)sgender\s+((?:fe)?male)', r'\1', regex=True)
+Now, we’re going to group the remaining gender identities together under the label ’third’. As noted
+above, this is a debatable exercise that collapses a lot of identity.
+19
+
+
+genders = ['unknown', 'male', 'female', 'third'] pgcol[˜pgcol.isin(genders)] = 'third'
+Now put this column back in the frame and deduplicate.
+page gender['gender'] = pgcol page gender = page gender.drop duplicates()
+And make an alignment matrix (reordering so ’unknown’ is ﬁrst for consistency):
+page gend align = page gender.assign(x=1).pivot(index='page id', columns='gender', values='x') page gend align.fillna(0, inplace=True) page gend align = page gend align.reindex(columns=['unknown', 'female', 'male', 'third']) page gend align.head()
+gender page_id 12 25 39 290 303
+unknown female
+1.0 1.0 1.0 1.0 1.0
+0.0 0.0 0.0 0.0 0.0
+male
+0.0 0.0 0.0 0.0 0.0
+third
+0.0 0.0 0.0 0.0 0.0
+Let’s see how frequent each of the genders is:
+page gend align.sum(axis=0).sort values(ascending=False)
+gender unknown male female third dtype: float64
+4246540.0 1441813.0 334946.0 452.0
+And convert to an xarray:
+page gend xr = xr.DataArray(page gend align, dims=['page', 'gender']) page gend xr
+<xarray.DataArray (page: 6023415, gender: 4)> array([[1., 0., 0., 0.], [1., 0., 0., 0.], [1., 0., 0., 0.], ..., [0., 1., 0., 0.], [1., 0., 0., 0.], [1., 0., 0., 0.]])
+Coordinates:
+page * gender
+(page) int64 12 25 39 290 ... 67268663 67268668 67268699 67268751 (gender) object ’unknown’ ’female’ ’male’ ’third’
+binarysize(page gend xr.nbytes)
+’192.75 MiB’
+20
+
+
+A.4.3
+Intersectional Alignment
+We’ll now convert this data array to an intersectional alignment array:
+page xalign = page geo xr * page gend xr page xalign
+<xarray.DataArray (page: 6023415, geography: 8, gender: 4)> array([[[1., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.], ..., [0., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.]],
+[[1., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.], ..., [0., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.]],
+[[1., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.], ...,
+...
+..., [0., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.]],
+[[1., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.], ..., [0., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.]],
+[[1., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.], ..., [0., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.]]])
+Coordinates:
+page * geography (geography) object ’Unknown’ ’Africa’ ... ’Oceania’ * gender (gender) object ’unknown’ ’female’ ’male’ ’third’
+(page) int64 12 25 39 290 ... 67268663 67268668 67268699 67268751
+21
+
+
+binarysize(page xalign.nbytes)
+’1.54 GiB’
+Make sure that did the right thing and we have intersectional numbers:
+page xalign.sum(axis=0)
+<xarray.DataArray (geography: 8, gender: 4)> array([[2.06922e+06, 8.21940e+04, 4.05772e+05, 1.85000e+02], [7.76580e+04, 1.04830e+04, 4.34670e+04, 8.00000e+00], [9.62500e+03, 0.00000e+00, 1.00000e+00, 0.00000e+00], [4.27422e+05, 3.79980e+04, 1.35310e+05, 2.10000e+01], [7.65203e+05, 9.67970e+04, 4.27747e+05, 6.30000e+01], [1.01464e+05, 1.61660e+04, 6.77640e+04, 4.00000e+00], [7.21244e+05, 8.25430e+04, 3.30205e+05, 1.59000e+02], [9.26820e+04, 1.45240e+04, 5.07260e+04, 2.00000e+01]])
+Coordinates:
+geography (geography) object ’Unknown’ ’Africa’ ... ’Oceania’ * gender (gender) object ’unknown’ ’female’ ’male’ ’third’
+And make sure combination with targets work as expected:
+(page xalign.sum(axis=0) + int tgt) * 0.5
+<xarray.DataArray (geography: 7, gender: 3)> array([[5.24153838e+03, 2.17335384e+04, 4.00077535e+00], [3.82199400e-08, 5.00000038e-01, 7.72120000e-10], [1.89991486e+04, 6.76551486e+04, 1.05030010e+01], [4.83985257e+04, 2.13873526e+05, 3.15005183e+01], [8.08302131e+03, 3.38820213e+04, 2.00043049e+00], [4.12715123e+04, 1.65102512e+05, 7.95002481e+01], [7.26200132e+03, 2.53630013e+04, 1.00000267e+01]])
+Coordinates:
+geography (geography) object ’Africa’ ’Antarctica’ ... ’Oceania’ * gender (gender) object ’female’ ’male’ ’third’
+A.5 Task 1 Metric Preparation
+Now that we have our alignments and qrels, we are ready to prepare the Task 1 metrics.
+Task 1 ignores the ”unknown” alignment category, so we’re going to create a kga frame (for Known
+Geographic Alignment), and corresponding frames for intersectional alignment.
+page kga = page geo align.iloc[:, 1:] page kga.head()
+geographic_locations Africa page_id 12 25 39 290 303
+0.0 0.0 0.0 0.0 0.0
+Antarctica
+0.0 0.0 0.0 0.0 0.0
+Asia
+0.0 0.0 0.0 0.0 0.0
+Europe
+0.0 0.0 0.0 0.0 0.0
+\
+22
+
+
+geographic_locations Latin America and the Caribbean page_id 12 25 39 290 303
+0.0 0.0 0.0 0.0 0.0
+Northern America
+0.0 0.0 0.0 0.0 1.0
+\
+geographic_locations Oceania page_id 12 25 39 290 303
+0.0 0.0 0.0 0.0 0.0
+Intersectional is a little harder to do, because things can be intersectionally unknown: we may know gender but not geography, or vice versa. To deal with these missing values for Task 1, we’re going to ignore totally unknown values, but keep partially-known as a category.
+We also need to ravel our tensors into a matrix for compatibility with the metric code. Since ’unknown’
+is the ﬁrst value on each axis, we can ravel, and then drop the ﬁrst column.
+xshp = page xalign.shape xshp = (xshp[0], xshp[1] * xshp[2]) page xa df = pd.DataFrame(page xalign.values.reshape(xshp), index=page xalign.indexes['page']) page xa df.head()
+page 12 25 39 290 303
+0
+1.0 1.0 1.0 1.0 0.0
+1
+2
+0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+3
+0.0 0.0 0.0 0.0 0.0
+4
+0.0 0.0 0.0 0.0 0.0
+5
+0.0 0.0 0.0 0.0 0.0
+6
+0.0 0.0 0.0 0.0 0.0
+7
+0.0 0.0 0.0 0.0 0.0
+8
+0.0 0.0 0.0 0.0 0.0
+9
+0.0 0.0 0.0 0.0 0.0
+... ... ... ... ... ... ...
+22
+0.0 0.0 0.0 0.0 0.0
+23
+0.0 0.0 0.0 0.0 0.0
+24
+0.0 0.0 0.0 0.0 1.0
+\
+25
+26
+27
+28
+29
+30
+31
+page 12 25 39 290 303
+0.0 0.0 0.0 0.0 0.0
+0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0
+0.0 0.0 0.0 0.0 0.0
+0.0 0.0 0.0 0.0 0.0
+0.0 0.0 0.0 0.0 0.0
+0.0 0.0 0.0 0.0 0.0
+[5 rows x 32 columns]
+And drop unknown, to get our page alignment vectors:
+page kia = page xa df.iloc[:, 1:]
+A.5.1 Geographic Alignment
+We’ll start with the metric conﬁguration for public training data, considering only geographic alignment. We conﬁgure the metric to do this for both the training and the eval queries.
+23
+
+
+Training Queries
+train qalign = train qrels.join(page kga, on='page id').drop(columns=['page id']).groupby('id').sum() tqa sums = train qalign.sum(axis=1) train qalign = train qalign.divide(tqa sums, axis=0)
+train qalign.head()
+Africa Antarctica
+Asia
+Europe
+Latin America and the Caribbean
+\
+id 1 2 3 4 5
+0.049495 0.013388 0.109664 0.062495 0.000835
+0.00000 0.00000 0.00000 0.00025 0.00000
+0.121886 0.112008 0.125529 0.116161 0.065433
+0.356566 0.574026 0.456033 0.327272 0.010149
+0.031650 0.026105 0.100040 0.079514 0.064755
+Northern America
+Oceania
+id 1 2 3 4 5
+0.261616 0.178788 0.228715 0.045758 0.158419 0.050316 0.369277 0.045032 0.850192 0.008636
+train qtarget = (train qalign + world pop) * 0.5 train qtarget.head()
+Africa
+Antarctica
+Asia
+Europe
+\
+id 1 2 3 4 5
+0.102283 7.721200e-08 0.084229 7.721200e-08 0.132367 7.721200e-08 0.108783 1.250113e-04 0.077953 7.721200e-08
+0.361044 0.356105 0.362866 0.358182 0.332818
+0.230115 0.338845 0.279848 0.215468 0.056906
+Latin America and the Caribbean
+Northern America
+Oceania
+id 1 2 3 4 5
+0.058874 0.056101 0.093069 0.082806 0.075427
+0.155616 0.139166 0.104018 0.209447 0.449904
+0.092068 0.025553 0.027832 0.025190 0.006992
+And we can prepare a metric and save it:
+t1 train metric = metrics.Task1Metric(train qrels.set index('id'), page kga, train qtarget) binpickle.dump(t1 train metric, 'task1-train-geo-metric.bpk', codec=codec)
+INFO:binpickle.write:pickled 337312647 bytes with 5 buffers
+Eval Queries Do the same thing for the eval data for a geo-only eval metric:
+24
+
+
+eval qalign = eval qrels.join(page kga, on='page id').drop(columns=['page id']).groupby('id').sum() eqa sums = eval qalign.sum(axis=1) eval qalign = eval qalign.divide(eqa sums, axis=0) eval qtarget = (eval qalign + world pop) * 0.5 t1 eval metric = metrics.Task1Metric(eval qrels.set index('id'), page kga, eval qtarget) binpickle.dump(t1 eval metric, 'task1-eval-geo-metric.bpk', codec=codec)
+INFO:binpickle.write:pickled 337312643 bytes with 5 buffers
+A.5.2
+Intersectional Alignment
+Now we need to apply similar logic, but for the intersectional (geography * gender) alignment.
+As noted as above, we need to carefully handle the unknown cases.
+Demo To demonstrate how the logic works, let’s ﬁrst work it out in cells for one query (1).
+What are its documents?
+qdf = qrels[qrels['id'] == 1] qdf.name = 1 qdf
+0 1 2 3 4 ... 6959 6960 6961 6962 6963
+id 1 1 1 1 1 ..
+page_id 572 627 903 1193 1542 ... 1 67066971 1 67075177 1 67178925 1 67190032 1 67244439
+[6964 rows x 2 columns]
+We can use these page IDs to get its alignments:
+q xa = page xalign.loc[qdf['page id'].values, :, :] q xa
+<xarray.DataArray (page: 6964, geography: 8, gender: 4)> array([[[1., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.], ..., [0., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.]],
+[[1., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.],
+25
+
+
+..., [0., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.]],
+[[1., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.], ...,
+...
+..., [0., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.]],
+[[1., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.], ..., [0., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.]],
+[[1., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.], ..., [0., 0., 0., 0.], [0., 0., 0., 0.], [0., 0., 0., 0.]]])
+Coordinates:
+page * geography (geography) object ’Unknown’ ’Africa’ ... ’Oceania’ * gender (gender) object ’unknown’ ’female’ ’male’ ’third’
+(page) int64 572 627 903 1193 ... 67178925 67190032 67244439
+Summing over the ﬁrst axis (’page’) will produce an alignment matrix:
+q am = q xa.sum(axis=0) q am
+<xarray.DataArray (geography: 8, gender: 4)> array([[3767., [ 128., 0., [ [ 322., [ 940., [ 79., [ 618., [ 484.,
+52., 12., 0., 11., 23., 8.,
+200., 7., 0., 29., 96., 7., 28., 131., 41.,
+0.], 0.], 0.], 0.], 0.], 0.], 0.], 0.]])
+6.,
+Coordinates:
+geography (geography) object ’Unknown’ ’Africa’ ... ’Oceania’ * gender (gender) object ’unknown’ ’female’ ’male’ ’third’
+26
+
+
+Now we need to do reset the (0,0) coordinate (full unknown), and normalize to a proportion.
+q am[0, 0] = 0 q am = q am / q am.sum() q am
+<xarray.DataArray (geography: 8, gender: 4)> array([[0.
+, 0.01613904, 0.06207325, 0. [0.03972688, 0.00372439, 0.00217256, 0. , 0. [0. [0.09993793, 0.00341403, 0.00900062, 0. [0.29174426, 0.00713842, 0.02979516, 0. [0.02451893, 0.00248293, 0.00217256, 0. [0.19180633, 0.00869025, 0.04065798, 0. [0.15021726, 0.0018622 , 0.01272502, 0.
+, 0.
+, 0.
+], ], ], ], ], ], ], ]])
+Coordinates:
+geography (geography) object ’Unknown’ ’Africa’ ... ’Oceania’ * gender (gender) object ’unknown’ ’female’ ’male’ ’third’
+Ok, now we have to - very carefully - average with our target modiﬁer. There are three groups:
+known (use intersectional target) • known-geo (use geo target) • known-gender (use gender target)
+For each of these, we need to respect the fraction of the total it represents. Let’s compute those fractions:
+q fk all = q am[1:, 1:].sum() q fk geo = q am[1:, :1].sum() q fk gen = q am[:1, 1:].sum() q fk all, q fk geo, q fk gen
+(<xarray.DataArray ()>
+array(0.12383613), <xarray.DataArray ()> array(0.79795158), <xarray.DataArray ()> array(0.07821229))
+And now do some surgery. Weighted-average to incorporate the target for fully-known:
+q tm = q am.copy() q tm[1:, 1:] *= 0.5 q tm[1:, 1:] += int tgt * 0.5 * q fk all q tm
+<xarray.DataArray (geography: 8, gender: 4)> array([[0.00000000e+00, 1.61390441e-02, 6.20732464e-02, 0.00000000e+00], [3.97268777e-02, 6.61502352e-03, 5.83910794e-03, 9.60166894e-05], [0.00000000e+00, 4.73300933e-09, 4.73300933e-09, 9.56163501e-11], [9.99379268e-02, 2.01028882e-02, 2.28961843e-02, 3.71633817e-04], [2.91744258e-01, 6.74645100e-03, 1.80748185e-02, 6.41866532e-05], [2.45189323e-02, 3.88031961e-03, 3.72513649e-03, 5.33101956e-05], [1.91806331e-01, 5.86585240e-03, 2.18497134e-02, 3.07217202e-05],
+27
+
+
+[1.50217256e-01, 1.09501611e-03, 6.52642517e-03, 3.31146285e-06]])
+Coordinates:
+geography (geography) object ’Unknown’ ’Africa’ ... ’Oceania’ * gender (gender) object ’unknown’ ’female’ ’male’ ’third’
+And for known-geo:
+q tm[1:, :1] *= 0.5 q tm[1:, :1] += geo tgt xa * 0.5 * q fk geo
+And known-gender:
+q tm[:1, 1:] *= 0.5 q tm[:1, 1:] += gender tgt xa * 0.5 * q fk gen
+q tm
+<xarray.DataArray (geography: 8, gender: 4)> array([[0.00000000e+00, 2.74270639e-02, 5.03941651e-02, 3.91061453e-04], [8.17328395e-02, 6.61502352e-03, 5.83910794e-03, 9.60166894e-05], [6.16114376e-08, 4.73300933e-09, 4.73300933e-09, 9.56163501e-11], [2.89435265e-01, 2.01028882e-02, 2.28961843e-02, 3.71633817e-04], [1.87231499e-01, 6.74645100e-03, 1.80748185e-02, 6.41866532e-05], [4.66104719e-02, 3.88031961e-03, 3.72513649e-03, 5.33101956e-05], [1.15699041e-01, 5.86585240e-03, 2.18497134e-02, 3.07217202e-05], [7.72424054e-02, 1.09501611e-03, 6.52642517e-03, 3.31146285e-06]])
+Coordinates:
+geography (geography) object ’Unknown’ ’Africa’ ... ’Oceania’ * gender (gender) object ’unknown’ ’female’ ’male’ ’third’
+Now we can unravel this and drop the ﬁrst entry:
+q tm.values.ravel()[1:]
+array([2.74270639e-02, 5.03941651e-02, 3.91061453e-04, 8.17328395e-02, 6.61502352e-03, 5.83910794e-03, 9.60166894e-05, 6.16114376e-08, 4.73300933e-09, 4.73300933e-09, 9.56163501e-11, 2.89435265e-01, 2.01028882e-02, 2.28961843e-02, 3.71633817e-04, 1.87231499e-01, 6.74645100e-03, 1.80748185e-02, 6.41866532e-05, 4.66104719e-02, 3.88031961e-03, 3.72513649e-03, 5.33101956e-05, 1.15699041e-01, 5.86585240e-03, 2.18497134e-02, 3.07217202e-05, 7.72424054e-02, 1.09501611e-03, 6.52642517e-03, 3.31146285e-06])
+Implementation Now, to do this for every query, we’ll use a function that takes a data frame for a query’s relevant docs and performs all of the above operations:
+def query xalign(qdf):
+pages = qdf['page id'] pages = pages[pages.isin(page xalign.indexes['page'])] q xa = page xalign.loc[pages.values, :, :] q am = q xa.sum(axis=0)
+# clear and normalize q am[0, 0] = 0
+28
+
+
+q am = q am / q am.sum()
+# compute fractions in each section q fk all = q am[1:, 1:].sum() q fk geo = q am[1:, :1].sum() q fk gen = q am[:1, 1:].sum()
+# known average q am[1:, 1:] *= 0.5 q am[1:, 1:] += int tgt * 0.5 * q fk all
+# known-geo average q am[1:, :1] *= 0.5 q am[1:, :1] += geo tgt xa * 0.5 * q fk geo
+# known-gender average q am[:1, 1:] *= 0.5 q am[:1, 1:] += gender tgt xa * 0.5 * q fk gen
+# and return the result return pd.Series(q am.values.ravel()[1:])
+query xalign(qdf)
+0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
+2.742706e-02 5.039417e-02 3.910615e-04 8.173284e-02 6.615024e-03 5.839108e-03 9.601669e-05 6.161144e-08 4.733009e-09 4.733009e-09 9.561635e-11 2.894353e-01 2.010289e-02 2.289618e-02 3.716338e-04 1.872315e-01 6.746451e-03 1.807482e-02 6.418665e-05 4.661047e-02 3.880320e-03 3.725136e-03 5.331020e-05 1.156990e-01 5.865852e-03 2.184971e-02 3.072172e-05 7.724241e-02
+29
+
+
+28 29 30 dtype: float64
+1.095016e-03 6.526425e-03 3.311463e-06
+Now with that function, we can compute the alignment vector for each query.
+train qtarget = train qrels.groupby('id').apply(query xalign) train qtarget
+0
+1
+2
+3
+4
+5
+id 0.027427 0.050394 0.000391 1 0.012235 0.032073 0.000232 2 0.022553 0.035541 0.000292 3 0.012472 0.029112 0.000209 4 0.023416 0.063398 0.000436 5 0.126820 0.201558 0.001691 6 0.050837 0.115432 0.000836 7 0.038785 0.054361 0.000521 8 9 0.059002 0.157276 0.001087 10 0.064617 0.137545 0.001016 11 0.060435 0.128320 0.000979 12 0.020151 0.038214 0.000332 13 0.014332 0.035379 0.000250 14 0.046850 0.041965 0.000561 15 0.068267 0.151259 0.001103 16 0.135784 0.156886 0.001904 17 0.067934 0.174287 0.001217 18 0.018251 0.036588 0.000276 19 0.103573 0.097443 0.001247 20 0.089270 0.071413 0.000807 21 0.108101 0.211342 0.001605 22 0.026161 0.059192 0.000429 23 0.024937 0.066835 0.000461 24 0.081419 0.177767 0.001498 25 0.107975 0.121840 0.001155 26 0.041788 0.043538 0.000835 27 0.038810 0.078021 0.000587 28 0.023529 0.051249 0.000376 29 0.087081 0.191848 0.001402 30 0.056876 0.090125 0.000739 31 0.053926 0.104654 0.000819 32 0.061350 0.076521 0.003383 33 0.030389 0.053928 0.000424 34 0.096244 0.136311 0.001169 35 0.087547 0.111057 0.000998 36 0.112926 0.177999 0.001500 37 0.186952 0.406140 0.003590 38 0.027033 0.049546 0.000385 39 0.050328 0.062821 0.000569 40 0.165541 0.274278 0.002251
+0.081733 0.073168 0.023527 0.094840 0.020521 0.000021 0.000026 0.000065 0.005630 0.046254 0.029760 0.007651 0.009309 0.041140 0.000377 0.009884 0.013029 0.030822 0.013579 0.038786 0.027217 0.003891 0.027385 0.068779 0.008671 0.068601 0.055195 0.000296 0.031724 0.018007 0.058785 0.000257 0.061496 0.022726 0.017422 0.033846 0.019620 0.018166 0.013145 0.035258
+0.006615 0.003571 0.040981 0.004409 0.024932 0.028097 0.034747 0.038044 0.028051 0.008038 0.020073 0.032456 0.034996 0.016396 0.030622 0.025627 0.026528 0.023188 0.027784 0.021002 0.016228 0.036267 0.025748 0.005003 0.026618 0.027419 0.006552 0.035349 0.014463 0.027345 0.010576 0.036019 0.010157 0.020403 0.028479 0.017653 0.006586 0.026696 0.027890 0.004510
+0.005839 0.003669 0.059556 0.004901 0.025194 0.030215 0.051416 0.038746 0.056632 0.008038 0.021687 0.032725 0.038045 0.016052 0.032842 0.025196 0.051011 0.027944 0.025663 0.020420 0.017338 0.043268 0.048173 0.005585 0.026711 0.033208 0.006769 0.035468 0.016746 0.030689 0.010732 0.035636 0.009832 0.022574 0.026493 0.017997 0.008204 0.030492 0.028400 0.005636
+30
+6
+0.000096 0.000070 0.000574 0.000086 0.000504 0.000519 0.000646 0.000702 0.000554 0.000162 0.000358 0.000653 0.000655 0.000299 0.000601 0.000448 0.000503 0.000445 0.000485 0.000334 0.000296 0.000671 0.000503 0.000101 0.000511 0.000323 0.000132 0.000714 0.000289 0.000509 0.000158 0.001173 0.000194 0.000389 0.000460 0.000286 0.000132 0.000534 0.000558 0.000086
+\
+
+
+41 0.043914 0.084869 0.000647 42 0.042045 0.077639 0.000601 43 0.088816 0.236394 0.001634 44 0.073139 0.110720 0.000924 45 0.102279 0.175641 0.001615 46 0.049735 0.096882 0.000772 47 0.002770 0.006868 0.000048 48 0.048879 0.130381 0.000901 49 0.023329 0.043920 0.000338 50 0.021747 0.035992 0.000290 51 0.042260 0.067426 0.000551 52 0.011937 0.020075 0.000161 53 0.064740 0.088902 0.000772 54 0.006491 0.008134 0.000073 55 0.001431 0.003218 0.000023 56 0.127312 0.042703 0.000891 57 0.064556 0.101994 0.000905
+7
+8
+id 6.161144e-08 4.733009e-09 1 6.684003e-08 3.431828e-09 2 1.665751e-08 2.774295e-08 3 1.197781e-04 4.231748e-09 4 2.031701e-08 2.482831e-08 5 2.098131e-11 2.559433e-08 6 2.510823e-11 3.182076e-08 7 6.442770e-11 3.460808e-08 8 9 5.304181e-09 2.728670e-08 10 4.535438e-08 8.004062e-09 11 2.692777e-08 1.763909e-08 12 7.618901e-09 3.220520e-08 13 8.094806e-09 3.230352e-08 14 4.055074e-08 1.473139e-08 15 2.900724e-10 2.964395e-08 16 9.842701e-09 2.208922e-08 17 8.276972e-09 2.481865e-08 18 2.861625e-08 2.194840e-08 19 1.328731e-08 2.391224e-08 20 3.147228e-08 1.646900e-08 21 2.290303e-08 1.461251e-08 22 3.776095e-09 3.307219e-08 23 1.946374e-06 2.469539e-08 24 9.717212e-05 4.981659e-09 25 8.449778e-09 2.520965e-08 26 3.841889e-08 1.590954e-08 27 5.496504e-08 6.524548e-09 28 2.952129e-10 3.520143e-08 29 2.675860e-08 1.426019e-08 30 1.508983e-08 2.510388e-08 31 4.918211e-08 7.782549e-09
+0.009875 0.072132 0.045119 0.008159 0.010408 0.057043 0.065464 0.000374 0.008751 0.006747 0.013784 0.067402 0.019943 0.071422 0.106429 0.003167 0.243893
+9
+4.733009e-09 3.431828e-09 2.774295e-08 4.231748e-09 2.482831e-08 5.057750e-06 3.182076e-08 3.460808e-08 2.728670e-08 8.004062e-09 1.763909e-08 3.220520e-08 3.230352e-08 1.473139e-08 2.964395e-08 2.208922e-08 2.481865e-08 2.194840e-08 2.391224e-08 1.646900e-08 1.461251e-08 3.307219e-08 2.469539e-08 4.981659e-09 2.520965e-08 1.590954e-08 6.524548e-09 3.520143e-08 1.426019e-08 2.510388e-08 7.782549e-09
+0.035748 0.011772 0.006863 0.029961 0.025755 0.016799 0.006435 0.031816 0.032725 0.053491 0.027519 0.003922 0.029669 0.004520 0.000485 0.049226 0.072830
+0.047432 0.012999 0.007995 0.033199 0.026896 0.021288 0.006435 0.055275 0.037509 0.085334 0.028445 0.003828 0.032655 0.004449 0.000485 0.030645 0.147165
+0.000617 0.000206 0.000139 0.000677 0.000464 0.000285 0.000126 0.000632 0.000638 0.000706 0.000553 0.000077 0.000507 0.000084 0.000010 0.000626 0.000380
+... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ...
+21
+0.003725 0.003276 0.039630 0.002998 0.038382 0.019846 0.052265 0.029176 0.074846 0.005030 0.015362 0.018456 0.042302 0.009435 0.031470 0.015761 0.024976 0.034100 0.018990 0.009959 0.012144 0.056006 0.062443 0.004040 0.019174 0.018563 0.040466 0.020403 0.010663 0.023381 0.006588
+22
+0.000053 0.000039 0.000312 0.000048 0.000280 0.000288 0.000358 0.000396 0.000307 0.000090 0.000199 0.000363 0.000364 0.000166 0.000334 0.000249 0.000280 0.000247 0.000269 0.000185 0.000165 0.000373 0.000278 0.000056 0.000284 0.000179 0.000073 0.000396 0.000161 0.000283 0.000088
+\
+31
+
+
+32 2.559296e-10 3.269452e-08 33 5.137857e-08 9.548780e-09 34 2.046956e-08 1.915463e-08 35 1.596396e-08 2.268898e-08 36 2.620009e-08 1.407441e-08 37 1.795991e-08 6.524601e-09 38 1.809025e-08 2.632373e-08 39 1.283586e-08 2.751992e-08 40 3.449979e-08 4.246660e-09 41 3.226594e-06 3.024027e-08 42 4.738518e-08 1.016696e-08 43 4.527317e-04 6.834258e-09 44 7.089076e-09 2.764847e-08 45 9.390308e-09 2.288793e-08 46 1.188359e-05 1.402732e-08 47 6.389264e-08 6.222844e-09 48 3.726048e-10 3.114976e-08 49 8.473119e-09 3.144257e-08 50 4.998116e-09 3.352802e-08 51 1.364949e-08 2.725022e-08 52 6.702715e-08 3.811868e-09 53 1.477752e-08 2.500337e-08 54 6.771162e-08 4.140914e-09 55 1.841679e-02 4.832648e-10 56 2.393092e-09 3.050337e-08 57 3.318478e-08 1.539335e-08
+23
+24
+id 0.115699 0.005866 0.021850 1 0.114341 0.003410 0.015195 2 0.024684 0.023416 0.049637 3 0.176399 0.003847 0.020421 4 0.121270 0.014276 0.274932 5 0.000052 0.043116 0.107266 6 0.000078 0.019805 0.095237 7 0.000206 0.078311 0.129290 8 9 0.018965 0.013625 0.092816 10 0.035855 0.009666 0.019314 11 0.092015 0.019263 0.108094 12 0.051786 0.059223 0.374352 13 0.013124 0.018640 0.052865 14 0.181400 0.066251 0.040491 15 0.000563 0.027242 0.081673 16 0.036754 0.055762 0.113471 17 0.004093 0.008305 0.012349 18 0.031099 0.013915 0.022385 19 0.039630 0.060017 0.046816 20 0.095128 0.046829 0.029166 21 0.057092 0.021791 0.063754 22 0.003974 0.021571 0.041587
+25
+3.269452e-08 9.548780e-09 1.915463e-08 2.268898e-08 1.407441e-08 6.524601e-09 2.632373e-08 2.751992e-08 4.246660e-09 3.024027e-08 1.016696e-08 6.834258e-09 2.764847e-08 2.288793e-08 1.402732e-08 6.222844e-09 3.114976e-08 3.144257e-08 3.352802e-08 2.725022e-08 3.811868e-09 2.500337e-08 4.140914e-09 4.832648e-10 3.050337e-08 1.539335e-08
+26
+0.000031 0.000022 0.000202 0.000027 0.000161 0.000206 0.000212 0.000390 0.000177 0.000052 0.000114 0.000248 0.000210 0.000096 0.000192 0.000143 0.000161 0.000142 0.000155 0.000301 0.000095 0.000215
+... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ... ...
+0.028172 0.006866 0.014686 0.022650 0.011137 0.003671 0.060619 0.017383 0.004435 0.044898 0.011024 0.005395 0.021775 0.021510 0.020366 0.004587 0.040424 0.043209 0.052002 0.026850 0.002125 0.033812 0.003063 0.000407 0.017079 0.008785
+0.000623 0.000108 0.000216 0.000256 0.000159 0.000073 0.000296 0.000310 0.000048 0.000341 0.000115 0.000077 0.000311 0.000258 0.000158 0.000070 0.000351 0.000354 0.000378 0.000307 0.000043 0.000282 0.000055 0.000005 0.000351 0.000173
+27
+28
+29
+0.077242 0.021868 0.006253 0.020782 0.002668 0.000011 0.000025 0.000009 0.003089 0.002990 0.007596 0.000264 0.001067 0.013693 0.000053 0.001202 0.009967 0.006749 0.005411 0.013124 0.005012 0.002399
+0.001095 0.000564 0.007383 0.000413 0.000967 0.006256 0.005422 0.006967 0.002289 0.000561 0.002075 0.001192 0.003577 0.007532 0.002905 0.001196 0.006974 0.004953 0.009550 0.022892 0.001616 0.004103
+0.006526 0.001981 0.012547 0.002940 0.002729 0.011167 0.022694 0.010040 0.014736 0.000703 0.005840 0.001423 0.008987 0.004746 0.005808 0.004210 0.068220 0.012171 0.007900 0.022115 0.003392 0.008146
+32
+\
+
+
+23 0.015388 0.009643 0.019771 24 0.027928 0.001698 0.004029 25 0.014254 0.033132 0.029596 26 0.082215 0.031768 0.030960 27 0.078969 0.010545 0.020511 28 0.000095 0.013312 0.015522 29 0.042854 0.018284 0.065101 30 0.054574 0.052398 0.122136 31 0.219361 0.016084 0.041382 32 0.000847 0.114151 0.153417 33 0.201573 0.036510 0.035536 34 0.052654 0.036538 0.053567 35 0.041752 0.047621 0.046893 36 0.078388 0.029082 0.049013 37 0.006714 0.002602 0.003479 38 0.093509 0.024950 0.162515 39 0.055119 0.113381 0.161825 40 0.012825 0.001876 0.003391 41 0.005666 0.024614 0.043943 42 0.110739 0.015094 0.044887 43 0.114799 0.004912 0.021888 44 0.019854 0.057218 0.108907 45 0.028069 0.064359 0.057022 46 0.076146 0.016152 0.056417 47 0.323062 0.012990 0.052856 48 0.001728 0.012689 0.107462 49 0.012655 0.025667 0.059400 50 0.012840 0.029417 0.052854 51 0.043987 0.026819 0.034925 52 0.025983 0.001793 0.003307 53 0.015227 0.032331 0.037326 54 0.230042 0.010873 0.017122 55 0.169513 0.000705 0.002079 56 0.008593 0.124741 0.009902 57 0.012217 0.006500 0.007919
+30
+id 3.311463e-06 1 2.401088e-06 2 1.941043e-05 3 2.960754e-06 4 1.737119e-05 5 2.797145e-05 6 2.226348e-05 7 3.745849e-05 8 1.909121e-05 9 10 5.600064e-06 11 1.234124e-05 12 2.253246e-05 13 2.260124e-05
+0.000162 0.000032 0.000164 0.000373 0.000042 0.000228 0.000093 0.000180 0.000051 0.007096 0.000062 0.000124 0.000147 0.000091 0.000042 0.000171 0.000179 0.000028 0.000203 0.000066 0.000044 0.000179 0.000257 0.000127 0.000040 0.000202 0.000204 0.000244 0.000177 0.000025 0.000162 0.000043 0.000003 0.000342 0.000100
+0.003743 0.003765 0.003736 0.011697 0.002120 0.000010 0.002069 0.004532 0.012882 0.000136 0.012494 0.002378 0.011016 0.007908 0.000689 0.003899 0.006309 0.001379 0.003246 0.023176 0.028936 0.002327 0.005433 0.007826 0.006125 0.000013 0.004836 0.001221 0.003715 0.003268 0.009199 0.016006 0.054992 0.000587 0.001217
+33
+0.001768 0.000173 0.006643 0.001897 0.000443 0.001309 0.000779 0.005387 0.002229 0.007762 0.003009 0.004169 0.005620 0.004810 0.000226 0.002351 0.002483 0.000311 0.008020 0.002026 0.000689 0.006161 0.007857 0.001007 0.000402 0.002687 0.009386 0.007420 0.004418 0.000132 0.014358 0.000788 0.000017 0.015458 0.000533
+0.005251 0.000173 0.002734 0.001897 0.000226 0.001398 0.001065 0.012916 0.002363 0.010439 0.002928 0.005004 0.002706 0.004007 0.000293 0.008503 0.004523 0.000700 0.014145 0.007717 0.007027 0.009630 0.009324 0.002357 0.000588 0.050811 0.031794 0.012814 0.006425 0.000700 0.015661 0.000843 0.000154 0.001078 0.000533
+
+
+14 1.030686e-05 15 2.074047e-05 16 1.545478e-05 17 1.736444e-05 18 1.535626e-05 19 1.673026e-05 20 1.152258e-05 21 1.022368e-05 22 2.313905e-05 23 1.727819e-05 24 3.485431e-06 25 1.763800e-05 26 1.113115e-05 27 4.564918e-06 28 2.462878e-05 29 9.977184e-06 30 1.756400e-05 31 5.445081e-06 32 9.152766e-04 33 6.680830e-06 34 1.340159e-05 35 1.587440e-05 36 9.847201e-06 37 4.564955e-06 38 1.841747e-05 39 2.742263e-04 40 2.971187e-06 41 2.115769e-05 42 7.113344e-06 43 4.781607e-06 44 1.934433e-05 45 7.035552e-05 46 9.814252e-06 47 4.353830e-06 48 2.179402e-05 49 2.199888e-05 50 2.345797e-05 51 1.906569e-05 52 2.666984e-06 53 1.749368e-05 54 1.075735e-05 55 3.381175e-07 56 4.295529e-05 57 1.077000e-05
+[57 rows x 31 columns]
+And save:
+t1 train metric = metrics.Task1Metric(train qrels.set index('id'), page kia, train qtarget) binpickle.dump(t1 train metric, 'task1-train-metric.bpk', codec=codec)
+INFO:binpickle.write:pickled 1493808204 bytes with 5 buffers
+34
+
+
+Do the same for eval:
+eval qtarget = eval qrels.groupby('id').apply(query xalign) t1 eval metric = metrics.Task1Metric(eval qrels.set index('id'), page kia, eval qtarget) binpickle.dump(t1 eval metric, 'task1-eval-metric.bpk', codec=codec)
+INFO:binpickle.write:pickled 1493808200 bytes with 5 buffers
+A.6 Task 2 Metric Preparation
+Task 2 requires some diﬀerent preparation.
+We’re going to start by computing work-needed information:
+page work = pages.set index('page id').quality score disc.astype(pd.CategoricalDtype(ordered=True)) page work = page work.cat.reorder categories(work order) page work.name = 'quality'
+A.6.1 Work and Target Exposure
+The ﬁrst thing we need to do to prepare the metric is to compute the work-needed for each topic’s pages, and use that to compute the target exposure for each (relevant) page in the topic.
+This is because an ideal ranking orders relevant documents in decreasing order of work needed, followed by irrelevant documents. All relevant documents at a given work level should receive the same expected exposure.
+First, look up the work for each query page (’query page work’, or qpw):
+qpw = qrels.join(page work, on='page id') qpw
+id 572 1 0 627 1 1 903 1 2 1193 1 3 1542 1 4 ... ... ... 2199072 150 63656179 2199073 150 63807245 2199074 150 64614938 2199075 150 64716982 2199076 150 65355704
+page_id quality C FA C B GA ... Start NaN C C C
+[2199077 rows x 3 columns]
+And now use that to compute the number of documents at each work level:
+qwork = qpw.groupby(['id', 'quality'])['page id'].count() qwork
+id 1
+quality Stub Start C B
+1527 2822 1603 610
+35
+
+
+GA
+240
+...
+138 127 35 16 8 Name: page_id, Length: 636, dtype: int64
+150 Start C B GA FA
+Now we need to convert this into target exposure levels. This function will, given a series of counts for
+each work level, compute the expected exposure a page at that work level should receive.
+def qw tgt exposure(qw counts: pd.Series) -> pd.Series:
+if 'id' == qw counts.index.names[0]:
+qw counts = qw counts.reset index(level='id', drop=True)
+qwc = qw counts.reindex(work order, fill value=0).astype('i4') tot = int(qwc.sum()) da = metrics.discount(tot) qwp = qwc.shift(1, fill value=0) qwc s = qwc.cumsum() qwp s = qwp.cumsum() res = pd.Series(
+[np.mean(da[s:e]) for (s, e) in zip(qwp s, qwc s)], index=qwc.index
+) return res
+We’ll then apply this to each topic, to determine the per-topic target exposures:
+qw pp target = qwork.groupby('id').apply(qw tgt exposure) qw pp target.name = 'tgt exposure' qw pp target
+C:\Users\michaelekstrand\Miniconda3\envs\wptrec\lib\site-packages\numpy\core\fromnumeric.py:3440: RuntimeWarning: Mean of empty slice.
+return _methods._mean(a, axis=axis, dtype=dtype,
+C:\Users\michaelekstrand\Miniconda3\envs\wptrec\lib\site-packages\numpy\core\_methods.py:189: RuntimeWarning: invalid value encountered in true_divide
+ret = ret.dtype.type(ret / rcount)
+id 1
+quality Stub Start C B GA
+150 Start C B GA FA
+0.114738 0.087373 0.081146 0.079298 0.078702 ... 0.154202 0.127359 0.120441 0.118827 0.118126
+Name: tgt_exposure, Length: 636, dtype: float32
+We can now merge the relevant document work categories with this exposure, to compute the target
+exposure for each relevant document:
+36
+
+
+qp exp = qpw.join(qw pp target, on=['id', 'quality']) qp exp = qp exp.set index(['id', 'page id'])['tgt exposure'] qp exp.index.names = ['q id', 'page id'] qp exp
+q_id page_id 1
+572 627 903 1193 1542
+150
+63656179 63807245 64614938 64716982 65355704
+0.081146 0.078438 0.081146 0.079298 0.078702 ... 0.154202 NaN 0.127359 0.127359 0.127359
+Name: tgt_exposure, Length: 2199077, dtype: float32
+A.6.2 Geographic Alignment
+Now that we’ve computed per-page target exposure, we’re ready to set up the geographic alignment vectors for computing the per-group expected exposure with geographic data.
+We’re going to start by getting the alignments for relevant documents for each topic:
+qp geo align = qrels.join(page geo align, on='page id').set index(['id', 'page id']) qp geo align.index.names = ['q id', 'page id'] qp geo align
+Unknown Africa
+Antarctica
+Asia
+Europe
+\
+q_id page_id 572 1 627 903 1193 1542
+... 150 63656179 63807245 64614938 64716982 65355704
+1.0 1.0 1.0 1.0 1.0 ... 1.0 NaN 1.0 1.0 1.0
+0.0 0.0 0.0 0.0 0.0 ... 0.0 NaN 0.0 0.0 0.0
+0.0 0.0 0.0 0.0 0.0 ... 0.0 NaN 0.0 0.0 0.0
+0.0 0.0 0.0 0.0 0.0 ... 0.0 NaN 0.0 0.0 0.0
+0.0 0.0 0.0 0.0 0.0 ... 0.0 NaN 0.0 0.0 0.0
+Latin America and the Caribbean
+Northern America
+Oceania
+q_id page_id 572 1 627 903 1193 1542
+... 150 63656179 63807245
+0.0 0.0 0.0 0.0 0.0 ... 0.0 NaN
+0.0 0.0 0.0 0.0 0.0 ... 0.0 NaN
+0.0 0.0 0.0 0.0 0.0 ... 0.0 NaN
+37
+
+
+64614938 64716982 65355704
+0.0 0.0 0.0
+0.0 0.0 0.0
+0.0 0.0 0.0
+[2199077 rows x 8 columns]
+Now we need to compute the per-query target exposures. This starst with aligning our vectors:
+qp geo exp, qp geo align = qp exp.align(qp geo align, fill value=0)
+And now we can multiply the exposure vector by the alignment vector, and summing by topic - this is
+equivalent to the matrix-vector multiplication on a topic-by-topic basis.
+qp aexp = qp geo align.multiply(qp geo exp, axis=0) q geo align = qp aexp.groupby('q id').sum()
+Now things get a little weird. We want to average the empirical distribution with the world population to compute our fairness target. However, we don’t have empirical data on the distribution of articles that do or do not have geographic alignments.
+Therefore, we are going to average only the known-geography vector with the world population. This
+proceeds in N steps:
+1. Normalize the known-geography matrix so its rows sum to 1. 2. Average each row with the world population. 3. De-normalize the known-geography matrix so it is in the original scale, but adjusted w/ world popu- lation
+4. Normalize the entire matrix so its rows sum to 1
+Let’s go.
+qg known = q geo align.drop(columns=['Unknown'])
+Normalize (adding a small value to avoid division by zero - aﬀected entries will have a zero numerator
+anyway):
+qg ksums = qg known.sum(axis=1) qg kd = qg known.divide(np.maximum(qg ksums, 1.0e-6), axis=0)
+Average:
+qg kd = (qg kd + world pop) * 0.5
+De-normalize:
+qg known = qg kd.multiply(qg ksums, axis=0)
+Recombine with the Unknown column:
+q geo tgt = q geo align[['Unknown']].join(qg known)
+Normalize targets:
+q geo tgt = q geo tgt.divide(q geo tgt.sum(axis=1), axis=0) q geo tgt
+38
+
+
+Unknown
+Africa
+Antarctica
+Asia
+Europe
+\
+q_id 1 2 3 4 5 ... 146 147 148 149 150
+0.575338 0.043635 0.173889 0.069608 0.234897 0.101882 0.312664 0.076008 0.182143 0.063760 ... 0.292441 0.090378 0.434276 0.060053 0.637050 0.033542 0.370828 0.061724 0.414091 0.062031
+...
+3.278897e-08 6.378567e-08 5.907510e-08 8.262075e-05 6.314834e-08 ... 5.463208e-08 4.368069e-08 2.802409e-08 4.857964e-08 4.523918e-08
+0.153851 0.294269 0.278161 0.246140 0.273795 ... 0.299627 0.195520 0.233693 0.243518 0.208319
+0.098450 0.280798 0.215027 0.145192 0.046710 ... 0.067556 0.130625 0.045680 0.172170 0.131270
+Latin America and the Caribbean
+Northern America
+Oceania
+q_id 1 2 3 4 5 ... 146 147 148 149 150
+0.025042 0.046323 0.071196 0.058319 0.061549 ... 0.045686 0.061604 0.018613 0.040886 0.042203
+0.065388 0.115193 0.077784 0.143947 0.366345 ... 0.178497 0.091005 0.025322 0.073876 0.116868
+0.038296 0.019920 0.021053 0.017648 0.005697 ... 0.025815 0.026916 0.006099 0.036999 0.025218
+[106 rows x 8 columns]
+This is our group exposure target distributions for each query, for the geographic data. We’re now ready
+to set up the matrix.
+train geo qtgt = q geo tgt.loc[train topics['id']] eval geo qtgt = q geo tgt.loc[eval topics['id']]
+t2 train geo metric = metrics.Task2Metric(train qrels.set index('id'),
+page geo align, page work, train geo qtgt)
+binpickle.dump(t2 train geo metric, 'task2-train-geo-metric.bpk', codec=codec)
+INFO:binpickle.write:pickled 2018 bytes with 9 buffers
+t2 eval geo metric = metrics.Task2Metric(eval qrels.set index('id'), page geo align, page work, eval geo qtgt)
+binpickle.dump(t2 eval geo metric, 'task2-eval-geo-metric.bpk', codec=codec)
+INFO:binpickle.write:pickled 2014 bytes with 9 buffers
+A.6.3
+Intersectional Alignment
+Now we need to compute the intersectional targets for Task 2. We’re going to take a slightly diﬀerent approach here, based on the intersectional logic for Task 1, because we’ve come up with better ways to write the code, but the eﬀect is the same: only known aspects are averaged.
+39
+
+
+We’ll write a function very similar to the one for Task 1:
+def query xideal(qdf, ravel=True):
+pages = qdf['page id'] pages = pages[pages.isin(page xalign.indexes['page'])] q xa = page xalign.loc[pages.values, :, :]
+# now we need to get the exposure for the pages, and multiply p exp = qp exp.loc[qdf.name] assert p exp.index.is unique p exp = xr.DataArray(p exp, dims=['page'])
+# and we multiply! q xa = q xa * p exp
+# normalize into a matrix (this time we don't clear) q am = q xa.sum(axis=0) q am = q am / q am.sum()
+# compute fractions in each section - combined with q am[0,0], this should be about 1 q fk all = q am[1:, 1:].sum() q fk geo = q am[1:, :1].sum() q fk gen = q am[:1, 1:].sum()
+# known average q am[1:, 1:] *= 0.5 q am[1:, 1:] += int tgt * 0.5 * q fk all
+# known-geo average q am[1:, :1] *= 0.5 q am[1:, :1] += geo tgt xa * 0.5 * q fk geo
+# known-gender average q am[:1, 1:] *= 0.5 q am[:1, 1:] += gender tgt xa * 0.5 * q fk gen
+# and return the result if ravel:
+return pd.Series(q am.values.ravel())
+else:
+return q am
+Test this function out:
+query xideal(qdf, ravel=False)
+<xarray.DataArray (geography: 8, gender: 4)> array([[5.40211229e-01, 1.22904624e-02, 2.26610467e-02, 1.75635724e-04], [3.80909493e-02, 2.90804953e-03, 2.59344827e-03, 4.25392005e-05], [2.85527900e-08, 2.09691080e-09, 2.09691080e-09, 4.23618344e-11], [1.34695670e-01, 8.88355123e-03, 1.01072347e-02, 1.64648516e-04], [8.71895859e-02, 2.97387866e-03, 8.25814408e-03, 2.84372324e-05], [2.16878846e-02, 1.67819032e-03, 1.65196427e-03, 2.36185304e-05],
+40
+
+
+[5.32652519e-02, 2.51534798e-03, 9.59370956e-03, 1.36109402e-05], [3.48679417e-02, 4.71346052e-04, 2.95512391e-03, 1.46710935e-06]])
+Coordinates:
+geography (geography) object ’Unknown’ ’Africa’ ... ’Oceania’ * gender (gender) object ’unknown’ ’female’ ’male’ ’third’
+And let’s go!
+q xtgt = qrels.groupby('id').progress apply(query xideal) q xtgt
+{"model id":"","version major":2,"version minor":0}
+0
+1
+2
+3
+4
+5
+6
+\
+id 0.540211 1 0.135109 2 0.185923 3 0.283620 4 0.102865 5 .. ... 146 0.242344 147 0.380085 148 0.620663 149 0.365415 150 0.228180
+0.012290 0.022661 0.010633 0.027958 0.018891 0.029817 0.008665 0.020234 0.021347 0.057531 ... 0.017108 0.032738 0.025582 0.026067 0.005550 0.010755 0.002870 0.002516 0.057917 0.127065
+...
+0.000176 0.000201 0.000245 0.000145 0.000396 ... 0.000250 0.001304 0.000082 0.000027 0.000930
+0.038091 0.063400 0.018607 0.069568 0.017768 ... 0.033631 0.028472 0.031143 0.060143 0.014522
+0.002908 0.003032 0.033486 0.003021 0.022647 ... 0.031692 0.017849 0.001188 0.000783 0.021052
+0.002593 0.003115 0.049321 0.003361 0.022888 ... 0.024843 0.014999 0.001188 0.000783 0.026136
+7
+id 0.000043 1 0.000059 2 0.000471 3 0.000059 4 0.000458 5 .. ... 146 0.000212 147 0.000207 148 0.000024 149 0.000016 150 0.000320
+8
+2.855279e-08 5.789347e-08 1.300894e-08 8.261490e-05 1.758741e-08 ... 3.349054e-08 2.317530e-08 2.563480e-08 4.700522e-08 1.332948e-08
+9
+2.096911e-09 2.916166e-09 2.280358e-08 2.894759e-09 2.255280e-08 ... 1.046506e-08 1.019747e-08 1.182699e-09 7.793387e-10 1.579530e-08
+... ... ... ... ... ... ... ... ... ... ... ... ...
+22
+0.001652 0.002811 0.032680 0.002071 0.034300 ... 0.009259 0.018809 0.000659 0.002786 0.016691
+23
+0.000024 0.000033 0.000257 0.000033 0.000254 ... 0.000118 0.000115 0.000013 0.000009 0.000178
+24
+0.053265 0.099662 0.019061 0.127457 0.104245 ... 0.164611 0.050914 0.020264 0.071839 0.040721
+25
+26
+27
+28
+29
+30
+31
+id 0.002515 1 0.002826 2 0.018746 3 0.002601 4 0.012692 5 .. ... 146 0.010455 147 0.022379 148 0.000380 149 0.000250
+0.009594 0.000014 0.012684 0.000019 0.039812 0.000164 0.013870 0.000019 0.249255 0.000146 ... 0.003362 0.000068 0.017457 0.000066 0.004670 0.000008 0.001781 0.000005
+...
+0.034868 0.017811 0.004908 0.015398 0.002342 ... 0.013121 0.016122 0.003416 0.036944
+0.000471 0.000468 0.005947 0.000279 0.000883 ... 0.012324 0.005498 0.000041 0.000027
+0.002955 0.001639 0.010179 0.001968 0.002456 ... 0.000362 0.005220 0.002642 0.000027
+1.467109e-06 2.040304e-06 1.595459e-05 2.025326e-06 1.577913e-05 ... 7.321910e-06 7.134685e-06 8.274784e-07 5.452665e-07
+41
+\
+
+
+150 0.017971 0.058074
+0.000103
+0.009900
+0.000547
+0.013698
+[106 rows x 32 columns]
+train qtgt = q xtgt.loc[train topics['id']] eval qtgt = q xtgt.loc[eval topics['id']]
+t2 train metric = metrics.Task2Metric(train qrels.set index('id'),
+page xa df, page work, train qtgt)
+binpickle.dump(t2 train metric, 'task2-train-metric.bpk', codec=codec)
+INFO:binpickle.write:pickled 1879 bytes with 9 buffers
+t2 eval metric = metrics.Task2Metric(eval qrels.set index('id'),
+page xa df, page work, eval qtgt)
+binpickle.dump(t2 eval metric, 'task2-eval-metric.bpk', codec=codec)
+INFO:binpickle.write:pickled 1875 bytes with 9 buffers
+42
+1.071915e-03

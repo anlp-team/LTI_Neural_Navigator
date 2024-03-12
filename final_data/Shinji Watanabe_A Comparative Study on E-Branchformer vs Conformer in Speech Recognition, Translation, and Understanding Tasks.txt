@@ -1,0 +1,317 @@
+3 2 0 2
+y a M 8 1
+] L C . s c [
+1 v 3 7 0 1 1 . 5 0 3 2 : v i X r a
+A Comparative Study on E-Branchformer vs Conformer in Speech Recognition, Translation, and Understanding Tasks
+Yifan Peng1, Kwangyoun Kim2, Felix Wu2, Brian Yan1, Siddhant Arora1, William Chen1, Jiyang Tang1, Suwon Shon2, Prashant Sridhar2, Shinji Watanabe1
+1Carnegie Mellon University, Pittsburgh, PA, USA 2ASAPP Inc., Mountain View, CA, USA yifanpen@andrew.cmu.edu, {kkim,fwu}@asapp.com
+Abstract
+Conformer, a convolution-augmented Transformer variant, has become the de facto encoder architecture for speech process- ing due to its superior performance in various tasks, including automatic speech recognition (ASR), speech translation (ST) and spoken language understanding (SLU). Recently, a new encoder called E-Branchformer has outperformed Conformer in the LibriSpeech ASR benchmark, making it promising for more general speech applications. This work compares E- Branchformer and Conformer through extensive experiments using different types of end-to-end sequence-to-sequence mod- els. Results demonstrate that E-Branchformer achieves compa- rable or better performance than Conformer in almost all evalu- ation sets across 15 ASR, 2 ST, and 3 SLU benchmarks, while being more stable during training. We will release our train- ing conﬁgurations and pre-trained models for reproducibility, which can beneﬁt the speech community. 1 Index Terms: e-branchformer, conformer, speech recognition, speech translation, spoken language understanding
+1. Introduction
+Sequence-to-sequence (seq2seq) models have achieved remark- able success in end-to-end (E2E) speech processing. Various types of neural networks have been explored in recent years, including recurrent neural networks (RNNs) [1–3], convolu- tional neural networks (CNNs) [4–6] and Transformer networks based on self-attention [7–9]. These architectures have comple- mentary capacity in sequence modeling. More recent studies have proposed to combine different networks for better perfor- mance. Conformer [10], a convolution-augmented Transformer encoder, has become the de facto standard architecture, due to its superior performance in many speech processing tasks [11]. Conformer captures both global and local contexts in a feature sequence through cascaded self-attention and convolution mod- ules. An alternative approach is using parallel branches for dif- ferent ranged contexts. Branchformer [12] follows this idea and shows competitive or even better results in several benchmarks for automatic speech recognition (ASR) and spoken language understanding (SLU), while being more stable for training in extreme data regimes. Further, E-Branchformer [13] enhances the vanilla Branchformer with a convolution-based merge mod- ule and Conformer-style feed-forward networks. It achieves new state-of-the-art (SOTA) results in the standard LibriSpeech ASR benchmark [14], which is highly encouraging for general speech applications.
+lation (ST) and SLU. We compare E-Branchformer versus Con- former through extensive experiments in a wide range of pub- licly available benchmarks (i.e., 15 ASR, 2 ST, and 3 SLU cor- pora). We also investigate different E2E frameworks, includ- ing connectionist temporal classiﬁcation (CTC) [15], attention- based encoder-decoder (AED) and RNN-transducer (RNN- T) [16]. Results show that E-Branchformer performs equally well as or better than Conformer in almost all evaluation sets. E-Branchformer is also more stable to train when the model is large or the dataset is small. We share various training tips based on our investigations. We will also release our training conﬁg- urations and pre-trained models for full reproducibility, which can signiﬁcantly beneﬁt the speech community.
+2. Models
+We follow the default setup in the open-source ESPnet toolkit [17–19]. Only the encoder is changed to compare E- Branchformer [13] and Conformer [10], while the other com- ponents are the same. In a speech encoder, the raw audio wave- form is ﬁrst processed by a frontend to extract speech features such as log Mel ﬁlterbanks or self-supervised learning (SSL) based features. The feature sequence is then fed into a con- volutional subsampling module. The downsampled feature se- quence is further processed by a stack of identical encoder lay- ers to capture high-level contextual information. Depending on the E2E framework, the ﬁnal output sequence can be fed into a Transformer decoder, an RNN-T joint network or a CTC layer.
+2.1. Conformer
+Figure 1a illustrates a Conformer layer [10], which consists of a position-wise feed-forward network (FFN), a multi-head self-attention (MHA) module, a convolution (Conv) module and another FFN. Each of these modules has a residual con- nection [20] and a layer normalization [21] in a pre-norm style [22,23]. Different modules are combined sequentially. For an input sequence X ∈ RT ×d of length T and feature size d, the ﬁnal output of a Conformer layer Yconf ∈ RT ×d is computed as follows:
+X1
+conf = X +
+1 2
+FFN1(X),
+X2 X3
+conf = X1 conf = X2
+conf + MHA(X1 conf + Conv(X2 1 2
+conf),
+conf),
+conf = X3
+FFN2(X3
+X4
+conf +
+conf),
+In this work, we explore the efﬁcacy of E-Branchformer in various speech processing tasks, including ASR, speech trans-
+1https://github.com/espnet/espnet
+Yconf = LayerNorm(X4
+conf),
+conf ∈ RT ×d are intermediate out- where X1 puts. Each FFN is composed of two linear projections and a
+conf, X2
+conf, X3
+conf, X4
+(1)
+(2)
+(3)
+(4)
+(5)
+
+
+x 1/2x 1/2
+FFN
+Conv Module
+MHA
+FFN
+Layer Norm
+cgMLP
+FFN
+x 1/2x 1/2
+Layer Norm
+FFN
+MHA
+Merge
+(a) Conformer [10]
+(b) E-Branchformer [13]
+Figure 1: Comparison of encoder architectures.
+Swish activation [24] in between. Two separate FFNs with half- step residual weights are employed as in Macaron-Net [25]. Unlike the vanilla Transformer [7], MHA uses relative posi- tional encodings from Transformer-XL [26]. The key compo- nent of Conformer is the Conv module which contains a point- wise convolution followed by a gated linear unit (GLU) acti- vation [27], a 1-D depth-wise convolution, a batch normaliza- tion [28], a Swish activation and another point-wise convolu- tion.
+2.2. E-Branchformer
+E-Branchformer is an enhanced version of Branch- former [12]. Figure 1b shows its architecture. Similar to Con- former, it also has two Macaron-style FFNs. The difference is that E-Branchformer contains two parallel branches between the FFNs as proposed in Branchformer [12]. One branch cap- tures global context using MHA while the other branch captures local context using multi-layer perceptron with convolutional gating (cgMLP) [29]. Two branches are merged by a concate- nation operation, a 1-D depth-wise convolution and a linear pro- jection, which is more effective than the simple concatenation followed by a linear projection used in Branchformer. For input X ∈ RT ×d, the output Yebf ∈ RT ×d is deﬁned as follows:
+[13]
+X1
+ebf = X +
+1 2
+FFN1(X),
+(6)
+X2,mha ebf
+, X2,mlp ebf = MHA(X1 X2
+ebf), cgMLP(X1
+ebf), , X2,mlp ebf
+ebf = X1
+ebf + Merge(X2,mha
+ebf
+),
+(7)
+(8)
+X3
+ebf = X2
+ebf +
+1 2
+FFN2(X2
+ebf),
+(9)
+Yebf = LayerNorm(X3
+ebf),
+(10)
+ebf ∈ RT ×d are intermedi- where X1 ate outputs. Figure 2 shows the architecture of cgMLP [29], which leverages depth-wise convolution and linear gating to ex- ebf ∈ RT ×d, the tract local contextual information. For input X1 output X2,mlp is derived as follows:
+ebf, X2,mha
+, X2,mlp ebf
+, X2
+ebf, X3
+ebf
+ebf
+Z = GeLU(LayerNorm(X1
+ebf)U) ∈ RT ×dmlp ,
+(11)
+A, B = Split(Z) ∈ RT × 1
+2 dmlp , ˜Z = A (cid:12) DwConv(LayerNorm(B)) ∈ RT × 1
+(12)
+2 dmlp , (13)
+ebf = Dropout( ˜ZV) ∈ RT ×d, where U ∈ Rd×dmlp and V ∈ R 1 tions. (cid:12) denotes element-wise product.
+X2,mlp
+(14)
+2 dmlp×d are two linear projec-
+Layer Norm
+Split
+DepthwiseConv
+Dropout
+Linear
+Layer Norm
+GeLU
+Linear
+Figure 2: Architecture of cgMLP [29].
+3. Speech recognition experiments
+3.1. Setups
+Data. A total of 15 public ASR datasets are utilized, covering various languages (English, Chinese, Spanish, Japanese, Italian, or even multilingual with 102 languages), recording environ- ments (clean, noisy, far-ﬁeld), speech types (spontaneous, read), and sizes (10 to 10k hours). Disordered speech from Aphasia- Bank [30] is also evaluated. The evaluation metric is character error rate (CER) or word error rate (WER). The total model size and encoder’s multiply-accumulate operations (MACs) for a 10-second audio are also reported. Models. We mainly use the attention-based encoder-decoder (AED) with joint CTC training and decoding [31, 32]. The en- coder is either Conformer or E-Branchformer, while the de- coder is a 6-layer Transformer. Log Mel ﬁlterbanks are ex- tracted by default, except that FLEURS uses an SSL frontend as in [33]. FLEURS also exploits intermediate CTC [34] and self-condition CTC [35] in the encoder. We also conduct experi- ments using pure CTC or RNN-T models in a subset of datasets. Training. We follow the ESPnet2 recipes2 for data preparation, model training and decoding. Most recipes perform speed per- turbation with ratios {0.9, 1.0, 1.1} and SpecAugment [36]. A medium-sized model with hidden size d = 256 is employed by default. For FLEURS, GigaSpeech and LibriSpeech 960h, a larger model with d = 512 is trained instead. The Adam opti- mizer [37] with warmup learning rate schedule [7] is employed. Training hyperparameters such as the learning rate, weight de- cay and warmup steps are from existing baselines. We will re- lease our detailed setups to ensure reproducibility.
+3.2. Results
+Table 1 summarizes the ASR results of AED models with joint CTC, which is the most widely used setup in ESPnet. Compared to those well-established Conformer baselines, E-Branchformer achieves comparable or superior results with a similar model size and computational complexity in almost all benchmarks. We have only observed a slight degradation in one set among 39 evaluation sets across 15 corpora. The improvements are especially remarkable in AphasiaBank, CHiME4, Fisher- Callhome, FLEURS, JSUT, MuST-C and TEDLIUM2, indicat- ing that E-Branchformer has strong modeling capacities for var- ious speech types. Conformer
+can vary across different datasets, with some datasets beneﬁting from deeper networks while others may beneﬁt from wider networks. Table 2 com- pares E-Branchformer with two Conformer baselines in four
+conﬁgurations
+2https://github.com/espnet/espnet/tree/
+master/egs2
+
+
+Table 1: CER or WER (%) on speech recognition benchmarks using attention-based encoder-decoder (AED) with joint CTC. The total number of parameters (×106) and encoder’s multiply-accumulate (MAC) operations (×109) are also reported. † means a frozen SSL frontend is used but not counted. ‡ means a language model is used with shallow fusion following existing ESPnet2 recipes.
+Dataset
+Token Metric
+Evaluation Sets
+Conformer
+E-Branchformer
+Params MACs
+Results ↓
+Params MACs
+Results ↓
+AIDATATANG [38] Char CER Char CER Char WER Char WER
+AISHELL [39] AphasiaBank [30] CHiME4 [40]
+dev / test dev / test patients / control {dt05,et05} {simu,real}
+Fisher-Callhome [41] BPE WER dev / dev2 / test / devtest / evltest
+BPE CER BPE WER Char CER LibriSpeech 100h [14] BPE WER LibriSpeech 960h [14] BPE WER BPE WER BPE WER BPE WER Char CER Char WER
+FLEURS [42] GigaSpeech [43] JSUT [44]
+MuST-C [45] Switchboard [46] TEDLIUM2 [47] VoxForge [48] WSJ [49]
+dev / test dev / test dev / eval1 {dev,test} {clean,other} {dev,test} {clean,other} tst-{COMMON, HE}.en-de eval2000 (callhm / swbd) dev / test dt it / et it dev93 / eval92
+46.0 46.3 44.2 30.4 43.8 †126.6 48.8 20.0 116.2 11.6 45.1 10.3 39.0 42.5 147.8 12.0 46.1 10.3 36.7 10.3 35.5 13.2 35.2 13.2 35.2
+14.7 15.3 30.1 8.8 11.6 20.7 / 20.9 / 19.4 / 38.3 / 38.8
+‡ 3.6 / 4.3 4.3 / 4.6 40.3 / 35.3 ‡ 7.8 / 9.5 / 12.5 / 14.8
+‡ 10.1 / 10.4 10.9 / 10.8 ‡ 12.3 / 13.6 6.3 / 17.0 / 6.6 / 17.2 ‡ 1.72 / 3.65 / 1.85 / 3.95 7.7 / 6.7 13.5 / 7.4 7.5 / 7.6 9.0 / 8.1 ‡ 6.5 / 4.1
+45.4 45.7 45.7 30.8 43.2 †127.4 50.1 26.1 148.9 12.1 44.2 9.9 38.5 42.7 148.9 9.9 37.7 9.9 36.2 9.9 35.0 12.6 34.7 12.6 34.7
+15.5 15.5 32.0 8.8 12.1 20.5 / 20.2 / 18.7 / 37.8 / 37.6
+‡ 3.4 / 4.1 4.2 / 4.4 36.2 / 31.2 ‡ 6.8 / 8.4 / 10.8 / 13.0
+‡ 9.3 / 9.2 10.6 / 10.5 ‡ 11.8 / 13.0 6.1 / 16.7 / 6.3 / 17.0 ‡ 1.67 / 3.64 / 1.85 / 3.71 7.3 / 6.0 13.4 / 7.3 7.3 / 7.1 8.8 / 8.0 ‡ 6.5 / 4.3
+Table 2: CER or WER (%) of different conﬁgurations using AED with joint CTC. “Conformer-Deep” has 15 encoder layers with 1024 FFN units, while “Conformer-Wide” has 12 encoder lay- ers with 2048 FFN units. Evaluation sets are the same as in Table 1, except that LibriSpeech 100h only shows test sets.
+Table 4: CER or WER (%) of RNN-T models. The decoder is a single-layer LSTM [50]. Beam search with beam size 10 is performed without a language model.
+Dataset
+Conformer
+E-Branchformer
+Dataset
+Conformer-Deep Conformer-Wide E-Branchformer
+Params Results ↓ Params Results ↓ Params Results ↓
+LibriSpeech 100h Switchboard TEDLIUM2 VoxForge
+39.0 36.7 35.5 35.2
+6.6 / 17.2 13.5 / 7.4 7.5 / 7.6 9.0 / 8.1
+46.8 44.5 43.4 43.0
+6.6 / 17.1 13.8 / 7.5 7.5 / 7.5 8.9 / 8.0
+38.5 36.2 35.0 34.7
+6.3 / 17.0 13.4 / 7.3 7.3 / 7.1 8.8 / 8.0
+Table 3: CER or WER (%) of pure CTC-based models. Greedy search is performed without a language model.
+Dataset
+Conformer
+E-Branchformer
+Params
+Results ↓
+Params
+Results ↓
+AISHELL LibriSpeech 100h TEDLIUM2
+26.8 27.0 25.8
+5.8 / 6.3 9.4 / 22.5 / 9.9 / 23.1 9.1 / 9.0
+26.2 26.4 25.3
+5.4 / 6.0 9.2 / 22.4 / 9.6 / 23.1 8.7 / 8.3
+benchmarks. The hidden sizes are d = 256 for all models. E-Branchformer consists of 12 encoder layers with 1024 FFN units and 1024 MLP units (dmlp in Eq. (11)). “Conformer-Deep” has 15 encoder layers with 1024 FFN units, while “Conformer- Wide” has 12 layers with 2048 FFN units. E-Branchformer consistently achieves lower CERs or WERs than “Conformer- Deep” with a similar size. It even shows better or similar per- formance than “Conformer-Wide” whose size is 20% larger.
+Different E2E ASR frameworks (i.e., AED, CTC and RNN- T) typically share a similar encoder. To investigate the general- izability of Conformer and E-Branchformer encoders, we apply them to pure CTC and RNN-T models. Table 3 and Table 4 summarize the two sets of experiments, respectively. Similar to the AED results, E-Branchformer achieves consistent improve- ments over Conformer in various evaluation sets under the same training condition. This demonstrates that E-Branchformer en- coders are capable of extracting better contextualized speech representations which generally beneﬁt E2E ASR.
+Params
+Results ↓
+Params
+Results ↓
+AISHELL LibriSpeech 100h TEDLIUM2
+29.9 30.5 26.8
+4.9 / 5.3 6.6 / 17.9 / 6.9 / 18.1 8.1 / 7.7
+29.4 30.0 26.3
+4.9 / 5.2 6.6 / 17.6 / 6.8 / 18.0 7.6 / 7.4
+(and Branchformer) can offer greater training stability than Conformer, as observed empirically. For instance, in an ex- periment with TEDLIUM2 where we set the peak learning rate to 2e-3 and used pure CTC with 33M parameter en- coders, Conformer failed in 6 out of 10 random trials, while E-Branchformer only failed twice. One reason for this may be that Conformer’s sequential combination of mod- ules increases the encoder’s depth and makes it harder to con- verge. Moreover, in the successful trials, E-Branchformer ex- hibited lower validation loss in an early stage of training. It is worth noting that although a lower learning rate could im- prove training stability, in our case, it degraded the WERs. • A similar conﬁguration of E-Branchformer performs well in many ASR corpora. Using Macaron-style FFNs like those in Conformer is generally beneﬁcial. For medium-sized mod- els, we recommend setting the hidden size to d = 256 and us- ing 4× expansion in FFNs and cgMLP. For large models, we suggest following the original paper [13] and using d = 512 with 6× expansion in cgMLP and 2× expansion in FFNs. • The same training hyperparameters (e.g., batch size, learning rate, warmup steps, total epochs) used by Conformer usually work well for E-Branchformer assuming their sizes are close. In most experiments, we did not change these conﬁgurations. • Stochastic depth [51] is disabled in most of our experiments for fair comparison with prior baselines. However, we do ﬁnd that it can slightly improve the ﬁnal results for datasets like FLEURS and LibriSpeech 960h. Moreover, it can be applied to both encoder and decoder, e.g., with dropout probabilities 0.1 and 0.2, respectively.
+3.3. Discussions
+The following are some observations and training tips based on our investigations. • When the model is large or the data is small, E-Branchformer
+With joint CTC training [31], the auxiliary CTC loss can be a reliable metric for assessing the success of the training pro- cess in an early stage. If the validation loss does not decrease in the ﬁrst few epochs, we need to reduce the learning rate or increase warmup steps. This also applies to Conformer.
+
+
+Table 5: Speech translation results.
+Dataset
+Conformer
+E-Branchformer
+Params BLEU ↑ Params BLEU ↑
+MuST-C [45] Fisher [41] Callhome [41]
+74.5 69.8 69.8
+28.6 55.5 21.2
+71.4 66.8 66.8
+28.7 55.6 21.9
+4. Speech translation experiments
+4.1. Setups
+Data. Two ST datasets are used. MuST-C [45] is a TED-Talk corpus for English-to-X translation. We use the 400 hour v2 set of English-to-German. Fisher-Callhome [41] is a 170 hour conversational corpus for Spanish-to-English translation. Models. We use the attention-based encoder-decoder (AED) with joint CTC training and decoding [31, 32]. Our ST mod- els are similar to our ASR models, except they use hierarchical CTC encoders [52] which consist of a 12-layer Conformer or E-Branchformer attached to an ASR CTC criterion followed by another 6-layer Conformer or 8-layer E-Branchformer attached to an ST CTC criterion. Given the greater number of layers for ST models, we use a slightly higher number of layers for our E-Branchformer models to keep parameter counts in a similar range – E-Branchformer models are still smaller. ST models use ASR pre-training for the ﬁrst 12 encoder layers. Training. We follow the ESPnet2 recipes for data prepara- tion, model training and decoding. Speed perturbation with ra- tios {0.9, 1.0, 1.1} and SpecAugment [36] are performed. The medium-sized model with hidden size d = 256 is used. The Adam [37] optimizer with warmup [7] is employed.
+4.2. Results
+Table 5 shows the ST results. E-Branchformer achieves a higher BLEU score than Conformer on Callhome (21.9 vs. 21.2) and also shows minor improvements on MuST-C and Fisher with a slightly smaller model size. This suggests that E-Branchformer is capable of handling non-monotonic sequence transductions such as translation where source-to-target word re-ordering may occur.
+5. Speech understanding experiments
+5.1. Setups
+Data. Three SLU datasets are used. SLURP [53] is a multi- domain corpus for intent classiﬁcation and entity recognition, which contains single-turn user interactions with a home assis- tant. SLUE [54] is a low-resource benchmark containing natu- rally produced speech for named entity recognition (NER) and sentiment analysis. STOP [55] is a large-scale corpus for spo- ken task-oriented semantic parsing. Models. As in ESPnet-SLU [19], SLU tasks are formulated as seq2seq problems. The input is a sequence of speech features, and the output is a sequence of text tokens including special SLU labels. Then, the same E2E ASR models can be applied. Speciﬁcally, we employ AED models with joint CTC [31, 32], where the decoder is a 6-layer Transformer. Similar to [56], an SSL frontend is used for SLUE and STOP. Training. We follow the ESPnet2 recipes for data prepara- tion, training and decoding. Speed perturbation and SpecAug- ment [36] are performed for data augmentation. The Adam [37] optimizer with warmup [7] is employed.
+Table 6: Spoken language understanding results on test sets. SLURP shows intent classiﬁcation accuracy (%) and SLU-F1 (%). SLUE-voxpopuli shows micro and macro F1 (%). SLUE- voxceleb shows macro F1 (%). STOP shows exact match accu- racy (%). † means a frozen SSL frontend is used but not counted.
+Dataset
+Conformer
+E-Branchformer
+Params Results ↑
+Params Results ↑
+SLURP [53] SLUE-voxpopuli [54] SLUE-voxceleb [54] STOP [55]
+109.4 † 32.4 † 32.4 † 114.3
+86.5 / 76.9 68.6 / 55.8 38.5 73.2
+110.2 † 33.5 † 33.5 † 146.8
+87.4 / 77.6 68.7 / 55.9 38.1 74.0
+5.2. Results
+Table 6 shows SLU results. E-Branchformer has superior per- formance over Conformer on SLURP with a similar model size. It also achieves a higher accuracy on STOP, but the model size is larger due to the reuse of conﬁguration from LibriSpeech 960h. For low-resource SLUE-voxpopuli (NER) and SLUE-voxceleb (sentiment analysis) corpora, training is done 3 times with dif- ferent random seeds, and metrics are averaged. We observe that E-Branchformer is slightly better on SLUE-voxpopuli but worse on SLUE-voxceleb. This indicates that the frozen SSL frontend might be more important than the additional encoder layers in low-resource SLU tasks.
+6. Conclusion
+This work investigates the effectiveness of E-Branchformer in various speech processing tasks, including ASR, ST, and SLU, and compares it to Conformer using different E2E frameworks. Our extensive experiments in publicly available benchmarks have shown that E-Branchformer outperforms Conformer in a wide variety of tasks, and can be more stable when training with large model size or on small datasets. In addition, we share var- ious training tips and we will release our training conﬁgurations and pre-trained models to ensure full reproducibility, which can greatly beneﬁt the speech community. Future research direc- tions would include evaluating E-Branchformer on more di- verse and challenging datasets in low-resource languages and noisy environments. Additionally, the E-Branchformer archi- tecture may also improve the performance of SSL models such as WavLM [57] and data2vec 2.0 [58].
+7. Acknowledgements
+This work used PSC Bridges2 and NCSA Delta through alloca- tion CIS210014 from the Advanced Cyberinfrastructure Coor- dination Ecosystem: Services & Support (ACCESS) program, which is supported by National Science Foundation grants #2138259, #2138286, #2138307, #2137603, and #2138296.
+8. References [1] W. Chan, N. Jaitly, Q. Le, and O. Vinyals, “Listen, attend and spell: A neural network for large vocabulary conversational speech recognition,” in Proc. ICASSP, 2016. [2] A. Zeyer et al., “Improved Training of End-to-end Attention Mod-
+els for Speech Recognition,” in Proc. Interspeech, 2018.
+[3] C.-C. Chiu, T. N. Sainath et al., “State-of-the-art speech recogni- tion with sequence-to-sequence models,” in Proc. ICASSP, 2018.
+[4] T. N. Sainath, B. Kingsbury et al., “Improvements to Deep Con- volutional Neural Networks for LVCSR,” in Proc. ASRU, 2013.
+[5] J. Li, V. Lavrukhin et al., “Jasper: An End-to-End Convolutional
+Neural Acoustic Model,” in Proc. Interspeech, 2019.
+
+
+[6] W. Han, Z. Zhang, Y. Zhang et al., “ContextNet: Improving Con- volutional Neural Networks for Automatic Speech Recognition with Global Context,” in Proc. Interspeech, 2020.
+[7] A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones et al.,
+“Attention is all you need,” in Proc. NeurIPS, 2017.
+[8] S. Karita, N. Chen, T. Hayashi et al., “A comparative study on transformer vs rnn in speech applications,” in Proc. ASRU, 2019.
+[9] Q. Zhang, H. Lu, H. Sak et al., “Transformer transducer: A streamable speech recognition model with transformer encoders and rnn-t loss,” in Proc. ICASSP, 2020.
+[10] A. Gulati, J. Qin et al., “Conformer: Convolution-augmented Transformer for Speech Recognition,” in Proc. Interspeech, 2020.
+[11] P. Guo, F. Boyer, X. Chang et al., “Recent developments on espnet
+toolkit boosted by conformer,” in Proc. ICASSP, 2021.
+[12] Y. Peng et al., “Branchformer: Parallel MLP-attention architec- tures to capture local and global context for speech recognition and understanding,” in Proc. ICML, 2022.
+[13] K. Kim, F. Wu et al., “E-Branchformer: Branchformer with En- hanced Merging for Speech Recognition,” in Proc. SLT, 2022.
+[14] V. Panayotov et al., “Librispeech: An ASR corpus based on public
+domain audio books,” in Proc. ICASSP, 2015.
+[15] A. Graves et al., “Connectionist temporal classiﬁcation: labelling unsegmented sequence data with recurrent neural networks,” in Proc. ICML, 2006.
+[16] A. Graves, “Sequence transduction with recurrent neural net-
+works,” arXiv preprint arXiv:1211.3711, 2012.
+[17] S. Watanabe, T. Hori, S. Karita et al., “ESPnet: End-to-End
+Speech Processing Toolkit,” in Proc. Interspeech, 2018.
+[18] H. Inaguma et al., “ESPnet-ST: All-in-one speech translation
+toolkit,” in Proc. ACL: System Demonstrations, 2020.
+[19] S. Arora et al., “ESPnet-SLU: Advancing Spoken Language Un-
+derstanding Through ESPnet,” in Proc. ICASSP, 2022.
+[20] K. He, X. Zhang, S. Ren, and J. Sun, “Deep residual learning for
+image recognition,” in Proc. CVPR, 2016.
+[21] J. L. Ba, J. R. Kiros, and G. E. Hinton, “Layer normalization,”
+arXiv preprint arXiv:1607.06450, 2016.
+[22] Q. Wang, B. Li, T. Xiao et al., “Learning deep transformer models
+for machine translation,” in Proc. ACL, 2019.
+[23] T. Q. Nguyen and J. Salazar, “Transformers without tears: Im- proving the normalization of self-attention,” in Proc. IWSLT, 2019.
+[24] P. Ramachandran, B. Zoph, and Q. V. Le, “Searching for activa-
+tion functions,” arXiv preprint arXiv:1710.05941, 2017.
+[25] Y. Lu et al., “Understanding and improving transformer from a multi-particle dynamic system point of view.” in Proc. ICLR Workshop on Integrat. of Deep Neural Models and Diff. Eq., 2019.
+[26] Z. Dai et al., “Transformer-XL: Attentive language models be-
+yond a ﬁxed-length context,” in Proc. ACL, 2019.
+[27] Y. N. Dauphin, A. Fan et al., “Language modeling with gated con-
+volutional networks,” in Proc. ICML, 2017.
+[28] S. Ioffe and C. Szegedy, “Batch normalization: Accelerating deep network training by reducing internal covariate shift,” in Proc. ICML, 2015.
+[29] J. Sakuma, T. Komatsu,
+“MLP-based architecture with variable length input for automatic speech recognition,” 2022. [Online]. Available: https://openreview.net/ forum?id=RA-zVvZLYIy
+and R. Scheibler,
+[30] M. M. Forbes et al., “AphasiaBank: A resource for clinicians,” in
+Proc. Seminars in speech and language, 2012.
+[31] S. Kim et al., “Joint CTC-attention based end-to-end speech
+recognition using multi-task learning,” in Proc. ICASSP, 2017.
+[32] T. Hori, S. Watanabe, and J. R. Hershey, “Joint CTC/attention decoding for end-to-end speech recognition,” in Proc. ACL, 2017.
+[33] W. Chen, B. Yan et al., “Improving Massively Multilingual ASR With Auxiliary CTC Objectives,” in Proc. ICASSP, 2023.
+[34] J. Lee and S. Watanabe, “Intermediate loss regularization for ctc-
+based speech recognition,” in Proc. ICASSP, 2021.
+[35] J. Nozaki and T. Komatsu, “Relaxing the Conditional Indepen- dence Assumption of CTC-Based ASR by Conditioning on Inter- mediate Predictions,” in Proc. Interspeech, 2021.
+[36] D. S. Park, W. Chan, Y. Zhang et al., “SpecAugment: A Simple Data Augmentation Method for Automatic Speech Recognition,” in Proc. Interspeech, 2019.
+[37] D. P. Kingma and J. Ba, “Adam: A method for stochastic opti-
+mization,” arXiv preprint arXiv:1412.6980, 2014.
+[38] “aidatatang 200zh, a free Chinese Mandarin speech corpus by
+Beijing DataTang Technology Co., Ltd ( www.datatang.com ).”
+[39] H. Bu, J. Du, X. Na, B. Wu, and H. Zheng, “AISHELL-1: An open-source Mandarin speech corpus and a speech recognition baseline,” in Proc. O-COCOSDA, 2017.
+[40] E. Vincent et al., “An analysis of environment, microphone and data simulation mismatches in robust speech recognition,” Com- puter speech & language, vol. 46, pp. 535–557, 2017.
+[41] M. Post et al., “Improved speech-to-text translation with the ﬁsher and callhome Spanish-English speech translation corpus,” in Proc. IWSLT, 2013.
+[42] A. Conneau et al., “FLEURS: Few-Shot Learning Evaluation of Universal Representations of Speech,” in Proc. SLT, 2022. [43] G. Chen et al., “GigaSpeech: An Evolving, Multi-Domain ASR Corpus with 10,000 Hours of Transcribed Audio,” in Proc. Inter- speech, 2021.
+[44] R. Sonobe, S. Takamichi, and H. Saruwatari, “Jsut corpus: free large-scale japanese speech corpus for end-to-end speech synthe- sis,” arXiv preprint arXiv:1711.00354, 2017.
+[45] R. Cattoni, M. A. Di Gangi, L. Bentivogli et al., “Must-c: A multilingual corpus for end-to-end speech translation,” Computer speech & language, vol. 66, p. 101155, 2021.
+[46] J. Godfrey et al., “SWITCHBOARD: telephone speech corpus for
+research and development,” in Proc. ICASSP, 1992.
+[47] A. Rousseau, P. Del´eglise, Y. Esteve et al., “Enhancing the ted- lium corpus with selected data for language modeling and more ted talks.” in LREC, 2014, pp. 3935–3939.
+[48] “VoxForge.” [Online]. Available: http://www.voxforge.org/
+[49] D. B. Paul and J. Baker, “The design for the Wall Street Journal- based CSR corpus,” in Proc. Workshop on Speech and Natural Language, 1992.
+[50] S. Hochreiter and J. Schmidhuber, “Long short-term memory,”
+Neural computation, vol. 9, no. 8, pp. 1735–1780, 1997.
+[51] G. Huang, Y. Sun, Z. Liu, D. Sedra, and K. Q. Weinberger, “Deep
+networks with stochastic depth,” in Proc. ECCV, 2016.
+[52] B. Yan et al., “CTC alignments improve autoregressive transla-
+tion,” arXiv preprint arXiv:2210.05200, 2022.
+[53] E. Bastianelli, A. Vanzo et al., “SLURP: A Spoken Language Un-
+derstanding Resource Package,” in Proc. EMNLP, 2020.
+[54] S. Shon, A. Pasad, F. Wu, P. Brusco, Y. Artzi, K. Livescu, and K. J. Han, “Slue: New benchmark tasks for spoken language un- derstanding evaluation on natural speech,” in Proc. ICASSP, 2022. [55] P. Tomasello, A. Shrivastava, D. Lazar et al., “STOP: A Dataset for Spoken Task Oriented Semantic Parsing,” in Proc. SLT, 2022. [56] Y. Peng, S. Arora, Y. Higuchi et al., “A study on the integration of pre-trained ssl, asr, lm and slu models for spoken language under- standing,” in Proc. SLT, 2022.
+[57] S. Chen et al., “Wavlm: Large-scale self-supervised pre-training for full stack speech processing,” IEEE J. Sel. Topics Signal Pro- cess., vol. 16, no. 6, pp. 1505–1518, 2022.
+[58] A. Baevski et al., “Efﬁcient self-supervised learning with contex- tualized target representations for vision, speech and language,” arXiv preprint arXiv:2212.07525, 2022.

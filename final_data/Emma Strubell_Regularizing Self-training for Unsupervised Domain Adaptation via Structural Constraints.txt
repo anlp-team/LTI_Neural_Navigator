@@ -1,0 +1,795 @@
+3 2 0 2
+r p A 9 2
+]
+V C . s c [
+1 v 1 3 1 0 0 . 5 0 3 2 : v i X r a
+Regularizing Self-training for Unsupervised Domain Adaptation via Structural Constraints
+Rajshekhar Das1* † Jonathan Francis1,2∗ Sanket Vaibhav Mehta1∗
+Jean Oh1 Emma Strubell1
+Jos´e Moura1
+1Carnegie Mellon University 2Bosch Center for Artiﬁcial Intelligence {rajshekd, jmf1, svmehta, hyaejino, strubell, moura}@andrew.cmu.edu
+Abstract
+Self-training based on pseudo-labels has emerged as a dominant approach for addressing conditional distribution shifts in unsupervised domain adaptation (UDA) for se- mantic segmentation problems. A notable drawback, how- ever, is that this family of approaches is susceptible to er- roneous pseudo labels that arise from conﬁrmation biases in the source domain and that manifest as nuisance fac- tors in the target domain. A possible source for this mis- match is the reliance on only photometric cues provided by RGB image inputs, which may ultimately lead to sub- optimal adaptation. To mitigate the effect of mismatched pseudo-labels, we propose to incorporate structural cues from auxiliary modalities, such as depth, to regularise con- ventional self-training objectives. Speciﬁcally, we introduce a contrastive pixel-level objectness constraint that pulls the pixel representations within a region of an object instance closer, while pushing those from different object categories apart. To obtain object regions consistent with the true underlying object, we extract information from both depth maps and RGB-images in the form of multimodal cluster- ing. Crucially, the objectness constraint is agnostic to the ground-truth semantic labels and, hence, appropriate for In this work, we show unsupervised domain adaptation. that our regularizer signiﬁcantly improves top performing self-training methods (by up to 2 points) in various UDA benchmarks for semantic segmentation. We include all code in the supplementary.
+Figure 1. Motivation for Objectness Constraints: The above examples compare target-domain ground-truth segmentation, pre- dicted segmentation and prediction conﬁdence (brighter regions are more conﬁdent) of a seed model that was adapted from source to target domain via adversarial adaptation [48]. Most self-training approaches use such a seed model to predict pixelwise pseudo- labels. The blue-dashed-boxes highlighte the high-conﬁdence re- gions that are likely to be included in the set of a pseudo-labels despite being mis-classiﬁed. We propose to mitigate the adverse effect of such noisy pseudo-labels on self-training based adapta- tion via objectness constraints.
+1. Introduction
+Semantic segmentation is a crucial and challenging task for applications such as autonomous driving [2, 18, 51, 60, 61] that rely on pixel-level semantics of the scene. Perfor- mance on this task has signiﬁcantly improved over the past few years following the advances in deep supervised learn-
+Equal contribution. †Correspondence.
+ing [9]. However, an important limitation arises from the excessive cost and time taken to annotate images at a pixel- level (reported to be 1.5 hours per image in a popular dataset [12]). Further, most real-world datasets do not have sufﬁ- cient coverage over all variations in outdoor scenes such as weather conditions and geography-speciﬁc layouts that can be crucial for large-scale deployment of learning-based models in autonomous vehicles. Acquiring training data to cater to such scene variations would signiﬁcantly add to the
+1
+
+
+cost of annotation.
+To address the annotation problem, synthetic datasets cu- rated from 3D simulation environments like GTA [37] and SYNTHIA [38] have been proposed where large amounts of annotated data can be easily generated. However, generated data introduces domain shift due to differences in visual characteristics of simulated images (source domain) and real images (target domain). To mitigate such shifts, unsu- pervised domain adaptation strategies [2,5,18,48,60,61,64] for semantic segmentation have been extensively studied in the recent years. Among these approaches, self-training [16] has emerged as a particularly promising approach that involves pseudo labelling the (unlabelled) target-domain data using a seed model trained solely on the source do- main. Pseudo-label predictions for which the conﬁdence exceeds a predeﬁned threshold are then used to further train the model and ultimately improve the target-domain perfor- mance.
+While self-training based adaptation is quite effective, it is susceptible to erroneous pseudo labels arising from con- ﬁrmation bias [3] in the seed model. Conﬁrmation bias re- sults from training on source domain semantics that might introduce factors of representation that serve as nuisance factors for the target domain. In the context of semantic segmentation, such a bias manifests as pixel-wise seed pre- dictions that are highly conﬁdent but incorrect (see Figure 1). For instance, if the source domain images usually have bright regions (high intensity of the RGB channels) for the sky class, then bright regions in target domain images might be predicted as the sky with high conﬁdence, irrespective of the actual semantic label. Since highly conﬁdent predic- tions qualify as pseudo-labels, training the model on poten- tially noisy predictions can ultimately lead to sub-optimal performance in the target domain. Thus, in this work, we seek to reduce the heavy reliance of self-training methods on photometric cues for predicting pixel-wise semantic la- bels.
+To that end, we propose to incorporate auxiliary modal- ity information such as depth maps that can provide struc- tural cues [11,24,51,53], complementary to the photometric cues. Semantic segmentation datasets are usually accom- panied by depth maps that can be easily acquired in prac- tice [12,39]. Since na¨ıve fusion of features that are extracted from depth information can also introduce nuisance [24,51], an important question is raised — How can we leverage the depth modality to counter the effect of noisy pseudo- labels during self-training? In this work, we propose a contrastive objectness constraint derived from depth maps and RGB-images in the target domain that is used to reg- ularise conventional self-training methods. The constraint is computed in two steps: an object-region estimation step, followed by pixel-wise contrastive loss computation. In the ﬁrst step, we perform unsupervised image segmentation us-
+2
+ing both depth-based histograms and RGB-images that are fused together to yield multiple object-regions per image. These regions respect actual object boundaries, based on the structural information depth provides, as well as vi- sual similarity. In the second step, the object-regions are leveraged to formulate a contrastive objective [10, 22, 44] that pulls together pixel representations within an object re- gion and pushes apart those from different semantic cate- gories. Such an objective can improve semantic segmen- tation by causing the pixel representations of a semantic category to form a compact cluster that is well separated from other categories. We empirically demonstrate the ef- fectiveness of our constraint on popular benchmark tasks, GTA→Cityscapes and SYNTHIA→Cityscapes, on which we achieve competitive segmentation performance. To summarise our contributions:
+We propose a novel objectness constraint derived from depth and RGB information to regularise self-training approaches in unsupervised domain adaptation for se- mantic segmentation. The use of multiple modalities introduces implicit model supervision that is comple- mentary to the pseudo-labels and hence, lead to a more robust self-training.
+We empirically validate the most important aspect of our regulariser, i.e., its ability to improve a variety of self-training methods. Speciﬁcally, our approach achieves 1.2%-2.9% (GTA) and 2.2%-4.4% (SYN- THIA) relative improvements over three different self- training baselines. Interestingly, we observe that reg- ularisation improves performance on both “stuff” and “things” classes, somewhat normalising the effects of classwise statistics.
+Further,
+self-training method achieves state-of-the-art mIoU of 54.2% in GTA → Cityscapes settings and improves classwise IoUs by up to 4.8% over best prior results.
+our
+regularised
+2. Related Work
+Unsupervised domain adaptation. Unsupervised domain adaptation (UDA) is of particular importance in complex structured-prediction problems, such as semantic segmen- tation in autonomous driving, where the domain gap be- tween a source domain (e.g., an urban driving dataset) and target domain (real-world driving scenarios) can have dev- astating consequences on the efﬁcacy of deployed mod- els. Several approaches [5, 14, 18, 30, 35] have been pro- posed for learning domain invariant representations, e.g., through adversarial feature alignment [6, 14, 49, 54], which addresses the domain gap by minimising a distance met- ric that characterises the divergence between the two do- mains [4,13,28,29,33,36,40,43]. Problematically, such ap- proaches address only shifts in the marginal distribution of
+
+
+the covariates or the labels and, therefore, prove insufﬁcient for handling the more complex shifts in the conditionals [20, 55, 62]. Self-training approaches have been proposed to induce category-awareness [60] or cluster density-based assumptions [42], in order to anchor or regularise condi- tional shift adaptation, respectively. In this paper, we build upon these works by jointly introducing category-awareness through the use of pseudo-labeling strategies and regulari- sation through the deﬁnition of contrastive depth-based ob- jectness constraints.
+Self-training with pseudo-labels. Application of self- training has become popular in the sphere of domain adap- tation for semantic segmentation [23, 25, 60, 64]. Here, pseudo-labels are assigned to observations from the target domain, based on the semantic classes of high-conﬁdence (e.g., the closest or least-contrastive) category centroids [57, 60], prototypes [8], cluster centers [21], or superpixel representations [61] that are learned by a model trained on the source domain. Often, to ensure the reliability of initial pseudo labels for target domain, the model is ﬁrst warmed up via adversarial adaptation [60, 61]. Moreover, for stabil- ity purposes, pseudo labels are updated in a stagewise fash- ion, thus resulting in an overall complex adaptation scheme. Towards streamlining this complex adaptation process, re- cent approaches like [2, 47] propose to train without adver- sarial warmup and with a momentum network to circumvent stagewise training issue. A common factor underlying most self-training methods is their reliance on just RGB inputs that may not provide sufﬁcient signal for predicting robust target-domain pseudo labels. This motivates us to look for alternate forms of input like depth that is easily accessible and provide a more robust signal.
+Adaptation with multiple modalities. Learning and adap- tation using multimodal contexts presents an opportunity for leveraging complementarity between different views of the input space, to improve model robustness and general- isability. In the context of unsupervised domain adaptation, use of mutimodal information has recently become more popular with pioneering works like [24]. Speciﬁcally, [24] uses depth regression as a way to regularise the GAN based domain translation resulting in better capture of source se- mantics in the generated target images. Another related ap- proach [51] proposes the use of depth via an auxiliary objec- tive to learn features that when fused with primary semantic segmentation prediction branch provides a more robust rep- resentation for adaptation. While sharing our motivation for use of auxiliary information, their use of fused features for adaptation does not address the susceptibility of adversar- ial adaptation to conditional distribution shifts. In contrast to this method, we propose a depth based objectness con- straint for adaptation via self-training that not only lever- ages multimodal context but also handles conditional shifts more effectively. Moreover, unlike the previous works that
+3
+use depth only for the source domain, we explore its ap- plication exclusively to the target domain. Contemporary to our setting, [53] improves adaptation by extracting the correlation between depth and RGB in both domains. An important distinction of our approach with regards to above works is that we exploit the complementarity of RGB and depth instead of the correlation to formulate a contrastive regularizer. The importance of multimodal information has also been considered in other contexts such as indoor se- mantic segmentation [45] and adaptation for 3D segmenta- tion using 2D images and 3D points clouds [19]. While not directly related to our experimental settings, they provide insight and inspiration for our approach.
+3. Self-Training with Objectness Constraints
+We begin by introducing preliminary concepts on self- training based adaptation. These concepts serve as bases for introducing our objectness constraint in Section 3 that is used to regularise the self-training methods. We refer to our framework as PAC-UDA which uses Pseudo-labels And objectness Constraints for self-training in Unsupervised Domain Adaptation for semantic segmentation. Although, we describe a canonical form of self-training for formalis- ing our regularisation constraint, PAC-UDA should be seen as a general approach that can encompass various forms of self-training (as shown in experiments).
+Unsupervised Domain Adaptation (UDA) for Semantic i )}Ns Segmentation: Consider a dataset Ds = {(xs i=1 of input-label pairs sampled from a source domain dis- tribution, P s X×Y . The input and labels share the same spatial dimensions, H × W , where each pixel of the la- bel is assigned a class c ∈ {1, . . . , C} and is represented via a C dimensional one-hot encoding. We also have a dataset Dt = {(xt i=1 sampled from a target distri- bution, P t X×Y where the corresponding labels, {yt i } are un- observed during training. Here, the target domain is sepa- rated from the source domain due to domain shift expressed as P s X×Y . Under such a shift, the goal of un- supervised domain adaptation is to leverage Ds and Dt to learn a parametric model that performs well in the target domain. The model is deﬁned as a composition of an en- coder, Eφ : X → Z and a classiﬁer, Gψ : Z → ZP where, Z ∈ RH×W ×d represents the space of d-dimensional spa- tial embeddings, ZP ∈ RH×W ×C gives the un-normalized distribution over the C classes at each spatial location, and {φ, ψ} are the model parameters. To learn a suitable target model, the parameters are optimised using a cross-entropy
+i , ys
+i )}Nt
+i, yt
+X×Y (cid:54)= P t
+
+
+Figure 2. Objectness Constraint Formulation: Overall pipeline for computing the objectness constraint using multi-modal object-region estimates derived from RGB-Image and Depth-Map. Depth segmentation is obtained by clustering the histogram of depth values and RGB segmentation is obtained via k-means clustering (SLIC) of raw-pixel intensities. Fusing these two types of segmentation yields object regions that are more consistent with the actual object. For example, a portion of the car in the middle is wrongly clustered with the road in depth segmentation and with the left-wall under RGB segmentation. However, the fused segmentation yields car-regions that completely respect the boundary of the car.
+objective on the source domain,
+Ls
+cls = −
+1 Ns
+Ns(cid:88)
+i=1
+H×W (cid:88)
+m=1
+C (cid:88)
+c=1
+imc log ps ys
+imc(ψ, φ)
+(1)
+Note that while Eqn. 3 uses a class-agnostic ﬁxed threshold in practice, this threshold can be made class-speciﬁc and dy- namically updated over the course of self-training. Such a threshold ensures that only the highly-conﬁdent predictions contribute to successive training. The ﬁnal self-training ob- jective can be written in terms of pseudo-labels as
+imc(ψ, φ) = σ (Gψ ◦ Eφ(xs ps
+i )) |m,c ,
+where σ denotes softmax operation and an adaptation ob- jective over the target domain as described next. Pseudo-label self-training (PLST): Following prior works [60, 64], we describe a simple and effective approach to PLST that leverages a source trained seed model to pseudo- label unlabelled target data, via conﬁdence thresholding. Speciﬁcally, the seed model is ﬁrst trained on Ds using Eqn. 2 to obtain a good parameter initialisation, {φ0, ψ0}. Then, this model is used to compute pixel-wise class prob- abilities, pt im(ψ0, φ0) using to Eqn. 2 for each target image, xt i ∈ Dt. These probabilities are used in conjunction with a predeﬁned threshold δ, to obtain one-hot encoded pseudo- labels
+˜yt imc =
+(cid:40)1 if c = arg max 0 otherwise
+c(cid:48)
+imc(cid:48) and pt pt
+imc ≥ δ
+(2)
+(3)
+Lt
+st = −
+1 Nt
+Nt(cid:88)
+i=1
+H×W (cid:88)
+m=1
+C (cid:88)
+c(cid:48)=1
+imc(cid:48) log (cid:0)pt ˜yt
+imc(cid:48)
+(cid:1)
+(4)
+The overall UDA objective is simply, Luda = Ls where αst is the relative weighting coefﬁcients.
+cls + αstLt st,
+3.1. Supervision For Objectness Constraint
+An important issue with the self-training scheme de- scribed above is that it is usually prone to conﬁrmation bias that can lead to compounding errors in target model pre- dictions when trained on noisy pseudo-labels. To alleviate target performance, we introduce auxiliary modality infor- mation (like, depth) that can provide indirect supervision for semantic labels in the target domain and improve the robustness of self-training. In this section we describe our multimodal objectness constraint that extracts object-region estimates to formulate a contrastive objective. The overview
+4
+
+
+of our objectness constraint formulation is presented in Fig. 2. Supervision via Depth: Segmentation datasets are often accompanied with depth maps registered with the RGB im- ages. In practice, depth maps can be obtained from stereo pairs [12,39] or sequence of images [15]. These depth maps can reveal the presence of distinct objects in a scene. We particularly seek to extract object regions from these depth maps by ﬁrst computing a histogram of depth values with predeﬁned, b number of bins. We then leverage the prop- erty of objects under ”things” categories [17] whose range of the depth is usually much smaller than the range of en- tire scene depth. Examples of such categories in outdoor scene segmentation include persons, cars, poles etc. This property translates into high density regions (or peaks) in the histogram corresponding to distinct objects at distinct depths. Among these peaks, we use the ones with promi- nence [27] above a threshold, δpeak as centers to cluster the histograms into discrete regions with unique labels. These labels are then assigned to every pixel whose depth values lie in the associated region. An example of the resulting depth-based segmentation for b = 200 and δpeak = 0.0025 is visualised in Fig. 2. Supervision via RGB: Another important form of self- supervision for object region estimates is based on RGB- input clustering. We adopt SLIC [1] as a fast algorithm for partitioning images into multiple segments that respect object boundaries; the SLIC method applies k-means clus- tering in pixel space to group together adjacent pixels that are visually similar. An important design decision is the number of SLIC segments, ks: small ks leads to large clus- ter sizes that is agnostic to the variation in object scales, across different object categories and instances of the scene. Consequently, pixels from distinct object instances may be grouped together regardless of the semantic class, thus vi- olating the notion of object region. Conversely, a large ks will over-segment each object in the scene, resulting in a trivial objectness constraint. Triviality arises from enforc- ing similarity of pixel-embeddings that share roughly iden- tical pixel neighbourhoods and hence are likely to yield the same class predictions anyway.
+Thus, to formulate a non-trivial constraint with sufﬁ- ciently small ks that also respects object boundaries, we propose to fuse region estimates from both depth and RGB modalities.We ﬁrst obtain ks segments using SLIC over the RGB image followed by further partitioning of each seg- ment into smaller ones based on the depth segmentation. The process, visualised in Fig. 2 highlights the importance of our multimodal approach. Purely depth based segments are agnostic to pixel intensities and may cluster together dis- tinct object categories that lie at similar depths, for instance, the car in the front and the sidewalk. On the other hand, purely RGB segments with sufﬁciently small ks may assign
+5
+the same cluster label even to objects at distinct depths, for example, the back of the bus and the small car at the back. In contrast, object regions derived from a fusion of these two modalities can lead to object regions that are more consis- tent with individual object instances (for example, the small car at the back as well as the car in the front). We empiri- cally demonstrate the effectiveness of objectness constraint derived from such multimodal fusion in Section 4.3.
+3.2. Objectness Constraints through Contrast
+Our objectness constraint is formulated using a con- trastive objective that pulls together pixel representations within an object region and pushes apart those that belong to different object categories. Formally, we assign a region index and a region label to every pixel associated with an object region of the input scene. Each region index is a unique natural number in {1, . . . , K} where K is the num- ber of object regions. A region label is assigned as the most frequent pseudo-label class within the object region. In practice, noisy pseudo-labels can lead to region labelling that is inconsistent with true semantic labels. To minimise such inconsistencies, we introduce a threshold τp that se- lects valid object regions for which the proportion of pixels with pseudo-label class same as the region label is above this threshold. This selection excludes the object regions with no dominant pseudo-label class from contributing to the objectness constraint. Since the cost of computing pair- wise constraints is quadratic in the number of pixels, we recast the pairwise constraint into a protoypical loss that re- duces the time complexity to linear. Towards the end, we ﬁrst compute a prototypical representation for each region using the associated pixel embeddings,
+νk =
+1 |Uk|
+(cid:88)
+p∈Uk
+zp
+where, Uk is the set of pixel locations with the kth object- region. Then a similarity score (based on Cosine metric) is computed between each pixel and prototypical representa- tion that forms the basis for our contrastive objectness con- straint as
+Lt
+obj =
+1 S
+(cid:88)
+(cid:88)
+k
+p∈Uk 
+Lt
+obj(p)
+
+Lt
+obj(p) = − log
+ 
+exp(˜zp · ˜νk)
+(cid:80) k(cid:48)∈Ω(k)
+exp(˜zp · ˜νk(cid:48))
+ 
+where, S is the total number of valid pixels, Ω(k) is the set of valid object regions that have region labels other than k, and ˜zp and ˜νk represent L2 normalised embeddings. Note that the objectness constraints are only computed for the target domain images since we are interested in improving
+(5)
+(6)
+(7)
+
+
+Table 1. Test of Generality: We compare the performance of regularised and un-regularised versions of three self-training approaches for two domain settings, namely, GTA → Cityscapes and SYNTHIA → Cityscapes. Both per-class IoU and mean IoUs are presented. The numbers in bold indicate higher accuracies in the pairwise comparisons, between a base-method and the base-method+PAC.
+Source Domain
+Method
+d a o r
+k l a w e d i s
+g n i d l i u b
+l l a w
+e c n e f
+e l o p
+t h g i l
+n g i s
+. e g e v
+n i a r r e t
+y k s
+n o s r e p
+r e d i r
+r a c
+k c u r t
+s u b
+n i a r t
+r o t o m
+e k i b
+CAG [60] CAG + PAC (ours)
+87.0 86.3
+44.6 45.7
+82.9 84.5
+32.1 30.5
+35.7 35.5
+40.6 38.9
+38.9 40.3
+45.5 49.9
+82.6 86.0
+23.5 33.5
+78.7 81.1
+64.0 64.1
+27.2 25.5
+84.4 84.5
+17.5 21.3
+34.8 32.9
+35.8 36.3
+26.7 26.7
+32.8 40.0
+A T G
+SAC [2] SAC + PAC (ours)
+89.9 93.3
+54.0 63.6
+86.2 87.2
+37.8 42.0
+28.9 25.4
+45.9 44.9
+46.9 49.0
+47.7 50.6
+88.0 88.1
+44.8 45.2
+85.5 87.6
+66.4 64.0
+30.3 28.1
+88.6 83.6
+50.5 37.5
+54.5 43.9
+1.5 13.7
+17.0 20.1
+39.3 46.2
+DACS [47] DACS + PAC (ours)
+93.4 93.2
+54.3 58.8
+86.3 87.2
+28.6 33.3
+33.7 35.1
+37.0 38.6
+41.1 41.8
+50.6 51.4
+86.1 87.4
+42.6 45.8
+87.6 88.3
+63.5 64.8
+28.9 31.6
+88.1 84.3
+44.2 51.7
+52.7 53.4
+1.7 0.6
+34.7 31.3
+48.1 50.6
+A H T N Y S
+I
+CAG CAG + PAC (ours)
+SAC [2] SAC + PAC (ours)
+87.0 87.0
+91.7 83.2
+41.0 42.0
+52.7 40.5
+79.0 80.0
+85.1 85.4
+9.0 12.0
+22.6 30.0
+1.0 3.0
+1.5 2.0
+34.0 30.0
+42.2 43.0
+15.0 17.0
+44.1 42.2
+11.0 17.0
+30.9 33.8
+81.0 80.0
+82.5 86.3
+-
+-
+81.0 88.0
+73.8 89.8
+55.0 57.0
+63.0 65.3
+16.0 5.0
+20.9 33.5
+77.0 75.0
+84.9 85.1
+-
+-
+17.0 20.0
+29.5 35.2
+-
+-
+2.0 1.0
+26.9 29.9
+47.0 52.0
+52.2 55.3
+DACS [47] DACS + PAC (ours)
+84.9 90.6
+23.0 46.7
+83.7 83.3
+16.0 18.7
+1.0 1.3
+36.3 35.1
+35.0 34.5
+42.8 32.0
+81.7 85.1
+-
+89.5 88.5
+63.5 66.0
+34.5 35.0
+85.3 83.8
+-
+41.5 43.1
+-
+31.2 28.8
+50.8 46.7
+target domain performance using self-training. Addition- ally, the constraint in Eqn. 7 is deﬁned for a single image but can be easily extended to multiple images by simply averaging over them; the ﬁnal regularised self-training ob- jective is then deﬁned as Lpac = Ls obj, where αobj controls the effect of the constraint on overall training.
+uda + αobj ∗ Lt
+3.3. Learning and Optimization
+To train the our model, PAC-UDA with a base self- training approach, we follow the exact procedure outlined by the corresponding approach. The only difference is that we plug in our constraint as a regularise to the base ob- jective, Luda. One important consideration is that our reg- ularise depends on reasonable quality of pseudo labels to deﬁne region labels that are not random. Thus the regular- isation weight, αobj is set to zero for a few initial training iterations, post which it switches to the actual value.
+4. Experiments
+prior works [2, 61]. The performance metrics used are per class Intersection over Union (IoU) and mean IoU (mIoU) over all the classes. Implementation Details: For object region estimates, we experiment with three different numbers, ks ∈ {25, 50, 100} of RGB-clusters, two values of prominence thresholds, δpeak ∈ {0.001, 0.0025} and three numbers of histogram bins, b ∈ {100, 200, 400}. Depth maps obtained from stereo pairs can have missing values at pixel-level, as is the case with Cityscapes. These missing values have a value zero and are ignored while generating depth segments using depth-histogram. Finally, due to high computational cost of computing the contrastive objective from pixel-wise embedding, we set the spatial resolution of these embed- dings to 256×470 in CAG and SAC and 300×300 in DACS. We ﬁxed the relative weighting of the regularizer, αobj to 1.0 as the target performance was found to be insensitive to the exact value. For hyperameter choices regarding ar- chitecture and optimizers, we exactly follow the respective self-training base methods [2, 47, 60]. Experiments were conducted on 4 × 11GB RTX 2080 Ti GPUs with PyTorch implementation. Further details in the supplementary.
+Datasets and Evaluation Metric: We evaluate the PAC- the GTA UDA framework in two common scenarios: [37]→Cityscapes [12] transfer semantic segmenta- tion task and the SYNTHIA [38]→Cityscapes [12] task. GTA5 is composed of 24, 966 synthetic images with resolution 1914 × 1052 and has annotations for 19 classes that are compatible with the categories in Cityscapes. Sim- ilarly, SYNTHIA consists of 9, 400 synthetic images of ur- ban scenes at resolution 1280 × 760 with annotations for only 16 common categories. Cityscapes has of 5, 000 real images and aligned depth maps of urban scenes at resolu- tion 2048 × 1024 and is split into three sets of 2, 975 train, 500 validation and 1, 525 test images. Of the 2, 975, we use 2, 475 randomly selected images for self-training and remaining 500 images for validation. We report the ﬁnal test performance of our method on the 500 images of the ofﬁcial validation split. The data-splits are consistent with
+4.1. Generality of Objectness Constraint
+In Table 1, we test the generality of our proposed reg- ularizer on three base methods, namely, CAG [60], SAC [2] and DACS [47] that generate pseudo labels in differ- ent ways. We use ofﬁcial implementations of each base method with almost same conﬁgurations for data prepro- cessing, model architecture, and optimizer except for a few modiﬁcations as follows. In the case of CAG, we replace the Euclidean metric with a Cosine metric as it was found to generate more reliable pseudo-labels. Also, we run it for a single self-training iteration instead of three [60]. For the SAC method, we reduce the GROUP SIZE from default value of 4 to 2 following GPU constraints. Finally, for the
+6
+mIoU
+48.2 49.6
+52.8 53.4
+52.8 54.2
+40.8 41.7
+50.3 52.5
+50.0 51.2
+
+
+Table 2. GTA → Cityscapes results: Classwise and mean (over 16 classes) IoU comparison of our DACS+PAC with prior works. † denotes the use of PSPNet [63], * denotes our implementation of SAC with a restricted conﬁguration (GROUP SIZE=2) compared to original SAC method (GROUP SIZE=4). All other methods use DeepLabV2 [9] architecture.
+d a o r
+k l a w e d i s
+g n i d l i u b
+l l a w
+e c n e f
+e l o p
+t h g i l
+n g i s
+. e g e v
+n i a r r e t
+y k s
+n o s r e p
+r e d i r
+r a c
+k c u r t
+s u b
+n i a r t
+r o t o m
+e k i b
+mIoU
+AdvEnt [50] DISE [7] Cycada [18] BLF [25] CAG-UDA [60] PyCDA† [26] CD-AM [58] FADA [52] FDA [59] SA-I2I [34] PIT [31] IAST [32] DACS [47] RPT† [61] SAC [2] SAC* [2]
+89.4 91.5 86.7 91.0 90.4 90.5 91.3 92.5 92.5 91.2 87.5 93.8 89.9 89.2 90.4 89.9
+33.1 47.5 35.6 44.7 51.6 36.3 46.0 47.5 53.3 43.3 43.4 57.8 39.7 43.3 53.9 54.0
+81.0 82.5 80.1 84.2 83.8 84.4 84.5 85.1 82.4 85.2 78.8 85.1 87.9 86.1 86.6 86.2
+26.6 31.3 19.8 34.6 34.2 32.4 34.4 37.6 26.5 38.6 31.2 39.5 30.7 39.5 42.4 37.8
+26.8 25.6 17.5 27.6 27.8 28.7 29.7 32.8 27.6 25.9 30.2 26.7 39.5 29.9 27.3 28.9
+27.2 33.0 38.0 30.2 38.4 34.6 32.6 33.4 36.4 34.7 36.3 26.2 38.5 40.2 45.1 45.9
+33.5 33.7 39.9 36.0 25.3 36.4 35.8 33.8 40.6 41.3 39.9 43.1 46.4 49.6 48.5 46.9
+24.7 25.8 41.5 36.0 48.4 31.5 36.4 18.4 38.9 41.0 42.0 34.7 52.8 33.1 42.7 47.7
+83.9 82.7 82.7 85.0 85.4 86.8 84.5 85.3 82.3 85.5 79.2 84.9 88.0 87.4 87.4 88.0
+36.7 28.8 27.9 43.6 38.2 37.9 43.2 37.7 39.8 46.0 37.1 32.9 44.0 38.5 40.1 44.8
+78.8 82.7 73.6 83.0 78.1 78.5 83.0 83.5 78.0 86.5 79.3 88.0 88.7 86.0 86.1 85.5
+58.7 62.4 64.9 58.6 58.6 62.3 60.0 63.2 62.6 61.7 65.4 62.6 67.0 64.4 67.5 66.4
+30.5 30.8 19.0 31.6 34.6 21.5 32.2 39.7 34.4 33.8 37.5 29.0 35.8 25.1 29.7 30.3
+84.8 85.2 65.0 83.3 84.7 85.6 83.2 87.5 84.9 85.5 83.2 87.3 84.4 88.5 88.5 88.6
+38.5 27.7 12.0 35.3 21.9 27.9 35.0 32.9 34.1 34.4 46.0 39.2 45.7 36.6 49.1 50.5
+44.5 34.5 28.6 49.7 42.7 34.8 46.7 47.8 53.1 48.7 45.6 49.6 50.2 45.8 54.6 54.5
+1.7 6.4 4.5 3.3 41.1 18.0 0.0 1.6 16.9 0.0 25.7 23.2 0.0 23.9 9.8 1.5
+31.6 25.2 31.1 28.8 29.3 22.9 33.7 34.9 27.7 36.1 23.5 34.7 27.2 36.5 26.6 17.0
+32.4 24.4 42.0 35.6 37.2 49.3 42.2 39.5 46.4 37.8 49.9 39.6 34.0 56.8 45.3 39.3
+45.5 45.4 42.7 48.5 50.2 47.4 49.2 49.2 50.5 50.4 50.6 51.5 52.1 52.6 53.8 52.8
+DACS + PAC (ours)
+93.2
+58.8
+87.2
+33.3
+35.1
+38.6
+41.8
+51.4
+87.4
+45.8
+88.3
+64.8
+31.6
+84.3
+51.7
+53.4
+0.6
+31.3
+50.6
+54.2
+Table 3. SYNTHIA → Cityscapes results: Classwise and mean (over 16 classes) IoU comparison of our PAC-UDA with prior works. † de- notes the use of PSPNet [63], * denotes our implementation of SAC with a restricted conﬁguration (GROUP SIZE=2) compared to original SAC method (GROUP SIZE=4). All other methods use DeepLabV2 [9] architecture.
+d a o r
+k l a w e d i s
+g n i d l i u b
+l l a w
+e c n e f
+e l o p
+t h g i l
+n g i s
+e l b a t e g e v
+y k s
+n o s r e p
+r e d i r
+r a c
+s u b
+r o t o m
+e k i b
+mIoU
+SPIGAN [24] DCAN [56] DISE [7] AdvEnt [50] DADA [51] CAG-UDA [60] PIT [31] PyCDA† [26] FADA [52] DACS [47] IAST [32] RPT† [61] SAC [2] SAC* [2]
+71.1 82.8 91.7 85.6 89.2 84.7 83.1 75.5 84.5 80.6 81.9 88.9 89.3 91.7
+29.8 36.4 53.5 42.2 44.8 40.8 27.6 30.9 40.1 25.1 41.5 46.5 47.2 52.7
+71.4 75.7 77.1 79.7 81.4 81.7 81.5 83.3 83.1 81.9 83.3 84.5 85.5 85.1
+3.7 5.1 2.5 8.7 6.8 7.8 8.9 20.8 4.8 21.5 17.7 15.1 26.5 22.6
+0.3 0.1 0.2 0.4 0.3 0.0 0.3 0.7 0.0 2.9 4.6 0.5 1.3 1.5
+33.2 25.8 27.1 25.9 26.2 35.1 21.8 32.7 34.3 37.2 32.3 38.5 43.0 42.2
+6.4 8.0 6.2 5.4 8.6 13.3 26.4 27.3 20.1 22.7 30.9 39.5 45.5 44.1
+15.6 18.7 7.6 8.1 11.1 22.7 33.8 33.5 27.2 24.0 28.8 30.1 32.0 30.9
+81.2 74.7 78.4 80.4 81.8 84.5 76.4 84.7 84.8 83.7 83.4 85.9 87.1 82.5
+78.9 76.9 81.2 84.1 84.0 77.6 78.8 85.0 84.0 90.8 85.0 85.8 89.3 73.8
+52.7 51.1 55.8 57.9 54.7 64.2 64.2 64.1 53.5 67.6 65.5 59.8 63.6 63.0
+13.1 15.9 19.2 23.8 19.3 27.8 27.6 25.4 22.6 38.3 30.8 26.1 25.4 20.9
+75.9 77.7 82.3 73.3 79.7 80.9 79.6 85.0 85.4 82.9 86.5 88.1 86.9 84.9
+25.5 24.8 30.3 36.4 40.7 19.7 31.2 45.2 43.7 38.9 38.2 46.8 35.6 29.5
+10.0 4.1 17.1 14.2 14.0 22.7 31.0 21.2 26.8 28.5 33.1 27.7 30.4 26.9
+20.5 37.3 34.3 33.0 38.8 48.3 31.3 32.0 27.8 47.6 52.7 56.1 53.0 52.2
+36.8 38.4 41.5 41.2 42.6 44.5 44.0 46.7 45.2 48.3 49.8 51.2 52.6 50.3
+SAC + PAC (ours)
+83.2
+40.5
+85.4
+30.0
+2.0
+43.0
+42.2
+33.8
+86.3
+89.8
+65.3
+33.5
+85.1
+35.2
+29.9
+55.3
+52.5
+DACS approach, we adopt the training and validation splits of Cityscapes used in SAC to maintain benchmark consis- tency across different base methods. In terms of architec- ture, DACS and SAC use a standard DeepLabv2 [9] back- bone whereas CAG augments this backbone with a decoder model (see [60] for details). For the sake of fair compari- son, we try our best to achieve baseline accuracies that are at least as good as the published results. While we achieved slightly lower performance on SAC due to resource con- straints, we achieve superior accuracies for DACS and CAG baselines. Thus, these methods serve as strong baselines for evaluating our approach.
+From Table 1, we observe that base methods regularised with our constraint always, and sometimes signiﬁcantly, outperforms the unregularised version in terms of mIoU (by up to 2.2%). Secondly, the improvement is across various categories of both stuffs and things type. Some of these include sidewalk (up to 9.6%), sky (up to 2.4%), trafﬁc light (up to 2.1%), trafﬁc sign (up to 4.4%) and bike (up to 7.2%) classes under GTA→Cityscapes while wall (up to 7.4%), fence (up to 2.0%), person (up to 2.5%) and bus (up to 5.7%) classes under SYNTHIA→Cityscapes. While different adaptation settings favour different classes, a particularly striking observation is that large gains are ob-
+7
+
+
+Figure 3. Qualitative results on Cityscapes [12] post adaptation from GTA [37]: Blue dashed boxes highlight the semantic classes that our regularized version (DACS+PAC) is able to predict more accurately than the base method (DACS). Further visualisations are provided in the supplementary.
+tained in both frequent (sidewalk, wall) and less-frequent (bus, bike) classes. We suspect that such uniformity arises from our object-region aware constraint that is agnostic to the statistical dominance of speciﬁc classes. Finally, Fig. 3 visualises these observations by comparing the predictions of DACS and DACS+PAC models (trained on GTA) on ran- domly selected examples from Cityscapes validation split.
+Table 4. Ablations: Comparing the effects of individual components of the regulariser (PAC) on ﬁnal performance (mIoU). Here, the full model is DACS+PAC, and the adaptation setting is GTA→Cityscapes; hy- perparameters are: ks = 50, b = 200, δpeak = 0.0025; “PL” refers to pseudo-labelling. We include classwise IoUs in the supplementary.
+Conﬁguration
+mIoU
+All Only PL Only Depth + RGB segments Only Depth segments w/ PL Only RGB segments w/ PL
+54.2 49.3 51.9 51.7 52.1
+4.2. Prior Works Comparison
+In this section, we compare our best performing method
+with prior works under each domain settings GTA→Cityscapes (Table 2): In terms of mIoU, our DACS+PAC outperforms the state-of-the-art (SAC) by 0.4% despite having a simpler training objective (no fo- cal loss regularizer or importance sampling) and no adap- tive batch normalisation. In particular, our approach out- performs SAC signiﬁcantly in road, sidewalk, fence,terrain, sky, rider, motorcycle and bike classes by 1.9% − 11.3%. More interestingly, this observation holds when compared to other prior works as well, wherein our model improves IoUs for both dominant categories like road and sidewalk as well as less frequent categories like trafﬁc-sign and ter- rain. For classes like sidewalk, we suspect that structural constraints based on our regularizer reduces contextual bias [41], responsible for coarse boundaries. SYNTHIA→Cityscapes (Table 3): In this setting, our best performing method outperforms all but one prior meth- ods, often by signiﬁcant margins. While our SAC+PAC un- der resource constraints compares favourably to the ofﬁcial implementation of SAC (with larger GROUP SIZE), it sig-
+8
+
+
+niﬁcantly outperforms our implementation of SAC which is a more fair comparison due to same resource constraints. Nevertheless, our approach improves the best previous re- sults on wall class by 3.5% and achieves state-of-the-art on pole and sign classes.
+4.3. Ablations
+In this section, we deconstruct our multi-modal regu- larizer (PAC) to quantify the effect of individual compo- nents on ﬁnal performance. In Table 4, the ‘ALL’ con- ﬁguration corresponds to our original formulation. ‘Only PL’ conﬁguration estimates the object-regions using just the pseudo-labels and hence ignores complementary informa- tion from depth. ‘Only Depth+RGB segments’ do not use pseudo-labels to deﬁne region labels and instead treats each Depth+RGB segment as a unique object category. The con- ﬁgurations in next two rows use only one of the two modal- ities for estimating object regions while still using pseudo- labels to deﬁne region labels. We observe that contrastive regulariser based on only pseudo-labels performs the worst and signiﬁcantly below the one based on just multimodal segments. This is intuitive because reusing pseudo-labels as a regularisation without auxiliary information reinforces the conﬁrmation bias. While, purely RGB based segments lead to better objectness constraint than purely depth-based ones (as can be seen in Fig. 2), combining the two (ALL conﬁg.) yields the best results.
+5. Conclusion
+In this work, we proposed a multi-modal regularisa- tion scheme for self-training approaches in unsupervised domain adaptation for semantic segmentation. We de- rive an objectness constraint from multi-modal clustering that is then used to formulate a contrastive objective for regularisation. We show that this regularisation consis- tently improves upon different types of self-training meth- ods and even achieves state-of-the-art performance in popu- lar benchmarks. In the future, we plan to study the effect of other modalities like 3D point-clouds in semantic segmen- tation.
+References
+[1] Radhakrishna Achanta, Appu Shaji, Kevin Smith, Aurelien Lucchi, Pascal Fua, and Sabine S¨usstrunk. Slic superpix- IEEE els compared to state-of-the-art superpixel methods. Transactions on Pattern Analysis and Machine Intelligence, 2012. 5, 15
+[2] Nikita Araslanov, , and Stefan Roth. Self-supervised aug- mentation consistency for adapting semantic segmentation. In CVPR, 2021. 1, 2, 3, 6, 7, 12
+[3] Eric Arazo, Diego Ortego, Paul Albert, Noel E O’Connor, and Kevin McGuinness. Pseudo-labeling and conﬁrmation bias in deep semi-supervised learning. In 2020 International
+9
+Joint Conference on Neural Networks (IJCNN), pages 1–8. IEEE, 2020. 2
+[4] M. Baktashmotlagh, M. T. Harandi, B. C. Lovell, and M. Salzmann. Unsupervised domain adaptation by domain in- variant projection. In ICCV, 2013. 2
+[5] Konstantinos Bousmalis, Nathan Silberman, David Dohan, Dumitru Erhan, and Dilip Krishnan. Unsupervised pixel- level domain adaptation with generative adversarial net- works. CoRR, 2016. 2
+[6] Konstantinos Bousmalis, George Trigeorgis, Nathan Silber- man, Dilip Krishnan, and Dumitru Erhan. Domain separa- tion networks. NeurIPS, 2016. 2
+[7] Wei-Lun Chang, Hui-Po Wang, Wen-Hsiao Peng, and Wei- Chen Chiu. All about structure: Adapting structural infor- mation across domains for boosting semantic segmentation. CoRR, 2019. 7
+[8] Chaoqi Chen, Weiping Xie, Wenbing Huang, Yu Rong, Xinghao Ding, Yue Huang, Tingyang Xu, and Junzhou Huang. Progressive feature alignment for unsupervised do- main adaptation. In Proceedings of the IEEE/CVF Confer- ence on Computer Vision and Pattern Recognition, pages 627–636, 2019. 3
+[9] Liang-Chieh Chen, George Papandreou, Iasonas Kokkinos, Kevin P. Murphy, and Alan Loddon Yuille. Deeplab: Seman- tic image segmentation with deep convolutional nets, atrous convolution, and fully connected crfs. IEEE Transactions on Pattern Analysis and Machine Intelligence, 2018. 1, 7 [10] Ting Chen, Simon Kornblith, Mohammad Norouzi, and Ge- offrey Hinton. A simple framework for contrastive learning of visual representations, 2020. 2
+[11] Yuhua Chen, Wen Li, Xiaoran Chen, and Luc Van Gool. Learning semantic segmentation from synthetic data: A geo- metrically guided input-output adaptation approach. CVPR, 2019. 2
+[12] Marius Cordts, Mohamed Omran, Sebastian Ramos, Timo Rehfeld, Markus Enzweiler, Rodrigo Benenson, Uwe Franke, Stefan Roth, and Bernt Schiele. The cityscapes dataset for semantic urban scene understanding. In CVPR, 2016. 1, 2, 5, 6, 8, 14
+[13] Nicolas Courty, R´emi Flamary, Amaury Habrard, and Alain Joint distribution optimal transportation
+Rakotomamonjy. for domain adaptation. In NeurIPS, 2017. 2
+[14] Yaroslav Ganin, Evgeniya Ustinova, Hana Ajakan, Pas- cal Germain, Hugo Larochelle, Franc¸ois Laviolette, Mario Marchand, and Victor Lempitsky. Domain-adversarial train- ing of neural networks. Advances in Computer Vision and Pattern Recognition, 2017. 2
+[15] Cl´ement Godard, Oisin Mac Aodha, and Gabriel J. Bros- tow. Digging into self-supervised monocular depth estima- tion. ICCV, 2019. 5
+[16] Yves Grandvalet and Yoshua Bengio.
+Semi-supervised
+learning by entropy minimization. In NeurIPS, 2005. 2 [17] Bharath Hariharan, Pablo Arbel´aez, Ross B. Girshick, and Jitendra Malik. Simultaneous detection and segmentation. In ECCV, 2014. 5
+[18] Judy Hoffman, Eric Tzeng, Taesung Park, Jun-Yan Zhu, Phillip Isola, Kate Saenko, Alexei Efros, and Trevor Dar-
+
+
+rell. Cycada: Cycle-consistent adversarial domain adap- In International Conference on Machine Learning tation. (ICML), 2018. 1, 2, 7
+[19] Maximilian Jaritz, Tuan-Hung Vu, Raoul de Charette, Em- ilie Wirbel, and Patrick Perez. xmuda: Cross-modal unsu- pervised domain adaptation for 3d semantic segmentation. CVPR, 2020. 3
+[20] Fredrik D. Johansson, David A Sontag, and Rajesh Ran- ganath. Support and invertibility in domain-invariant rep- resentations. In AISTATS, 2019. 3
+[21] Guoliang Kang, Lu Jiang, Yi Yang, and Alexander G Haupt- mann. Contrastive adaptation network for unsupervised do- main adaptation. In Proceedings of the IEEE/CVF Confer- ence on Computer Vision and Pattern Recognition, pages 4893–4902, 2019. 3
+[22] Prannay Khosla, Piotr Teterwak, Chen Wang, Aaron Sarna, Yonglong Tian, Phillip Isola, Aaron Maschinot, Ce Liu, and Dilip Krishnan. Supervised contrastive learning. In NeurIPS, 2020. 2
+[23] Myeongjin Kim and Hyeran Byun. Learning texture invari- ant representation for domain adaptation of semantic seg- mentation. CVPR, 2020. 3
+[24] Kuan-Hui Lee, Germ´an Ros, Jie Li, and Adrien Gaidon. Spi- gan: Privileged adversarial learning from simulation. ArXiv, 2019. 2, 3, 7
+[25] Yunsheng Li, Lu Yuan, and Nuno Vasconcelos. Bidirectional learning for domain adaptation of semantic segmentation. In Proceedings of the IEEE/CVF Conference on Computer Vi- sion and Pattern Recognition, pages 6936–6945, 2019. 3, 7
+[26] Qing Lian, Fengmao Lv, Lixin Duan, and Boqing Gong. Constructing self-motivated pyramid curriculums for cross- domain semantic segmentation: A non-adversarial approach. In Proceedings of the IEEE/CVF International Conference on Computer Vision, pages 6758–6767, 2019. 7
+[27] Marcos Llobera. Building past landscape perception with gis: Understanding topographic prominence. Journal of Ar- chaeological Science - J ARCHAEOL SCI, 2001. 5
+[28] Mingsheng Long, Yue Cao, Jianmin Wang, and Michael Jor- dan. Learning transferable features with deep adaptation net- In International conference on machine learning, works. pages 97–105. PMLR, 2015. 2
+[29] Mingsheng Long, Han Zhu, Jianmin Wang, and Michael I. Jordan. Deep transfer learning with joint adaptation net- works. In ICML, 2017. 2
+[30] Fengmao Lv, Tao Liang, Xiang Chen, and Guosheng Lin. Cross-domain semantic segmentation via domain-invariant interactive relation transfer. In CVPR, 2020. 2
+[31] Fengmao Lv, Tao Liang, Xiang Chen, and Guosheng Lin. Cross-domain semantic segmentation via domain-invariant interactive relation transfer. In CVPR, 2020. 7
+[32] Ke Mei, Chuang Zhu, Jiaqi Zou, and Shanghang Zhang. In- stance adaptive self-training for unsupervised domain adap- tation. In ECCV, 2020. 7
+[33] Krikamol Muandet, David Balduzzi,
+and Bernhard Sch¨olkopf. Domain generalization via invariant feature representation. ICML, 2013. 2
+10
+[34] Luigi Musto and Andrea Zinelli. Semantically adaptive image-to-image translation for domain adaptation of seman- tic segmentation. In BMVC, 2020. 7
+[35] Fei Pan, Inkyu Shin, Franc¸ois Rameau, Seokju Lee, and In So Kweon. Unsupervised intra-domain adaptation for se- mantic segmentation through self-supervision. CVPR, 2020. 2
+[36] S. J. Pan, I. W. Tsang, J. T. Kwok, and Q. Yang. Domain adaptation via transfer component analysis. IEEE Transac- tions on Neural Networks, 2011. 2
+[37] Stephan R Richter, Vibhav Vineet, Stefan Roth, and Vladlen Koltun. Playing for data: Ground truth from computer games. In Proceedings of the European Conference on Com- puter Vision (ECCV), 2016. 2, 6, 8, 14
+[38] German Ros, Laura Sellart, Joanna Materzynska, David Vazquez, and Antonio M Lopez. The synthia dataset: A large collection of synthetic images for semantic segmentation of urban scenes. In CVPR, 2016. 2, 6
+[39] Ashutosh Saxena, Jamie Schulte, Andrew Y Ng, et al. Depth estimation using monocular and stereo cues. In IJCAI, vol- ume 7, pages 2197–2203, 2007. 2, 5
+[40] Uri Shalit, Fredrik D. Johansson, and David Sontag. Es- timating individual treatment effect: Generalization bounds and algorithms. In ICML, 2017. 2
+[41] Rakshith Shetty, Bernt Schiele, and Mario Fritz. Not us- ing the car to see the sidewalk – quantifying and controlling the effects of context in classiﬁcation and segmentation. In CVPR, June 2019. 8
+[42] Rui Shu, Hung H Bui, Hirokazu Narui, and Stefano Ermon. A dirt-t approach to unsupervised domain adaptation. arXiv, 2018. 3
+[43] S. Si, D. Tao, and B. Geng. Bregman divergence-based regu- larization for transfer subspace learning. IEEE Transactions on Knowledge and Data Engineering, 2010. 2
+[44] Kihyuk Sohn.
+Improved deep metric learning with multi-
+class n-pair loss objective. In NeurIPS, 2016. 2
+[45] Sinisa Stekovic, Friedrich Fraundorfer, and Vincent Lep- etit. Casting geometric constraints in semantic segmenta- In Proceedings of the tion as semi-supervised learning. IEEE/CVF Winter Conference on Applications of Computer Vision, pages 1854–1863, 2020. 3
+[46] Subhashree Subudhi, Ram Narayan Patro, Pradyut Kumar Biswal, and Fabio Dell’Acqua. A survey on superpixel seg- mentation as a preprocessing step in hyperspectral image analysis. IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing, 14:5015–5035, 2021. 12 [47] Wilhelm Tranheden, Viktor Olsson, Juliano Pinto, and Lennart Svensson. Dacs: Domain adaptation via cross- domain mixed sampling. WACV, 2021. 3, 6, 7
+[48] Y.-H. Tsai, W.-C. Hung, S. Schulter, K. Sohn, M.-H. Yang, and M. Chandraker. Learning to adapt structured output space for semantic segmentation. In CVPR, 2018. 1, 2 [49] E. Tzeng, J. Hoffman, K. Saenko, and T. Darrell. Adversarial discriminative domain adaptation. In CVPR, 2017. 2 [50] Tuan-Hung Vu, Himalaya Jain, Maxime Bucher, Mathieu Cord, and Patrick P´erez. Advent: Adversarial entropy min- imization for domain adaptation in semantic segmentation. arXiv, 2018. 7
+
+
+[51] Tuan-Hung Vu, Himalaya Jain, Maxime Bucher, Matthieu Cord, and Patrick P´erez. Dada: Depth-aware domain adap- In Proceedings of the tation in semantic segmentation. IEEE/CVF International Conference on Computer Vision, pages 7364–7373, 2019. 1, 2, 3, 7
+[52] Haoran Wang, Tong Shen, Wei Zhang, Ling-Yu Duan, and Tao Mei. Classes matter: A ﬁne-grained adversarial ap- proach to cross-domain semantic segmentation. In European Conference on Computer Vision, pages 642–659. Springer, 2020. 7
+[53] Qin Wang, Dengxin Dai, Lukas Hoyer, Olga Fink, and Luc Van Gool. Domain adaptive semantic segmentation with self-supervised depth estimation. In ICCV, 2021. 2, 3 [54] Zhonghao Wang, Mo Yu, Yunchao Wei, Rog´erio Schmidt Feris, Jinjun Xiong, Wen mei W. Hwu, Thomas S. Huang, and Humphrey Shi. Differential treatment for stuff and things: A simple unsupervised domain adaptation method for semantic segmentation. CVPR, 2020. 2
+[55] Yifan Wu, Ezra Winston, Divyansh Kaushik,
+and Domain adaptation with ICML,
+Zachary Chase Lipton. asymmetrically-relaxed distribution alignment. 2019. 3
+[56] Zuxuan Wu, Xintong Han, Yen-Liang Lin, Mustafa Gokhan Uzunbas, Tom Goldstein, Ser Nam Lim, and Larry S Davis. Dcan: Dual channel-wise alignment networks for un- supervised scene adaptation. In ECCV, 2018. 7
+[57] Shaoan Xie, Zibin Zheng, Liang Chen, and Chuan Chen. Learning semantic representations for unsupervised domain adaptation. In International conference on machine learning, pages 5423–5432. PMLR, 2018. 3
+[58] Jinyu Yang, Weizhi An, Chaochao Yan, Peilin Zhao, and Jun- zhou Huang. Context-aware domain adaptation in semantic segmentation. In WACV, 2021. 7
+[59] Yanchao Yang and Stefano Soatto. FDA: Fourier domain adaptation for semantic segmentation. In CVPR, 2020. 7 [60] Qiming Zhang, Jing Zhang, Wenyu Liu, and D. Tao. Cate- gory anchor-guided unsupervised domain adaptation for se- mantic segmentation. In NeurIPS, 2019. 1, 2, 3, 4, 6, 7 [61] Yiheng Zhang, Zhaofan Qiu, Ting Yao, Chong-Wah Ngo, Dong Liu, and Tao Mei. Transferring and regularizing In Proceedings of prediction for semantic segmentation. the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 9621–9630, 2020. 1, 2, 3, 6, 7, 12 [62] Han Zhao, Remi Tachet des Combes, Kun Zhang, and Ge- offrey J. Gordon. On learning invariant representation for domain adaptation. ICML, 2019. 3
+[63] Hengshuang Zhao, Jianping Shi, Xiaojuan Qi, Xiaogang Wang, and Jiaya Jia. Pyramid scene parsing network. In CVPR, 2017. 7
+[64] Yang Zou, Zhiding Yu, BVK Kumar, and Jinsong Wang. Unsupervised domain adaptation for semantic segmentation via class-balanced self-training. In Proceedings of the Eu- ropean conference on computer vision (ECCV), pages 289– 305, 2018. 2, 3, 4, 12
+11
+
+
+In this supplementary, we provide additional details and analysis for our proposed method, PAC-UDA. Algorithm 1, provides a step-by-step procedure for unsupervised domain adaptation via PAC-UDA.
+A. Hyperparameters for Main Experiments
+Table 5. Hyperparameters used in Table 1
+method
+kS
+b
+δpeak
+τp
+50 CAG + PAC SAC + PAC 50 DACS + PAC 25
+200 200 200
+0.0025 0.0025 0.001
+0.90 0.90 0.90
+To report the results in Table 1, Table 2 and Table 3, we choose the best hyperparameters following standard cross- validation on a random subset of Cityscapes train-split in- troduced in [2]. For base methods, we use the default hy- perparameters from respective papers. In Table 5, we sum- marise the hyperparameters for Table 1. Since the results of our approach in Table 2 and Table 3 are a subset of Table 1, the above hyperparameters apply there as well.
+B. Additional Ablations
+In this section, we provide additional ablation studies for DACS+PAC on GTA→Cityscapes. The default hyper- parameter conﬁguration is: ks = 25, b = 200, δpeak = 0.001, τp = 0.9; unless otherwise stated. Also, we train each setting for Ttrain(= 125 000) iterations.
+B.1.
+Importance of Multiple Modalities and Pseudo-Labels
+Figure 4. Pixel-wise class distribution in GTA dataset
+In Table 6, we provide the complete results (including classwise IoUs) for the ablations on individial modalities
+12
+and pseudo-labels as described in Section 4.3. While, Ta- ble 6 highlights the importance of combining all modalities with pseudo-labels for the best mean IoU, there are a few other important observations with respect to classwise IoUs.
+For instance, using “PL” for objectness constraints sig- niﬁcantly underperforms other settings (by upto 49 IoU) in rare source-classes, like motorcycle and bike (Figure 4). This gap is surprisingly large (by upto 38.5 IoU) even when compared to “Depth-RGB”. We attribute this large performance gap to the class-imbalance problem [64] that is known to adversely affect self-training in the absence of class-balanced losses. However, incorporating our ob- jectness constraint alleviates the rare-class IoUs signiﬁ- cantly without losing performance in frequent classes (ex- cept, sky). These results provide strong evidence for the normalisation of class-related statistical effects in the pres- ence of multimodal objectness-constraints.
+interesting insight arises from comparing “Depth-PL” and “RGB-PL” settings that demonstrates the complementarity of the two modalities. Among the more frequent source-classes (Figure 4), purely RGB-based con- straint considerably outperforms purely depth-based con- straint in categories such as road, sidewalk and car whereas the converse is true for other categories like wall, pole, ter- rain and person. The outperformance of depth-based con- straint on pole and person is intuitive since these objects have very small depth range compared to the scene depth and hence can be easily detected using the depth histogram (see Section 3.1 for more discussion).
+Another
+B.2. Importance of RGB-segments
+In the past, image clustering has been often used as an effective preprocessing step for segmentation [46, 61]. In- spired by these works, in Table 7, we test the extent to which purely SLIC based RGB-segments can inﬂuence the object- ness constraint and consequently, the ﬁnal performance of our PAC-UDA. Speciﬁcally, we tabulate the performance with varying number of SLIC segments, ks and compare it to our default conﬁguration, “ALL (ks = 25)”.
+We observe that when using only RGB-segments (with- out depth) for object-region estimates, there exists an inter- mediate value along the range of ks ∈ {25, 50, 100} where the semantic segmentation performance peaks. This trend empirically validates our intuition for choosing the best ks as discussed in Section 3.1. In fact, too small a value can be highly undesirable as it can lead to worse results (52.1 mIoU) than even the base method (52.8 mIoU). It is how- ever, interesting to note that even with the most optimal ks = 50, just RGB based objectness constraint underper- forms our multimodal constraint (“ALL”) by ∼ 1 mIoU.
+
+
+Table 6. Effect of Individual Modalities and Pseudo Labels: Comparing the effects of individual modalities used to estimate object-regions and pseudo- labels on ﬁnal performance (mIoU). This table is an extended version of Table 4 with classwise IoUs. Mapping of conﬁguration names to those in Table 4 - PL: Only PL; Depth-RGB: Only Depth+RGB segments; Depth-PL: Only Depth segments w/ PL; RGB-PL: Only RGB segments w/ PL. Refer to Section 4.3 for conﬁguration speciﬁc details.
+d a o
+Conﬁguration r
+k l a w e d i s
+g n i d l i u b
+l l a w
+e c n e f
+e l o p
+t h g i l
+n g i s
+. e g e v
+n i a r r e t
+y k s
+n o s r e p
+r e d i r
+r a c
+k c u r t
+s u b
+n i a r t
+r o t o m
+e k i b
+mIoU
+All PL Depth-RGB Depth-PL RGB-PL
+93.2 93.7 94.1 93.3 95.1
+58.8 58.7 58.1 61.9 65.3
+87.2 86.8 86.2 86.7 86.1
+33.3 27.3 38.2 31.8 25.9
+35.1 29.7 30.3 35.9 30.1
+38.6 35.4 34.8 36.1 35.4
+41.8 41.6 37.8 43.3 39.1
+51.4 50.6 41.3 50.2 41.2
+87.4 87.1 86.7 86.2 85.2
+45.8 46.7 46.1 41.2 37.9
+88.3 89.2 87.5 86.4 86.2
+64.8 65.2 62.4 65.0 61.4
+31.6 37.1 31.0 32.2 26.7
+84.3 87.4 86.8 82.1 87.9
+51.7 41.3 52.5 31.9 50.9
+53.4 49.8 49.1 50.4 50.6
+0.6 0.0 0.0 0.9 0.0
+31.3 7.0 24.5 23.1 35.8
+50.6 1.6 40.1 43.6 50.4
+54.2 49.3 51.9 51.7 52.1
+Table 7. Importance of RGB-segments: Comparing the effect of only RGB-segments with different values of ks. here, PL: Pseudo-Labels; RGB-PL: Objectness-constraint with only RGB segments and PL; ALL: Objectness-constraint with RGB-segments+Depth-segments and PL
+Conﬁguration
+d a o r
+k l a w e d i s
+g n i d l i u b
+l l a w
+e c n e f
+e l o p
+t h g i l
+n g i s
+. e g e v
+n i a r r e t
+y k s
+n o s r e p
+r e d i r
+r a c
+k c u r t
+s u b
+n i a r t
+r o t o m
+e k i b
+mIoU
+All (ks = 25) RGB-PL(ks = 25) RGB-PL (ks = 50) RGB-PL (ks = 100)
+93.2 95.1 94.6 94.4
+58.8 65.3 63.4 62.1
+87.2 86.1 86.8 86.2
+33.3 25.9 28.7 29.2
+35.1 30.1 30.7 32.5
+38.6 35.4 37.6 34.2
+41.8 39.1 42.8 40.0
+51.4 41.2 51.3 50.2
+87.4 85.2 86.8 86.2
+45.8 37.9 44.9 47.1
+88.3 86.2 87.9 87.4
+64.8 61.4 64.9 63.0
+31.6 26.7 32.5 32.7
+84.3 87.9 87.8 87.9
+51.7 50.9 42.7 39.4
+53.4 50.6 45.4 45.3
+0.6 0.0 0.0 0.1
+31.3 35.8 32.6 32.6
+50.6 50.4 51.2 52.8
+54.2 52.1 53.3 52.8
+Table 8. Effect of the Contrastive Objective: Comparing two different formulations of contrastive objective as deﬁned in Eqn. 7 and Section B.3 and an upperbound conﬁguration, GTlab (target-domain ground-truth labels
+d a o Conﬁguration r
+k l a w e d i s
+g n i d l i u b
+l l a w
+e c n e f
+e l o p
+t h g i l
+n g i s
+. e g e v
+n i a r r e t
+y k s
+n o s r e p
+r e d i r
+r a c
+k c u r t
+s u b
+n i a r t
+r o t o m
+e k i b
+mIoU
+Lt obj Lt+ obj
+93.2 94.2
+58.8 59.4
+87.2 86.7
+33.3 35.8
+35.1 32.1
+38.6 36.8
+41.8 40.5
+51.4 49.4
+87.4 86.5
+45.8 41.9
+88.3 86.0
+64.8 63.5
+31.6 27.1
+84.3 89.1
+51.7 53.7
+53.4 54.5
+0.6 2.5
+31.3 27.3
+50.6 45.7
+54.2 53.3
+Table 9. Effect of region-label threshold, τp on Final Performance:
+d a o Threshold r
+k l a w e d i s
+g n i d l i u b
+l l a w
+e c n e f
+e l o p
+t h g i l
+n g i s
+. e g e v
+n i a r r e t
+y k s
+n o s r e p
+r e d i r
+r a c
+k c u r t
+s u b
+n i a r t
+r o t o m
+e k i b
+mIoU
+0.70 0.80 0.90 0.95
+93.9 92.9 93.2 93.4
+60.4 51.3 58.8 55.9
+86.5 86.6 87.2 86.1
+32.5 31.5 33.3 28.7
+30.4 32.4 35.1 30.0
+34.9 36.7 38.6 33.2
+39.9 42.8 41.8 40.5
+48.8 52.1 51.4 45.3
+86.4 86.8 87.4 86.6
+45.6 44.7 45.8 45.7
+88.0 87.5 88.3 87.8
+63.0 65.4 64.8 64.2
+27.6 34.5 31.6 31.6
+87.0 89.2 84.3 89.1
+39.9 48.8 51.7 50.4
+49.2 56.3 53.4 50.7
+1.9 0.2 0.6 0.0
+32.5 23.8 31.3 10.5
+47.9 45.1 50.6 28.3
+52.4 53.1 54.2 50.4
+B.3. Contrastive Loss Analysis
+We analyze the effect of speciﬁc form of the contrastive loss function in Table 8. Recall that in Eqn. 7, our formula- tion of the contrastive loss maximizes the similarity of each pixel embedding, ˜zp to only a prototype of the region, Uk that includes pixel p. Here, we introduce another variant of that loss, Lt+ obj(p) that maximizes the similarity of ˜zp to pro- totypes of all valid regions, {Uk}K k=1 \ Ω(k) that share the same region-label. While, originially, region-labels could inﬂuence the loss function only via dissimilarity scores, in Lt+ obj(p), they can inﬂuence via both similarity and dissimi- larity scores.
+We observe that allowing greater region-label inﬂuence obj(p). Zooming
+in Lt+
+obj(p) leads to worse mIoU than Lt
+into the classwise IoUs reveal that less-common classes primarily contribute the the overall worse performance of Lt+ obj(p). We suspect that increasing the inﬂuence of, and consequently the noise in, region-labels affect these less- common classes more adversely than common classes like road, sidewalk, wall and car. Finally, this ablation guides our decision to adopt Lt obj(p) as the default form of con- trastive loss in Eqn. 7.
+B.4. Importance of Region-Label Threshold
+An important hyperparameter of our objectness- constraint is the region-label threshold, τp. At higher val- ues of this threshold, valid object-regions are more likely to be a part of a single object and consistent with the ground- truth semantic category. This will positively inﬂuence the
+13
+
+
+Figure 5. Additional qualitative results on Cityscapes [12] post adaptation from GTA [37]: Blue dashed boxes highlight the semantic classes that our regularized version (DACS+PAC) is able to predict more reliably than the base method (DACS).
+target-domain performance. At the same, time the number of such valid object-regions is likely to be small, which, may reduce the overall effect of the objectness-constraint on target-domain performance. As one decreases the thresh- old, the number of valid-regions will increase at the expense of region-label consistency with ground-truth. Thus, evalu- ating the performance over a range of values is crucial.
+Indeed, we observe in Table 9 that the mIoU increases with increase in threshold upto a certain point (τp = 0.90), beyond which the performance deteriorates. We, thus, set 0.90 as our default threshold for all our experiments.
+C. Additional Visualisations
+In Figure 5, we provide additional qualitative compari- son between DACS+PAC, DACS and the ground-truth un- der GTA→Cityscapes settings.
+14
+
+
+Algorithm 1 Unsupervised domain adaptation via PAC-UDA
+i )}Nt
+Input: Pseudo-label (˜y); Target training dataset with depth (Dt
+i, ht
+depth = {(xt
+i, ˜yt
+i=1 ); Initial model parameters (θ0 = {ψ0, φ0}); Number of histogram bins (b); Peak prominence threshold (δpeak); Number of RGB-segments (ks); Spatial dimensions of depth map (H × W ); Region-label threshold (τp); Objectness constraint loss weight (αobj); Number of training iterations (Ttrain)
+Output: Target-domain adapted parameters (θ∗ = {ψ∗, φ∗})
+1: for ttr ← 1 to Ttrain do {(xt i, ht 2: Compute Luda 3: Lobj = 0 4: for i ← 1 to N B
+i )}N B
+i=1 ∼ Dt h
+i, yt
+(cid:46) Randomly sample a training batch from target-domain (cid:46) Self-training based adaptation objective (see Section 3) (cid:46) Initialise objectness-constraint
+t
+t do
+5: 6: 7: 8:
+Initialize V d = {} Hist (cid:0){him}HW FindPeaks(F d; δpeak) → {µk}kd for k ← 1 to kd do
+(cid:46) Empty list of depth-segments (cid:46) Histogram of depth values (HOD) (cid:46) Cluster-center assignment using HOD
+m=1; b(cid:1) → F d
+9: 10: 11:
+k=1
+k = {m|m ∈ {1, . . . , HW }, |hm − µk| < |hm − µk(cid:48)| ∀k(cid:48) (cid:54)= k} V d V d.append(V d k )
+(cid:46) Depth segments (cid:46) Depth-segment list update
+12: 13: 14: 15: 16: 17:
+end for
+Initialize V s = {} SLIC(xi; ks) → {Lk}ks for k ← 1 to ks do
+(cid:46) Empty list of RGB-segments (cid:46) RGB-segment labelling using SLIC [1]
+k=1
+18: 19: 20: 21: 22: 23:
+24: 25: 26: 27: 28: 29:
+V s k = {m|m ∈ {1, . . . , HW }, label(m) = Lk} V s.append(V s k )
+end for
+Initialize V = {} Initialize k = 0 for i(cid:48) ← 1 to ks do
+for j(cid:48) ← 1 to kd do k ← k + 1 Vk = {m|m ∈ V s V.append(Vk)
+i(cid:48) , m ∈ V d j(cid:48)}
+end for
+(cid:46) RGB-segments (cid:46) RGB-segment list update
+(cid:46) Empty list of object-regions (cid:46) region-index
+(cid:46) Region-index update (cid:46) Unique object-region assignment (cid:46) Object-region list update
+30: 31: 32: 33: 34: 35:
+end for
+Fk = Histogram({˜yt Initialize U = {} Initialize L = {} for k ← 1 to K (cid:48) do
+im}m∈Vk ) ∀k = {1, . . . , K (cid:48)}
+(cid:46) Region-wise frequency of pseudo-label classes (cid:46) Empty list of valid regions (cid:46) Empty list of valid region labels
+36:
+if then
+max c (cid:80) c
+Fk[c] Fk[c] ≥ τp
+(cid:46) Threshold on majority-voting based region-label
+37: 38: 39:
+40:
+Uk = Vk U.append(Uk) Lk = arg max L.append(Lk)
+c
+Fk[c]
+(cid:46) Valid region assignment (cid:46) Valid-region list update (cid:46) Region-label assignment
+(cid:46) Valid-region label list update
+end if
+41: 42: 43:
+end for Using U and L, compute Lt Lobj = Lobj + Lt
+44: 45: 46:
+obj,i
+end for Lpac = Luda + αobj ∗ Lt N B t θt ← θt−1 − η∇Lpac
+obj
+47: 48: end for
+obj,i
+15
+(cid:46) Objectness constraint, Eqn. . 7
+(cid:46) Overall PAC-UDA objective (cid:46) Parameter update

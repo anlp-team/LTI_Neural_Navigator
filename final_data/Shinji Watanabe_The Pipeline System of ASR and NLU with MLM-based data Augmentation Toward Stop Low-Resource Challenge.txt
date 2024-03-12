@@ -1,0 +1,58 @@
+3 2 0 2
+y a M 1 1
+] L C . s c [
+2 v 4 9 1 1 0 . 5 0 3 2 : v i X r a
+THE PIPELINE SYSTEM OF ASR AND NLU WITH MLM-BASED DATA AUGMENTATION TOWARD STOP LOW-RESOURCE CHALLENGE
+Hayato Futami1, Jessica Huynh2, Siddhant Arora2, Shih-Lun Wu2, Yosuke Kashiwagi1, Yifan Peng2, Brian Yan2, Emiru Tsunoo1, Shinji Watanabe2
+1Sony Group Corporation, Japan 2Carnegie Mellon University, USA
+ABSTRACT This paper describes our system for the low-resource do- main adaptation track (Track 3) in Spoken Language Un- derstanding Grand Challenge, which is a part of ICASSP Signal Processing Grand Challenge 2023. In the track, we adopt a pipeline approach of ASR and NLU. For ASR, we ﬁne-tune Whisper for each domain with upsampling. For NLU, we ﬁne-tune BART on all the Track3 data and then on low-resource domain data. We apply masked LM (MLM) -based data augmentation, where some of input tokens and corresponding target labels are replaced using MLM. We also apply a retrieval-based approach, where model input is augmented with similar training samples. As a result, we achieved exact match (EM) accuracy 63.3/75.0 (average: 69.15) for reminder/weather domain, and won the 1st place at the challenge.
+Table 1: Example of data augmentation.
+x: y: xmask: xaug: yaug:
+how ’ s the weather in sydney [in:get weather [sl:location sydney ] ] how ’ s the weather in [MASK] how ’ s the weather in london [in:get weather [sl:location london ] ]
+data. Then, we ﬁne-tuned it on each low-resource domain (reminder/weather) data to build two models. During low- resource ﬁne-tuning, we applied masked LM (MLM) -based data augmentation. We also retrieved related training samples for an additional model input, which is known as retrieval augmentation [4].
+2. AUGMENTATIONS FOR NLU
+1. INTRODUCTION
+2.1. MLM-based data augmentation
+In the Spoken Language Understanding Grand Challenge at ICASSP 2023, we aim to predict user’s intents, slots types and values from audio, known as spoken language understanding (SLU), using the STOP [1] dataset. The dataset is created by adding audio recordings to TOPv2 [2] dataset. It consists of 8 domains: alarm, event, messaging, music, navigation, timer, reminder, and weather. For Track 3, we address low- resource domain adaptation. The number of training samples for reminder/weather are limited to 482/162, which ensures at least 25 samples are included for each intent and slot type. We can use held-in (6 domains) and low-resource data (re- minder/weather), which we call ”Track3 data”.
+Since low-resource sets have limited samples for training, its diversity would not be enough and prone to overﬁt. To solve the issue, we apply masked LM (MLM) -based data augmen- tation. Let x denote an input transcript and y denote a target semantic parse. The data augmentation procedure is:
+1. Some portion (p ∼ U (0, 0.2)) of tokens in x are ran- domly masked to make xmask.
+2. The masked tokens are replaced with MLM’s predic- tions to make xaug.
+We adopt a pipeline approach for Track 3. An ASR model generates transcripts from audio, and then an NLU model converts transcripts into semantic parse results. This apporach fully beneﬁts from both powerful pre-trained ASR and LM, which is especially important in this low-resource setting. For ASR, we ﬁne-tuned Whisper [3] on the STOP dataset for Track 3. We built two individual models for each target do- main: one was ﬁne-tuned on held-in and reminder data, and the other was ﬁne-tuned on held-in and weather data. As low-resource data was much smaller than held-in data, they were upsampled by 20 times. For NLU, we applied two- step ﬁne-tuning. First, we ﬁne-tuned BART on all the Track3
+3. In case the original tokens before masking exist in y (as slot values), they are also replaced to make yaug.
+Table 1 shows an example of data augmentation. We some- times get (xaug, yaug) that is grammatically incorrect or does not ﬁt to intent and slot types. We ﬁlter out samples that can- not be exactly inferred by an NLU model once trained on the original data. Similar data augmentation is done at [5], but ours does not require any ﬁne-tuning for a generator MLM.
+2.2. Retrieval augmentation
+We follow [4], which shows the effectiveness of retrieval augmentation in low-resource domain adaptation on TOPv2
+
+
+Table 2: ASR performance of STOP dataset.
+Whisper + FT
+Valid/Test WER[%] reminder weather 4.1/2.9 2.5/3.7 3.4/2.3 1.7/2.8
+dataset. We add k = 4 input–output pairs as examplars to x:
+x′
+= x ; x1 ; y1 ; ... ; x4 ; y4
+These examplars are selected from Track3 training data, based on TF-IDF similarity score. We only consider input similarity between x and xi, for simplicity. During training, examplars are sampled over geometric distribution, where r- ranked samples are selected with a probability of p(1 − p)r−1 (p = 0.1).
+3. EXPERIMENTAL EVALUATIONS
+For ASR, we ﬁne-tuned Whisper model 1 using ESPnet 2 framework. We ﬁne-tuned it for each domain, on the mix- ture of held-in data and 20x upsampled low-resource domain data. We applied speed perturbation, SpecAugment, and la- bel smoothing (p = 0.1). We averaged 10-best checkpoints based on validation set. Table 2 shows the ASR results. With ﬁne-tuning (FT), the WERs were observed to be improved. All the words were lowercased in both ASR and NLU.
+For NLU, we ﬁne-tuned BART model 3 using Transform- ers 4 framework. To solve NLU, intent and slot tags (e.g. [in:get_weather) were added to the original BART vo- cabulary. Table 3 shows the NLU results, where all the eval- uation is done using ground-truth text as model input. We ﬁrst ﬁne-tuned BART on all the Track3 data, and then ﬁne- tuned it on low-resource data, which we call low-resource ﬁne-tuning (LR-FT). By adding LR-FT, the EM (exact match) accuracy was improved. As described in Section 2.1, we ap- plied data augmentation with BERT 5 during LR-FT. We pre- pared 3241/881 synthetic samples, and 1841/530 samples re- mained after ﬁltering. We found data augmentation improved the EM accuracy. We further applied retrieval augmentation to BART (RA-BART), as described in Section 2.2. They are also ﬁne-tuned in two steps (all + reminder/weather). With combination of data augmentation and retrieval, the EM score was further improved to 73.8/79.7 (average: 76.8). Note that we must apply the same methodology for both low-resource domains, so we selected the model of the best averaged EM accuracy on validation set.
+Our target is to predict semantic parse from audio. Ta- ble 4 shows the end-to-end SLU evaluation with our ASR
+1https://huggingface.co/openai/whisper-medium 2https://github.com/espnet/espnet 3https://huggingface.co/facebook/bart-large 4https://github.com/huggingface/transformers 5https://huggingface.co/bert-base-uncased
+Table 3: NLU performance from ground-truth text.
+Valid/Test EM Acc.[%] weather reminder BART 39.1/65.1 41.3/45.1 + LR-FT 76.7/79.7 68.2/67.5 + LR-FT (dataaug) 78.9/80.3 68.2/69.9 RA-BART +LR-FT 66.7/70.3 81.2/80.3 + LR-FT (dataaug) 80.5/79.7 69.7/73.8
+Table 4: SLU evaluation from audio, which is the target of the challenge.
+Our pipeline E2E SLU [1]
+Test EM Acc.[%] reminder weather Avg. 69.15 31.08
+63.3 15.38
+75.0 46.77
+and NLU. We achieved the EM accuracy 63.3/75.0 (aver- age: 69.15). Our pipeline was conﬁrmed to be much better than the E2E SLU baseline [1].
+4. ACKNOWLEDGEMENT
+This work used Bridges2 system at PSC and Delta system at NCSA through allocation CIS210014 from the Advanced Cyberinfrastructure Coordination Ecosystem: Services & Support (ACCESS) program, which is supported by National Science Foundation grants #2138259, #2138286, #2138307, #2137603, and #2138296. Jessica Huynh was supported by the NSF Graduate Research Fellowship under Grant Nos. DGE1745016 and DGE2140739. The opinions expressed in this paper do not necessarily reﬂect those of that funding agency.
+5. REFERENCES
+[1] Paden Tomasello et al., “STOP: A dataset for spoken task oriented semantic parsing,” SLT, pp. 991–998, 2022.
+[2] Xilun Chen et al.,
+“Low-resource domain adaptation in
+for compositional task-oriented semantic parsing,” EMNLP, 2020, pp. 5090–5100.
+[3] Alec Radford et al., “Robust speech recognition via large-
+scale weak supervision,” arXiv, 2022.
+[4] Yury Zemlyanskiy et al., “Generate-and-retrieve: Use your predictions to improve retrieval for semantic pars- ing,” in COLING, 2022, pp. 4946–4951.
+[5] Ke Tran et al.,
+“Generating synthetic data for task- oriented semantic parsing with hierarchical representa- tions,” in SPNLP, 2020, pp. 17–21.

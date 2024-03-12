@@ -1,0 +1,431 @@
+3 2 0 2
+y a M 4 2
+] L C . s c [
+1 v 6 1 7 4 1 . 5 0 3 2 : v i X r a
+GlobalBench: A Benchmark for Global Progress in Natural Language Processing
+Yueqi Song1, Catherine Cui2, Simran Khanuja1, Pengfei Liu3, Fahim Faisal4, Alissa Ostapenko1, Genta Indra Winata5, Alham Fikri Aji6, Samuel Cahyawijaya5, Yulia Tsvetkov1,7, Antonios Anastasopoulos4, Graham Neubig1
+1Carnegie Mellon University 2Harvard University 4George Mason University
+3Shanghai Jiaotong University
+5The Hong Kong University of Science and Technology
+6MBZUAI
+7University of Washington
+1
+Abstract
+Despite the major advances in NLP, significant disparities in NLP system performance across lan- guages still exist. Arguably, these are due to un- even resource allocation and sub-optimal incen- tives to work on less resourced languages. To track and further incentivize the global develop- ment of equitable language technology, we in- troduce GlobalBench. Prior multilingual bench- marks are static and have focused on a limited number of tasks and languages. In contrast, Glob- alBench is an ever-expanding collection that aims to dynamically track progress on all NLP datasets in all languages. Rather than solely measuring ac- curacy, GlobalBench also tracks the estimated per- speaker utility and equity of technology across all languages, providing a multi-faceted view of how language technology is serving people of the world. Furthermore, GlobalBench is designed to identify the most under-served languages, and rewards research efforts directed towards those languages. At present, the most under-served lan- guages are the ones with a relatively high pop- ulation, but nonetheless overlooked by compos- ite multilingual benchmarks (like Punjabi, Por- tuguese, and Wu Chinese). Currently, Global- Bench covers 966 datasets in 190 languages, and has 1,128 system submissions spanning 62 lan- guages1
+Introduction
+. . .
+MT
+Demo.Avg.
+…(othertasks)
+. . .
+NERcmn
+Ling.Avg.
+MTcmn
+GlobalBench NER
+GlobalBench NER
+NER
+MTspa
+GlobalBench MT
+NEReng
+All System Results
+NERspa
+GlobalBench MT
+MTeng
+Equity
+Equity
+Demo.Avg.
+Ling.Avg.
+Figure 1: GlobalBench Design: A leaderboard for each task is separately maintained. Each leaderboard con- tains a multi-faceted evaluation of submitted systems, along with a ranking of the most under-served languages. More details can be found in Section 2.
+(2021) argue that one major factor is a problem of incentives and resource allocation. For instance, languages associated with larger economic might (as measured by GDP of the countries where they are spoken) see more research and resource devel- opment, leading to more performant systems.
+Advances in multilingual natural language process- ing (NLP) technologies (Dabre et al., 2020; Hed- derich et al., 2021) have raised the enticing possibil- ities of NLP systems that benefit all people around the world. However, at the same time, studies into the state of multilingual NLP have demonstrated stark differences in the amount of resources avail- able (Joshi et al., 2020; Yu et al., 2022) and perfor- mance of existing NLP systems (Blasi et al., 2021; Khanuja et al., 2022).
+Why do these disparities exist? The causes of these disparities are multifarious, but Blasi et al.
+1GlobalBench will be available on a hosted server for any- one to contribute systems or data, with detailed submission in- structions: https://explainaboard.inspiredco. ai/benchmark?parent_id=globalbench&show_ featured=false
+In this paper, we propose GlobalBench, a new benchmark and leaderboard that is designed to specifically incentivize the global development of equitable language technologies that serve speak- ers of all languages throughout the world. Glob- alBench follows the footsteps of other successful multilingual benchmarks such as XTREME (Hu et al., 2020) and XGLUE (Liang et al., 2020), which aggregate results of systems across several tasks and provide a general idea of progress being made in the field of multilingual NLP. However, these benchmarks, by design, are static and lack the goal to be an all-inclusive, ever-expanding collec- tion of datasets. Additionally, they mainly focus on average accuracy over all languages in the dataset, and thus say little about the downstream utility and equity of submitted systems, across languages.
+
+
+Utility
+System1
+System1
+Dataset and model contributions
+Pillar 2: Multi-faceted Evaluation
+L3, L4
+Dataset3
+L1, L2
+Accuracy / F1/BLEU/ chrf …
+System2
+System2
+L1, L3
+MT
+MT
+Most Under-Served Languages
+L4
+…
+Equity
+Equity
+NER
+NER
+L3
+L3
+L3
+L3
+Improvement
+960 datasets in 190 languages
+L4
+L4
+L3
+. . . . .
+Accuracy / F1/BLEU/ chrf …
+…
+L2, L3
+L2, L3
+Pillar 1: Dataset Inclusivity
+Dataset1
+Dataset1
+L2
+. . . . .
+. . . . .
+. . . . .
+. . . . .
+. . . . .
+. . . . .
+. . . . .
+L2
+Utility
+Dataset2
+Dataset2
+of 1,128 system submissions
+L1
+L1
+L1
+L1
+L1
+Pillar 3: Reward
+L1, L2
+Figure 2: GlobalBench’s Philosophy: First, we aim to inclusively gather datasets for all tasks and languages. Second, we present a multi-faceted evaluation of systems, going beyond average accuracies across languages, to keep track of the utility and equity of these systems. Third, the leaderboard maintains a list of the most under-served languages, and rewards improvement in utility, which is achieved through both dataset and model contributions. Above, we see that the addition of System2 improves the measured utility of L2 and L3 for the MT leaderboard, and the addition of Dataset3 , improves the measured utility of L4 in the NER leaderboard.
+Hence, in designing GlobalBench, we make a number of intentional design decisions to explicitly promote the improvement of language technology for all of the world’s citizens:
+Inclusive Dataset Selection: We aim to be able to evaluate all datasets in all languages for all tasks, making it possible to (in theory) cover any language for which a dataset exists.
+lens of GlobalBench (§5), related work (§6) and our expectations for the path forward (§7).
+All in all, we believe that improving the quality and equity of language technologies for all speak- ers in the world is one of the paramount challenges of NLP today, and in the famous mantra from Peter Drucker, what you cannot measure, you cannot im- prove. GlobalBench is a first step in this direction.
+Multi-Faceted Evaluation: GlobalBench ex- plicitly considers per-speaker utility and eq- uity (§2), measuring how close NLP systems have come to equitably covering all speak- ers in the world, instead of just those in our existing data.
+Reward Data and Model Contributions: GlobalBench encourages improvements in the state-of-the-art (instead of just measuring the state-of-the-art itself), by identifying under- served languages and rewarding progress on them, both in terms of dataset and model con- tributions.
+In the remainder of this paper, we detail Glob- alBench’s design principles (§2), how interested research community members can participate (§3), the currently covered tasks and systems (§4), anal- ysis of the current state of NLP viewed through the
+2 GlobalBench Design Principles
+Philosophy: A working example of our guiding philosophy is shown in Figure 2. Our unique re- ward system incentivizes model builders to not only improve system performance, but also build datasets for new languages. To illustrate the former, let’s assume that researchers build a new system for MT (System2) which is state-of-the-art for languages L2 and L3. This increases utility for both languages (Equation 3), which is attributed to System2 on our MT leaderboard. For the latter, let’s assume that there was no NER dataset for L4, but pre-trained models (System2) supports this language. Hence, the introduction of Dataset3 helps realize a sharp improvement in utility for L4, which was previously immeasurable (hence, for all practical purposes, zero). Thus, the increase in util- ity for L4 on the NER leaderboard is attributed to Dataset3. Additionally, we rank the most to least
+
+
+under-served languages. To illustrate how this rank- ing helps, let’s consider the case for NER in Figure 2. Before the introduction of Dataset3, L4 was most under-served, followed by L1. After its inclu- sion in the leaderboard, the measured utility for L4 increases. Now, even though the utility value of L1 and L3 remains unchanged, L1 becomes the most under-served language. This would act as positive feedback for the community to direct their efforts towards languages needing most work (here, L1), and drive progress for global equity in a positive cause-effect feedback loop. Design: GlobalBench maintains a separate leader- board for each of the covered tasks, as shown in Figure 1. Each leaderboard details the con- stituent datasets, system submissions and the fol- lowing evaluation metrics (further details in §2.2 and §2.3): a) Performance (F1, accuracy, BLEU, etc.); b) System-by-System Utility (linguistic and demographic); c) Global Average Utility (linguistic and demographic); d) Equity; e) Most under-served Languages; f) Score by Language. For more details about GlobalBench UI, please refer to §A.3.
+2.1 Dataset Selection: Inclusivity
+The first pillar of GlobalBench’s approach is that we attempt to be all-inclusive with respect to lan- guages, tasks, and datasets. On the dataset front, GlobalBench has 966 datasets spanning 190 lan- guages. On the modeling front, it has 1,128 system outputs spanning 6 NLP tasks and 62 languages (note that not every dataset integrated within Glob- alBench has system outputs submitted to the leader- board at present). Overall, GlobalBench has sup- port to accept dataset and system submissions for 17 NLP tasks, in 6671 languages2, where there are about 7000 spoken languages around the world (Austin and Sallabank, 2011). At present, named entity recognition is the task with the highest cov- erage of world speaker population (59.34%), but GlobalBench hopes to continually evolve with time.
+2.2 Multi-Faceted Evaluation: Utility and
+Equity
+Utility Blasi et al. (2021) introduce utility ul of a system for a task and language to be its per- formance normalized by the best possible perfor- mance (typically, human-level performance, but if
+2The source of metadata of these languages is "Ethnologue:
+Languages of the World."
+it’s unattainable, we use the empirical maximum as an estimate) afforded by the task:
+ul =
+performancel theoretical max performance
+While the above helps estimate system perfor- mance relative to the ideal scenario, the final utility provided also depends on the systems’ demand, which is the second term used by Blasi et al. (2021) in their analysis. Demand dl is characterized by tak- ing into consideration demographic and linguistic perspectives. Under the demographic perspective, the demand for a technology in a language is esti- mated to be proportional to the number of speakers of the language itself nl (dl ∝ nl). Under the lin- guistic perspective, the demand across languages is identical (dl ∝ 1). These two alternatives, as well as any intermediate combination of them, are parameterized through a single exponent τ :
+d(τ ) l =
+(cid:80)
+nτ l l′ϵL nτ l′
+where τ = 1 corresponds to a demographic notion of demand and τ = 0 to a linguistic one. Using the above, Blasi et al. (2021) define a global metric as follows:
+Mτ =
+(cid:88)
+d(τ ) l
+. ul
+lϵL
+In essence, Mτ = 0 means that no user bene- fits from language technology and Mτ = 1 cor- responds to each language user enjoying perfect technology.
+In GlobalBench, we provide the demographic weighted (τ = 1) and the linguistic weighted (τ = 0) utilities for all languages in each task. For each language, we take the maximum utility scores of all systems submitted to GlobalBench. To ob- tain task global averages, as shown in Table 2, we average across utility values for all languages.
+Equity While utility paints the picture of how far from ideal we are in serving NLP technol- ogy to each user, equity helps measure how uni- form the technologies we serve are, across lan- guages. Khanuja et al. (2022) recently proposed that amongst other measures of statistical disper- sion, the Gini coefficient (Dorfman, 1979) best captures this uniformity. Hence, we use the same as a measure of equity in our work. Intuitively, a lower value of G indicates that languages are
+(1)
+(2)
+(3)
+
+
+Q: What is the capital of France? => A: Paris.
+The capital of France is _____. => The capital of France is Paris.
+Amy will close the window => [NP Amy] [VP will close] [NP the window]
+Story of “Beauty and the Beast” => Summary of “Beauty and the Beast”
+S1: Amy doesn’t live far away from me; S2: Amy lives close to me => Entailment
+Text Editing
+Summarization
+Given the true head of a KG, predict the tail entity of the KG.
+Question Answering
+The capital of France is _____. => a) Paris, b) London, c) Rome, d) Madrid
+Multiple Choice QA
+This movie is awesome! => a) Positive, b) Negative, c) Neutral
+Text Classification
+Text Classification
+There is a apple. => There is an apple.
+Grammatical Error Corr.
+I was happy with the delivery, dissatisﬁed with the product => delivery (+); product (-)
+Conditional Generation
+Machine Translation
+Language Modeling
+Language Modeling
+Extractive QA
+Span Text Classification
+Code Generation
+Iterate through words of a ﬁle in Python => words = open('myﬁle').read().split()
+Text Pair Classification
+Text Pair Classification
+Chunking
+Amy was born in 2020 => Amy[Person] was born in 2020[Time].
+Knowledge Graph Prediction
+Multiple Choice
+KG link tail prediction
+[French to Japanese] Bonjour => おはよう
+今夜月色很美 => 今夜 | 月色 | 很 | 美
+Named Entity Recognition
+Sequence Labeling
+Aspect-based Sentiment
+Open Domain
+The weather is _____ => beautiful
+Word Segmentation
+Text: “Amy and Bob formed a group”; Q: How many people are in the group? => A: Two.
+Generative
+Cloze
+[Text as above] Q: How many people are in the group? a) 1, b) 2, c) 3 => A: b) 2
+Figure 3: Overview of Tasks: All tasks currently supported by GlobalBench are as shown above. This is expected to constantly evolve with time. Refer to Section 4 for details.
+closer to a uniform distribution. Considering either extremes, when all languages have the same perfor- mance, G = 0, and when there is support for only one language, G = 1. Formally, if performance of a language for a task is yi, (i = 1 ... n where n is the total number of languages), and is indexed in non-decreasing order (yi ≤ yi+1), then the Gini coefficient (G) can be calculated as:
+G =
+1 n
+(cid:18)
+n + 1 − 2
+(cid:80)n
+i=1(n + 1 − i)yi i=1 yi
+(cid:80)n
+(cid:19)
+For each task, we obtain equity values, calcu- lated using the maximum performance of submitted systems for each language in a task. For languages that are not supported by any dataset, we assume the system performance to be zero. The global equity values for each task are in Table 2.
+(4)
+guistic weighted global averages, and the global equity values. In GlobalBench, we also encourage development of systems that improve upon these metrics. We accomplish this in two ways:
+First, we identify areas with the greatest poten- tial for improvement, i.e., we identify the most under-served languages. We choose a parame- ter of τ = 0.4 to better strike a balance between demographic- and linguistic-weighted utility. Lan- guages farthest from the ideal τ -weighted utility are expected to be most under-served. Hence, (1− τ -weighted utility) of a language gives us this mea- sure. We sort each of the 6671 languages supported in GlobalBench according to this measure. There- fore, we obtain a ranking of languages with rela- tively high population and relatively low scores, broken down by task.
+Apart from the above, we keep track of system performances (F1/Accuracy/BLEU etc.). For each task, we take the system output with the highest per- formance among all system outputs with the same language, and provide a ranking of languages with the highest system performances. We also maintain a ranking of most under-served languages (sorted based on utilities), for reasons detailed below.
+2.3
+Incentivization: Reward Improvement
+We can estimate current global progress in lan- guage technologies using the demographic and lin-
+Second, a submission’s rank on our leaderboard is determined by how much it contributes to in- creasing the overall τ -weighted utility across lan- guages. This can be achieved in two ways: i) Data Efforts: By contributing datasets for previously unsupported languages, their utility, which was previously immeasurable (hence, for all practical purposes, zero), sees a sharp rise; ii) Improved Systems: By submitting new systems which im- prove upon the state-of-the-art, we improve utility by definition (Equation 3).
+
+
+3
+Implementation and Participation Details for GlobalBench
+GlobalBench was built on top of ExplainaBoard3 (Liu et al., 2021), a benchmarking platform that reveals strengths and weaknesses of submitted systems, and interprets relationships between them. ExplainaBoard accepts open submissions of datasets and systems, and GlobalBench inherits these from ExplainaBoard.
+For datasets that are already a part of Explain- aBoard, system results for them can be submitted to GlobalBench for evaluation. The submission process of system results is simple: system results submitted to ExplainaBoard will automatically be included in GlobalBench. Participants don’t need to separately submit anything else.
+if people want to submit new datasets to benchmark, one can follow the dataset submission process on ExplainaBoard4. After do- ing so, corresponding system results can be submit- ted as per the above instructions.
+In addition,
+4 Datasets and Tasks
+In GlobalBench, we currently support 17 tasks that fall into 10 distinct categories. These tasks rep- resent a diverse set of NLP technologies, ranging from those that are highly applicative and user- facing (question answering, machine translation etc.), to those that aren’t directly applied, but are nonetheless fundamental to NLP (language mod- eling, etc.). We briefly summarize the tasks and provide one example for each task in Figure 3, and we provide a list of all datasets that GlobalBench sees system submissions in §A.1. While we sup- port 17 tasks covering 966 datasets, we don’t have system outputs for all as of now. We make a note of system outputs available for each task in Table 1, to inform our results and analyses.
+5 Results and Analysis
+GlobalBench allows us to conduct a series of anal- yses to assess global progress in NLP technologies. While GlobalBench is intended to be evolving to gauge the continued improvements in performance of NLP systems, we examine the current state of systems that have been submitted, to demonstrate how GlobalBench can guide and incentivize future
+3https://explainaboard.inspiredco.ai/. 4https://github.com/ExpressAI/DataLab.
+participation and improvement in language tech- nology.
+5.1 How inclusive is GlobalBench?
+The inclusive design of GlobalBench elucidated in Section 2 means that it can support any NLP task and dataset integrated within the ExplainaBoard software. ExplainaBoard, and subsequently Glob- alBench, currently supports dataset submissions of 6671 languages and 17 tasks. GlobalBench now covers 966 datasets in 190 languages. We have 1,128 system outputs at the time of writing, span- ning 6 NLP tasks: named entity recognition (NER), text pair classification, text classification, extrac- tive QA, machine translation, and KG link tail pre- diction; over a total of 62 languages. With the existing systems included in GlobalBench, we al- ready cover 4.72% to 59.34% of the first languages of people in the world depending on the task, as detailed in Table 2. We focus on analyzing system submission for these six tasks below.
+5.2 What is our Current Progress as Measured by GlobalBench?
+Next, we discuss the current state of NLP progress through the lens of GlobalBench. To do so, we display the demographic- and linguistic-weighted global average scores in Table 2.
+Variance in estimated utility across tasks: In Table 2, we observe that NER has the highest es- timated overall demographic and linguistic global average. Additionally, NER and MT have the high- est language coverage (60 languages). This is be- cause these tasks have been subject to extensive and impressive multilingual dataset development and evaluation efforts by authors of FLORES (Goyal et al., 2022), MasakhaNER (Adelani et al., 2021), and NusaCrowd (Cahyawijaya et al., 2022), which are all included in GlobalBench. In contrast, the estimated demographic- and linguistic- weighted utility for tasks like KG link prediction or multiple- choice QA are low. These are tasks where intensive data creation efforts have traditionally focused on English. The multilingual datasets that do exist are less widely used and/or not yet included in Glob- alBench. However, GlobalBench can help iden- tify these coverage failures and improve accuracy (§5.3).
+Linguistic vs. demographic utility: In addition, we observe that overall linguistic utility scores across all tasks is very low, and is substantially
+
+
+Category
+Task
+Number of
+Datasets Languages System Outputs
+Metric
+Text Classification
+Text Classification
+127
+12
+199
+Accuracy
+Sequence Labeling
+Named Entity Recognition Word Segmentation Chunking
+78 1 2
+60 1 1
+450 - -
+F1 F1 F1
+Cloze
+Generative Multiple Choice
+10 21
+1 2
+-
+CorrectCount Accuracy
+Text Pair Classification
+Text Pair Classification
+57
+30
+96
+Accuracy
+Span Text Classification
+Span Text Classification
+4
+1
+
+Accuracy
+Text Editing
+Grammatical Error Correction
+10
+1
+
+SeqCorrectCount
+Question Answering
+Extractive Multiple Choice Open Domain
+80 72 4
+18 2 2
+185 - -
+F1 Acc. ExactMatch
+Conditional Generation
+Machine Translation Summarization Code Generation
+242 251 4
+60 55 5
+170 - -
+Bleu Bleu Bleu
+KG Prediction
+KG Prediction
+3
+1
+28
+Hits
+Language Modeling
+Language Modeling
+
+
+
+Perplexity
+Table 1: Overall Statistics of supported tasks, datasets and system outputs. We currently have 1128 system outputs across 6 tasks and 62 languages. Refer to §5 for a detailed analysis.
+lower than the corresponding demographic utility scores. For instance, the demographic utility score for NER is 0.4489, while the linguistic utility score for the same is only 0.0067. This makes clear that the systems submitted to GlobalBench are currently doing a better job of covering widely-spoken lan- guages, but are doing less well at covering all of the languages in the world.
+Task
+Demo. Avg. ↑ Ling. Avg. ↑ Gini ↓ % Pop.
+NER Extractive QA Text Pair Classif. MT Text Classif. KG Prediction
+0.4489 0.3460 0.3465 0.0485 0.0477 0.0221
+0.0067 0.0020 0.0019 0.0002 0.0001 0.0001
+0.9920 0.9975 0.9976 0.9987 0.9997 0.9998
+59.34% 44.46% 39.02% 10.58% 4.72% 4.72%
+Table 2: Demographic and linguistic global averages, equity values (Gini), and percentage of world population covered by current submissions of system results to GlobalBench. Tasks shown in this table have at least one system submission.
+Equity of systems across languages: Since we calculate the Gini coefficient accounting for all 6671 languages, all values are extremely high (near- ing 1). Text classification and KG Prediction only have datasets for English, hence the Gini values almost equal 1. We also note that, despite NER and MT having the same language coverage, MT has a higher Gini value, indicating that amongst
+the languages supported, NER has a more uniform distribution of performance as compared to MT.
+Variation across languages per task: We also maintain a ranking of system performance for each language as described in §2.2. For each task, we take the highest performance amongst all systems, to represent the performance for a (task, language) pair. Next, we rank all system performances across languages for each task. For example, suppose we have 4 systems with performances P1, P2, P3, and P4 for task T1, where P1 and P2 are in language L1, and P3 and P4 are in language L2. If P1 > P2, then P1 is used to represent the performance of T1 in L1; similarly, if P3 > P4, then P3 is used to represent the performance of T1 in L2. We then rank the system performances of L1 and L2 under task T1, i.e., we compare P1 and P3 to see which language sees higher system performance. Figure 4a shows a chromatic visualization of system analysis across language populations for NER. GlobalBench sup- ports 78 datasets and 60 languages for this task, and sees 450 system submissions of this task. There- fore, we can see high system performances for many languages. However, KG Link Tail Predic- tion does not have many submitted systems (28), with monolingual coverage and low performance, as shown in Figure 4b. For a more comprehensive set of chromatic analysis figures for each task with
+
+
+(a) NER
+(b) KG Link Tail Prediction
+Figure 4: Variations across languages for a task: Rank- ing of system performance for each language in NER (above) and KG Prediction (below).
+(a) Demographic global average
+(b) Linguistic global average
+Figure 5: A snaphsot capturing the increase in global averages for NER in the recent past, with the addition of new datasets.
+system outputs, please refer to Appendix §A.2.
+5.3 Measuring improvement with
+GlobalBench
+Another major focus of GlobalBench is to mea- sure and encourage improvement in the quality of language technology systems.
+5.3.1 How have we improved?
+GlobalBench keeps track of when each submission was made, making it possible to examine global progress in NLP over time. To give one example of this, in Figure 5 we show how dataset submis- sions have helped increase the global averages for NER in the recent past. Specifically, the earliest time point only covered English datasets, leaving both averages relatively low. In the second dat- apoint, systems for African languages from the MasakhaNER dataset were added (Adelani et al., 2021), significantly raising the linguistic average. In the third datapoint, systems from the XTREME benchmark (Hu et al., 2020) were added, cover- ing a more populous set of languages, significantly raising the demographic average.
+5.3.2 Where can we improve?
+The variety of analysis in the previous section is, in a sense, backward-looking: it looks back at the progress that has already been made. In order to instead get a better idea of how we may improve our systems in the future, we use the methodology in Section 2.3 to identify most under-served lan- guages in GlobalBench, which are the languages with relatively high population and relatively low scores for each of the tasks. To display in Global- Bench, we choose a parameter of τ = 0.4, which allows us to moderate between considerations of serving all speakers in the world and serving all languages in the world.
+Task
+Lang 1 Lang 2 Lang 3
+Named Entity Recognition Extractive QA Text Pair Classification Machine Translation Text Classification KG Prediction
+cmn por ben cmn cmn cmn
+pnb jpn por spa spa spa
+wuu urd ind ara ara ara
+Table 3: Most under-served languages for each task (by ISO 639-3 language code).
+We show the three most under-served languages for each task in Table 35. From these statistics we observe some interesting trends. First, for tasks where the most widely spoken non-English lan- guages in the world, Mandarin Chinese (cmn), Spanish (spa), and Arabic (ara) are not covered, these are selected the most under-served languages.
+5Note that for the purpose of these statistics, we use the
+source language for the machine translation task.
+
+
+However, for the tasks with better language cov- erage such as NER, extractive QA, and text pair classification, the most under-served languages are ones with relatively high population that are nonetheless not covered well by existing multilin- gual datasets that have been included in Global- Bench. This indicates a need for more creation or incorporation of datasets for major languages such as Punjabi, Wu Chinese, and Portuguese, which have been overlooked by existing composite bench- marks.
+6 Related Work
+From datasets to benchmarks Given the ubiq- uitous use of NLP technology in applications, it is imperative to track and maintain progress across a variety of NLP tasks. Evaluating and compar- ing systems on a single task can also be problem- atic; past work has identified issues with standard datasets (Artetxe et al., 2019; Gururangan et al., 2018). As the field has progressed, several bench- marks have been released to spur the development of generalizable NLU systems. GLUE (Wang et al., 2018) was one such benchmark with a collection of 9 diverse NLU tasks (sentiment analysis (Socher et al., 2013), natural language inference (Williams et al., 2017), etc.), contrary to prior benchmarks that focused on datasets for a single category of tasks (Conneau and Kiela, 2018). SuperGLUE (Wang et al., 2019) updates GLUE by introducing a new set of harder tasks like commonsense rea- soning (Zhang et al., 2018) and question answer- ing (Khashabi et al., 2018). The recently released BIG-bench (Srivastava et al., 2022) consists of a diverse set of 204 tasks, aimed at specifically evalu- ating the capabilities and limitations of large LMs. Finally, Dynabench (Kiela et al., 2021) is a human- and-model-in-the-loop platform, for dynamic data collection and benchmarking, which currently sup- ports ten tasks. Notably, none of these benchmarks provide utility/equity measures, or a reward struc- ture that incentivizes progress towards the most under-served languages.
+Moving beyond English While the aforemen- tioned benchmarks have driven progress in NLP for English, there have been several recent efforts made towards other languages as well. Multilin- gual composite benchmarks such as XTREME (Hu et al., 2020), XTREME-R (Ruder et al., 2021), and XGLUE (Liang et al., 2020) are a collection of datasets in a variety of tasks and languages.
+XTREME includes 9 tasks across 40 languages, XTREME-R includes 10 tasks across 50 languages with 198 datasets, and X-GLUE improves GLUE (Wang et al., 2018) by including 11 cross-lingual tasks. However, all of these are static and lack the goal to be an all-inclusive, ever-expanding collec- tion of datasets. Beyond these, there have been directed efforts towards dataset curation, especially for the low [text] resource. MasakhaNER (Adelani et al., 2021) supports a large dataset for NER task of 10 African languages. IndoNLU (Wilie et al., 2020) is the first vast resource Indonesian bench- mark, and the KLUE benchmark (Park et al., 2021) focuses on 8 diverse tasks in Korean.
+In sum, while all of the above efforts have been impactful, none have had the goal to track global progress made by us as a research community, and design a reward system that incentivizes both data and model work, especially for the under-served languages. With GlobalBench, we propose a first step to bridge this gap and move towards inclusive, multi-faceted measurement of progress.
+7 Conclusion
+In this paper, we introduce GlobalBench, an ever- expanding collection of datasets and models span- ning across all tasks and languages within NLP. Our aim is for the community to move towards a common goal of building NLP technology that equitably serves all of the world’s citizens. To achieve this, we design a leaderboard resting upon three foundational principles: i) inclusivity: we track progress across all tasks and datasets for 6671 languages; ii) multi-faceted evaluation: our evalu- ation measures the per-speaker utility and equity of submitted systems, and also maintains a list of most under-served languages; iii) reward improve- ment: we reward data and modeling efforts that help improve utility across languages, rather than simply maintaining the best-performing systems. Analysing the 1,128 system outputs already inte- grated within GlobalBench, reveals that NER has the highest utility at present, but is also least equi- table. The simultaneous high demographic utility and low linguistic utility further reveals that efforts have been directed towards populous languages. Finally, we identify that the most under-served languages vary across tasks, but are primarily the ones with relatively high speaker population, but nonetheless low coverage in our datasets. All in all, we believe that GlobalBench is one step towards
+
+
+measurable progress in improving the global qual- ity and equity of languages technologies for all speakers in the world, and we hope the rest of the research community will join us in pursuit of this goal.
+8 Limitations
+GlobalBench is a broad-reaching effort that has the ambitious goal of measuring performance across all languages in the world. However, to even take the first steps towards this goal we needed to make a number of approximations, which are also inherent limitations of the current work.
+Inclusivity vs. Inclusivity across datasets doesn’t come without its downsides. With the goal of covering all datasets, we lose some measure of control to GlobalBench. When evalu- ating global progress of language technology for particular tasks, GlobalBench uses multilingual datasets that may come from distinct sources or have dissimilar genres, causing the difficulty of each dataset to vary. Since GlobalBench doesn’t take into consideration the differences in difficulty among datasets of different languages, distinct datasets across different languages might not be directly comparable. This is common practice for previous benchmarks such as XTREME (Hu et al., 2020) and Universal Dependencies (Nivre et al., 2016). Furthermore, we expect the law of averages to even out this issue as we keep collecting diverse datasets across domains for each language.
+Comparability:
+Languages vs. Language Varieties: In addition, while GlobalBench relies heavily on distinctions between languages, language boundaries are neb- ulous, and many dialects or language varieties ex- ist. If datasets annotated with language varieties, as well as demographic information regarding the number of speakers of these varieties existed, such information could be incorporated within Glob- alBench at a future date. But the current results reported in this paper do not consider this informa- tion.
+Reliance on Performance and Population-based Demand Measures: Currently, GlobalBench re- lies on standard performance measures such as ac- curacy, F1, and BLEU to approximate the utility that would be provided by a system to a poten- tial user. However, in reality there is not so direct of a connection between model performance and
+whether it is actually serving speakers of a partic- ular language well. In addition, we use the first- language speaking population as an approximation for the demand for a language technology in a par- ticular language. However, this disregards second- language speakers, and cannot take into account the case where there may be differing demand for particular pieces of technology by speakers of dif- ferent languages.
+Acknowledgements
+This work was supported by Grant No. 2040926 from the National Science Foundation.
+References
+David Ifeoluwa Adelani, Jade Abbott, Graham Neu- big, Daniel D’souza, Julia Kreutzer, Constantine Lig- nos, Chester Palen-Michel, Happy Buzaaba, Shruti Rijhwani, Sebastian Ruder, Stephen Mayhew, Is- rael Abebe Azime, Shamsuddeen H. Muhammad, Chris Chinenye Emezue, Joyce Nakatumba-Nabende, Perez Ogayo, Aremu Anuoluwapo, Catherine Gitau, Derguene Mbaye, Jesujoba Alabi, Seid Muhie Yi- mam, Tajuddeen Rabiu Gwadabe, Ignatius Ezeani, Rubungo Andre Niyongabo, Jonathan Mukiibi, Ver- rah Otiende, Iroro Orife, Davis David, Samba Ngom, Tosin Adewumi, Paul Rayson, Mofetoluwa Adeyemi, Gerald Muriuki, Emmanuel Anebi, Chiamaka Chuk- wuneke, Nkiruka Odu, Eric Peter Wairagala, Samuel Oyerinde, Clemencia Siro, Tobius Saul Bateesa, Temilola Oloyede, Yvonne Wambui, Victor Akin- ode, Deborah Nabagereka, Maurice Katusiime, Ayo- dele Awokoya, Mouhamadane MBOUP, Dibora Ge- breyohannes, Henok Tilaye, Kelechi Nwaike, De- gaga Wolde, Abdoulaye Faye, Blessing Sibanda, Ore- vaoghene Ahia, Bonaventure F. P. Dossou, Kelechi Ogueji, Thierno Ibrahima DIOP, Abdoulaye Diallo, Adewale Akinfaderin, Tendai Marengereke, and Sa- lomey Osei. 2021. MasakhaNER: Named entity recognition for African languages. Transactions of the Association for Computational Linguistics, 9:1116–1131.
+Mikel Artetxe, Sebastian Ruder, and Dani Yo- gatama. 2019. On the cross-lingual transferabil- ity of monolingual representations. arXiv preprint arXiv:1910.11856.
+Mikel Artetxe and Holger Schwenk. 2019. Mas- sively multilingual sentence embeddings for zero- shot cross-lingual transfer and beyond. Transactions of the Association for Computational Linguistics, 7:597–610.
+Peter K Austin and Julia Sallabank. 2011. The Cam- bridge handbook of endangered languages. Cam- bridge University Press.
+
+
+Damián Blasi, Antonios Anastasopoulos, and Gra- ham Neubig. 2021. Systematic inequalities in lan- guage technology performance across the world’s languages. arXiv preprint arXiv:2110.06733.
+Antoine Bordes, Nicolas Usunier, Alberto Garcia- Duran, Jason Weston, and Oksana Yakhnenko. 2013. Translating embeddings for modeling multi- relational data. Advances in neural information pro- cessing systems, 26.
+Samuel R Bowman, Gabor Angeli, Christopher Potts, and Christopher D Manning. 2015. A large annotated corpus for learning natural language inference. arXiv preprint arXiv:1508.05326.
+Samuel Cahyawijaya, Alham Fikri Aji, Holy Lovenia, Genta Indra Winata, Bryan Wilie, Rahmad Mahendra, Fajri Koto, David Moeljadi, Karissa Vincentio, Ade Romadhony, et al. 2022. Nusacrowd: A call for open and reproducible nlp research in indonesian languages. arXiv preprint arXiv:2207.10524.
+Jonathan H Clark, Eunsol Choi, Michael Collins, Dan Garrette, Tom Kwiatkowski, Vitaly Nikolaev, and Jennimaria Palomaki. 2020. Tydi qa: A benchmark for information-seeking question answering in typo- logically diverse languages. Transactions of the As- sociation for Computational Linguistics, 8:454–470.
+Alexis Conneau and Douwe Kiela. 2018. Senteval: An evaluation toolkit for universal sentence representa- tions. arXiv preprint arXiv:1803.05449.
+Alexis Conneau, Guillaume Lample, Ruty Rinott, Ad- ina Williams, Samuel R Bowman, Holger Schwenk, and Veselin Stoyanov. 2018. Xnli: Evaluating cross- arXiv preprint lingual sentence representations. arXiv:1809.05053.
+Raj Dabre, Chenhui Chu, and Anoop Kunchukuttan. 2020. A survey of multilingual neural machine trans- lation. ACM Computing Surveys (CSUR), 53(5):1– 38.
+Robert Dorfman. 1979. A formula for the gini coeffi- cient. The review of economics and statistics, pages 146–149.
+Fahim Faisal, Sharlina Keshava, Md Mahfuz Ibn Alam, and Antonios Anastasopoulos. 2021. SD-QA: Spo- ken dialectal question answering for the real world. In Findings of the Association for Computational Linguistics: EMNLP 2021, pages 3296–3315, Punta Cana, Dominican Republic. Association for Compu- tational Linguistics.
+Naman Goyal, Cynthia Gao, Vishrav Chaudhary, Peng- Jen Chen, Guillaume Wenzek, Da Ju, Sanjana Kr- ishnan, Marc’Aurelio Ranzato, Francisco Guzmán, and Angela Fan. 2022. The Flores-101 evaluation benchmark for low-resource and multilingual ma- chine translation. Transactions of the Association for Computational Linguistics, 10:522–538.
+Suchin Gururangan, Swabha Swayamdipta, Omer Levy, Roy Schwartz, Samuel R Bowman, and Noah A Smith. 2018. Annotation artifacts in natural language inference data. arXiv preprint arXiv:1803.02324.
+Michael A. Hedderich, Lukas Lange, Heike Adel, Jan- nik Strötgen, and Dietrich Klakow. 2021. A survey on recent approaches for natural language process- In Proceedings of ing in low-resource scenarios. the 2021 Conference of the North American Chap- ter of the Association for Computational Linguistics: Human Language Technologies, pages 2545–2568, Online. Association for Computational Linguistics.
+Charles T. Hemphill, John J. Godfrey, and George R. Doddington. 1990. The ATIS spoken language sys- tems pilot corpus. In Speech and Natural Language: Proceedings of a Workshop Held at Hidden Valley, Pennsylvania, June 24-27,1990.
+Junjie Hu, Sebastian Ruder, Aditya Siddhant, Gra- ham Neubig, Orhan Firat, and Melvin Johnson. 2020. Xtreme: A massively multilingual multi-task benchmark for evaluating cross-lingual generalisa- tion. In International Conference on Machine Learn- ing, pages 4411–4421. PMLR.
+Pratik Joshi, Sebastin Santy, Amar Budhiraja, Kalika Bali, and Monojit Choudhury. 2020. The state and fate of linguistic diversity and inclusion in the NLP world. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics, pages 6282–6293, Online. Association for Computational Linguistics.
+Simran Khanuja, Sebastian Ruder, and Partha Talukdar. 2022. Evaluating inclusivity, equity, and accessibility of nlp technology: A case study for indian languages. arXiv preprint arXiv:2205.12676.
+Daniel Khashabi, Snigdha Chaturvedi, Michael Roth, Shyam Upadhyay, and Dan Roth. 2018. Looking beyond the surface: A challenge set for reading com- prehension over multiple sentences. In Proceedings of the 2018 Conference of the North American Chap- ter of the Association for Computational Linguistics: Human Language Technologies, Volume 1 (Long Pa- pers), pages 252–262.
+Douwe Kiela, Max Bartolo, Yixin Nie, Divyansh Kaushik, Atticus Geiger, Zhengxuan Wu, Bertie Vid- gen, Grusha Prasad, Amanpreet Singh, Pratik Ring- shia, et al. 2021. Dynabench: Rethinking benchmark- ing in nlp. arXiv preprint arXiv:2104.14337.
+Patrick Lewis, Barlas Oguz, Ruty Rinott, Sebastian Riedel, and Holger Schwenk. 2019. Mlqa: Eval- uating cross-lingual extractive question answering. arXiv preprint arXiv:1910.07475.
+Xin Li and Dan Roth. 2002. Learning question clas- sifiers. In COLING 2002: The 19th International Conference on Computational Linguistics.
+
+
+Yaobo Liang, Nan Duan, Yeyun Gong, Ning Wu, Fenfei Guo, Weizhen Qi, Ming Gong, Linjun Shou, Daxin Jiang, Guihong Cao, Xiaodong Fan, Ruofei Zhang, Rahul Agrawal, Edward Cui, Sining Wei, Taroon Bharti, Ying Qiao, Jiun-Hung Chen, Winnie Wu, Shuguang Liu, Fan Yang, Daniel Campos, Rangan Majumder, and Ming Zhou. 2020. XGLUE: A new benchmark datasetfor cross-lingual pre-training, un- derstanding and generation. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing (EMNLP), pages 6008–6018, Online. Association for Computational Linguistics.
+Pengfei Liu, Jinlan Fu, Yang Xiao, Weizhe Yuan, Shuaichen Chang, Junqi Dai, Yixin Liu, Zihuiwen Ye, and Graham Neubig. 2021. ExplainaBoard: An ex- plainable leaderboard for NLP. In Proceedings of the 59th Annual Meeting of the Association for Compu- tational Linguistics and the 11th International Joint Conference on Natural Language Processing: System Demonstrations, pages 280–289, Online. Association for Computational Linguistics.
+Marco Marelli, Stefano Menini, Marco Baroni, Luisa Bentivogli, Raffaella Bernardi, Roberto Zamparelli, et al. 2014. A sick cure for the evaluation of com- positional distributional semantic models. In Lrec, pages 216–223. Reykjavik.
+Joakim Nivre, Marie-Catherine De Marneffe, Filip Gin- ter, Yoav Goldberg, Jan Hajic, Christopher D Man- ning, Ryan McDonald, Slav Petrov, Sampo Pyysalo, Natalia Silveira, et al. 2016. Universal dependencies v1: A multilingual treebank collection. In Proceed- ings of the Tenth International Conference on Lan- guage Resources and Evaluation (LREC’16), pages 1659–1666.
+Alissa Ostapenko, Shuly Wintner, Melinda Fricke, and Yulia Tsvetkov. 2022. Speaker information can guide models to better inductive biases: A case study on In Proceedings of the predicting code-switching. 60th Annual Meeting of the Association for Compu- tational Linguistics (Volume 1: Long Papers), pages 3853–3867, Dublin, Ireland. Association for Compu- tational Linguistics.
+Bo Pang and Lillian Lee. 2005. Seeing stars: Exploit- ing class relationships for sentiment categorization with respect to rating scales. In Proceedings of the 43rd Annual Meeting of the Association for Compu- tational Linguistics (ACL’05), pages 115–124, Ann Arbor, Michigan. Association for Computational Lin- guistics.
+Sungjoon Park, Jihyung Moon, Sungdong Kim, Won Ik Cho, Jiyoon Han, Jangwon Park, Chisung Song, Jun- seong Kim, Yongsook Song, Taehwan Oh, et al. 2021. Klue: Korean language understanding evaluation. arXiv preprint arXiv:2105.09680.
+Sebastian Ruder, Noah Constant, Jan Botha, Aditya Sid- dhant, Orhan Firat, Jinlan Fu, Pengfei Liu, Junjie Hu, Dan Garrette, Graham Neubig, et al. 2021. Xtreme-r: Towards more challenging and nuanced multilingual evaluation. arXiv preprint arXiv:2104.07412.
+Chao Shang, Yun Tang, Jing Huang, Jinbo Bi, Xiaodong He, and Bowen Zhou. 2019. End-to-end structure- aware convolutional networks for knowledge base completion. In Proceedings of the AAAI conference on artificial intelligence, volume 33, pages 3060– 3067.
+Richard Socher, Alex Perelygin, Jean Wu, Jason Chuang, Christopher D Manning, Andrew Y Ng, and Christopher Potts. 2013. Recursive deep models for semantic compositionality over a sentiment treebank. In Proceedings of the 2013 conference on empiri- cal methods in natural language processing, pages 1631–1642.
+Aarohi Srivastava, Abhinav Rastogi, Abhishek Rao, Abu Awal Md Shoeb, Abubakar Abid, Adam Fisch, Adam R Brown, Adam Santoro, Aditya Gupta, Adrià Garriga-Alonso, et al. 2022. Beyond the imitation game: Quantifying and extrapolating the arXiv preprint capabilities of language models. arXiv:2206.04615.
+Erik F. Tjong Kim Sang and Fien De Meulder. 2003. Introduction to the CoNLL-2003 shared task: Language-independent named entity recognition. In Proceedings of the Seventh Conference on Natural Language Learning at HLT-NAACL 2003, pages 142– 147.
+Alex Wang, Yada Pruksachatkun, Nikita Nangia, Aman- preet Singh, Julian Michael, Felix Hill, Omer Levy, and Samuel Bowman. 2019. Superglue: A stick- ier benchmark for general-purpose language under- standing systems. Advances in neural information processing systems, 32.
+Alex Wang, Amanpreet Singh, Julian Michael, Felix Hill, Omer Levy, and Samuel R Bowman. 2018. Glue: A multi-task benchmark and analysis platform for natural language understanding. arXiv preprint arXiv:1804.07461.
+Bryan Wilie, Karissa Vincentio, Genta Indra Winata, Samuel Cahyawijaya, Xiaohong Li, Zhi Yuan Lim, Sidik Soleman, Rahmad Mahendra, Pascale Fung, Syafri Bahar, et al. 2020. Indonlu: Benchmark and resources for evaluating indonesian natural language understanding. arXiv preprint arXiv:2009.05387.
+Adina Williams, Nikita Nangia, and Samuel R Bow- man. 2017. A broad-coverage challenge corpus for sentence understanding through inference. arXiv preprint arXiv:1704.05426.
+Xinyan Velocity Yu, Akari Asai, Trina Chatterjee, Jun- jie Hu, and Eunsol Choi. 2022. Beyond count- ing datasets: A survey of multilingual dataset con- struction and necessary resources. arXiv preprint arXiv:2211.15649.
+Weizhe Yuan and Pengfei Liu. 2022. restructured pre-
+training. arXiv preprint arXiv:2206.11147.
+
+
+Sheng Zhang, Xiaodong Liu, Jingjing Liu, Jianfeng Gao, Kevin Duh, and Benjamin Van Durme. 2018. Record: Bridging the gap between human and ma- chine commonsense reading comprehension. arXiv preprint arXiv:1810.12885.
+A Appendix
+A.1 Datasets and System Outputs
+In this section, we list all datasets for which Glob- alBench has submissions of system outputs.
+Text Classification GlobalBench covers the fol- lowing datasets for this task: the QC (Question Classification) dataset (Li and Roth, 2002), the ATIS (Airline Travel Information Systems) dataset (Hemphill et al., 1990), the MR (Movie Review) dataset (Pang and Lee, 2005), the SST-2 (Stanford Sentiment Treebank) Corpus (Socher et al., 2013), datasets from GLUE (the General Language Un- derstanding Evaluation) benchmark (Wang et al., 2018), and the Code-Switching Corpus (Ostapenko et al., 2022).
+Sequence Labeling GlobalBench covers the fol- lowing datasets for this task: the MasakhaNER Cor- pus (Adelani et al., 2021), the CoNLL-2003 dataset (Tjong Kim Sang and De Meulder, 2003), and the PAN-X dataset (Artetxe and Schwenk, 2019).
+Text Pair Classification GlobalBench covers the following datasets for this task: the Cross-lingual Natural Language Inference (XNLI) corpus (Con- neau et al., 2018), the Stanford Natural Language Inference (SNLI) corpus (Bowman et al., 2015), and the Sentences Involving Compositional Knowl- dedge (SICK) dataset (Marelli et al., 2014).
+Question Answering GlobalBench covers the following datasets for this task: XQuAD (Artetxe et al., 2019), TyDiQA (Clark et al., 2020), SD- QA (Faisal et al., 2021), and MLQA (Lewis et al., 2019).
+Conditional Generation GlobalBench covers the following datasets for this task: datasets from the Fifth Conference on Machine Transla- tion (WMT20) shared tasks6 and datasets from the Gaokao benchmark (Yuan and Liu, 2022).
+KG Prediction GlobalBench covers the follow- ing datasets for this task: WordNet18RR (Shang et al., 2019), FB15K-237 (Bordes et al., 2013).
+6https://www.statmt.org/wmt20/
+A.2 Visualization of System Performance across Language populations
+We visualize system performances across language populations for each task with at least one system output, as shown in Figure 6.
+A.3 GlobalBench UI
+Figure 7 shows the User Interface of GlobalBench Text Pair Classification task. On the top left of the webpage, there is a brief description of the task. Participants will be able to see the statistics of all analyses. For instance, under the Demographic- Weighted Global Average analysis, there is the overall Demographic Average of this task and the diachronic figure representing how the the over- all Demographic Average of this task has changed over time.
+
+
+(a) KG Link Tail Prediction
+(b) Text Classification
+(c) Machine Translation
+(d) Text Pair Classification
+(e) Extractive QA
+(f) Named Entity Recognition
+Figure 6: Visualization of System Performance across Language Population
+Figure 7: GlobalBench Text Pair Classification task UI

@@ -1,0 +1,284 @@
+4 2 0 2
+b e F 6 1
+] S A . s s e e [
+2 v 4 8 3 7 1 . 9 0 3 2 : v i X r a
+TOWARD UNIVERSAL SPEECH ENHANCEMENT FOR DIVERSE INPUT CONDITIONS
+Wangyou Zhang1,3, Kohei Saijo2,3, Zhong-Qiu Wang3, Shinji Watanabe3, Yanmin Qian1
+1Shanghai Jiao Tong University, China 2Waseda University, Japan 3Carnegie Mellon University, USA
+ABSTRACT
+The past decade has witnessed substantial growth of data-driven speech enhancement (SE) techniques thanks to deep learning. While existing approaches have shown impressive performance in some common datasets, most of them are designed only for a single condition (e.g., single-channel, multi-channel, or a fixed sampling frequency) or only consider a single task (e.g., denoising or dere- verberation). Currently, there is no universal SE approach that can effectively handle diverse input conditions with a single model. In this paper, we make the first attempt to investigate this line of research. First, we devise a single SE model that is independent of microphone channels, signal lengths, and sampling frequencies. Second, we design a universal SE benchmark by combining exist- ing public corpora with multiple conditions. Our experiments on a wide range of datasets show that the proposed single model can successfully handle diverse conditions with strong performance.
+to the training setup. However, most of the existing approaches are designed only for a single input condition, such as single-channel input, multi-channel input, or input with a fixed sampling frequency. Recently, there are some attempts to address multiple input condi- tions with a single model. For example, the Transform-Average- Concatenate (TAC) [15, 16] method and a triple-path model [17] are proposed to handle multi-channel signals with a variable number of microphones configured in diverse array geometries. In [18], a continuous speech separation (CSS) approach is proposed to handle arbitrarily-long input with a fixed-length sliding window. Sampling- frequency-independent models are proposed in [19–21] to handle single-channel input with different sampling frequencies. Never- theless, these approaches only consider a limited range of input conditions. To the best of our knowledge, there does not exist a single-model approach proposed to handle speech enhancement for single-channel, multi-channel, and arbitrarily long speech signals with different sampling frequencies altogether.
+Index Terms— Universal speech enhancement, sampling-
+frequency-independent, microphone-number-invariant
+1. INTRODUCTION
+Speech enhancement (SE) is a task of improving the quality and in- telligibility of the speech signal in a noisy and potentially reverberant environment. Broadly speaking, speech enhancement can be divided into several subtasks such as denoising, dereverberation, echo can- cellation, and speech separation [1]. The first three mainly focus on single-source conditions, while speech separation tries to sepa- rate each speaker’s speech from the multi-source mixture recording. In this paper, we are primarily interested in the first two subtasks. Therefore, in the remainder of the paper, “speech enhancement” refers to denoising and dereverberation.
+In recent years, deep learning-based SE techniques have achieved promising performance in various scenarios. These technique can be roughly classified into three categories: masking- [2–4], mapping- [5–8], and generation-based methods [9–14]. Masking-based meth- ods estimate a mask either in the time-frequency domain or in the time domain for eliminating noise and reverberation, while mapping-based methods directly estimate the clean-speech repre- sentation in the corresponding domain. Generation-based methods try to reconstruct the clean speech using generation techniques such as generative adversarial networks (GANs) [9, 11], diffusion models [12, 13], and resynthesis-based models [10, 14]. These ap- proaches can provide impressive performance in a condition similar
+As a step towards universal SE which can handle arbitrary input, in this paper, we aim to devise a single SE model that can handle the aforementioned input conditions without compromising the perfor- mance. We propose an unconstrained speech enhancement and sep- aration network (USES) by carefully integrating several techniques.1 Here, “unconstrained” means the model is not constrained to be used only in a fixed input condition. This single model can accept various forms of input, including 1) single-channel, 2) multi-channel with 3) different array geometries, 4) variable lengths, and 5) variable sam- pling frequencies. We also empirically show that the proposed model can be trained on 8 kHz data alone and then tested on data with much higher sampling frequencies (e.g., 48 kHz). The versatility of this model further inspires us to build a universal SE benchmark to test the performance on various input conditions. We combine five commonly-used corpora (VoiceBank+DEMAND [22], DNS1 [23], CHiME-4 [24], REVERB [25], and WHAMR! [26]) to train a sin- gle SE model that covers a wide range of acoustic scenarios. The model is then tested on the corresponding test sets with five metrics to comprehensively demonstrate its capability of handling diverse conditions. Our experiments on various datasets show that the pro- posed model can successfully cope with different input conditions with strong performance. The proposed model will be released2 in the ESPnet toolkit [27]. We expect this work to attract more atten- tion toward building universal SE models, which can also benefit many downstream speech tasks such as automatic speech recogni- tion (ASR) and speech translation.
+The experiments were done using the PI supercomputer at Shanghai Jiao Tong University and the PSC Bridges2 system via ACCESS allocation CIS210014, supported by National Science Foundation grants #2138259, #2138286, #2138307, #2137603, and #2138296. Wangyou Zhang and Yan- min Qian were supported in part by China STI 2030-Major Projects under Grant No. 2021ZD0201500, in part by China NSFC projects under Grants 62122050 and 62071288, and in part by Shanghai Municipal Science and Technology Major Project under Grant 2021SHZDZX0102.
+2. PROPOSED MODEL
+In this section, we first describe the overall architecture of the pro- posed model. Then, we introduce the key components for handling each of the variable conditions that make our model versatile.
+1We validate the speech separation and enhancement abilities separately. 2https://github.com/espnet/espnet
+979-8-3503-0689-7/23/$31.00 ©2023 IEEE
+to Appear in Proc. ASRU 2023
+
+
+PReLU
+ⓓⓔⓕ
+(b) Multi-path block.The batch dimension is omitted in the figure. The TAC module is only used in the first 𝐾𝑠multi-path blocks.
+PReLU
+PReLU
+𝐹⋅𝑇
+PReLU
+2D TrConv𝐷,2,(3,3)
+𝐷×𝐹×𝑇
+EncoderDecoder①③②④⑤⑥⑦
+Reshape to 𝑁×𝐶×
+𝑁×𝐹×𝑇
+Microphone channel modelingⓐⓑⓒ
+iSTFT
+Linear2𝐻→𝑁
+LayerNorm
+STFT
+Transformer Layer
+TAC Module
+𝐶×𝐷×𝐹×𝑇
+Concat
+Multi-path Block×𝐾
+(1) Only take the reference microphoneor(2) Merge the microphone dimensioninto the batch dimension
+Linear𝑁→𝐻
+FTN
+2D Conv𝑁,𝐷,(1,1)
+(c) TAC module.It is applied to both single-channel (𝐶=1) and multi-channel (𝐶>1) inputs.
+(a) Proposed USES model.
+ConcatenateCF ·TN
+𝐶×𝑁×𝐹×𝑇
+Average
+LayerNormCF · TN
+Channel Average
+Linear𝐻→𝐻
+2D Conv𝐷,𝑁,(1,1)
+Transformer LayerFrequency sequence modelingTemporal sequence modeling
+2×𝐹×𝑇
+2D Conv2,𝐷,(3,3)
+CF ·TN
+Reshape to 𝑁×𝐹×𝑇Split the microphone dimensionfrom the batch dimension
+𝐶×2×𝐹×𝑇
+CF ·TN
+Transform
+(a) 16kHz(b) 8kHz
+Fig. 1: Overview of the proposed versatile SE model. The kernel size and feature maps of convolutional layers are annotated in gray.
+2.1. Overview The overall architecture of the proposed model is illustrated in Fig. 1. We base our proposed approach on a recently proposed dual-path network called time-frequency domain path scanning network (TF- PSNet) [28]. It is one of the top-performing speech separation mod- els in the time-frequency (T-F) domain, and we believe that it can achieve strong performance in speech enhancement as well. As will be shown in Section 2.2, this model is a natural fit for handling dif- ferent sampling frequencies. Without loss of generality, we assume that the input signal contains C microphone channels, where C can be 1 or more. The encoder consists of a short-time Fourier transform (STFT) module and a subsequent 2D convolutional layer 1 . The former converts each input channel into a complex spectrum with shape 2 × F × T , where 2 denotes the real and imaginary parts, F is the number of frequencies, and T the number of frames. The lat- ter processes each microphone channel independently and projects each T-F bin into a D-dimensional embedding for multi-path mod- eling. The encoded representations are then processed by channel- wise layer normalization 2 and projected to a bottleneck dimension N by a point-wise convolutional layer 3 . The bottleneck features are processed by K stacked multi-path blocks 4 , which outputs a single-channel representation of the same shape. The parametric rec- tification linear unit (PReLU) activation 5 is applied to the output, which is later projected back to D-dimensional by a point-wise con- volutional layer 6 . Finally, the output is converted to the complex- valued spectrum via 2D transposed convolution (TrConv, 7 ) and then to waveform via inverse STFT (iSTFT). We call the proposed method unconstrained speech enhancement and separation (USES) as it can be used in diverse input conditions.3
+Fig. 2: STFT with fixed-duration window and hop sizes (e.g., 32 ms and 16 ms) will generate spectra with the same frequency and temporal resolution for different sampling frequencies.
+sequence modeling and another for temporal sequence modeling, as shown in Fig. 3 (b). The transformer layers are the same as those in [28, 30]. The main differences include 1) we do not include any T-F path modeling (along the anti-diagonal direction) as we found it not so helpful in the preliminary experiments; 2) we additionally insert a TAC module for channel modeling (Sec 2.3).
+2.2. Sampling-Frequency-Independent design We follow the basic idea in [20] for sampling-frequency-independent (SFI) model design. Namely, we rely on the STFT/iSTFT to obtain consistent T-F representations across different sampling frequencies (SFs). Since the frequency response of STFT filterbanks shifts lin- early for all center frequencies [31], it can be easily extended to han- dle different SFs. As shown in Fig. 2, if we use fixed-duration STFT window and hop sizes (e.g., 32 and 16 ms) for different SFs, the resultant spectra will have constant T-F resolution. As a result, the STFT spectra of the same signal sampled at different SFs will have the same number of frames and different numbers of frequency bins, while the resolution is always consistent. We can leverage this prop- erty to build an SFI model easily as long as the model is capable of handling inputs with two variable dimensions, time and frequency.
+Compared to TFPSNet, we make modifications to the encoder and decoder, following the observations in a recent paper [29]. Specifically, we adopt the complex spectral mapping method instead of complex-valued masking in TFPSNet, as it is shown to produce better performance [29]. Therefore, the original convolutional lay- ers for mask estimation are replaced with a single 2D convolutional layer 6 . The projection layers in the encoder and decoder are also replaced with 2D convolutional 1 and transposed convolutional 7 layers, respectively. The multi-path block 4 is mostly the same as that in TFPSNet, containing a transformer layer for frequency
+Interestingly, the time-frequency domain dual-path models such as TFPSNet4 and the proposed USES model inherently satisfy this requirement and can be directly used for SFI modeling without any
+3While we mainly focus on speech enhancement in this paper, we also
+show in Section 3.3 that this model works well for speech separation.
+4However, this property is not noticed in the original paper [28].
+
+
+Table 1: Detailed information of the corpora used in our SE experiments. “#Ch” denotes the number of microphone channels in the data. “T60” denotes the reverberation time. “Train. SNR” represents signal-to-noise ratio in the training data. “(Simu)” and “(Real)” denote the synthetic and recorded data, while “A” and “R” in parentheses represent anechoic and reverberant, respectively.
+Dataset
+Train (hr)
+Dev (hr)
+Test (hr)
+VoiceBank+DEMAND [22]
+DNS1 (v1) [23]
+DNS1 (v2) [23]
+CHiME-4 [24]
+REVERB [25]
+WHAMR! [26]
+8.8
+(A) 90
+(A) 2700
+(Simu) 14.7
+(Simu) 15.5
+(A) 58.0 (R) 58.0
+0.6
+(A) 10
+(A) 300
+(Simu) 2.9
+(Simu) 3.2
+(A) 14.7 (R) 14.7
+0.6 (A) 0.42 (R) 0.42 Same as above (Simu) 2.3 (Real) 2.2 (Simu) 4.8 (Real) 0.7 (A) 9.0 (R) 9.0
+modification. This is because these models treat the SE process as decoupled frequency sequence modeling a and temporal sequence modeling b , as illustrated in Fig. 1 (b), and the transformer lay- ers can naturally process variable-length frequency sequences when different SFs are processed. In summary, the proposed model is in- herently capable of SFI modeling, and all we need is to adaptively adjust the STFT/iSTFT window and hop sizes (to have fixed dura- tion) according to the input SF.
+Multi-path Block
+Output feature (seg 2)
+[mem]
+[mem]
+Output feature (seg 1)
+Input feature (seg 1)
+Forreverberantdata,[mem]=[mem1](w/dereverb.)or[mem2](w/odereverb.)Foranechoicdata,[mem]=[mem2](w/odereverb.)
+Multi-path Block
+[mem]
+[mem]
+Input feature (seg 2)
+Sampling Freq.
+T60 (ms)
+Train. SNR (dB)
+#Ch
+48kHz
+1
+
+
+(A) - (R) 300∼1300 Same as above
+1
+16kHz
+0∼40
+5∼15
+1
+16kHz
+
+5
+16kHz
+∼5
+(Simu) 250, 500, 700 (Real) 700 (A) - (R) 100∼1000
+8
+16kHz
+20
+2
+16kHz
+6∼3
+Compared to our method, the SFI convolutional encoder/decoder design in [19] is constrained by the maximum frequency range defined in the latent analog filter, which thus limits the highest sampling frequency it can handle5. Another recently proposed SFI method in [21] requires hand-crafted subband division and always resamples the input signal to a pre-defined sampling frequency (e.g., 48 kHz). Both methods have to be trained with data of different SFs to cover the whole frequency range the model is designed for. In contrast, our proposed model can be trained with 8 kHz data alone, and then applied to much higher SFs such as 48 kHz. This also greatly speeds up the training process and reduces the memory consumption during training. 2.3. Microphone-Channel-Independent design We adopt the well-developed TAC technique [15] to achieve channel- independent modeling. As shown in Fig. 1 (c), the basic idea of TAC is to project representations of each channel to a hidden dimension H separately d , concatenate the channel-averaged representation with each channel’s representation e , and finally project them back to the original dimension f . The channel number invari- ance is learned implicitly during training. Similarly to [16], we insert the TAC module in the first Ks multi-path blocks for spatial modeling, and then merge the multi-channel representations into single-channel for the rest (K − Ks) multi-path blocks. Instead of averaging the intermediate representations from all channels after the first Ks blocks as in [16], we only take the representation at the reference microphone channel and discard the rest. This is based on the intuition that the information from different channels should be already fused together after the first Ks blocks. In addition, taking the reference channel allows the model to learn to produce estimates time-aligned with the reference channel, which is often preferable in practice. 2.4. Signal-Length-Independent design Inspired by the success of the memory transformer [32] in natural language processing for long sequences, we extend the proposed model to handle arbitrarily long input signals following a similar design. As shown in Fig. 3, we only make a minimal modification to the proposed model by adding a group of memory tokens [mem]
+Fig. 3: Memory token-based long sequence modeling.
+of dimension 1×N ×1×G, where G is the group size. These learn- able memory tokens are simply concatenated as a prefix with the fea- ture sequence (output of 3 in Fig. 1) along the temporal dimension via shape broadcasting. The concatenated feature is then fed into K multi-path blocks for enhancement, in which the transformer layers could implicitly learn to utilize such information via sequence mod- eling. The first G frames in the output representation correspond to the processed memory tokens, which are regarded as a summary of the information contained in the current input signal. These new memory tokens can be then used as the prefix for processing the sub- sequent input segment. Thus, we can segment the long-form input into non-overlapping short segments and process each one-by-one without suffering from significant computation and memory costs. Different from CSS [18], we do not need an overlapped sliding win- dow here, as the history information can be retrieved from the output memory tokens from the previous segment.
+Furthermore, the learnable memory tokens can be extended to serve as an indicator of different input conditions, similar to the role of prompts in various recent studies [33, 34]. To verify this possibil- ity, we design two independent groups of memory tokens ([mem1] and [mem2]) for indicating denoising with and without dereverbera- tion. As shown in Fig. 3, we apply them accordingly to the reverber- ant and anechoic data in the extensive SE experiments in Section 3.5.
+3. EXPERIMENTS
+3.1. Data
+Speech separation: We evaluate the speech separation performance on the commonly-used WSJ0-2mix benchmark [35] and its spatial- ized (anechoic) version [36] (min mode). Each dataset consists of a 30-hour training set, a 10-hour development set, and a 5-hour test set of 2-speaker clean speech mixtures sampled at 8 kHz. The signal- to-interference ratio (SIR) ranges from -10 to 10 dB. The spatialized version contains 8 microphone channels, with the microphone ar- rangement sampled randomly. Speech enhancement in a single condition: We train our proposed model on the 16 kHz DNS1 data [23] alone to show its capability in a single condition. Following existing SE works [3, 4], we simulate
+5Our preliminary trial also shows it is less generalizable than STFT.
+
+
+3000 hours of non-reverberant data in total, with 2700 and 300 hours for training and development, respectively. The SE performance is then evaluated on the non-blind test set without reverberation, which is around 0.42 hours. The detailed information can be found in Ta- ble 1 (2nd row). Speech enhancement in diverse conditions: To better show the ca- pability of the proposed SE model, we build a comprehensive dataset that can serve as a universal SE benchmark. The new dataset com- bines data from five widely-used corpora, as shown in Table 1, where DNS1 (v2) is not used here to mitigate the data imbalance problem. The total amount of training data is ∼245 hours. This dataset covers a wide range of conditions, including single-channel, multi-channel (2ch-8ch), wide-band (16kHz), full-band (48kHz), anechoic, rever- berant, and variable-length input in both simulated and real-recorded scenarios.
+3.2. Model and training configurations
+In all our experiments, the proposed USES model consists of K = 6 multi-path blocks, with a TAC module in the first Ks = 3 blocks for spatial modeling. The STFT/iSTFT window and hop sizes are always 32 and 16 ms, respectively. Following TFPSNet [28], the embedding dimension D is set to 256 and the bottleneck dimension N to 64. The transformer layers in the multi-path blocks have the same configuration as in [28]. The hidden dimension H in each TAC module is 192. When processing multi-channel data, we always take the first channel as the reference channel. When the memory tokens in Section 2.4 are applied, we empirically set the number of memory tokens G to 20, and divide the input signal into non-overlapping seg- ments of ∼1s long (64 frames). The total number of model parame- ters is around 3.1 millon. The pre-trained models and configurations will be released later in ESPnet [27] for reproducibility.
+Our experiments are done based on the ESPnet toolkit [27]. The models are trained using the Adam optimizer, and the learning rate increases linearly to 4e-4 in the first X steps and then decreases by half when the validation performance does not improve for two con- secutive epochs. We set X to 4000 and 25000 for speech separation and enhancement experiments, respectively. During training, we di- vide the samples into 4-second chunks to reduce memory costs. The batch size of all experiments is 4. We also limit the number of sam- ples for each epoch to 8000. When training on multi-channel data, we shuffle the channel permutation of each sample and randomly select the number of channels (up to 4 channels) to increase diver- sity. We always apply variance normalization to the input signal and revert the variance in the model’s output. For speech separation, all models are trained until convergence (up to 150 epochs) using the SI- SNR loss [37]; and for speech enhancement, we train all models for up to 20 epochs6 using the loss function proposed in [38]. The loss function is a scale-invariant multi-resolution L1 loss in the frequency domain plus a time-domain L1 loss term. We set the STFT window sizes of the multi-resolution L1 loss to {256, 512, 768, 1024} and the time-domain loss weight to 0.5. In each experiment, the model with the best validation performance is selected for evaluation.
+We evaluate the SE models with the metrics below: wide-band PESQ (PESQ-WB) [39], STOI [40], scale-invariant signal-to-noise ratio (SI-SNR) [37], signal-to-distortion ratio (SDR) [41], DNS- MOS (OVRL)7 [42], and word error rate (WER). Except for WER, a higher value indicates better performance for all metrics. The
+6For DNS1 data alone, we only train for up to 5 epochs due to the large
+amount of data, which are enough for the model to converge.
+7https://github.com/microsoft/DNS-Challenge/
+blob/master/DNSMOS/DNSMOS/sig_bak_ovr.onnx
+Table 2: Speech separation performance on WSJ0-2mix and its spa- tialized version (min mode). All models are trained only on 8 kHz data, and tested on 8 kHz and 16 kHz data.
+Model
+SI-SNRi ( 8 kHz
+/
+16 kHz )
+WSJ0-2mix test data 21.1 21.0 - 20.3 20.9 1ch spatialized test data 18.9 19.9 2ch spatialized test data 24.6 36.1
+TFPSNet [28] TFPSNet (reproduced) + SFI STFT/iSTFT USES (1ch) + mem tokens (1ch)
+/ / / / /
+USES (1-2ch) + mem tokens (1-6ch)
+/ /
+USES (1-2ch) + mem tokens (1-6ch)
+12.0 (resampling) 19.7 19.8 19.3 18.4 18.3
+12.0 (resampling) 19.7 19.8 19.3 18.4 18.3
+24.2 35.0
+Whisper Large v2 model8 [43] is used for WER evaluation.
+3.3. Evaluation of speech separation performance We first examine the effectiveness of the three components proposed in Section 2 by evaluating the speech separation performance on WSJ0-2mix, which makes the comparison with the top-performing TFPSNet [28] convenient. In addition, the datasets are not large, making it easy to investigate different setups. We train the model on 8 kHz mixture data, and evaluate the performance on both 8 and 16 kHz test data. Table 2 reports the SI-SNR improvement (SI-SNRi) of models trained on a single channel (denoted as 1ch) and on a vari- able number of channels (denoted as 1-2ch and 1-6ch). From the first section in Table 2, we observe that the proposed SFI approach can successfully preserve strong separation performance for the re- produced TFPSNet9 on 16 kHz data. In comparison, first down- sampling 16 kHz mixtures to 8 kHz, then applying TFPSNet trained at 8 kHz for separation, and finally upsampling the separation re- sults to 16 kHz (denoted as “resampling” in the second row) suffer from severe SI-SNR degradation. The proposed USES model also obtains similar performance to TFPSNet on WSJ0-2mix, as our ma- jor modifications focus on the invariance to sampling frequencies, microphone channels, and signal lengths. While applying memory tokens does not change the performance significantly, it enables the model to process variable-length inputs with a constant memory cost during inference.
+For experiments on the spatialized WSJ0-2mix data, we can see that the model achieves very similar performance on both 8 and 16 kHz data. Although the single-channel SI-SNR performance de- grades ∼1.4 dB, the multi-channel performance becomes much bet- ter, even with only 2 input channels. Further applying the memory tokens and increasing the input channels during training can improve the performance, especially for the multi-channel case.
+3.4. Evaluation of SE performance in a single condition Given the success of the universal properties of USES in a controlled experimental condition in Section 3.3, this subsection compares the SE performance of the proposed model with memory tokens to ex- isting methods on the DNS1 non-blind test data. Our models are respectively trained on the simulated DNS1 v1 and v2 data without reverberation, as described in Table 1. Due to the large amount of training data and limited time, we only train the proposed model for ∼0.5 epochs on DNS1 v2 data, covering around 45% of the entire
+8https://huggingface.co/openai/whisper-large-v2 9Different from [28], our reproduction replaces all T-F path scanning
+transformers with the time-path scanning transformer.
+
+
+Table 4: Speech enhancement performance of the proposed model in diverse conditions. The models are by default trained only on 8 kHz data, and tested with the original sampling frequencies. “noisy” denotes the performance of the input noisy speech, while “excl” and “USES” denote those of the enhanced speech by corpus-exclusive SE and the proposed single SE models, respectively. “USES+” denotes the proposed SE model trained for 5 more epochs (25 epochs in total) with variable SFs (8, 16 and 24 kHz, achieved via downsampling) on the same data. On REVERB and WHAMR! (reverb), the models always do denoising and dereverberation by applying the corresponding memory tokens [mem1]; for other data, only denoising is performed. The best and second best results are made bold and underlined, respectively.
+Test set
+Condition
+SDR (dB) ↑ noisy excl USES USES+ noisy excl USES USES+ noisy excl USES USES+ noisy excl USES USES+ noisy excl USES USES+
+PESQ-WB ↑
+STOI (×100) ↑
+DNSMOS OVRL ↑
+WER (%) ↓
+VoiceBank+DEMAND 1ch, 48kHz VoiceBank+DEMAND 1ch, 16kHz 1.98 3.08 1ch, 16kHz 1.58 3.16 DNS1 (w/o reverb) 1ch, 16kHz 1.82 1.51 DNS1 (reverb) 5ch, 16kHz 1.27 3.16 CHiME-4 (Simu) 8ch, 16kHz 1.48 1.82 REVERB (Simu) 2ch, 16kHz 1.11 2.62 WHAMR! (anechoic) 2ch, 16kHz 1.11 2.57 WHAMR! (reverb)
+
+
+3.11 3.23 2.75 2.95 2.09 2.55 2.51
+3.06 3.35 2.92 2.95 2.08 2.69 2.33
+92.1 92.8 92.1 95.3 91.5 97.4 86.6 68.5 87.0 98.3 85.2 88.1 76.0 96.8 73.1 96.4
+93.1 95.0 97.8 89.9 97.8 89.8 96.4 96.0
+95.8 95.9 98.1 89.5 97.9 89.8 96.7 94.7
+8.4 11.0 8.5 20.4 9.1 19.9 2.2 9.2 7.54 20.6 8.7 10.5 -2.8 16.3 -1.8 14.6
+11.0 21.5 19.6 13.4 18.3 11.9 15.8 13.8
+17.3 21.8 20.5 14.0 19.1 12.2 16.2 12.9
+2.70 3.10 2.70 3.16 2.48 3.29 1.39 2.28 2.08 3.22 2.10 2.84 1.69 3.34 1.41 3.32
+3.14 3.19 3.32 2.36 3.22 2.98 3.33 3.32
+3.15 3.18 3.33 2.30 3.24 2.98 3.33 3.28
+4.2 4.4 2.7 4.4 7.2 6.2 19.1 75.7 4.2 5.8 4.7 4.9 6.0 8.4 6.5 9.3
+3.2 3.1 6.4 28.9 4.4 4.6 6.2 6.5
+Table 3: Speech enhancement performance on DNS1 non-blind test set (without reverberation). All models are trained on 16 kHz data. Our models are non-causal.
+Table 5: DNSMOS and ASR results on real-recorded data.
+Test set
+DNSMOS OVRL ↑
+WER (%) ↓
+noisy excl USES USES+ noisy excl USES USES+
+Model
+PESQ-WB ↑ STOI (×100) ↑ SI-SNR (dB) ↑
+Noisy GaGNet [3] (causal) FRCRN [4] (causal) MFNet [8] (non-causal) Proposed (DNS1 v1) Proposed (DNS1 v2)
+1.58 3.17 3.23 3.43 3.16 3.46
+91.5 97.1 97.7 98.0 97.4 98.1
+9.07 18.9 19.8 20.3 19.9 21.2
+training set. For DNS1 v1 data, we train the model for 5 epochs, which is around 3.7 passes of the entire training set10. The SE per- formance is presented in Table 3, where we compare our proposed model with the top-performing methods on DNS1 data. We can see that although our models are only trained for very limited steps, they can still achieve very competitive performance compared to the ex- isting SE methods. The model trained on DNS1 v2 data achieves a new state-of-the-art performance while only trained for ∼0.5 epochs. However, it should be noted that our proposed model and MFNet [8] are non-causal, while the other listed models are causal. Therefore, we cannot make a fair comparison here. Nevertheless, this result at least demonstrates the effectiveness of the proposed method in the standard SE task.
+3.5. Evaluation of SE performance in diverse conditions Finally, we present the SE performance across different conditions. Here, we adopt the same architecture as in Section 3.4 as the base model, and train two groups of memory tokens as mentioned in Sec- tion 2.4 to control whether dereverberation is applied or not. During training, we always resample the data to 8 kHz to reduce memory costs, and evaluate the performance on the original data. For the VoiceBank+DEMAND 48 kHz test data, the original and enhanced audios are resampled to 16 kHz before evaluating STOI, DNSMOS, and WER. We can see in Table 4 that, in all conditions, the proposed single SE model (USES columns) achieves strong enhancement per- formance that is on par with or better than the corresponding corpus- exclusive SE model (excl columns). Note that the DNS1 (reverb) test data represents an unseen noisy-reverberant condition during train- ing. In this condition, the proposed SE model achieves much better performance, which shows the benefit of training on diverse data us- ing the proposed model. However, we can see that, on the 48 kHz VoiceBank+DEMAND test set, both SE models suffer from SDR degradation. Our investigation implies that it is caused by the greatly increased frequency bins in 48 kHz (129→769), as the model is only trained on 8 kHz. To mitigate this mismatch, we continue training
+CHiME-4 (Real)∗ 1.46 2.94 3.07 1.57 2.25 3.11 REVERB (Real)
+3.12 3.07
+6.7 11.0 5.4 5.8
+7.4 5.1
+Single-channel SE on CH5 is used in CHiME-4 (Real). (See Section 3.5)
+the proposed SE model for 5 more epochs (USES+ columns) with variable SFs on the same data. We can see that increasing the SF di- versity consistently improves the SE performance in different condi- tions, which shows the capacity of our model. The enhanced audios are available on our demo page: https://Emrys365.github.io/ Universal-SE-demo/.
+For ASR performance evaluation on different datasets11, we use the same Whisper Large model without external language models. The same text normalization [43] is applied to both reference tran- scripts and Whisper outputs. As shown in Table 4, the proposed SE model achieves similar ASR performance to the corpus-exclusive SE model in most conditions. We further evaluate the performance on two real-recorded datasets in Table 5. On the REVERB (Real) data, the SE models perform well in terms of both enhancement and ASR. On the CHiME-4 (Real) data, we notice that some microphone chan- nels contain much noisier signals, which cannot be well processed by the TAC module inherently, as it simply averages all channels for fusion. Therefore, we only conduct single-channel SE on the refer- ence channel (CH5) in this case. The proposed SE model achieves much better performance than the corpus-exclusive model, coincid- ing with the observation in Table 4. Note that on DNS1 (reverb) and CHiME-4 (Real), the SE model does not improve the ASR perfor- mance, which is a commonly observed phenomenon [44–46] due to the introduced artifacts by enhancement in mismatched conditions.
+4. CONCLUSION
+In this paper, we have devised a single speech enhancement model USES that can handle denoising and dereverberation in diverse input conditions altogether, including variable microphone channels, sam- pling frequencies, signal lengths, and different environments. Ex- periments on a wide range of datasets show that the proposed model can achieve very competitive performance for both speech separa- tion and speech enhancement tasks. We further design a benchmark for evaluating the universal SE performance across various condi- tions, which also reveals some less-explored aspects in the SE liter- ature such as the generalizability across different domains. We hope this contribution can attract more efforts toward building universal SE models for real-world speech applications.
+11For DNS1 test data, we prepare the transcription manually as the refer-
+10The training of both models is well converged with our setup.
+ence, which is available at github.com/Emrys365/DNS_text.
+2.3 2.8 5.9 30.4 4.1 4.6 6.2 6.9
+7.1 5.0
+
+
+5. REFERENCES
+[1] J. Benesty et al., Springer handbook of speech processing.
+Springer, 2008, vol. 1.
+[2] D. S. Williamson et al., “Time-frequency masking in the complex domain for speech dereverberation and denoising,” IEEE/ACM Trans. ASLP., vol. 25, no. 7, pp. 1492–1501, 2017. [3] A. Li et al., “Glance and gaze: A collaborative learning frame- work for single-channel speech enhancement,” Applied Acous- tics, vol. 187, p. 108499, 2022.
+[4] S. Zhao et al., “FRCRN: Boosting feature representation using frequency recurrence for monaural speech enhancement,” in ICASSP, 2022, pp. 9281–9285.
+[5] Y. Xu et al., “A regression approach to speech enhancement based on deep neural networks,” IEEE/ACM Trans. ASLP., vol. 23, no. 1, pp. 7–19, 2014.
+[6] Z.-Q. Wang et al., “Complex spectral mapping for single- and multi-channel speech enhancement and robust ASR,” IEEE/ACM Trans. ASLP., vol. 28, pp. 1778–1787, 2020. [7] A. Li et al., “Taylor, can you hear me now? a Taylor-unfolding framework for monaural speech enhancement,” in Proc. IJCAI, 2022, pp. 4193–4200.
+[8] L. Liu et al., “A mask free neural network for monaural speech
+enhancement,” in Interspeech, 2023, pp. 2468–2472.
+[9] S. Pascual et al., “SEGAN: Speech enhancement generative adversarial network,” in Interspeech, 2017, pp. 3642–3646. [10] S. Maiti and M. I. Mandel, “Speech denoising by parametric
+resynthesis,” in ICASSP, 2019, pp. 6995–6999.
+[11] S.-W. Fu et al., “MetricGAN+: An improved version of Met- ricGAN for speech enhancement,” in Interspeech, 2021, pp. 201–205.
+[12] Y.-J. Lu et al., “Conditional diffusion probabilistic model for speech enhancement,” in ICASSP, 2022, pp. 7402–7406. [13] J. Serrà et al., “Universal speech enhancement with score- based diffusion,” arXiv preprint arXiv:2206.03065, 2022. [14] R. Mira et al., “LA-VocE: Low-SNR audio-visual speech en- hancement using neural vocoders,” in ICASSP, 2023, pp. 1–5. [15] Y. Luo et al., “End-to-end microphone permutation and num- ber invariant multi-channel speech separation,” in ICASSP, 2020, pp. 6394–6398.
+[16] T. Yoshioka et al., “VarArray: Array-geometry-agnostic con- tinuous speech separation,” in ICASSP, 2022, pp. 6027–6031. [17] A. Pandey et al., “Time-domain ad-hoc array speech enhance- ment using a triple-path network,” in Interspeech, 2022, pp. 729–733.
+[18] Z. Chen et al., “Continuous speech separation: Dataset and
+analysis,” in ICASSP, 2020, pp. 7284–7288.
+[19] K. Saito et al., “Sampling-frequency-independent audio source separation using convolution layer based on impulse invariant method,” in Proc. EUSIPCO, 2021, pp. 321–325.
+[20] J. Paulus and M. Torcoli, “Sampling frequency independent dialogue separation,” in Proc. EUSIPCO, 2022, pp. 160–164. [21] J. Yu and Y. Luo, “Efficient monaural speech enhancement with universal sample rate band-split RNN,” in ICASSP, 2023, pp. 1–5.
+[22] C. Valentini-Botinhao et al., “Speech enhancement for a noise- robust text-to-speech synthesis system using deep recurrent neural networks,” in Interspeech, 2016, pp. 352–356.
+[23] C. K. Reddy et al., “The INTERSPEECH 2020 deep noise suppression challenge: Datasets, subjective testing framework, and challenge results,” in Interspeech, 2020, pp. 2492–2496.
+[24] E. Vincent et al., “An analysis of environment, microphone and data simulation mismatches in robust speech recognition,” Computer Speech & Language, vol. 46, pp. 535–557, 2017.
+[25] K. Kinoshita et al., “The REVERB challenge: A common eval- uation framework for dereverberation and recognition of rever- berant speech,” in Proc. IEEE WASPAA, 2013, pp. 1–4. [26] M. Maciejewski et al., “WHAMR!: Noisy and reverberant single-channel speech separation,” in ICASSP, 2019, pp. 696– 700.
+[27] C. Li et al., “ESPnet-SE: End-to-end speech enhancement and separation toolkit designed for ASR integration,” in Proc. IEEE SLT, 2021, pp. 785–792.
+[28] L. Yang et al., “TFPSNet: Time-frequency domain path scan- ning network for speech separation,” in ICASSP, 2022, pp. 6842–6846.
+[29] Z.-Q. Wang et al., “TF-GridNet: Making time-frequency do- main models great again for monaural speaker separation,” in ICASSP, 2023, pp. 1–5.
+[30] J. Chen et al., “Dual-path transformer network: Direct context- aware modeling for end-to-end monaural speech separation,” in Interspeech, 2020, pp. 2642–2646.
+[31] S. Cornell et al., “Learning filterbanks for end-to-end acoustic
+beamforming,” in ICASSP, 2022, pp. 6507–6511.
+[32] M. S. Burtsev et al., “Memory transformer,” arXiv preprint
+arXiv:2006.11527, 2020.
+[33] X. L. Li and P. Liang, “Prefix-Tuning: Optimizing continu- ous prompts for generation,” in Proc. ACL/IJCNLP, 2021, pp. 4582–4597.
+[34] K.-W. Chang et al., “An exploration of prompt tuning on gen- erative spoken language model for speech processing tasks,” in Interspeech, 2022, pp. 5005–5009.
+[35] J. R. Hershey et al., “Deep clustering: Discriminative embed- dings for segmentation and separation,” in ICASSP, 2016, pp. 31–35.
+[36] Z.-Q. Wang et al., “Multi-channel deep clustering: Discrimina- tive spectral and spatial embeddings for speaker-independent speech separation,” in ICASSP, 2018, pp. 1–5.
+[37] J. Le Roux et al., “SDR—half-baked or well done?”
+ICASSP, 2019, pp. 626–630.
+[38] Y.-J. Lu et al., “Towards low-distortion multi-channel speech enhancement: The ESPnet-SE submission to the L3DAS22 challenge,” in ICASSP, 2022, pp. 9201–9205.
+[39] A. W. Rix et al., “Perceptual evaluation of speech quality (PESQ)—a new method for speech quality assessment of tele- phone networks and codecs,” in ICASSP, vol. 2, 2001, pp. 749– 752.
+[40] C. H. Taal et al., “An algorithm for intelligibility prediction of time–frequency weighted noisy speech,” IEEE Trans. ASLP., vol. 19, no. 7, pp. 2125–2136, 2011.
+[41] E. Vincent et al., “Performance measurement in blind audio source separation,” IEEE Trans. ASLP., vol. 14, no. 4, pp. 1462–1469, 2006.
+[42] C. K. Reddy et al., “DNSMOS P.835: A non-intrusive percep- tual objective speech quality metric to evaluate noise suppres- sors,” in ICASSP, 2022, pp. 886–890.
+[43] A. Radford et al., “Robust speech recognition via large-scale
+weak supervision,” arXiv preprint arXiv:2212.04356, 2022.
+[44] W. Zhang et al., “Closing the gap between time-domain multi- channel speech enhancement on real and simulation condi- tions,” in Proc. IEEE WASPAA, 2021, pp. 146–150.
+[45] H. Sato et al., “Learning to enhance or not: Neural network- based switching of enhanced and observed signals for overlap- ping speech recognition,” in ICASSP, 2022, pp. 6287–6291.
+[46] K. Iwamoto et al., “How bad are artifacts?: Analyzing the im- pact of speech enhancement errors on ASR,” in Interspeech, 2022, pp. 5418–5422.
+in

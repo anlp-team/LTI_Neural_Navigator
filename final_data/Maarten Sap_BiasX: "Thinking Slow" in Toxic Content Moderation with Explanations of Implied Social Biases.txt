@@ -1,0 +1,311 @@
+3 2 0 2
+y a M 3 2
+] L C . s c [
+1 v 9 8 5 3 1 . 5 0 3 2 : v i X r a
+"Thinking fast" - no explanations
+: Allow"Thinking slow" (BiasX): Moderate
+No, can you get one of the boys to carry that out? It’s too heavy for you.
+❌
+Targeted group: womenImplies women are physically weak
+BIASX: “Thinking Slow” in Toxic Content Moderation with Explanations of Implied Social Biases Warning: content in this paper may be upsetting or offensive.
+Yiming Zhang♢ Sravani Nanduri♠ Liwei Jiang♠ Tongshuang Wu♡ Maarten Sap♡
+♢University of Chicago
+♡Carnegie Mellon University
+♠University of Washington
+yimingz0@uchicago.edu, maartensap@cmu.edu
+Abstract
+Toxicity annotators and content moderators of- ten default to mental shortcuts when making decisions. This can lead to subtle toxicity being missed, and seemingly toxic but harmless con- tent being over-detected. We introduce BIASX, a framework that enhances content modera- tion setups with free-text explanations of state- ments’ implied social biases, and explore its ef- fectiveness through a large-scale crowdsourced user study. We show that indeed, participants substantially benefit from explanations for cor- rectly identifying subtly (non-)toxic content. The quality of explanations is critical: imper- fect machine-generated explanations (+2.4% on hard toxic examples) help less compared to expert-written human explanations (+7.2%). Our results showcase the promise of using free- text explanations to encourage more thoughtful toxicity moderation.
+Figure 1: To combat “thinking fast” in online content moderation, we propose the BIASX framework to help moderators think through the biased or prejudiced im- plications of statements with free-text explanations, in contrast to most existing moderation paradigms which provide little to no explanations.
+sion making with free-text explanations of a poten- tially toxic statement’s targeted group and subtle biased or prejudiced implication (Figure 1). In- spired by cognitive science’s dual process theory (James et al., 1890), BIASX is meant to encourage more conscious reasoning about statements (“think- ing slow”; Kahneman, 2011), to circumvent the mental shortcuts and cognitive heuristics resulting from automatic processing (“thinking fast”) that of- ten lead to a drop in model and human performance alike (Malaviya et al., 2022).2
+1
+Introduction
+Online content moderators often resort to mental shortcuts, cognitive biases, and heuristics when sift- ing through possibly toxic, offensive, or prejudiced content, due to increasingly high pressure to mod- erate content (Roberts, 2019). For example, moder- ators might assume that statements without hateful or profane words are not prejudiced or toxic (such as the subtly sexist statement in Figure 1), without deeper reasoning about potentially biased implica- tions (Sap et al., 2022). Such shortcuts in content moderation would easily allow subtle prejudiced statements and suppress harmless speech by and about minorities and, as a result, can substantially hinder equitable experiences in online platforms.1 (Sap et al., 2019; Gillespie et al., 2020).
+Importantly,
+in contrast with prior work in human-AI collaboration (e.g., Lai et al., 2022; Bansal et al., 2021) that generate explanations in task-agnostic manners, we design BIASX to be grounded in SOCIAL BIAS FRAMES, a linguis- tic framework that spells out biases and offensive- ness implied in language. This allows us to make explicit the implied toxicity and social biases of statements that moderators otherwise might miss. We evaluate the usefulness of BIASX explana- tions for helping content moderators think thor- oughly through biased implications of statements, via a large-scale crowdsourcing user study with over 450 participants on a curated set of examples
+To mitigate such shortcuts, we introduce BIASX, a framework to enhance content moderators’ deci-
+1Here, we define “minority” as social and demographic groups that historically have been and often still are targets of oppression and discrimination in the U.S. sociocultural context (Nieto and Boyer, 2006; RWJF, 2017).
+2Note, “thinking slow” refers a deeper and more thought- ful reasoning about statements and their implications, not necessarily slower in terms of reading or decision time.
+
+
+of varying difficulties. We explore three primary research questions: (1) When do free-text explana- tions help improve the content moderation quality, and how? (2) Is the explanation format in BIASX effective? and (3) How might the quality of the explanations affect their helpfulness? Our results show that BIASX indeed helps moderators better detect hard, subtly toxic instances, as reflected both in increased moderation performance and subjec- tive feedback. Contrasting prior work that use other forms of explanation (e.g., highlighted spans in the input text, classifier confidence scores) (Carton et al., 2020; Lai et al., 2022; Bansal et al., 2021), our results demonstrate that domain-specific free- text explanations (in our case, implied social bias) is a promising form of explanation to supply.
+Notably, we also find that explanation quality matters: models sometimes miss the veiled biases that are present in text, making their explanations unhelpful or even counterproductive for users. Our findings showcase the promise of free-text expla- nations in improving content moderation fairness, and serves as a proof-of-concept of the effective- ness of BIASX, while highlighting the need for AI systems that are more capable of identifying and explaining subtle biases in text.
+2 Explaining (Non-)Toxicity with BIASX
+The goal of our work is to help content modera- tors reason through whether statements could be biased, prejudiced, or offensive — we would like to explicitly call out microaggressions and social biases projected by a statement, and alleviate over- moderation of deceivingly non-toxic statements. To do so, we propose BIASX, a framework for assisting content moderators with free-text expla- nations of implied social biases. There are two primary design desiderata:
+Free-text explanations. Identifying and explain- ing implicit biases in online social interactions is difficult, as the underlying stereotypes are rarely stated explicitly by definition; this is nonetheless important due to the risk of harm to individu- als (Williams, 2020). Psychologists have argued that common types of explanation in literature, such as highlights and rationales (e.g., Lai et al., 2020; Vasconcelos et al., 2023) or classifier confi- dence scores (e.g., Bansal et al., 2021) are of lim- ited utility to humans (Miller, 2019). This moti- vates the need for explanations that go beyond what is written. Inspired by Gabriel et al. (2022) who use
+2
+AI-generated free-text explanations of an author’s likely intent to help users identify misinformation in news headlines, we propose to focus on free-text explanations of offensiveness, which has the poten- tial of communicating rich information to humans.
+Implied Social Biases. To maximize its utility, we further design BIASX to optimize for content moderation, by grounding the explanation format in the established SOCIAL BIAS FRAMES (SBF; Sap et al., 2020) formalism. SBF is a framework that distills biases and offensiveness that are implied in language, and its definition and demonstration of implied stereotype naturally allows us for explain- ing subtly toxic statements. Specifically, for toxic posts, BIASX explanations take the same format as SOCIAL BIAS FRAMES, which spells out both the targeted group and the implied stereotype, as shown in Figure 1.
+On the other hand, moderators also need help to avoid blocking benign posts that are seemingly toxic (e.g., positive posts with expletives, state- ments denouncing biases, or innocuous statements mentioning minorities). To accommodate this need, we extend SOCIAL BIAS FRAMES-style implica- tions to provide explanations of why a post might be non-toxic. For a non-toxic statement, the expla- nation acknowledges the (potential) aggressiveness of the statement while noting the lack of prejudice against minority groups: given the statement “This is fucking annoying because it keeps raining in my country”, BIASX could provide an explanation “Uses profanity without prejudice or hate”.3
+3 Experiment Design
+We conduct a user study to measure the effective- ness of BIASX. We are interested in exploring: Q.1 Does BIASX improve the content moderation quality, especially on challenging instances? Q.2 Is BIASX’s explanation format designed effec- tively to allow moderators think carefully about moderation decisions?
+Q.3 Are higher quality explanation more effective? To answer these questions, we design a crowd- sourced user study that simulates a real con- tent moderation environment: crowdworkers are asked to play the role of content moderators, and to judge the toxicity of a series of 30 online posts, po- tentially with explanations from BIASX. Our study
+3A non-toxic statement by definition does not target any
+minority group, and we use “N/A” as a filler.
+
+
+406080
+53.957.756.063.7
+46.545.944.151.3
+406080
+406080
+61.861.761.866.5
+85.181.585.484.4
+overallhard-toxicsethard-non-toxicseteasyset
+No-ExplLight-ExplModel-ExplHuman-Expl
+406080
+14.915.014.610.6
+051015
+(a) Average annotator (4-way) accuracy (%).
+(b) Median labeling time (s).
+Figure 2: Accuracy and efficiency results for the user study across evaluation sets and conditions. Error bars represent 95% confidence intervals.
+incorporates examples of varying difficulties and different forms of explanations as detailed below.
+3.1 Experiment Setup
+correctly classified.5 Among these, we further re- moved mislabeled examples, and selected 20 exam- ples that at least two authors agreed were hard but could be unambiguously labeled.
+Conditions. Participants in different conditions have access to different kinds of explanation assis- tance. To answer Q.1 and Q.2, we set two base- line conditions: (1) NO-EXPL, where participants make decisions without seeing any explanations; (2) LIGHT-EXPL, where we provide only the tar- geted group as the explanation. This can be con- sidered an ablation of BIASX with the detailed implied stereotype on toxic posts and justification on non-toxic posts removed, and helps us verify the effectiveness of our explanation format. Further, to answer Q.3, we add two BIASX conditions, with varying qualities of explanations following Bansal et al. (2021): (3) HUMAN-EXPL with high quality explanations manually written by experts, and (4) MODEL-EXPL with possibly imperfect machine- generated explanations.
+Data selection and curation. As argued in §2, we believe BIASX would be more helpful on chal- lenging cases where moderators may make mis- takes without deep reasoning — including toxic posts that contain subtle stereotypes, and benign posts that are deceivingly toxic. To measure when and how BIASX helps moderators, we carefully se- lect 30 blog posts from the SBIC dataset (Sap et al., 2020) as task examples that crowdworkers annotate. SBIC contains 45k posts and toxicity labels from a mix of sources (e.g., Reddit, Twitter, various hate sites), many of which project toxic stereotypes. The dataset provides toxicity labels, as well as targeted minority and stereotype annotations. We choose 10 simple examples, 10 hard-toxic examples, and 10 hard-non-toxic examples from it.4 Following Han and Tsvetkov (2020), we identify hard examples by using a fine-tuned DeBERTa toxicity classifier (He et al., 2021) to find misclassified instances from the test set, which are likely to be harder than those
+Explanation generation. To generate explana- tions for MODEL-EXPL, the authors manually wrote explanations for a prompt of 6 training ex- amples from SBIC (3 toxic and 3 non-toxic), and prompted GPT-3.5 (Ouyang et al., 2022) for expla- nation generation.6 We report additional details on explanation generation in Appendix A.1. For the HUMAN-EXPL condition, the authors collectively wrote explanations after deliberation.
+Moderation labels. Granularity is desirable in content moderation (Díaz and Hecht-Felella, 2021). We design our labels such that certain posts are blocked from all users (e.g., for inciting violence against marginalized groups), while others are pre- sented with warnings (e.g., for projecting a subtle stereotype). Inspired by Rottger et al. (2022), our study follows a set of prescriptive paradigms in the design of the moderation labels, which is predomi- nantly the case in social media platforms’ moder- ation guidelines. Loosely following the modera- tion options available to Reddit content moderators, we provide participants with four options: Allow, Lenient, Moderate, and Block. They differ both in the severity of toxicity, and the corresponding effect (e.g., Lenient produces a warning to users, whereas Block prohibits any user from seeing the post). Appendix B shows the label definitions pro- vided to workers.
+3.2 Study Procedure
+Our study consists of a qualification stage and a task stage. During qualification, we deployed Hu- man Intelligence Tasks (HITs) on Amazon Mechan- ical Turk (MTurk) in which workers go through 4
+5We use HuggingFace (Wolf et al., 2020) to fine-tune a pre- trained deberta-v3-large model. The model achieves an F1 score of 87.5% on the SBIC test set.
+4The full list of examples can be found in Table 3.
+6We use text-davinci-003 in our experiments.
+3
+
+
+−100%0%100%
+Mentaldemand
+No-ExplLight-ExplModel-ExplHuman-Expl
+Light-ExplModel-ExplHuman-Expl
+disagree
+−100%0%100%
+stronglydisagree
+agree
+Usefulforsubtle
+neutral
+Percentage of participants
+stronglyagreeResponse
+Percentage of participants
+Figure 3: User survey results on mental demand, and whether explanations are useful for subtle stereotypes.
+rounds of training to familiarize with the task and the user interface. Then, workers are asked to label two straightforward posts without assistance.
+Workers who labeled both posts correctly are recruited into the task stage. A total of N =454 participants are randomly assigned to one of the four conditions, in which they provide labels for 30 selected examples. Upon completion, partic- ipants also complete a post-study survey which collects their demographics information and sub- jective feedback on the usefulness of the provided explanations and the mental demand of the mod- eration task. Additional details on user interface design are in Appendix C.3.
+4 Results and Discussion
+We analyze the usefulness of BIASX, examining worker moderation accuracy (Figure 2a), efficiency (Figure 2b), and subjective feedback (Figure 3).
+BIASX improves moderation quality, especially on hard-toxic examples. Shown in Figure 2a, we find that HUMAN-EXPL leads to substantial gains in moderation accuracy over the NO-EXPL base- line on both hard-toxic (+7.2%) and hard-non-toxic examples (+7.7%), which as a result is reflected as a +4.7% accuracy improvement overall. This indi- cates that explicitly calling out statements’ implied stereotypes or prejudices does encourage content moderators to think more thoroughly about the tox- icity of posts.
+Illustrating this effect, we show an example of a hard-toxic statement in Figure 4a. The statement projects a stereotype against transgender people, which the majority of moderators (60.3%) in the NO-EXPL condition failed to flag. In contrast, BI- ASX assistance in both MODEL-EXPL (+20.5%) and HUMAN-EXPL (+18.4%) conditions substan- tially improved moderator performance on this in-
+4
+A
+Targeted group: transgender people Implies that transgender people are not their true gender and are just pretending.
+B
+Targeted group: transgender women Implies that trans women are not real women. Alabama where eharmony and ancestry are the same website Targeted group: N/A Makes a joke about two unrelated websites.Targeted group: people from Alabama Implies that people from Alabama marry their family. (No-Expl: 39.7%) (Light-Expl: 54.5%) (Model-Expl: 60.2%) (Human-Expl: 58.1%) (No-Expl: 55.4%) (Light-Expl: 52.7%) (Model-Expl: 39.8%) (Human-Expl: 60.0%)
+After you strip off his makeup and clothes, biologically he's still a man.
+Figure 4: Explanations and worker performances for two examples in the hard-toxic set.
+stance. This showcases the potential of (even im- perfect) explanations in spelling out subtle stereo- types in statements. The subjective feedback from moderators further corroborates this observation (Figure 3): the majority of moderators agreed or strongly agreed that the BIASX explanations made them more aware of subtle stereotypes (77.1% in MODEL-EXPL; 78.1% in HUMAN-EXPL).
+Our designed explanation format efficiently pro- motes more thorough decisions. While BIASX helps raise moderators’ awareness of implied bi- ases, it increases the amount of text that moderators read and process, potentially leading to increased mental load and reading time. Thus, we compare our proposed explanation against the LIGHT-EXPL condition, in which moderators only have access to the model-generated targeted group, thus reducing the amount of text to read.
+Following Bansal et al. (2021), we report me- dian labeling times of the participants across con- ditions in Figure 2b. We indeed see a sizable in- crease (4–5s) in labeling time for MODEL-EXPL and HUMAN-EXPL. Interestingly, LIGHT-EXPL shares a similar increase in labeling time (∼4s). As LIGHT-EXPL has brief explanations (1-2 words), this increase is unlikely to be due to reading, but rather points to additional mental processing. This extra mental processing is further evident from users’ subjective evaluation in Figure 3: 56% par- ticipants agreed or strongly agreed that the task was mentally demanding in the LIGHT-EXPL con- dition, compared to 41% in MODEL-EXPL and in HUMAN-EXPL. This result suggests that providing the targeted group exclusively could mislead mod- erators without improving accuracy or efficiency.
+Explanation quality matters. Compared to expert-written explanations, the effect of model-
+
+
+MODEL-EXPL HUMAN-EXPL
+Evaluation set
+E
+U
+E
+U
+hard toxic hard non-toxic easy overall
+60.0 90.0 100.0 83.3
+56.4 77.7 98.0 77.4
+100.0 100.0 100.0 100.0
+64.1 80.1 97.0 80.4
+Table 1: Binary accuracy of explanations (E) and users (U) in MODEL-EXPL and HUMAN-EXPL conditions.
+generated explanations on moderator performance is mixed. A key reason behind this mixed result is that model explanations are imperfect. In Table 1, we compare the correctness of explanations to the accuracy of participants.7 On the hard toxic set, 60% of model explanations are accurate, which leads to 56.4% worker accuracy, a -7.7% drop from the HUMAN-EXPL condition where workers al- ways have access to correct explanations. Figure 4b shows an example where the model explains an im- plicitly toxic statement as harmless and misleads content moderators (39.8% in MODEL-EXPL vs. 55.4% in NO-EXPL).
+On a positive note, expert-written explanations still improve moderator performance over base- lines, highlighting the potential of our frame- work with higher quality explanations and serv- ing as a proof-of-concept of BIASX, while moti- vating future work to explore methods to gener- ate higher-quality explanations using techniques such as chain-of-thought (Camburu et al., 2018; Wei et al., 2022) and self-consistency (Wang et al., 2023) prompting.
+5 Conclusion and Future Work
+In this work, we propose BIASX, a collaborative framework that provides AI-generated explanations to assist users in content moderation, with the ob- jective of enabling moderators to think more thor- oughly about their decisions. In an online user study, we find that by adding explanations, humans perform better on hard-toxic examples. The even greater gain in performance with expert-written ex- planations further highlights the potential of fram- ing content moderation under the lens of human-AI collaborative decision making.
+Our work serves as a proof-of-concept for future investigation in human-AI content moderation, un- der more descriptive paradigms. Most importantly, our research highlights the importance of explain-
+7Binarizing instances with moderation labels Allow and
+Lenient as non-toxic, and Moderate and Block as toxic.
+5
+ing task-specific difficulty (subtle biases) in free text. Subsequent studies could investigate various forms of free-text explanations and objectives, e.g., reasoning about intent (Gabriel et al., 2022) or dis- tilling possible harms to the targeted groups (e.g., CobraFrames; Zhou et al., 2023). Our less signifi- cant result on hard-non-toxic examples also sound a cautionary note, and shows the need for inves- tigating more careful definitions and frameworks around non-toxic examples (e.g., by extending So- cial Bias Frame), or exploring alternative designs for their explanations.
+Further, going from proof-of-concept to practical usage, we note two additional nuances that deserve careful consideration. On the one hand, our study shows that while explanations have benefits, they come at the cost of a sizable increase in labeling time. We argue for these high-stakes tasks, the in- crease in labeling time and cost is justifiable to a degree (echoing our intend of pushing people to “think slow”). However, we do hope future work could look more into potential ways to improve performance while reducing time through, e.g., se- lectively introducing explanations on hard exam- ples (Lai et al., 2023). This approach could aid in scaling our framework for everyday use, where the delicate balance between swift annotation and care- ful moderation is more prominent. On the other hand, our study follows a set of prescriptive mod- eration guidelines (Rottger et al., 2022), written based on the researchers’ definitions of toxicity. While they are similar to actual platforms’ terms of service and moderation rules, they may not reflect the norms of all online communities. Customized labeling might be essential to accommodate for platform needs. We are excited to see more ex- plorations around our already promising proof-of- concept.
+6 Limitations, Ethical Considerations &
+Broader Impact
+While our user study of toxic content moderation is limited to examples in English and to a US- centric perspective, hate speech is hardly a mono- lingual (Ross et al., 2016) or a monocultural (Ma- ronikolakis et al., 2022) issue, and future work can investigate the extension of BIASX to languages and communities beyond English.
+In addition, our study uses a fixed sample of 30 curated examples. The main reason for using a small set of representative examples is that it
+
+
+enables us to conduct the user study with a large number of participants to demonstrate salient ef- fects across groups of participants. Another reason for the fixed sampling is the difficulty of identify- ing high-quality examples and generating human explanations: toxicity labels and implication anno- tations in existing datasets are noisy. Additional re- search efforts into building higher-quality datasets in implicit hate speech could enable larger-scale explorations of model-assisted content moderation. Just as communities have diverging norms, anno- tators have diverse identities and beliefs, which can shift their individual perception of toxicity (Rottger et al., 2022). Similar to Sap et al. (2022), we find annotator performance varies greatly depending on the annotator’s political orientation. As shown in Figure 9 (Appendix), a more liberal participant achieves higher labeling accuracies on hard-toxic, hard-non-toxic and easy examples than a more con- servative one. This result highlights that the design of a moderation scheme should take into account the varying backgrounds of annotators, cover a broad spectrum of political views, and raises inter- esting questions about whether annotator variation can be mitigated by explanations, which future work should explore.
+Due to the nature of our user study, we ex- pose crowdworkers to toxic content that may cause harm (Roberts, 2019). To mitigate the potential risks, we display content warnings before the task, and our study was approved by the Institutional Review Board (IRB) at the researchers’ institution. Finally, we ensure that study participants are paid fair wages (> $10/hr). See Appendix C for further information regarding the user study.
+Acknowledgments
+We thank workers on Amazon Mturk who partic- ipated in our online user study for making our re- search possible. We thank Karen Zhou, people from various paper clinics and anonymous review- ers for insightful feedback and fruitful discussions. This research was supported in part by Meta Fun- damental AI Research Laboratories (FAIR) “Dyn- abench Data Collection and Benchmarking Plat- form” award “ContExTox: Context-Aware and Ex- plainable Toxicity Detection.”
+References
+Gagan Bansal, Tongshuang Wu, Joyce Zhou, Ray- mond Fok, Besmira Nushi, Ece Kamar, Marco Tulio
+6
+Ribeiro, and Daniel Weld. 2021. Does the whole exceed its parts? the effect of ai explanations on complementary team performance. In Proceedings of the 2021 CHI Conference on Human Factors in Computing Systems, pages 1–16.
+Oana-Maria Camburu, Tim Rocktäschel, Thomas Lukasiewicz, and Phil Blunsom. 2018. e-snli: Natu- ral language inference with natural language expla- nations. Advances in Neural Information Processing Systems, 31.
+Samuel Carton, Qiaozhu Mei, and Paul Resnick. 2020. Feature-based explanations don’t help people detect misclassifications of online toxicity. In ICWSM.
+Ángel Díaz and Laura Hecht-Felella. 2021. Dou- ble Standards in Social Media Content Moderation. Technical report, Brennan Center for Justice.
+Franz Faul, Edgar Erdfelder, Axel Buchner, and Albert- Georg Lang. 2009. Statistical power analyses using G*Power 3.1: Tests for correlation and regression analyses. Behavior Research Methods, 41(4):1149– 1160.
+Saadia Gabriel, Skyler Hallinan, Maarten Sap, Pemi Nguyen, Franziska Roesner, Eunsol Choi, and Yejin Choi. 2022. Misinfo reaction frames: Reasoning about readers’ reactions to news headlines. In ACL.
+Tarleton Gillespie, Patricia Aufderheide, Elinor Carmi, Ysabel Gerrard, Robert Gorwa, Ariadna Matamoros- Fernandez, Sarah T Roberts, Aram Sinnreich, and Sarah Myers West. 2020. Expanding the debate about content moderation: Scholarly research agendas for the coming policy debates. Internet Policy Review.
+Xiaochuang Han and Yulia Tsvetkov. 2020. Fortifying toxic speech detectors against veiled toxicity. In EMNLP.
+Pengcheng He, Xiaodong Liu, Jianfeng Gao, and Weizhu Chen. 2021. DEBERTA: DECODING- ENHANCED BERT WITH DISENTANGLED AT- TENTION. In International Conference on Learning Representations.
+William James, Frederick Burkhardt, Fredson Bowers, and Ignas K Skrupskelis. 1890. The principles of psychology, volume 1. Macmillan London.
+Daniel Kahneman. 2011. Thinking, fast and slow.
+Vivian Lai, Samuel Carton, Rajat Bhatnagar, Q. Vera Liao, Yunfeng Zhang, and Chenhao Tan. 2022. Human-AI collaboration via conditional delegation: A case study of content moderation. In Proceedings of the 2022 CHI Conference on Human Factors in Computing Systems, CHI ’22, New York, NY, USA. Association for Computing Machinery.
+Vivian Lai, Han Liu, and Chenhao Tan. 2020. "Why is ’Chicago’ Deceptive?" towards building model- driven tutorials for humans. In Proceedings of the
+
+
+2020 CHI Conference on Human Factors in Comput- ing Systems, CHI ’20, pages 1–13, New York, NY, USA. Association for Computing Machinery.
+Vivian Lai, Yiming Zhang, Chacha Chen, Q. Vera Liao, and Chenhao Tan. 2023. Selective Explanations: Leveraging Human Input to Align Explainable AI.
+Chaitanya Malaviya, Sudeep Bhatia, and Mark Yatskar. 2022. Cascading biases: Investigating the effect of heuristic annotation strategies on data and models. In EMNLP.
+Antonis Maronikolakis, Axel Wisiorek, Leah Nann, Haris Jabbar, Sahana Udupa, and Hinrich Schuetze. 2022. Listening to Affected Communities to Define Extreme Speech: Dataset and Experiments.
+Tim Miller. 2019. Explanation in artificial intelligence: Insights from the social sciences. Artificial intelli- gence.
+Leticia Nieto and Margot Boyer. 2006. Understand- ing oppression: Strategies in addressing power and privilege. Colors NW, pages 30–33.
+Long Ouyang, Jeff Wu, Xu Jiang, Diogo Almeida, Car- roll L. Wainwright, Pamela Mishkin, Chong Zhang, Sandhini Agarwal, Katarina Slama, Alex Ray, John Schulman, Jacob Hilton, Fraser Kelton, Luke Miller, Maddie Simens, Amanda Askell, Peter Welinder, Paul Christiano, Jan Leike, and Ryan Lowe. 2022. Training language models to follow instructions with human feedback.
+Sarah T Roberts. 2019. Behind the screen.
+Björn Ross, Michael Rist, Guillermo Carbonell, Ben- jamin Cabrera, Nils Kurowsky, and Michael Wojatzki. 2016. Measuring the Reliability of Hate Speech An- notations: The Case of the European Refugee Crisis.
+Paul Rottger, Bertie Vidgen, Dirk Hovy, and Janet Pier- rehumbert. 2022. Two contrasting data annotation paradigms for subjective NLP tasks. In Proceedings of the 2022 Conference of the North American Chap- ter of the Association for Computational Linguis- tics: Human Language Technologies, pages 175–190, Seattle, United States. Association for Computational Linguistics.
+RWJF. 2017. Discrimination in america: experiences
+and views.
+Maarten Sap, Dallas Card, Saadia Gabriel, Yejin Choi, and Noah A Smith. 2019. The risk of racial bias in hate speech detection. In ACL.
+Maarten Sap, Saadia Gabriel, Lianhui Qin, Dan Juraf- sky, Noah A Smith, and Yejin Choi. 2020. Social bias frames: Reasoning about social and power im- plications of language. In ACL.
+Maarten Sap, Swabha Swayamdipta, Laura Vianna, Xuhui Zhou, Yejin Choi, and Noah A. Smith. 2022. Annotators with attitudes: How annotator beliefs and identities bias toxic language detection. In NAACL.
+7
+Helena Vasconcelos, Matthew Jörke, Madeleine Grunde- McLaughlin, Tobias Gerstenberg, Michael Bernstein, and Ranjay Krishna. 2023. Explanations Can Re- duce Overreliance on AI Systems During Decision- Making.
+Xuezhi Wang, Jason Wei, Dale Schuurmans, Quoc Le, Ed Chi, Sharan Narang, Aakanksha Chowdhery, and Denny Zhou. 2023. Self-Consistency Improves Chain of Thought Reasoning in Language Models.
+Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Brian Ichter, Fei Xia, Ed Chi, Quoc Le, and Denny Zhou. 2022. Chain of Thought Prompting Elicits Reasoning in Large Language Models.
+Monnica T. Williams. 2020. Microaggressions: Clari- fication, evidence, and impact. Perspectives on Psy- chological Science, 15(1):3–26.
+Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Clement Delangue, Anthony Moi, Pier- ric Cistac, Tim Rault, Remi Louf, Morgan Funtowicz, Joe Davison, Sam Shleifer, Patrick von Platen, Clara Ma, Yacine Jernite, Julien Plu, Canwen Xu, Teven Le Scao, Sylvain Gugger, Mariama Drame, Quentin Lhoest, and Alexander Rush. 2020. Transformers: State-of-the-Art Natural Language Processing. In Proceedings of the 2020 Conference on Empirical Methods in Natural Language Processing: System Demonstrations, pages 38–45, Online. Association for Computational Linguistics.
+Xuhui Zhou, Hao Zhu, Akhila Yerukola, Thomas David- son, Jena D. Hwang, Swabha Swayamdipta, and Maarten Sap. 2023. Cobra frames: Contextual rea- soning about effects and harms of offensive state- ments. In Findings of ACL.
+
+
+A Implementation Details
+A.1 Explanation Generation with LLMs
+We use large language models (Ouyang et al., 2022) to generate free-text explanations. Given a state- ment s, we use a pattern F to encode offensiveness of the statement w[off], the light explanation egroup and the full explanation efull in the simple format below:
+F (s) = {s, [SEP],
+Offensive: w[off], [SEP], Targeted group: egroup, [SEP], Explanation: efull},
+where [SEP] is a newline character. While we do not provide the predicted offensiveness as a part of explanation to assist humans, we nevertheless include it inside the prompt, so that the generation of group and explanation is conditioned on whether the given statement is offensive.
+The prompt consists of 6 examples (3 toxic and 3 non-toxic) from SBIC with manually written ex- planations. During evaluation, we feed the prompt to GPT-3.5 (Ouyang et al., 2022) and extract the targeted group and explanation from its completion. We greedily decode the offensiveness token w[off], and sample the targeted group egroup and explana- tion efull with a temperature of 0.3.
+A.2 Hyperparameters for fine-tuning
+DeBERTa
+Hyperparameter
+value
+Batch size Learning rate Training steps
+16 10−5 8000
+Optimizer AdamW
+Table 2: DeBERTa fine-tuning hyperparameters.
+For the fine-tuning of the DeBERTa classifier, we used the hyperparameters reported in Table 2. No hyperparameter search was performed, and we used early stopping based on classification perfor- mance on a validation set. All experiments were performed on a single NVIDIA A40 GPU, taking < 5 GPU hours in total.
+B Moderation Labels
+Allow: the post is not offensive or prejudiced and anyone should be able to view it.
+8
+Lenient: the post might be aggressive, angry, or use profanity/swear words, but is not offensive or prejudiced and does not use slurs in hateful ways.
+Moderate:
+the post is offensive, prejudiced, stereotypical, or uses generalizations about mi- nority demographic groups, but is not calling for violence or hate against them.
+Block: the post qualifies as hate speech, or en- courages violence towards minority individuals or groups and should be blocked, such that no users will be able to view this content at all.
+C Human Evaluation
+We obtained an Institutional Review Board (IRB) approval for our user study. Prior to the user study, we conduted a power analysis to determine the scale of the experiment. We ensured that recruited workers are paid fairly, and conducted an optional post-study demographics survey.
+C.1 Power Analysis
+We used G*Power (Faul et al., 2009) to conduct an a priori power analysis for one-way ANOVA. With the goal of having 80% power to detect a moderate effect size of 0.15 at a significance level of 0.05, we yield a target number of 492 participants.
+C.2 MTurk Setup and Participant
+Compensation
+In both the qualification phase and the task phase, we use the following MTurk qualifications: HIT Approval Rate ≥ 98%, Number of HITs Approved ≥ 5000, and location is US. Among the 731 work- ers who participated in the qualification phase, 603 passed, and the workers were paid a median hourly wage of $10.23/h. Among the workers passing qualification, 490 participated in the task phase, in which they were further paid a median hourly wage of $14.4/h. After filtering out workers who failed the qualification questions during the task stage, our user study has 454 remaining participants.
+C.3 Human Evaluation User Interface
+We provide comprehensive instructions for users to complete the task, as demonstrated in Figure 6. Figure 7 shows the interface for one of 4 rounds of user training, and Figure 8 shows the labeling interface, both under the MODEL-EXPL condition.
+
+
+C.4 Participant Demographics
+In the post-study survey, we included a optional demographics survey. Among users who self- identified gender, 53.4% were male, 46.1% were female and 0.4% were non-binary. The majority of participants identified as White (79.9%), 6.5% as Black/African American, 6.0% as Asian/Asian American, 3.6% as Hispanic/Latinx, 3.1% as Mixed/Other, 0.4% as Native Hawaiian/Pacific Is- lander, 0.2% as Middle Eastern and 0.2% as South Asian/Indian American. Most participants were aged 25-50 (72.6%).
+9
+
+
+Figure 5: The consent page available to participants.
+10
+
+
+Figure 6: The instructions page available to participants.
+11
+
+
+Figure 7: Example of a training round under the MODEL-EXPL condition.
+Figure 8: Example of a labeling round under the MODEL-EXPL condition.
+Liberal
+53.550.143.441.539.5
+67.364.962.159.554.9
+Conservative
+60.558.857.356.550.8
+87.785.885.680.574.3
+Strongly conservative
+Neutral
+30405060708090
+Accuracy (%)overallhard-toxicsethard-non-toxicseteasyset
+Strongly liberalpolitical orientation
+Figure 9: Average human performance grouped by political orientation, with 95% confidence intervals reported as error bars.
+12
+
+
+Warning: the table contains content that may be upsetting or offensive.
+Post
+Your mom is Brazilian isn’t she? Maybe she could come to the school sometime for gym and teach the class how to dance samba!
+No, can you get one of the boys to carry that out? It’s too heavy for you.
+What’s the best way to wash down five hundred chocolates? Katrina.
+After you strip off his makeup and clothes, biologically he’s still a man.
+Bisexual is a term that gay guys in high school use when they want to hold hands with girls and feel like a normal person for a change.
+Is it just a coincidence that black ice is the most dangerous?
+alabama where eharmony and ancestry are the same website.
+When I look at the Zimbawee’s Mugabe , I think "Ape" or "Gorilla".
+Just how Americans draw themselves slimmer. Japan does the same, they make anime have giant eyes while in reality they can’t see what their drawing
+You mean your boyfriend coded it up in a week!
+YALL MOTHERFUCKER NORMIES WILL GET SPOILERS ON SEASON 8 OF GAME OF THRONES IF YOU DONT LEAVE NOW
+RT @n0iratre: hookup culture can suck my fucking toe
+DO NOT GO AROUND MY FUCKING CHILD IF YOU DONT EXPECT TO HAVE FUCKING WORDS WITH ME. That is MY son MINNNE.
+The reason people become homebodies ... they are tired of being surrounded by idiots
+Sick of seeing liberalism/conservatism is cancer. No, extremism on both sides is cancer and ur incompetence at realizing this is disgusting
+I HAVE THE WORST AUTUMN EVER IN MY COUNTRY ITS FUCKING AUTUMN AND THIS IS FUCKING ANNOYING BECAUSE ITS KEEPS RAINING IN MY COUNTRY
+buying pussy or smoking weed could get you more jail time than being a traitor to your countrymen apparently
+Fellas we gotta invade Iran for feminism and gay rights.
+What’s Jesus’s favorite gun? A nail gun.
+Who is the only superhero that couId beat Captain America? Captain vietnam
+I’m not weird, you’re just a faggot
+Why is the monkey sad? Just learned that it will be a nigger in a million years.
+A red bull a day keeps the niggers away
+I honestly hate Indians, Muslims, really anything with brown, black or yellow coloured skin I hate.
+What was Adolf Hitler’s biggest mistake? Not killing the 9,000,001 th Jew.
+Disclaimer: None of these things I’m about to tell you are 100% accurate. Just *mostly* accurate. There are always exceptions.
+countdown to more companies following suit after seeing the way that was handled.
+Thanks for the #RT! @marshawright @PrettyFru @cgm807 @poesravenlady @axelmojave @wal- labemu7_62 Have a great week!
+that moment when you silence a mage and they start backpedalling and you just KNOW it’s about to go down
+I still have one or two hunting knives from when I used to fish and shoot in case of self defence at home.
+Table 3: 30 posts used in the online user study.
+13
+Classification
+hard toxic
+hard toxic
+hard toxic
+hard toxic
+hard toxic
+hard toxic
+hard toxic
+hard toxic
+hard toxic
+hard toxic
+hard non-toxic
+hard non-toxic
+hard non-toxic
+hard non-toxic
+hard non-toxic
+hard non-toxic
+hard non-toxic
+hard non-toxic
+hard non-toxic
+hard non-toxic
+easy
+easy
+easy
+easy
+easy
+easy
+easy
+easy
+easy
+easy

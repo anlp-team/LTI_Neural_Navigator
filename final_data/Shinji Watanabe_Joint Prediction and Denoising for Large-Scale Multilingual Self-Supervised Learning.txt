@@ -1,0 +1,242 @@
+3 2 0 2
+p e S 8 2
+] L C . s c [
+2 v 7 1 3 5 1 . 9 0 3 2 : v i X r a
+JOINT PREDICTION AND DENOISING FOR LARGE-SCALE MULTILINGUAL SELF-SUPERVISED LEARNING
+William Chen1, Jiatong Shi1, Brian Yan1, Dan Berrebbi1, Wangyou Zhang1,2, Yifan Peng1, Xuankai Chang1, Soumi Maiti1, Shinji Watanabe1
+1Carnegie Mellon University, USA 2Shanghai Jiao Tong University, China
+ABSTRACT
+Multilingual self-supervised learning (SSL) has often lagged behind state-of-the-art (SOTA) methods due to the expenses and complexity required to handle many languages. This fur- ther harms the reproducibility of SSL, which is already limited to few research groups due to its resource usage. We show that more powerful techniques can actually lead to more efficient pre-training, opening SSL to more research groups. We pro- pose WavLabLM, which extends WavLM’s joint prediction and denoising to 40k hours of data across 136 languages. To build WavLabLM, we devise a novel multi-stage pre-training method, designed to address the language imbalance of multi- lingual data. WavLabLM achieves comparable performance to XLS-R on ML-SUPERB with less than 10% of the train- ing data, making SSL realizable with academic compute. We show that further efficiency can be achieved with a vanilla HuBERT Base model, which can maintain 94% of XLS-R’s performance with only 3% of the data, 4 GPUs, and limited trials. We open-source all code and models in ESPnet.
+els across an array of speech processing tasks for English. While masked-prediction methods such as HuBERT [12] and WavLM [3] reign supreme on SUPERB, they are notably ab- sent in multilingual studies [17–22]. Instead, popular multilin- gual SSL models such as XLSR 53 [23], XLS-R 128 [24], and MMS [25] are built upon the wav2vec framework [10, 11]1, which is outperformed by the mentioned masked-prediction models above [3, 12, 15, 27, 28].
+Our goal is to build a large-scale multilingual SSL model that uses state-of-the-art (SOTA) SSL methods while main- taining a reasonable computational budget. We believe that using more powerful techniques can actually lead to more effi- cient pre-training, as less data and compute is needed to reach similar levels of performance. By showing the feasibility of large-scale multilingual SSL without industrial compute, we hope to encourage more community-driven efforts in building state-of-the-art multilingual models and help pave the way for extending speech processing to new languages [7, 29].
+Index Terms— SSL, HuBERT, WavLM, Multilingual
+1. INTRODUCTION Recent advances in NLP and speech processing have been driven by large scale self-supervised learning (SSL) models trained on gigantic amounts of unlabeled or weakly labeled data [1–9]. In speech processing specifically, SSL research has largely centered around speech representation learning, accomplished by training large speech encoders [3, 10–13] on tens of thousands of hours of unlabeled audio. By leveraging the abundant amounts of unlabeled data, SSL presents a scalable solution for extending the reach of speech technologies to new audiences. This can be most di- rectly accomplished via cross-lingual transfer learning, which aims to leverage information from other languages within a single model. However, due to the increased complexity and computational expenses of training with multiple languages, the methodologies used in multilingual SSL have often lagged behind the state-of-the-art, which remain centered around high- resource languages such as English [1, 3, 4, 14, 15].
+As such, we propose a new massively multilingual SSL model: WavLabLM. WavLabLM extends the WavLM frame- work of jointly learning masked speech prediction and denois- ing to nearly 40k hours of speech across 136 languages. De- spite its relatively small dataset size [23, 24, 30], WavLabLM’s pre-training data is curated for wide geographical coverage, the 15 languages with the most data span 7 different regions across the globe. For contrast, the entire top 15 languages used for XLS-R 128 [24] are European.
+To pre-train WavLabLM within academic constraints, we explore various techniques to make SSL more efficient. We first experimented with continual learning from English-based SSL models, halving the resources required for pre-training at the cost of performance in certain tasks. For multilingual SSL models trained from scratch, we propose a novel multi-stage pre-training approach to counteract imbalances in the language distribution of the data. This can be done by simply training on a large unbalanced dataset, before continual learning on a smaller dataset with a balanced language distribution. As a result, WavLabLM achieves comparable performance to XLS- R 128 on the 10-minute track of ML-SUPERB, despite only
+This can be evidenced via the SUPERB Benchmark [16], which aims to evaluate the effectiveness of different SSL mod-
+1A mHuBERT [26] model was publicly released, but was only pre-trained on 3 languages: English, Spanish, and French, and on a much smaller scale.
+© IEEE 2023
+To appear in Proc. ASRU2023, December 16-20, 2023, Beitou, Taipei
+
+
+using 10% of the pre-training data, and even outperforms it in several tasks.
+To better fit SSL pre-training into academic constraints, we further slim down our approach. Using only 4 GPUs, we find that a simple HuBERT Base model is surprisingly efficient at multilingual SSL. Our CV-HuBERT, trained only on 92 languages from Common Voice [31], maintains up to 94% of the performance of XLS-R with only 3% of the training data and a third of the model parameters. In summary, our methods and results can be outlined as follows:
+We propose WavLabLM, an SSL model for 136 lan- guages and the first extension of joint denoising and prediction to multilingual SSL.
+We propose novel SSL techniques to make pre-training more efficient: continual pre-training from English mod- els and multi-stage pre-training for language balancing.
+We explore multi-resolution inputs in the multilingual setting, and show significant efficiency gains can be achieved with only a vanilla HuBERT Base model.
+Overall, WavLabLM achieves comparable performance to XLS-R 128 with only 10% of the pre-training data. Our CV-HuBERT maintains up to 94% of the perfor- mance with only 3% of the data.
+Finally, we include detailed descriptions of our engineering work that was required for scaling SSL, as a community con- tribution. We open-source all code and trained models in the ESPNet toolkit [32].
+2. BACKGROUND
+2.1. HuBERT WavLabLM uses masked-prediction based pre-training (MPPT), which has become a popular pre-training objec- tive among SOTA SSL models [3, 11, 12, 14, 27]. MPPT models are trained by predicting discretized representations of masked regions of the input speech. In doing so, the model is forced to leverage the unmasked audio as context for its predictions.
+MPTT models largely differ in how the discrete represen- tations are obtained. Wav2vec 2.0 [11] and w2v-BERT [14] learn the discrete units as part of the SSL training, allowing the representations to also be trained end-to-end. While powerful, these models are prone to codebook collapse during training [30], and require an additional loss to keep the discrete units diverse. We instead adopt the offline clustering approach of HuBERT [12], which has been successfully been adapted to other SSL models such as WavLM [3]. HuBERT takes an iterative approach to SSL through an offline clustering step: prior to pre-training, the input data is clustered using k-means. HuBERT is thus trained to predict the frame-level cluster as- signments of masked regions of the input speech.
+Table 1. List of corpora in our pre-training data. For Vox- Populi, we only use recordings from the annotated subset (but discard the transcriptions for unsupervised SSL).
+Dataset
+Languages Hours
+Speech Type
+MLS Common Voice Googlei18n VoxPopuli BABEL FLEURS
+8 92 34 16 17 102
+22,185 13,600 1,328 1,024 1000 950
+Read Read Mixed Spontaneous Spontaneous Read
+Total
+136
+39,087
+2.2. WavLM
+While many SSL models are trained on clean audiobook read- speech [10–12], real world scenarios often feature noisy and multi-speaker settings. To address this, WavLM [3] jointly trains the model to perform both masked speech prediction and denoising. This is done by augmenting the input speech via dynamic mixing with either noise or overlapping speech. For every utterance u in an input batch B, a random value v is sampled from the continuous distribution U(0, 1). If v is less than the augmentation probability pn, another random value w is sampled from U(0, 1). If w is less than utterance mixing probability pu, another utterance un in the batch B is sampled for mixing. Otherwise, a random Deep Noise Suppression (DNS) noise un is used [33].
+A mixing energy ratio e is then sampled for the mixed au- dio. If another utterance is used, e is sampled from U(−5, 20). Otherwise, e is sampled from U(−5, 5). The starting times- tamp of u for the mixing t is sampled in two stages. First, we sample a minimum length lmin from the discrete uniform distribution U(0, len(u) ). This way, t can be sampled from U(lmin, len(un)). The same process is applied again to ob- tain tn, the starting timestamp for mixing in un. Next, the (cid:80) u∗u energy of the utterances is calculated as Eu = len(u) and for u and un respectively. Then, the mixing En =
+2
+(cid:80) un∗un len(un)
+(cid:113) Eu e∗En
+scale s is calculated as s = . Finally, the portion where the augmentation is applied u[t : t + l] is summed with the scaled noise portion s ∗ un[tn : tn + l].
+By applying this augmentation during training, WavLM is made more robust to noisy and multi-speaker settings, and achieves SOTA results on the SUPERB Benchmark [16].
+3. PRE-TRAINING WAVLABLM
+3.1. Pre-training Data To conduct pre-training, we build Openli110, a large-scale multilingual training corpus that covers 109 languages. It con- sists of Common Voice[31], VoxPopuli [34], MLS [35], and
+
+
+Table 2. The top 15 languages in our SSL pre-training set by geographic region and hours. Together, they account for 92.5% of the data.
+Language
+Region
+Hours
+English Kinyarwanda Esperanto German Catalan Belarussian French Spanish Kabyle Ganda Sundanese Italian Javanese Bengali Sinhala Bashkir
+West Europe Sub-Saharan Africa Constructed West Europe West Europe East Europe West Europe West Europe North Africa Sub-Saharan Africa Southeast Asia West Europe Southeast Asia South Asia South Asia Central Asia
+23663 1984 1360 1256 1184 965 934 523 518 362 330 314 294 239 218 216
+Total
+34362
+Googlei18n 2. To extend coverage to 136 languages, we also include BABEL [36] and FLEURS [37]. A full break down of our pre-training data by corpus is available in Table 1. We filter out audio clips longer than 15 seconds due to GPU memory constraints, leaving us with 40k hours of pre-training data. We want to emphasize the geographical diversity of this data: the top 15 languages are spread across 7 different regions across the globe (Table 2). In contrast, the entire top 15 languages used for the SOTA XLS-R [24] are West/East European. We use the FLEURS development split for a balanced validation, which has similar amounts of data per language.
+3.2. Pre-Training Architecture WavLabLM uses the HuBERT [12] architecture, which modi- fied wav2vec 2.0 [11] for codebook prediction. It consists of a CNN feature extractor, a Transformer [38] encoder, and a codebook output layer. WavLabLM also uses the HuBERT pre-training objective detailed in Section 2.1; it predicts the cluster assignments of each masked audio frame. One major novelty of our work is to enhance model robustness to noise in multilingual settings by applying the WavLM joint denoising task discussed in Section 2.2. We do not adopt the architec- tural changes introduced by WavLM, such as gated relative positional bias and scaled softmax. This is because it prevents the application of the second novelty of our method, continual learning from existing HuBERT models, as described below. The simplicity of the HuBERT approach to SSL allows
+2Resources 32, 35, 36, 37, 41, 42, 43, 44, 52, 53, 54, 61, 63, 64, 65, 66,
+69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, and 86 from openslr.org
+it to be both scalable and versatile. Since the clusters are obtained offline, we can reduce resource consumption by us- ing existing SSL models for feature extraction. To show that powerful multilingual SSL is feasible without large-scale com- pute, we adopt AR-HuBERT Base, an English HuBERT Base model replicated through academically-resourced SSL [39] 3. We can then use AR-HuBERT Base to extract features from our multilingual pre-training dataset and train a multilingual k-means. Since we are using AR-HuBERT Base, we can also keep following the HuBERT pipeline and recycle the k-means model used for AR-HuBERT Large, another academic repro- duction [39]. As such, we can perform continual learning on AR-HuBERT Large to adapt it to a multilingual setting (Figure 1, left), which we denote as WavLabLM EK. While the multilingual k-means is likely more optimal since the dis- crete representations will be more expressive of multilingual speech, continual learning can significantly reduce compute costs while leveraging knowledge from English pre-training.
+3.3. Multi-stage Pre-training A persistent challenge in training multilingual models is the data imbalance between languages. For example, over half of our the data consists of English speech (Table 2), which is not uncommon in these large-scale settings. A common way to address this issue is through temperature-based upsampling, where speech from lower-resource languages has an increased chance of being sampled into a batch [24, 25]. While effective, this is difficult to scale to large collections of multiple corpora: different datasets use different language labelling standards, if labels are provided at all. Furthermore, it also suffers from increased computational overhead and relies on additional tuning of the temperature parameter.
+To reduce the experimental mass while obtaining balanced performance by languages, we instead adopt a simple two- stage training approach (Figure 1, right). We first pre-train on a large unbalanced portion of the data, before performing continual learning on a smaller balanced subset. We first pre-train only on the full 40k hours described in Section 3.1, which is split unevenly across 136 languages (Table 2), to obtain WavLabLM MK. We then continue pre-training on a subset consisting of FLEURS and BABEL (total 2000 hours), yielding WavLabLM MS. We chose FLEURS due to its equal language spread across 102 languages, and BABEL to retain a diverse selection of conversational speech.
+3.4. Pre-training Settings WavLabLM uses the HuBERT Large architecture [12]. We [39] in follow the same hyperparameters as Chen. et al. their reproduction. The model consists of 24 Transformer [38] encoder layers, each with a hidden size of 1024, a feed-forward dimension of 4096, and an output feature size of 768. The model uses the Adam optimizer [40] with 32,000 warmup steps
+3Improved performance can be likely achieved by using existing multilin- gual SSL models, such as XLS-R [24], for feature extraction. For HuBERT SSL, feature quality is a key indicator of downstream performance [12, 39]
+
+
+Fig. 1. Diagram of our proposed approaches. WavLabLM EK is initialized with HuBERT Large and uses English-based k-means (left). WavLabLM MK is trained from scratch with multilingual k-means, and used to initialize WavLabLM MS (right).
+and a peak learning rate of 0.0005. Models were pre-trained on 32 40GB Nvidia A100 GPUs 4, and each GPU handled at most 30 seconds of audio per batch. As discussed in Section 2.2, we use an augmentation probability pnof 0.2 and a utterance mixing probability pu of 0.1. The energy ratio of a DNS noise is sampled from a continuous uniform distribution of -5 to 5, while the energy ratio of a mixed utterance is sampled from -5 to 20. For the multi-stage model described in Section 3.3, we perform pre-training on the FLEURS+BABEL subset for an additional 10k steps.
+4. MULTI-RESOLUTION MULTILINGUAL SSL
+While we obtained promising results with our WavLabLM models, the computational resources required to pre-train them were still beyond the typical amounts available to academic groups. As such, we sought to further slim down our approach. We first propose using a smaller model, the 95M parameter HuBERT Base [12] architecture, which has been found to occasionally outperform larger variants in monolingual SSL [28, 29]. For pre-training data, we use the Common Voice [31] subset of the Openli110 dataset discussed in Section 3.1, which contains 13k hours of data split across 92 languages. We choose Common Voice due to its diverse selection of languages and relatively large size, while still being manageable with fewer resources. We designate this approach as CV-HuBERT. To our knowledge, CV-HuBERT is the first attempt in multilin- gual SSL to match the performance of large-scale multilingual SSL models with smaller ones that use less data.
+For further potential efficiency gains, we investigate the effectiveness of SSL at different resolutions, which has shown to be beneficial in monolingual SSL [41] and other speech pro- cessing tasks [42–44]. As such, we extend the multi-resolution (MR) HuBERT to the multilingual setting. This is first ac- complished by training HuBERT models at lower resolutions
+(40ms and 80ms) than the original architecture (20ms). Af- ter pre-training, the models are then fused by stacking the representations from the various resolutions. As such, we pre- train four variations of CV-HuBERT at 20ms, 40ms, and 80ms resolutions. All the models are based on HuBERT-base config- uration, except for the convolution feature extractor used for modulating the modeling resolution. For the multi-resolution implementation, we utilize the same parallel architecture dis- cussed in [41], which repeats the features of low resolution to match the temporal dimension of high-resolution features. All models are trained from scratch, and use the English k-means from AR-HuBERT Base discussed in Section 3.2. All models were trained with only 4 A100 GPUs. Detailed configurations for each model are shown in Table 4.
+5. EXPERIMENTAL SETUP
+We conducted all experiments using the ESPnet toolkit [32]. We evaluate three variants of WavLabLM, which was proposed in Section 3. We also conduct separate ablations on HuBERT SSL at four different resolutions, as noted in Section 4. Table 4 presents details for the data and parameters of each model. The three variants of WavLabLM are all pre-trained on the 40k hours of multilingual data described in Section 3.1. WavLabLM EK is initialized from a reproduced HuBERT Large model [39], and uses an English-based k-means for clustering. WavLabLM MK is trained from scratch and uses a multilingual k-means derived from the training data. Fi- nally, WavLabLM MS uses the multi-stage training approach described in Section 3.3 to balance the language performance of WavLabLM MK. For the resolution experiments, we trial HuBERT Base SSL on Common Voice at 20ms, 40ms, and 80ms. These models are denoted as CV-HuBERT 20ms / 40ms / 80ms,respectively. As discussed in Sec. 4, we also stack the above HuBERT with different resolutions to construct Hu- BERT with multiple resolutions, namely CV-HuBERT MR.
+4Although we obtained such large GPU resources from public computing centers, our occupation of these GPU resources was very limited. We could only perform a few experimental trials, and thus our study still remains within an academic computing scale. In comparison, XLS-R 128 used 128 GPUs, a much larger computing scale.
+Due to the significant computational resources required for each trial (Table 4), we do not conduct extensive ablations for all possible pre-training cluster / model initialization con-
+
+
+Table 3. Results on the ML-SUPERB {10min/1h} settings, presented in accuracy (ACC ↑), character error rate (CER ↓), and SUPERB score (SUPERBs ↑). Results of prior SSL models on each task are obtained from the ML-SUPERB Benchmark [29], while SUPERB scores are re-calculated by considering our models.
+MONO. ASR
+MULTI. ASR
+LID
+MULTI. ASR + LID
+Model
+Hours
+SUPERBs
+CER
+Normal CER
+Few-shot CER
+Normal ACC
+ACC
+Normal
+CER
+Few-shot CER
+XLSR 53 [23] XLS-R 128 [24] HuBERT Base [12] HuBERT Large [12]
+56k 436k 1k 60k
+530 / 889 917 / 986 806 / 879 661 / 778
+49.5 / 34.9 39.7 / 30.6 42.8 / 35.3 38.2 / 32.2
+33.9 / 26.9 29.3 / 22.0 39.8 / 31.4 44.4 / 37.7
+43.6 / 40.6 40.9 / 39.3 44.5 / 42.7 48.2 / 43.5
+6.6 / 87.1 66.9 / 87.9 61.2 / 86.1 46.5 / 64.1
+45.6 / 76.9 55.6 / 85.6 71.5 / 86.0 55.4 / 77.7
+33.4 / 28.6 28.4 / 22.9 39.2 / 30.9 45.6 / 35.1
+43.2 / 44.6 42.1 / 42.4 43.8 / 41.8 49.3 / 42.2
+WavLabLM EK WavLabLM MK WavLabLM MS
+40k 40k 40k
+797 / 862 845 / 848 908 / 897
+40.7 / 33.7 40.5 / 32.3 39.9 / 32.1
+41.0 / 33.5 38.8 / 32.8 37.8 / 31.3
+44.1 / 41.9 44.4 / 42.8 43.8 / 40.9
+61.2 / 83.4 67.6 / 79.0 71.7 / 81.1
+60.0 / 79.9 69.0 / 79.6 70.8 / 82.2
+40.0 / 33.1 38.6 / 32.8 37.0 / 30.6
+42.6 / 41.3 44.2 / 42.4 43.4 / 40.2
+CV-HuBERT 20ms CV-HuBERT 40ms CV-HuBERT 80ms CV-HuBERT MR
+13k 13k 13k 13k
+892 / 924 309 / 409 -127 / -26 819 / 877
+41.9 / 32.9 71.6 / 62.6 76.4 / 67.6 47.8 / 38.3
+35.4 / 27.5 60.5 / 52.0 72.7 / 70.7 37.0 / 28.3
+44.0 / 40.8 57.5 / 53.0 66.1 / 64.1 43.2 / 40.8
+71.2 / 84.0 65.6 / 83.0 33.2 / 57.2 64.1 / 86.0
+76.6 / 87.3 65.7 / 83.3 17.2 / 39.4 74.8 / 84.5
+35.1 / 28.2 59.6 / 52.3 72.3 / 70.4 36.2 / 30.6
+43.6 / 41.1 57.7 / 53.4 64.2 / 64.4 42.5 / 41.0
+Table 4. Proposed models evaluated on ML-SUPERB
+Model
+Params
+Compute
+# GPUs
+# Hours
+Data
+# Langs
+# Hours
+using the same methodology as the SUPERB Benchmark [16, 29] - the score of each model on each task is normalized by the score of the best model, before being averaged across tasks and multiplied by 1000.
+WavLabLM EK WavLabLM MK WavLabLM MS
+317M 317M 317M
+32 32 32
+3.3k 6.4k 6.5k
+136 136 136
+40k 40k 40k
+CV-HuBERT 20ms CV-HuBERT 40ms CV-HuBERT 80ms CV-HuBERT MR
+95M 96M 96M 287M
+4 4 4 4
+1.1k 0.9k 0.5k 2.5k
+92 92 92 92
+13k 13k 13k 13k
+figurations. We instead focus on the most practical use cases for each technique. For example, the most significant benefit of using English k-means is the initialization of all weights from a pre-trained English model. Without initialization, the multilingual k-means will generally be the better choice, as it better captures the acoustic diversity of the data.
+5.2. Fine-tuning Settings Models are fine-tuned on each track of ML-SUPERB for eval- uation. ML-SUPERB follows same style as the SUPERB [16] Benchmark: the weights of the SSL model are frozen during training. A learned weighted sum of the layer outputs is fed to a Transformer [38] encoder trained using CTC loss [45]. We use the default ML-SUPERB settings for all models, which has 2 encoder layers, each with a hidden dimension of 256, 8 attention heads, and a 1024 feed-forward size. The model is trained with the Adam optimizer [40] with a task-specific constant learning rate. During training, the SSL features are augmented with SpecAug [46].
+5.1. Evaluation Data and Metrics We conduct extensive evaluations of our models on the Mul- tilingual SUPERB (ML-SUPERB) Benchmark [29]. ML- SUPERB consists of several tracks across a 10 minute and 1 hour training data setting:
+14 monolingual ASR tasks split across 9 languages.
+6. RESULTS Our main results on ML-SUPERB are presented in Table 3. In each track, we compare against XLSR 53 [23], XLS-R 128 [24], HuBERT Base [12], and HuBERT Large [12], which are the four of the best performing models on ML-SUPERB [29]. As discussed in Section 5.1, models are evaluated using accuracy, CER, and SUPERB Score (SUPERBs).
+A 143-language multilingual ASR task. 20 of the 143 languages have only 5 utterances available for training.
+A language identification (LID) task for 143 languages.
+A 143-language joint LID+ASR task. 20 of the 143 languages have only 5 utterances available for training.
+Models are evaluated using accuracy (ACC) and Character Error Rate (CER). An overall score (SUPERBs) is calculated
+All settings of WavLabLM achieve strong performance across the board, thanks to the multilingual training. WavLabLM MK outperforms WavLabLM EK on most tasks, particularly in the normal setting of the multilingual ASR (38.8 / 32.8 vs 41.0 / 33.5 CER) and ASR+LID tasks (38.6 / 32.8 vs 40.0 / 33.1 CER). This shows the importance of the initial feature extraction and cluster assignment step - multilingual k-means outperforms English k-means, even with the latter’s additional pre-training on large-scale English data. However, reasonable performance can still be achieved with WavLabLM EK, as
+
+
+Table 5. Results by language and pre-training hours on the ML-SUPERB monolingual track, reported in CER for both the {10min/1h} settings.
+Lang.
+Hrs WavLabLM MK WavLabLM MS
+English French German Russian Swahili Swedish Japanese Chinese Mixtec
+24k 940 1.3k 155 160 7 40 100 0
+38.5 / 31.9 53.0 / 39.0 36.5 / 28.0 34.3 / 28.9 36.1 / 29.2 35.0 / 28.2 19.2 / 14.9 44.5 / 33.6 67.4 / 59.7
+39.7 / 32.6 53.1 / 39.3 38.5 / 28.7 34.0 / 28.7 34.9 / 27.2 34.5 / 28.3 18.1 / 14.2 44.5 / 33.2 66.6 / 57.0
+indicated by its higher SUPERB score on the 1-hour setting (862) vs WavLabLM MK (848). As such, better adaptation of monolingual models to multilingual settings may be a promising direction for future research, especially due to its computational efficiency (Table 4).
+Our multi-stage training technique (WavLabLM MS) was successful in better balancing the performance of the model, outperforming the unbalanced model (WavLabLM MK) in all tasks (908 / 897 vs 845 / 848 SUPERBs) . To better understand the benefits of the technique, we break down the monolingual ASR results by language in Table 5. In both data settings, the multi-stage training generally degrades performance in languages that occupy a large portion of the pre-training data, such as English, French, and German. However, there are significant improvements in languages that are rarely seen during training, such as Japanese and Chinese. The multi- stage technique is particularly effective for generalizing to unseen languages during pre-training, reducing the CER on Mixtec by an absolute 0.8 and 2.7 CER on the 10-minute and 1-hour settings. Overall, WavLabLM MS achieves comparable performance to XLS-R 128 across many tasks. With less than 10% of the pre-training data, it maintains 99% and 91% of the performance of XLS-R 128 on both the 10 minute and 1 hour tracks respectively (908 / 897 vs 917 / 986 SUPERBs).
+For our multi-resolution experiments, we found that CV- HuBERT 20ms was surprisingly powerful: it obtains similar performance to WavLabLM-MS on the 10 minute setting, and outperforms all WavLabLM variants on the 1 hour setting. CV- HuBERT 20m obtains 94% of the performance of the SOTA XLS-R 128, with only 3% of the training data and 30% of the parameter size. While similar results of smaller models outperforming larger ones have been observed for monolingual SSL models [28, 29], we are the first to observe such a trend in multilingual models. The light computational requirement of CV-HuBERT 20ms (about 1k GPU hours for 4 A100s) for its level of performance shows both the potential of SSL in academic settings, an exciting prospect for further research.
+Learning speech representations purely on lower resolu-
+tions significantly degraded performance, similar to the mono- lingual setting [41]. Contrary to monolingual SSL, combining SSL models trained with multiple resolutions (CV-HuBERT MR) not only did not improve performance, but also degraded it in almost all tasks. This suggests that performant techniques for monolingual SSL may not translate well to multilingual settings, and shows the necessity of evaluating SOTA methods across a diverse set of linguistic settings.
+6.1. Issues with Scaling In our early experiments, we experimented with several mod- ifications to the HuBERT architecture. This included using a convolutional-augmented encoder [47] and/or lightweight attention approximations [48]. However, we found that these changes significantly degraded training stability, which made scaling to larger models more difficult. As such, we opted to retain the vanilla HuBERT architecture with no modifications. WavLM’s utterance mixing technique requires each train- ing batch to contain at least one audio clip. However, when dealing with large models, sometimes only a single clip can fit within a GPU. Our initial solution was to instead sample from the entire dataset by reading the sampled audio on-the-fly. However, this significantly slowed down training due to the additional file I/O. We also attempted to shard the optimizer across GPUs to reduce VRAM usage [49] , but it resulted in increased runtime with little memory savings. Finally, we opted to instead approximate the WavLM-style augmentation by using only DNS noises in all batches with only one sam- ple. Unfortunately, this still did not address the file I/O issue - the DNS noises were also read into memory on-the-fly. We ultimately decided on the computationally-expensive solution of always retaining all DNS noise recordings in memory, thus requiring the files to be read from disk only once.
+7. CONCLUSION We propose WavLabLM, a large-scale multilingual SSL model that extends the WavLM framework of joint prediction and denoising to 136 languages. We evaluate different pre-training methods for WavLabLM, focusing on pre-training targets and continual learning, in an effort to enhance the efficiency of SSL. In doing so, we devise a novel multi-stage pre-training approach, a lightweight solution designed to address the lan- guage imbalance of large-scale data. This led to our best model, WavLabLM MS, which maintains up to 99% of the per- formance of SOTA multilingual SSL models on ML-SUPERB, with only 10% of the pre-training data. We further slim down our method to create CV-HuBERT, which achieves similar performance with even less data. For future work, we hope to further scale WavLabLM to larger amounts of data, and apply it to weakly-supervised [1] settings to create even more powerful zero-shot models. This work used Delta at NSCA through allocation CIS210014 from the ACCESS program, which is supported by NSF grants #2138259, #2138286, #2138307, #2137603, and #2138296.
+
+
+8. REFERENCES
+[1] A. Radford et al., “Robust speech recognition via large-
+scale weak supervision,” arXiv preprint arXiv:2212.04356, 2022.
+[2] T. Brown et al., “Language models are few-shot learn-
+ers,” in Proc. NeurIPS, vol. 33, 2020, pp. 1877–1901.
+[3] S. Chen et al., “WavLM: Large-scale self-supervised pre-training for full stack speech processing,” IEEE Journal of Selected Topics in Signal Processing, vol. 16, no. 6, pp. 1505–1518, 2022.
+[4] A. Mohamed et al., “Self-supervised speech represen- tation learning: A review,” IEEE Journal of Selected Topics in Signal Processing, vol. 16, no. 6, pp. 1179– 1210, 2022.
+[5] X. Chang et al., “An exploration of self-supervised pretrained representations for end-to-end speech recog- nition,” in Proc. ASRU, 2021, pp. 228–235.
+[6] A. Chowdhery et al., “PaLM: Scaling language model- ing with pathways,” arXiv preprint arXiv:2204.02311, 2022.
+[7] T. L. Scao et al., “BLOOM: A 176b-parameter open- access multilingual language model,” arXiv preprint arXiv:2211.05100, 2022.
+[8] S. Black et al., “GPT-neox-20b: An open-source autore- gressive language model,” in Challenges & Perspectives in Creating Large Language Models, 2022.
+[9] A. Srivastava et al., “Beyond the imitation game: Quan- tifying and extrapolating the capabilities of language models,” arXiv preprint arXiv:2206.04615, 2022.
+[10] S. Schneider et al., “wav2vec: Unsupervised Pre- Training for Speech Recognition,” in Proc. Interspeech, 2019, pp. 3465–3469.
+[11] A. Baevski et al., “wav2vec 2.0: A framework for self- supervised learning of speech representations,” in Proc. NeurIPS, vol. 33, 2020, pp. 12 449–12 460.
+[12] W.-N. Hsu et al., “HuBERT: Self-supervised speech representation learning by masked prediction of hidden units,” IEEE/ACM Transactions on Audio, Speech, and Language Processing, vol. 29, pp. 3451–3460, 2021.
+[13] C. Wang et al., “Improving self-supervised learning for speech recognition with intermediate layer supervision,” in Proc. ICASSP, 2022, pp. 7092–7096.
+[14] Y.-A. Chung et al., “W2v-BERT: Combining con- trastive learning and masked language modeling for self-supervised speech pre-training,” in Proc. ASRU, 2021, pp. 244–250.
+[15] A. Baevski et al., “Data2vec: A general framework for self-supervised learning in speech, vision and language,” in Proc. ICML, K. Chaudhuri et al., Eds., ser. Proceed- ings of Machine Learning Research, vol. 162, 2022, pp. 1298–1312.
+[16] S.-w. Yang et al., “SUPERB: Speech Processing Uni- versal PERformance Benchmark,” in Proc. Interspeech, 2021, pp. 1194–1198.
+[17] W. Chen et al., “Improving massively multilingual ASR with auxiliary CTC objectives,” in Proc. ICASSP, 2023, pp. 1–5.
+[18] A. Rouditchenko et al., “Comparison of multilingual self-supervised and weakly-supervised speech pre- training for adaptation to unseen languages,” in Proc. Interspeech, 2023.
+[19] S. Khurana, A. Laurent, and J. Glass, “SAMU-XLSR: Semantically-aligned multimodal utterance-level cross- lingual speech representation,” IEEE Journal of Se- lected Topics in Signal Processing, vol. 16, no. 6, pp. 1493–1504, 2022.
+[20] S. Cahyawijaya et al., “Cross-lingual cross-age group adaptation for low-resource elderly speech emotion recognition,” in Proc. Interspeech, 2023.
+[21] T. Ashihara et al., “SpeechGLUE: How well can self-supervised speech models capture linguistic knowl- edge?” In Proc. Interspeech, 2023.
+[22] C. Sikasote et al., “Zambezi voice: A multilingual speech corpus for zambian languages,” in Proc. Inter- speech, 2023.
+[23] A. Conneau et al., “Unsupervised cross-lingual rep- resentation learning for speech recognition,” arXiv preprint arXiv:2006.13979, 2020.
+[24] A. Babu et al., “XLS-R: Self-supervised cross-lingual speech representation learning at scale,” arXiv preprint arXiv:2111.09296, 2021.
+[25] V. Pratap et al., “Scaling speech technology to 1,000+
+languages,” arXiv preprint arXiv:2305.13516, 2023.
+[26] A. Lee et al., “Textless speech-to-speech translation on real data,” in Proc. NAACL, 2022, pp. 860–872.
+[27] C.-C. Chiu et al., “Self-supervised learning with random-projection quantizer for speech recognition,” in Proc. ICML, vol. 162, 2022, pp. 3915–3924.
+[28] S. Zaiem et al., “Speech self-supervised representation benchmarking: Are we doing it right?” In Proc. Inter- speech, 2023.
+[29]
+J. Shi et al., “ML-SUPERB: MultiLingual Speech Uni- versal PERformance Benchmark,” in Proc. Interspeech, 2023.
+
+
+[30] Y. Zhang et al., “Google USM: Scaling automatic speech recognition beyond 100 languages,” arXiv preprint arXiv:2303.01037, 2023.
+[31] R. Ardila et al., “Common voice: A massively-multilingual
+speech corpus,” in Proceedings of the Twelfth Language Resources and Evaluation Conference, 2020, pp. 4218– 4222.
+[32] S. Watanabe et al., “ESPnet: End-to-end speech pro- cessing toolkit,” in Proc. Interspeech, 2018, pp. 2207– 2211.
+[33] C. K. Reddy et al., “The Interspeech 2020 deep noise suppression challenge: Datasets, subjective testing framework, and challenge results,” Proc. Interspeech, 2020.
+[34] C. Wang et al., “VoxPopuli: A large-scale multilin- gual speech corpus for representation learning, semi- supervised learning and interpretation,” in Proc. ACL, 2021, pp. 993–1003.
+[35] V. Pratap et al., “MLS: A Large-Scale Multilingual Dataset for Speech Research,” in Proc. Interspeech, 2020, pp. 2757–2761.
+[36] M. J. Gales et al., “Speech recognition and keyword spotting for low-resource languages: Babel project re- search at cued,” in Fourth International workshop on spoken language technologies for under-resourced lan- guages (SLTU-2014), 2014, pp. 16–23.
+[37] A. Conneau et al., “FLEURS: Few-shot learning eval- uation of universal representations of speech,” in Proc. SLT, 2023, pp. 798–805.
+[38] A. Vaswani et al., “Attention is all you need,” Proc.
+NeurIPS, vol. 30, 2017.
+[39] W. Chen et al., “Reducing barriers to self-supervised learning: Hubert pre-training with academic compute,” in Proc. Interspeech, 2023.
+[40] D. P. Kingma and J. Ba, “Adam: A method for stochas-
+tic optimization,” in Proc. ICLR, 2015.
+[41]
+J. Shi et al., “Exploration on HuBERT with multiple resolutions,” arXiv preprint arXiv:2306.01084, 2023.
+[42] S. Kim et al., “Squeezeformer: An efficient transformer for automatic speech recognition,” in Proc. NeurIPS, S. Koyejo et al., Eds., vol. 35, 2022, pp. 9361–9373.
+[43] M. Burchi and V. Vielzeuf, “Efficient conformer: Pro- gressive downsampling and grouped attention for auto- matic speech recognition,” in Proc. ASRU, 2021, pp. 8– 15.
+[44] T. Zhao et al., “Unet++-based multi-channel speech dereverberation and distant speech recognition,” in 2021 12th International Symposium on Chinese Spoken Lan- guage Processing (ISCSLP), 2021, pp. 1–5.
+[45] A. Graves et al., “Connectionist temporal classification: Labelling unsegmented sequence data with recurrent neural networks,” in Proc. ICML, 2006, pp. 369–376.
+[46] D. S. Park et al., “Specaugment: A simple data augmen- tation method for automatic speech recognition,” Proc. Interspeech, pp. 2613–2617, 2019.
+[47] K. Kim et al., “E-Branchformer: Branchformer with enhanced merging for speech recognition,” in Proc. SLT, 2023, pp. 84–91.
+[48] T. Dao et al., “FlashAttention: Fast and memory- efficient exact attention with IO-awareness,” in Proc. NeurIPS, 2022.
+[49] S. Rajbhandari et al., “Zero: Memory optimizations toward training trillion parameter models,” in SC20: International Conference for High Performance Com- puting, Networking, Storage and Analysis, 2020, pp. 1– 16.

@@ -1,0 +1,709 @@
+3 2 0 2
+b e F 8
+]
+G L . s c [
+1 v 8 2 2 4 0 . 2 0 3 2 : v i X r a
+Published as a conference paper at ICLR 2023
+FEDERATED LEARNING AS VARIATIONAL INFERENCE: A SCALABLE EXPECTATION PROPAGATION APPROACH
+Han Guo†(cid:63) Philip Greengard‡ Hongyi Wang† Andrew Gelman‡ Yoon Kim(cid:63) Eric P. Xing†(cid:5)
+†Carnegie Mellon University, (cid:63)Massachusetts Institute of Technology, ‡Columbia University (cid:5)Mohamed bin Zayed University of Artiﬁcial Intelligence, Petuum Inc.
+ABSTRACT The canonical formulation of federated learning treats it as a distributed optimiza- tion problem where the model parameters are optimized against a global loss func- tion that decomposes across client loss functions. A recent alternative formulation instead treats federated learning as a distributed inference problem, where the goal is to infer a global posterior from partitioned client data (Al-Shedivat et al., 2021). This paper extends the inference view and describes a variational inference formu- lation of federated learning where the goal is to ﬁnd a global variational posterior that well-approximates the true posterior. This naturally motivates an expecta- tion propagation approach to federated learning (FedEP), where approximations to the global posterior are iteratively reﬁned through probabilistic message-passing between the central server and the clients. We conduct an extensive empirical study across various algorithmic considerations and describe practical strategies for scaling up expectation propagation to the modern federated setting. We ap- ply FedEP on standard federated learning benchmarks and ﬁnd that it outperforms strong baselines in terms of both convergence speed and accuracy.1
+1
+INTRODUCTION AND BACKGROUND
+Many applications of machine learning require training a centralized model over decentralized, het- erogeneous, and potentially private datasets. For example, hospitals may be interested in collabora- tively training a model for predictive healthcare, but privacy rules might require each hospital’s data to remain local. Federated Learning (FL, McMahan et al., 2017; Kairouz et al., 2021; Wang et al., 2021) has emerged as a privacy-preserving training paradigm that does not require clients’ private data to leave their local devices. FL introduces new challenges on top of classic distributed learning: expensive communication, statistical/hardware heterogeneity, and data privacy (Li et al., 2020a).
+The canonical formulation of FL treats it as a distributed optimization problem where the model parameters θ are trained on K (potentially private) datasets D = (cid:83)
+k∈[K] Dk, k∈[K] − log p(Dk | θ).
+θ = arg minθ L(θ), where L(θ) = ∑
+Standard distributed optimization algorithms (e.g., data-parallel SGD) are too communication- intensive to be practical under the FL setup. Federated Averaging (FedAvg, McMahan et al., 2017) reduces communication costs by allowing clients to perform multiple local SGD steps/epochs be- fore the parameter updates are sent back to the central server and aggregated. However, due to client data heterogeneity, more local computations could lead to stale or biased client updates, and hence sub-optimal behavior (Charles & Koneˇcn`y, 2020; Woodworth et al., 2020; Wang et al., 2020a).
+An alternative approach is to consider a Bayesian formulation of the FL problem (Al-Shedivat et al., 2021). Here, we are interested in estimating the posterior of parameters p(θ | D) given a prior p(θ) (such as an improper uniform or a Gaussian prior) and a collection of client likelihoods p(Dk | θ) that are independent given the model parameters,
+p(θ | D) ∝ p(θ) ∏
+k∈[K] p(Dk | θ).
+In this case the posterior naturally factorizes across partitioned client data, wherein the global pos- terior equates to a multiplicative aggregate of local factors (and the prior). However, exact posterior inference is in general intractable for even modestly-sized models and datasets and requires approx-
+1Code: https://github.com/HanGuo97/expectation-propagation. This work was completed while
+Han Guo was a visiting student at MIT.
+1
+
+
+Published as a conference paper at ICLR 2023
+imate inference techniques. In this paper we turn to variational inference, in effect transforming the federated optimization problem into a distributed inference problem. Concretely, we view the solution of federated learning as the mode of a variational (posterior) distribution q ∈ Q with some divergence function D(·(cid:107)·) (e.g., KL-divergence),
+θ = arg maxθ q(θ), where q(θ) = arg minq∈Q D (p (θ | D) (cid:107) q (θ)) . Under this approach, clients use local computation to perform posterior inference (instead of pa- rameter/gradient estimation) in parallel. In exchange, possibly fewer lockstep synchronization and communication steps are required between clients and servers.
+One way to operationalize Eq. 1 is through federated posterior averaging (FedPA, Al-Shedivat et al., 2021), where each client independently runs an approximate inference procedure and then sends the local posterior parameters to the server to be multiplicatively aggregated. However, there is no guarantee that independent approximations to local posteriors will lead to a good global approxi- mate posterior. Motivated by the rich line of work on variational inference on streaming/partitioned data (Broderick et al., 2013; Vehtari et al., 2020), this work instead considers an expectation prop- agation (EP, Minka, 2001) approach to FL. In EP, each partition of the data maintains its own local contribution to the global posterior that is iteratively reﬁned through probabilistic message-passing. When applied to FL, this results in an intuitive training scheme where at each round, each client (1) receives the current approximation to the global posterior from the centralized server, (2) carries out local inference to update its local approximation, and (3) sends the reﬁned approximation to the server to be aggregated. Conceptually, this federated learning with expectation propagation (FedEP) approach extends FedPA by taking into account the current global approximation in step (2).
+However, scaling up classic expectation propagation to the modern federated setting is challeng- ing due to the high dimensionality of model parameters and the large number of clients. Indeed, while there is some existing work on expectation propagation-based federated learning (Corinzia et al., 2019; Kassab & Simeone, 2022; Ashman et al., 2022), they typically focus on small mod- els (fewer than 100K parameters) and few clients (at most 100 clients). In this paper we conduct an extensive empirical study across various algorithmic considerations to scale up expectation propaga- tion to contemporary benchmarks (e.g., models with many millions of parameters and datasets with hundreds of thousands of clients). When applied on top of modern FL benchmarks, our approach outperforms strong FedAvg and FedPA baselines.
+2 FEDERATED LEARNING WITH EXPECTATION PROPAGATION The probabilistic view from Eq. 1 motivates an alternative formulation of federated learning based on variational inference. First observe that the global posterior p (θ | D) given a collection of datasets D = (cid:83)
+k∈[K] Dk factorizes as,
+K ∏ k=1
+K ∏ k=0
+p (θ | D) ∝ p(θ)
+p(Dk | θ) =
+pk(θ),
+where for convenience we deﬁne p0(θ) := p(θ) to be the prior and further use pk(θ) := p(Dk | θ) to refer to the local likelihood associated with k-th data partition. To simplify notation we hereon refer to the global posterior as pglobal(θ) and drop the conditioning on D. Now consider an approximating global posterior qglobal(θ) that admits the same factorization as the above, i.e., qglobal(θ) ∝ ∏K
+k=0 qk(θ). Plugging in these terms into Eq. 1 gives the following objective, (cid:19)
+(cid:18) K ∏ k=0
+K ∏ k=0
+K ∏ k=0
+qk(θ), where {qk(θ)}K
+k=0 = arg min
+pk(θ) (cid:107)
+qk(θ)
+arg max θ
+D
+qk∈Q
+Here Q is the variational family, which is assumed to be the same for all clients. This global objec- tive is in general intractable; evaluating ∏k pk(θ) requires accessing all clients’ data and violates the standard FL assumption. This section presents a probabilistic message-passing algorithm based on expectation propagation (EP, Minka, 2001).
+2.1 EXPECTATION PROPAGATION EP is an iterative algorithm in which an intractable target density pglobal(θ) is approximated by a tractable density qglobal(θ) using a collection of localized inference procedures. In EP, each local inference problem is a function of just pk and the current global estimate, making it appropriate for the FL setting.
+2
+.
+(1)
+(2)
+
+
+Published as a conference paper at ICLR 2023
+Algorithm 1 Federated Learning as Inference 1: for round t = 1, . . . , T do 2: 3: 4: 5: 6: 7: 8: 9: end for 10: Return µglobal.
+Sample a subset of clients K. Broadcast qglobal(θ) to the selected clients. for each client k ∈ K in parallel do
+∆qk(θ) ← ClientInfer(qglobal(θ))
+end for Collect ∆qk(θ) from the selected clients. qglobal(θ) ← ServerInfer({∆qk(θ)}k)
+Algorithm 2 Approximate Inference: MCMC 1: Input: q\k(θ; Dk, η−k, Λ−k) 2: Sk ← {} 3: for i = 1, . . . , N do 4:
+k ← SGDEpoch(− log q\k, θ(i−1) θ(i) Sk ← Sk ∪ θ(i)
+k
+5: 6: end for 7: η\k, Λ 8: Output: (cid:98)q\k(θ; η\k, Λ
+k
+\k ← EstimateMoments(Sk)
+\k)
+)
+Algorithm 3 Gaussian EP: Server Inference 1: Receive: {∆qk(θ; ∆ηk, ∆Λ ∝ qglobal ∏k (∆qk)δ 2: qnew
+k)}k
+global ηglobal ← ηglobal + δ ServerOptim(∑ k Λglobal ← Λglobal + δ ServerOptim(∑
+// Sec. 2.2.3
+∆ηk) ∆Λ k)
+k
+3: Send: qglobal(θ; ηglobal, Λglobal)
+Algorithm 4 Gaussian EP: Client Inference 1: Receive: qglobal(θ; ηglobal, Λglobal) 2: q−k
+∝ qglobal/qk η−k ← ηglobal − ηk, ∝ pk q−k
+// cavity distribution Λ−k ← Λglobal − Λ k // tilted inference (Sec. 2.2.2)
+3: (cid:98)q\k ≈ q\k η\k, Λ ∝
+∝ pk q−k)
+\k ← ApproxInference(q\k (cid:98)q\k/qglobal ∆ηk ← η\k − ηglobal, ∝ qk (∆qk)δ
+4: ∆qk
+// client deltas (Sec. A.1) \k − Λglobal
+k ← Λ
+∆Λ
+5: qnew k ηk ← ηk + δ ClientOptim(∆ηk) k + δ ClientOptim(∆Λ Λ k)
+// local update (Sec. 2.2.3)
+k ← Λ
+6: Send: ∆qk(θ; ∆ηk, ∆Λ
+k)
+Concretely, EP iteratively solves the following problem (either in sequence or parallel),
+qnew k
+(θ) = arg min
+q∈Q
+D
+(cid:18)
+pk(θ) q−k(θ) (cid:123)(cid:122) (cid:125) (cid:124) ∝ q\k(θ)
+(cid:107) q(θ) q−k(θ) (cid:123)(cid:122) (cid:125) (cid:98)q\k(θ)
+(cid:124)
+∝
+(cid:19)
+, where q−k(θ) ∝ qglobal(θ) qk(θ)
+.
+(3)
+Here qglobal(θ) and qk(θ) are the global/local distributions from the current iteration. (See Sec. A.2 for further details). In the EP literature, q−k(θ) is referred to as the cavity distribution and q\k(θ) and (cid:98)q\k(θ) are referred to as the target/approximate tilted distributions. EP then uses qnew (θ) to derive qnew global(θ). While the theoretical properties of EP are still not well understood (Minka, 2001; Dehaene & Barthelm´e, 2015; 2018), it has empirically been shown to produce good posterior ap- proximations in many cases (Li et al., 2015; Vehtari et al., 2020). When applied to FL, the central server initiates the update by sending the parameters of the current global approximation qglobal(θ) as messages to the subset of clients K. Upon receiving these messages, each client updates the re- spective local approximation qnew (θ) and sends back the changes in parameters as messages, which is then aggregated by the server. Algorithms 1-4 illustrate the probabilistic message passing with the Gaussian variational family in more detail.
+k
+k
+Remark. Consider the case where we set q−k(θ) ∝ 1 (i.e., an improper uniform distribu- tion that ignores the current estimate of the global parameters). Then Eq. 3 reduces to fed- erated learning with posterior averaging (FedPA) from Al-Shedivat et al. (2021), qnew (θ) = arg minq∈Q D (pk(θ) (cid:107) q(θ)). Hence, FedEP improves upon FedPA by taking into account the global parameters and the previous local estimate while deriving the local posterior.2
+k
+2.2 SCALABLE EXPECTATION PROPAGATION
+While federated learning with expectation propagation is conceptually straightforward, scaling up FedEP to modern models and datasets is challenging. For one, the high dimensionality of the param- eter space of contemporary models can make local inference difﬁcult even with simple mean-ﬁeld Gaussian variational families. This is compounded by the fact that classic expectation propaga- tion is stateful and therefore requires that each client always maintains its local contribution to the global posterior. These factors make classic EP potentially an unideal approach in settings where
+2When the parameters of qglobal(θ) and qk(θ)’s are initialized as improper uniform distributions, the ﬁrst
+round (but only the ﬁrst round) of FedEP and FedPA is identical.
+3
+
+
+Published as a conference paper at ICLR 2023
+the clients may be resource-constrained and/or the number of clients is large enough that each client is updated only a few times during the course of training. This section discusses various algorithmic consideration when scaling up FedEP to contemporary federated learning benchmarks. 2.2.1 VARIATIONAL FAMILY Following prior work on variational inference in high-dimensional parameter space (Graves, 2011; Blundell et al., 2015; Zhang et al., 2019; Osawa et al., 2019), we use the mean-ﬁeld Gaussian variational family for Q, which corresponds to multivariate Gaussian distributions with diago- nal covariance. Although non-diagonal extensions are possible (e.g., through shrinkage estima- tors (Ledoit & Wolf, 2004)), we empirically found the diagonal to work well while being simple and communication-efﬁcient. For notational simplicity, we use the following two parameterizations of a Gaussian distribution interchangeably,
+q(θ) = N (θ; µ, Σ) = N (θ; η, Λ) , where Λ := Σ−1, η := Σ−1µ. Conveniently, both products and quotients of Gaussian distributions—operations commonly used in EP—result in another Gaussian distribution, which simpliﬁes the calculation of the cavity distribu- tion q−k(θ) and the global distribution qglobal(θ).3 2.2.2 CLIENT INFERENCE At each round of training, each client must estimate (cid:98)q\k(θ), its own approximation to the tilted distribution q\k(θ) in Eq. 3. We study various approaches for this estimation procedure. Stochastic Gradient Markov Chain Monte Carlo (SG-MCMC). SG-MCMC (Welling & Teh, 2011; Ma et al., 2015) uses stochastic gradients to approximately sample from local posteriors. We follow Al-Shedivat et al. (2021) and use a simple variant of SGD-based SG-MCMC, where we collect a single sample per epoch to obtain a set of samples Sk = {θ(1) }.4 The SGD objective in this case is the unnormalized tilted distribution, − ∑ (cid:124)
+, . . . , θ(N)
+k
+k
+1 2
+θ(cid:62)Λ−kθ − η(cid:62) (cid:123)(cid:122) − log q−k(θ)
+log p(z | θ) (cid:125) (cid:123)(cid:122) − log pk(θ)
++ (cid:124)
+−kθ (cid:125)
+,
+z∈Dk
+which is simply the client negative log likelihood (− log pk(θ)) plus a regularizer that penalizes parameters that have low probability under the cavity distribution (− log q−k(θ)). This connection makes it clear that the additional client computation compared to FedAvg (which just minimizes the client negative log-likelihood) is negligible. Given a set of samples Sk from SG-MCMC, we estimate the parameters of the tilted distribution q\k(θ) with moment matching, i.e.,
+q\k(θ) = N (θ; µ\k, Σ
+\k) where µ\k, Σ
+\k ← MomentEstimator(Sk).
+While the mean obtained from Sk via averaging empirically worked well, the covariance estimation was sometimes unstable. We next discuss three alternative techniques for estimating the covariance.
+SG-MCMC with Scaled Identity Covariance. Our simplest approach approximates the covari- ance as a scaled identity matrix with a tunable hyper-parameter αcov, i.e., Σ \k ← αcovI. This cuts down the communication cost in half since we no longer have to send messages for the covariance parameters. While extremely simple, we found scaled identity covariance to work well in practice.
+Laplace Approximation. Laplace’s method approximates the covariance as the inverse Hessian of the negative log-likelihood at the (possibly approximate) MAP estimate. Since the exact inverse Hessian is intractable, we follow common practice and approximate it with the diagonal Fisher, (cid:19)2(cid:35)(cid:33) (cid:32)
+(cid:34)(cid:18)
+(cid:17)−1
+(cid:16)
+E
+Hk + Σ−1 −k
+Σ
+\k ←
+, where Hk ≈ diag
+∇θ log p(y | θ, x)
+x∼Dk, y∼p(y|x,θ)
+(cid:124)
+(cid:123)(cid:122) diagonal Fisher approximation
+3Speciﬁcally, we have the following identities, 2) ∝ N (θ; η1 + η2, Λ
+N (θ; η1, Λ
+1) N (θ; η2, Λ
+1 + Λ
+2) ,
+N (θ; η1, Λ N (θ; η2, Λ
+1) 2)
+∝ N (θ; η1 − η2, Λ
+4Unlike Al-Shedivat et al. (2021), we do not apply Polyak averaging (Mandt et al., 2017; Maddox et al.,
+2019) as we did not ﬁnd it to improve results in our case.
+4
+1 − Λ
+.
+(cid:125)
+(4)
+2) .
+
+
+Published as a conference paper at ICLR 2023
+This approach samples the input x from the data Dk and the output y from the current model p(y | x, θ), as recommended by Kunstner et al. (2019). The Fisher approximation requires additional epochs of backpropagation on top of usual SGD (usually 5 in our case), which requires additional client compute.
+Natural Gradient Variational Inference. Our ﬁnal approach uses natural-gradient variational inference (NGVI, Zhang et al., 2018; Khan et al., 2018; Osawa et al., 2019), which incorporates the geometry of the distribution to enable faster convergence. Most existing work on NGVI assume a zero-mean isotropic Gaussian prior. We extend NGVI to work with arbitrary Gaussian priors— necessary for regularizing towards the cavity distribution in FedEP. Speciﬁcally, NGVI iteratively computes the following for t = 1 . . . TNGVI and learning rate βNGVI,
+Σ
+\k,t ←
+(cid:16)
+|Dk|st + Σ−1 −k
+(cid:17)−1
+, where st ← βNGVIst−1 + (1 − βNGVI) Eθ∼q\k,t−1
+(cid:20) 1 |Dk|
+Fisher(θ)
+Here Fisher(·) is the diagonal Fisher approximation in Eq. 4 but evaluated at a sample of parameters from q\k,t(θ), the approximate posterior using the current estimate of Σ \k,t. We give the exact NGVI update (which is algorithmically similar to the Adam optimizer (Kingma & Ba, 2015)) in Algorithm 5 in the appendix.
+2.2.3 ADAPTIVE OPTIMIZATION AS DAMPING Given the approximate tilted distribution (cid:98)q\k(θ) and the corresponding parameters µ\k, Σ \k, we can in principle follow the update equation in Eq. 2 to estimate qnew global(θ). However, adaptive optimizers have been shown to be crucial for scaling federated learning to practical settings (Reddi et al., 2020), and the vanilla EP update does not immediately lend itself to adaptive updates. This section describes an adaptive extension to EP based on damping, in which we to re-interpret a damped EP update as a gradient update on the natural parameters, which allows for the use of adaptive optimizers.
+Damping performs client updates only partially with step size δ and is commonly used in parallel EP settings (Minka & Lafferty, 2002; Vehtari et al., 2020). Letting ∆qk(θ) ∝ (cid:98)q\k(θ)/qglobal(θ) denote the client “update” distribution, we can simplify the update and arrive at the following intuitive form (Vehtari et al., 2020) (see Sec. A.1 for derivation),
+Client:
+qnew k
+(θ) ∝ qk(θ)
+(cid:16)
+∆qk(θ)
+(cid:17)δ
+,
+Server:
+global(θ) ∝ qglobal(θ) ∏ qnew
+(cid:16)
+∆qk(θ)
+(cid:17)δ
+.
+k
+Recalling that products of Gaussian distributions yields another Gaussian distribution that simply sums the natural parameters, the damped update for η is given by, Client:
+ηglobal ← ηglobal + δ ∑ k∈K
+ηk ← ηk + δ∆ηk,
+∆ηk.
+Server:
+(The update on the precision Λ is analogous.) By re-interpreting the update distribution ∆qk(θ; ∆ηk, ∆Λ k) as a “gradient”, we can apply off-the-shelf adaptive optimizers , Client:
+ηglobal ← ηglobal + δ optim( ∑ k∈K
+ηk ← ηk + δ optim(∆ηk),
+∆ηk).
+Server:
+All our FedEP experiments (and the FedAvg and FedPA baselines) employ adaptive optimization.
+2.2.4 STOCHASTIC EXPECTATION PROPAGATION FOR STATELESS CLIENTS Clients are typically assumed to be stateful in the classic formulations of expectation propagation. However, there are scenarios in which stateful clients are infeasible (e.g., memory constraints) or even undesirable (e.g., large number of clients who only participate in a few update rounds, leading to stale messages). We thus additionally experiment with a stateless version of FedEP via stochastic expectation propagation (SEP, Li et al., 2015). SEP employs direct iterative reﬁnement of a global approximation comprising the prior p(θ) and K copies of a single approximating factor qk(θ),
+qglobal(θ) ∝ p(θ)
+(cid:18)
+qk(θ)
+(cid:19)K
+.
+That is, clients are assumed to capture the average effect. In practice, FedSEP is implemented in Algorithm 4 via replacing the cavity update (step 2) with q−k(θ) ∝ qglobal(θ)/qk(θ) and removing the local update (step 5).
+5
+(cid:21)
+.
+
+
+Published as a conference paper at ICLR 2023
+Dataset
+Model
+Model size
+Clients (train/test)
+Examples per client (train/test)
+CIFAR-100 StackOverﬂow Linear CNN EMNIST-62
+ResNet-18
+11.2M 5.0M 1.2M
+500 / 100 342,477 / 204,088 3,400 / 3,400
+100±0 / 100±0 397±1279 / 81±301 198±77 / 23±9
+Table 1: Model and dataset statistics. The ± in “Examples per client” client denotes standard deviation.
+3 EXPERIMENTS
+We empirically study FedEP across various benchmarks. We start with a toy setting in Sec. 3.1 where we examine cases where federated posterior average (FedPA, Al-Shedivat et al., 2021), which does not take into account global and other clients’ approximations during client inference, performs sub-optimally. We then turn to realistic federated learning benchmarks in Sec. 3.2, where both the size of the model and the number of clients are much larger than had been previously considered in prior EP-based approaches to federated learning (Corinzia et al., 2019; Kassab & Simeone, 2022). Here, we resort to the techniques discussed in Sec. 2.2: approximate inference of the tilted distribu- tions, adaptive optimization, and possibly stateless clients. Finally, we conclude in Sec. 3.3 with an analysis of some of the observations from the benchmark experiments.
+3.1 TOY EXPERIMENTS
+We start with a simple toy setting to illustrate the differences between FedPA and FedEP. Here the task is to infer the global mean from two clients, each of which is parameterized as a two- dimensional Gaussian, pk(θ) = N (θ; µk, Σ k) for k ∈ {1, 2}. Assuming an improper uniform prior, the global distribution is then also a Gaussian with its posterior mode coinciding with the global mean. We perform exact inference via analytically solving DKL(q\k(cid:107)(cid:98)q\k), but restrict the variational family to Gaussians with diagonal covariance (i.e., mean-ﬁeld family). In this case both the FedAvg and FedPA solution can be derived in “one-shot”. Fig. 1 illustrates a simple case where posterior averaging performs sub-optimally. On the other hand, expectation propagation iteratively reﬁnes the approximations toward the globally optimal estimation.
+We study this phenomena more systematically by sampling random client distributions, where the client parameters are sampled from the normal-inverse-Wishart (NIW) distribution, (cid:19)
+(cid:18)
+1 λ
+k ∼ W −1(Σ | Ψ, ν).
+, Σ
+Σ
+µ | µ0,
+µk ∼ N
+k
+Here we set the hyper-prior mean µ0 = 0, degrees of freedom ν = 7, scale λ = 0.2, and sample a random symmetric posi- tive deﬁnite matrix for Ψ. Table 4 shows the average Euclidean distances between the estimated and target global mean for FedAvg, FedPA, and FedEP averaged over 200 random sam- ples of client distributions. Experimental results demonstrate that iterative message passing in FedEP consistently improves upon the sub-optimal solution from posterior averaging.
+PosteriorAveragingFederatedAveragingExpectionPropagation(Trajectory)
+Client 1Client 2Global(Target)
+Figure 1: FedAvg, FedPA, and FedEP on a toy two dimensional dataset with two clients.
+3.2 BENCHMARKS EXPERIMENTS
+We next conduct experiments on a suite of realistic benchmark tasks introduced by Reddi et al. (2020). Table 1 summarizes the model and raw dataset statistics, which is the same as in Al-Shedivat et al. (2021). We use the dataset preprocessing provided in TensorFlow Federated (TFF, Authors, 2018), and implement the models in Jax (Bradbury et al., 2018; Hennigan et al., 2020; Ro et al., 2021). We compare against both FedAvg with adaptive optimizers and FedPA.5 As in FedPA, we run a few rounds of FedAvg as burn-in before switching to FedEP. We refer the reader to the appendix for the exact experimental setup.
+For evaluation we consider both convergence speed and ﬁnal performance. On CIFAR-100 and EMNIST-62, we measure the (1) number of rounds to reach certain accuracy thresholds (based on 10-round running averages), and (2) the best accuracy attained within speciﬁc rounds (based on 100-round running averages). For StackOverﬂow, we measure the best precision, recall, micro- and
+5Reddi et al. (2020) refer to federated averaging with adaptive server optimizers as FedAdam etc. We refer
+to this as FedAvg for simplicity.
+6
+
+
+Published as a conference paper at ICLR 2023
+Accuracy (%, ↑) 1500R
+Rounds (#, ↓)
+Method
+prec.
+ma-F1
+mi-F1
+recall
+Method
+45%
+50%
+1000R
+30.78 23.32(0.41)
+74.66 75.20(0.18)
+11.63 8.02(0.26)
+19.94 13.88(0.27)
+FedPA FedAvg
+− −
+FedPA FedAvg
+48.4 46.2(0.2)
+811 911(86)
+45.8 44.7(0.2)
+25.10(0.22) 8.70(1.14) 25.88(0.30) 28.02(0.20)
+37.04(0.25) 14.29(2.20) 37.80(0.29) 39.78(0.25)
+13.61(0.15) 2.70(0.33) 13.97(0.19) 15.32(0.08)
+71.32(0.20) 58.31(18.04) 70.98(0.18) 69.51(0.35)
+FedSEP (I) FedSEP (M) FedSEP (L) FedSEP (V)
+1167(107) 1240† − 1290‡
+50.7(0.4) 50.4(0.5) 47.7(0.3) 49.6(0.6)
+FedEP (I) FedEP (M) FedEP (L) FedEP (V)
+48.7(0.4) 48.8(0.4) 46.5(0.4) 47.8(0.5)
+473(17) 461(13) 523(28) 487(24)
+(133)
+(−)
+Table 3: StackOverﬂow Experiments. Statistics shown are the averages and standard deviations (subscript in brackets) aggregated over 5 seeds. We measure the best precision (prec.), recall, micro- and macro-F1 (mi/ma-F1) attained by round 1500 (based on 100- round running averages).
+FedSEP (I) FedSEP (M) FedSEP (L) FedSEP (V)
+− − − −
+48.9(0.4) 48.9(0.4) 47.8(0.4) 48.5(0.5)
+48.2(0.4) 48.2(0.4) 47.2(0.4) 47.8(0.4)
+438(9) 438(9) 442(10) 440(10)
+Table 2: CIFAR-100 Experiments. Statistics shown are the averages and standard deviations (subscript in brackets) aggregated over 5 seeds. We measure the number of rounds to reach certain accuracy thresh- olds (based on 10-round running averages) and the best accuracy attained within speciﬁc rounds (based on 100-round running averages). FedEP and FedSEP re- fer to the stateful EP and stateless stochastic EP. We use I (Scaled Identity Covariance), M (MCMC), L Table 4: Toy Experiments. Statistics shown are the av- (Laplace), and V (NGVI) to refer to different inference erages and standard deviations of Euclidean distances techniques. †One seed does not reach the threshold. between the estimated and target global mean aggre- gated over 200 random samples of client distributions. ‡Only one seed reaches the threshold. macro-F1 attained by round 1500 (based on 100-round running averages).6 Due to the size of this dataset, the performance at each round is evaluated on a 10K subsample. The evaluation setup is al- most exactly the same as in prior work (Reddi et al., 2020; Al-Shedivat et al., 2021). Due to space we mainly discuss the CIFAR-100 (“CIFAR”) and StackOverﬂow Tag Prediction (“StackOverﬂow”) re- sults in this section and defer the EMNIST-62 (“EMNIST”) results (which are qualitatively similar) to the appendix (Sec. A.3).
+Euclidean Distance 5.4 × 10−1 ± 4.7 × 10−1 2.6 × 10−1 ± 2.6 × 10−1 1.1 × 10−7 ± 9.8 × 10−8
+Method
+FedAvg FedPA FedEP
+CIFAR. In Table 2 and Fig. 2 (left, mid), we compare FedAvg, FedPA, and FedEP with various approaches for approximating the clients’ tilted distributions (Sec. 2.2.2). A notable observation is the switch from FedAvg to FedPA/FedEP at the 400th round, where observe signiﬁcant increases in performance. Somewhat surprisingly, we ﬁnd that scaled identity is a simple yet strong base- line. (We conduct further experiments in Sec. 3.3 to analyze this phenomena in greater detail). We next experiment with stochastic EP (FedSEP, Sec. 2.2.4), a stateless version of FedEP that is more memory-efﬁcient. We ﬁnd that FedSEP can almost match the performance of full EP despite being much simpler (Fig. 2, right).
+StackOverﬂow. Experiments on CIFAR study the challenges when scaling FedEP to richly pa- rameterized neural models with millions of parameters. Our StackOverﬂow experiments are on the other hand intended to investigate whether FedEP can scale to regimes with a large number of clients (hundreds of thousands). Under this setup the number of clients is large enough that the average client will likely only ever participate in a single update round, which renders the stateful version of FedEP meaningless. We thus mainly experiment with the stateless version of FedEP.7 Table 3 and Fig. 3 (full ﬁgure available in the appendix Fig. 5) show the results comparing the same set of approximate client inference techniques. These experiments demonstrate the scalability of EP to a large number of clients even when we assume clients are stateless.
+3.3 ANALYSIS AND DISCUSSION
+The Effectiveness of Scaled Identity. Why does the scaled identity approximation work so well? We investigate this question in the same toy setting as in Sec. 3.1. Fig. 4 (left) compares the scaled- identity EP with FedEP, FedPA, and FedAvg. Unsurprisingly, this restriction leads to worse perfor- mance initially. However, as clients pass messages between each other, scaled-identity EP eventually converges to nearly the same approximation as diagonal EP.
+The toy experiments demonstrate the effectiveness of scaled identity in terms of the ﬁnal solution. However, this does not fully explain the benchmark experiments where we observed scaled iden-
+6TFF by default considers a threshold-based precision and top-5 recall. Our early experiments found that
+threshold-based metrics correlate better with loss, and use them in StackOverﬂow experiments.
+7This was also due to the practical difﬁculty of storing all the clients’ distributions.
+7
+
+
+FedPAFedAvgFedEP (Scaled Identity)FedEP (SG-MCMC)FedEP (Laplace)FedEP (NGVI)Loss
+FedPAFedAvgFedEP (Scaled Identity)FedEP (SG-MCMC)FedEP (Laplace)FedEP (NGVI)Accuracy
+FedPAFedAvgFedEP (Scaled Identity)FedEP (SG-MCMC)FedEP (Laplace)FedEP (NGVI)Accuracy
+Published as a conference paper at ICLR 2023
+FedPA
+FedPA
+FedPA
+FedPA
+FedPA
+FedAvgFedSEP (Scaled Identity)FedSEP (SG-MCMC)FedSEP (Laplace)FedSEP (NGVI)
+FedAvgFedSEP (Scaled Identity)FedSEP (SG-MCMC)FedSEP (Laplace)FedSEP (NGVI)
+FedAvgFedSEP (Scaled Identity)FedSEP (SG-MCMC)FedSEP (Laplace)FedSEP (NGVI)
+FedAvgFedSEP (Scaled Identity)FedSEP (SG-MCMC)FedSEP (Laplace)FedSEP (NGVI)
+FedAvgFedSEP (Scaled Identity)FedSEP (SG-MCMC)FedSEP (Laplace)FedSEP (NGVI)LossPrecisionRecallMicro-F1Macro-F1
+Figure 2: CIFAR-100 Experiments. Left and Middle: loss and accuracy of the server as a function of rounds for FedAvg, FedPA, and (stateful) FedEP with various inference techniques. Right: accuracy as a function of rounds for FedAvg, FedPA, and (stateless) FedSEP. The transitions from FedAvg to FedPA, FedEP, and FedSEP happen at round 400. Lines and shaded regions refer to the averages and 2 standard deviations over 5 runs, resp.
+Figure 3: StackOverﬂow Experiments. Curves represent loss, micro-F1, and macro-F1 of the global parameter estimation as a function of rounds for FedAvg, FedPA, and (stateless) FedSEP with various inference tech- niques. The transitions from FedAvg to FedPA and FedSEP happen at round 800. Lines and shaded regions refer to the averages and 2 standard deviations over 5 runs, resp.
+tity EP to match more involved variants in terms of convergence speed. We hypothesize that as models grow more complex, the gap between scaled identity and other techniques might decrease due to the difﬁculty of obtaining credible estimates of (even diagonal) covariance in high dimen- sional settings. To test this, we revisit the CIFAR-100 task and compare the following two settings: “small” setting which uses a smaller linear model on the PCA’ed features and has 10.1K parame- ters, and a “large” setting that uses a linear model on the raw features and has 172.9K parameters. For each setting, we conduct experiments with EP using scaled-identity and NGVI and plot the results in Fig. 4 (right). We observe that under the “small” setting, a more advanced approximate inference technique converges faster than scaled-identity EP, consistent with the toy experiments. As we increase the model size however (“large” setting), the gap between these two approaches disappears. This indicates that as the model gets more complex, the convergence beneﬁts of more advanced approximate inference decline due to covariance estimation’s becoming more difﬁcult.
+Uncertainty Quantiﬁcation. One motivation for a Bayesian approach is uncertainty quantiﬁcation. We thus explore whether a Bayesian treatment of federated learning results in models that have bet- ter expected calibration error (ECE, Naeini et al., 2015; Guo et al., 2017), which is deﬁned as (cid:12) ECE = ∑Nbins (cid:12) . Here accuracyi is the top-1 prediction accuracy in i-th bin, conﬁdencei is the average conﬁdence of pre- dictions in i-th bin, and bi is the fraction of data points in i-th bin. Bins are constructed in a uniform way in the [0, 1] range.8 We consider accuracy and calibration from the resulting approximate posterior in two ways: (1) point estimation, which uses the ﬁ- nal model (i.e., MAP estimate from the approximate posterior) to obtain the output probabilities for each data point, and (2) marginalized estimation, which samples 10 models from the approximate pos- terior and averages the output probabilities to obtain the ﬁnal prediction probability. In Table 5,
+Accuracy (%, ↑) Point Est. Marg.
+ECE-15 (%, ↓) Point Est. Marg.
+Method
+− 48.1 46.6(0.7) −
+− 13.6 19.5(0.4) −
+FedPA FedAvg
+FedEP (I) FedEP (M) FedEP (L) FedEP (V)
+50.8(0.4) 50.5(0.5) 47.7(0.5) 49.7(0.5)
+49.6(0.6) 50.2(0.4) 47.8(0.5) 49.5(0.3)
+4.9(0.3) 5.9(0.5) 8.8(0.4) 5.9(0.4)
+7.9(0.2) 4.6(0.4) 6.6(0.4) 2.2(0.5)
+(cid:12) (cid:12)accuracyi − conﬁdencei
+bi
+i
+FedSEP (I) FedSEP (M) FedSEP (L) FedSEP (V)
+49.0(0.4) 48.9(0.4) 47.7(0.5) 48.5(0.4)
+48.5(0.4) 48.6(0.4) 47.8(0.5) 48.7(0.4)
+10.0(0.4) 10.1(0.4) 9.6(0.6) 9.3(0.4)
+3.4(0.3) 3.5(0.3) 7.2(0.6) 3.7(0.4)
+Table 5: CIFAR-100 Calibration Experiments. FedEP and FedSEP refer to the stateful EP and stateless stochastic EP. We use I (Scaled Iden- tity Covariance), M (MCMC), L (Laplace), and V (NGVI) to refer to different inference techniques.
+8We also experimented with an alternative binning method which puts an equal number of data points in
+each bin and observed qualitatively similar results.
+8
+
+
+Published as a conference paper at ICLR 2023
+FedEP (NGVI)FedEP (Scaled Identity)
+Accuracy (small)Accuracy (large)FedEP (NGVI)FedEP (Scaled Identity)
+EuclideanDistance
+FedEP (Scaled Identity)FedEP (Diagonal)FedAvgFedPA (Diagonal)
+Figure 4: Analysis Experiments. Left: the average Euclidean distances between the estimated and target global mean as a function of rounds in the toy setting. Middle and Right: accuracy as a function of rounds in the CIFAR-100 setting, with either a (relatively) small model (middle) or large model (right).
+we observe that FedEP/FedSEP improves both the accuracy (higher is better) as well as expected calibration error (lower is better), with marginalization sometimes helping.
+Hyperparameters. Table 8 shows the robustness of FedEP w.r.t. various hyperparameters.
+Limitations. While FedEP outperforms strong baselines in terms of convergence speed and ﬁnal accuracy, it has several limitations. The stateful variant requires clients to maintain its current con- tribution to the global posterior, which increases the clients’ memory requirements. The non-scaled- identity approaches also impose additional communication overhead due to the need to communi- cate the diagonal covariance vector. Further, while SG-MCMC/Scaled-Identity approaches have the same compute cost as FedAvg on the client side, Laplace/NGVI approaches require more compute to estimate the Fisher term. Finally, from a theoretical perspective, while the convergence properties of FedAvg under various assumptions have been extensively studied (Li et al., 2018; 2020b), such guarantees for expectation propagation-based approaches remains an open problem.
+4 RELATED WORK Federated Learning. FL is a paradigm for collaborative learning with decentralized private data (Koneˇcn`y et al., 2016; McMahan et al., 2017; Li et al., 2020a; Kairouz et al., 2021; Wang et al., 2021). Standard approach to FL tackles it as a distributed optimization problem where the global objective is deﬁned by a weighted combination of clients’ local objectives (Mohri et al., 2019; Li et al., 2020a; Reddi et al., 2020; Wang et al., 2020b). Theoretical analysis has demonstrated that federated optimization exhibits convergence guarantees but only under certain conditions, such as a bounded number of local epochs (Li et al., 2020b). Other work has tried to improve the averaging- based aggregations Yurochkin et al. (2019); Wang et al. (2020a). Techniques such as secure ag- gregation (Bonawitz et al., 2017; 2019; He et al., 2020) and differential privacy (Sun et al., 2019; McMahan et al., 2018) have been widely adopted to further improve privacy in FL (Fredrikson et al., 2015). Our proposed method is compatible with secure aggregation because it conducts server-side reductions over ∆ηk, ∆Λ Expectation Propagation and Approximate Inference. This work considers EP as a general tech- nique for passing messages between clients and servers on partitioned data. Here, the cavity distri- bution “summarizes” the effect of inferences from all other partitions and can be used as a prior in the client’s local inference. Historically, EP usually refers to a speciﬁc choice of divergence func- tion DKL(p(cid:107)q) (Minka, 2001). This is also known as Variational Message Passing (VMP, Winn et al., 2005) when DKL(q(cid:107)p) is used instead, and Laplace propagation (LP, Smola et al., 2003) when Laplace approximation is used. There have been works that formulate federated learning as a probabilistic inference problem. Most notably, Al-Shedivat et al. (2021) formulate FL as a posterior inference problem. Achituve et al. (2021) apply Gaussian processes with deep kernel learning (Wil- son et al., 2016) to personalized FL. Finally, some prior works also consider applying EP to federated learning (Corinzia et al., 2019; Kassab & Simeone, 2022; Ashman et al., 2022), but mostly on rela- tively small-scale tasks. In this work, we instead discuss and empirically study various algorithmic considerations to scale up expectation propagation to contemporary benchmarks.
+k.
+5 CONCLUSION
+This work introduces a probabilistic message-passing algorithm for federated learning based on expectation propagation (FedEP). Messages (probability distributions) are passed to and from clients to iteratively reﬁne global approximations. To scale up classic expectation propagation to the modern FL setting, we discuss and empirically study various algorithmic considerations, such as choice of variational family, approximate inference techniques, adaptive optimization, and stateful/stateless clients. These enable practical EP algorithms for modern-scale federated learning models and data.
+9
+
+
+Published as a conference paper at ICLR 2023
+Reproducibility Statement. For experiment details such as the dataset, model, and hyperparame- ters, we provide detailed descriptions in Sec. 3 as well as Sec. A.4. We also include in the Appendix additional derivations related to adaptive optimization and damping (Sec. A.1).
+ACKNOWLEDGMENTS
+We thank the anonymous reviewers for their comments, and are grateful to Maruan Al-Shedivat for his feedback. EX is supported by NSF IIS1563887, NSF CCF1629559, NSF IIS1617583, NGA HM04762010002, NIGMS R01GM140467, NSF IIS1955532, NSF CNS2008248, NSF IIS2123952, and NSF BCS2040381. YK acknowledges the support of MIT-IBM Watson AI and Amazon.
+REFERENCES
+Idan Achituve, Aviv Shamsian, Aviv Navon, Gal Chechik, and Ethan Fetaya. Personalized federated learning with gaussian processes. Advances in Neural Information Processing Systems, 34:8392– 8406, 2021.
+Maruan Al-Shedivat, Jennifer Gillenwater, Eric Xing, and Afshin Rostamizadeh. Federated learning
+via posterior averaging: A new perspective and practical algorithms. In ICLR, 2021.
+Matthew Ashman, Thang D Bui, Cuong V Nguyen, Efstratios Markou, Adrian Weller, Siddharth Swaroop, and Richard E Turner. Partitioned variational inference: A framework for probabilistic federated learning. arXiv preprint arXiv:2202.12275, 2022.
+The TensorFlow Federated Authors. TensorFlow Federated, 12 2018. URL https://github.com/
+tensorflow/federated.
+Charles Blundell, Julien Cornebise, Koray Kavukcuoglu, and Daan Wierstra. Weight uncertainty in neural network. In International conference on machine learning, pp. 1613–1622. PMLR, 2015.
+Keith Bonawitz, Vladimir Ivanov, Ben Kreuter, Antonio Marcedone, H Brendan McMahan, Sarvar Patel, Daniel Ramage, Aaron Segal, and Karn Seth. Practical secure aggregation for privacy- preserving machine learning. In proceedings of the 2017 ACM SIGSAC Conference on Computer and Communications Security, pp. 1175–1191, 2017.
+Keith Bonawitz, Hubert Eichner, Wolfgang Grieskamp, Dzmitry Huba, Alex Ingerman, Vladimir Ivanov, Chloe Kiddon, Jakub Koneˇcn`y, Stefano Mazzocchi, Brendan McMahan, et al. Towards federated learning at scale: System design. Proceedings of Machine Learning and Systems, 1: 374–388, 2019.
+James Bradbury, Roy Frostig, Peter Hawkins, Matthew James Johnson, Chris Leary, Dougal Maclaurin, George Necula, Adam Paszke, Jake VanderPlas, Skye Wanderman-Milne, and Qiao JAX: composable transformations of Python+NumPy programs, 2018. URL http: Zhang. //github.com/google/jax.
+Tamara Broderick, Nicholas Boyd, Andre Wibisono, Ashia C. Wilson, and Michael I. Jordan. In Christopher J. C. Burges, L´eon Bottou, Zoubin Ghahramani, Streaming variational bayes. and Kilian Q. Weinberger (eds.), Advances in Neural Information Processing Systems, pp. 1727– 1735, 2013.
+Zachary Charles and Jakub Koneˇcn`y. On the outsized importance of learning rates in local update
+methods. arXiv preprint arXiv:2007.00878, 2020.
+Luca Corinzia, Ami Beuret, and Joachim M Buhmann. Variational federated multi-task learning.
+arXiv preprint arXiv:1906.06268, 2019.
+Guillaume Dehaene and Simon Barthelm´e. Expectation propagation in the large data limit. Journal
+of the Royal Statistical Society: Series B (Statistical Methodology), 80(1):199–217, 2018.
+Guillaume P Dehaene and Simon Barthelm´e. Bounding errors of expectation-propagation. Advances
+in Neural Information Processing Systems, 28, 2015.
+10
+
+
+Published as a conference paper at ICLR 2023
+Matt Fredrikson, Somesh Jha, and Thomas Ristenpart. Model inversion attacks that exploit conﬁ- dence information and basic countermeasures. In Proceedings of the 22nd ACM SIGSAC confer- ence on computer and communications security, pp. 1322–1333, 2015.
+Alex Graves. Practical variational inference for neural networks. Advances in neural information
+processing systems, 24, 2011.
+Chuan Guo, Geoff Pleiss, Yu Sun, and Kilian Q Weinberger. On calibration of modern neural networks. In International Conference on Machine Learning, pp. 1321–1330. PMLR, 2017.
+Chaoyang He, Songze Li, Jinhyun So, Xiao Zeng, Mi Zhang, Hongyi Wang, Xiaoyang Wang, Pra- neeth Vepakomma, Abhishek Singh, Hang Qiu, et al. Fedml: A research library and benchmark for federated machine learning. arXiv preprint arXiv:2007.13518, 2020.
+Tom Hennigan, Trevor Cai, Tamara Norman, and Igor Babuschkin. Haiku: Sonnet for JAX, 2020.
+URL http://github.com/deepmind/dm-haiku.
+Peter Kairouz, H Brendan McMahan, Brendan Avent, Aur´elien Bellet, Mehdi Bennis, Arjun Nitin Bhagoji, Kallista Bonawitz, Zachary Charles, Graham Cormode, Rachel Cummings, et al. Ad- vances and open problems in federated learning. Foundations and Trends in Machine Learning, 14(1-2):1–210, 2021.
+Rahif Kassab and Osvaldo Simeone. Federated generalized bayesian learning via distributed stein variational gradient descent. IEEE Transactions on Signal Processing, 70:2180–2192, 2022. doi: 10.1109/TSP.2022.3168490.
+Mohammad Khan, Didrik Nielsen, Voot Tangkaratt, Wu Lin, Yarin Gal, and Akash Srivastava. Fast and scalable bayesian deep learning by weight-perturbation in adam. In International Conference on Machine Learning, pp. 2611–2620. PMLR, 2018.
+Diederik P Kingma and Jimmy Ba. Adam: A method for stochastic optimization. In ICLR, 2015.
+Jakub Koneˇcn`y, H Brendan McMahan, Daniel Ramage, and Peter Richt´arik. Federated optimization: Distributed machine learning for on-device intelligence. arXiv preprint arXiv:1610.02527, 2016.
+Frederik Kunstner, Philipp Hennig, and Lukas Balles. Limitations of the empirical Fisher approx- imation for natural gradient descent. Advances in Neural Information Processing Systems, 32, 2019.
+Olivier Ledoit and Michael Wolf. A well-conditioned estimator for large-dimensional covariance
+matrices. Journal of Multivariate Analysis, 88(2):365–411, 2004.
+Tian Li, Anit Kumar Sahu, Manzil Zaheer, Maziar Sanjabi, Ameet Talwalkar, and Virginia Smith. Federated optimization in heterogeneous networks. arXiv preprint arXiv:1812.06127, 2018.
+Tian Li, Anit Kumar Sahu, Ameet Talwalkar, and Virginia Smith. Federated learning: Challenges,
+methods, and future directions. IEEE Signal Processing Magazine, 37(3):50–60, 2020a.
+Xiang Li, Kaixuan Huang, Wenhao Yang, Shusen Wang, and Zhihua Zhang. On the convergence of
+fedavg on non-iid data. In International Conference on Learning Representations, 2020b.
+Yingzhen Li, Jos´e Miguel Hern´andez-Lobato, and Richard E Turner. Stochastic expectation propa-
+gation. NeurIPS, 2015.
+Yi-An Ma, Tianqi Chen, and Emily Fox. A complete recipe for stochastic gradient MCMC. Ad-
+vances in Neural Information Processing Systems, 28, 2015.
+Wesley J Maddox, Pavel Izmailov, Timur Garipov, Dmitry P Vetrov, and Andrew Gordon Wilson. A simple baseline for bayesian uncertainty in deep learning. Advances in Neural Information Processing Systems, 32, 2019.
+Stephan Mandt, Matthew D Hoffman, and David M Blei. Stochastic gradient descent as approximate
+bayesian inference. arXiv preprint arXiv:1704.04289, 2017.
+11
+
+
+Published as a conference paper at ICLR 2023
+Brendan McMahan, Eider Moore, Daniel Ramage, Seth Hampson, and Blaise Aguera y Arcas. Communication-efﬁcient learning of deep networks from decentralized data. In Artiﬁcial intelli- gence and statistics, pp. 1273–1282. PMLR, 2017.
+H Brendan McMahan, Daniel Ramage, Kunal Talwar, and Li Zhang. Learning differentially private recurrent language models. In International Conference on Learning Representations, 2018.
+Thomas Minka and John Lafferty. Expectation-propagation for the generative aspect model.
+In Proceedings of the Eighteenth conference on Uncertainty in artiﬁcial intelligence, pp. 352–359, 2002.
+Thomas P Minka. Expectation propagation for approximate bayesian inference. In UAI, 2001.
+Mehryar Mohri, Gary Sivek, and Ananda Theertha Suresh. Agnostic federated learning. In Interna-
+tional Conference on Machine Learning, pp. 4615–4625. PMLR, 2019.
+Mahdi Pakdaman Naeini, Gregory Cooper, and Milos Hauskrecht. Obtaining well calibrated prob- In Twenty-Ninth AAAI Conference on Artiﬁcial Intelligence,
+abilities using bayesian binning. 2015.
+Kazuki Osawa, Siddharth Swaroop, Mohammad Emtiyaz E Khan, Anirudh Jain, Runa Eschenhagen, Richard E Turner, and Rio Yokota. Practical deep learning with Bayesian principles. Advances in neural information processing systems, 32, 2019.
+Sashank J Reddi, Zachary Charles, Manzil Zaheer, Zachary Garrett, Keith Rush, Jakub Koneˇcn`y, Sanjiv Kumar, and Hugh Brendan McMahan. Adaptive federated optimization. In International Conference on Learning Representations, 2020.
+Jae Hun Ro, Ananda Theertha Suresh, and Ke Wu. FedJAX: Federated learning simulation with
+JAX. arXiv preprint arXiv:2108.02117, 2021.
+Alex Smola, S.v.n. Vishwanathan, and Eleazar Eskin. Laplace propagation. In Advances in Neural
+Information Processing Systems, volume 16, 2003.
+Ziteng Sun, Peter Kairouz, Ananda Theertha Suresh, and H Brendan McMahan. Can you really
+backdoor federated learning? arXiv preprint arXiv:1911.07963, 2019.
+Aki Vehtari, Andrew Gelman, Tuomas Sivula, Pasi Jyl¨anki, Dustin Tran, Swupnil Sahai, Paul Blom- stedt, John P Cunningham, David Schiminovich, and Christian P Robert. Expectation propagation as a way of life: A framework for Bayesian inference on partitioned data. JMLR, 2020.
+Hongyi Wang, Mikhail Yurochkin, Yuekai Sun, Dimitris Papailiopoulos, and Yasaman Khazaeni. Federated learning with matched averaging. In International Conference on Learning Represen- tations, 2020a.
+Jianyu Wang, Qinghua Liu, Hao Liang, Gauri Joshi, and H Vincent Poor. Tackling the objective inconsistency problem in heterogeneous federated optimization. Advances in neural information processing systems, 33:7611–7623, 2020b.
+Jianyu Wang, Zachary Charles, Zheng Xu, Gauri Joshi, H Brendan McMahan, Maruan Al-Shedivat, Galen Andrew, Salman Avestimehr, Katharine Daly, Deepesh Data, et al. A ﬁeld guide to feder- ated optimization. arXiv preprint arXiv:2107.06917, 2021.
+Max Welling and Yee W Teh. Bayesian learning via stochastic gradient Langevin dynamics. In Proceedings of the 28th International Conference on Machine Learning (ICML-11), pp. 681–688. Citeseer, 2011.
+Andrew Gordon Wilson, Zhiting Hu, Ruslan Salakhutdinov, and Eric P Xing. Deep kernel learning.
+In Artiﬁcial intelligence and statistics, pp. 370–378. PMLR, 2016.
+John Winn, Christopher M Bishop, and Tommi Jaakkola. Variational message passing. Journal of
+Machine Learning Research, 6(4), 2005.
+Blake E Woodworth, Kumar Kshitij Patel, and Nati Srebro. Minibatch vs local sgd for heterogeneous distributed learning. Advances in Neural Information Processing Systems, 33:6281–6292, 2020.
+12
+
+
+Published as a conference paper at ICLR 2023
+Mikhail Yurochkin, Mayank Agarwal, Soumya Ghosh, Kristjan Greenewald, Nghia Hoang, and Yasaman Khazaeni. Bayesian nonparametric federated learning of neural networks. In Interna- tional Conference on Machine Learning, pp. 7252–7261. PMLR, 2019.
+Cheng Zhang, Judith B¨utepage, Hedvig Kjellstr¨om, and Stephan Mandt. Advances in variational in- ference. IEEE Transactions on Pattern Analysis and Machine Intelligence, 41:2008–2026, 2019.
+Guodong Zhang, Shengyang Sun, David Duvenaud, and Roger Grosse. Noisy natural gradient as variational inference. In International Conference on Machine Learning, pp. 5852–5861. PMLR, 2018.
+13
+
+
+Published as a conference paper at ICLR 2023
+A APPENDIX
+A.1 DAMPED CLIENT AND SERVER UPDATES
+To simplify the notations, observe that Eq. 3 could be re-written in the following way,
+(θ) ∝ (cid:98)q\k(θ) q−k(θ)
+qnew k
+, where (cid:98)q\k(θ) = arg min (cid:98)q\k∈Q A partially damped client update could be carried out by,
+D
+(cid:18)
+pk(θ) q−k(θ) (cid:107) (cid:98)q\k(θ)
+(cid:19)
+.
+Client:
+qnew k
+(θ) ∝
+(cid:18)
+qk(θ)
+(cid:19)1−δ(cid:18)
+(cid:98)q\k(θ) q−k(θ)
+(cid:19)δ
+∝
+∝
+(cid:18)
+(cid:18)
+qk(θ)
+qk(θ)
+(cid:19)1−δ(cid:18)
+(cid:19)1−δ(cid:18)
+(cid:19)δ
+(cid:98)q\k(θ) qglobal(θ)/qk(θ) (cid:19)δ(cid:18)
+(cid:98)q\k(θ) qglobal(θ)
+qk(θ)
+(cid:19)δ
+∝ qk(θ)
+∝ qk(θ)
+(cid:18)
+(cid:18)
+(cid:98)q\k(θ) qglobal(θ) (cid:19)δ
+∆qk(θ)
+(cid:19)δ
+,
+where we deﬁne ∆qk(θ) ∝ (cid:98)q\k(θ) qglobal(θ)
+.
+Similarly, (damped) server updates could be written as the following, global(θ) ∝ ∏ qnew
+qnew k
+(θ)
+Server:
+k
+(cid:18)
+(cid:19)δ
+∝ ∏ k (cid:20)
+∆qk(θ)
+qk(θ)
+(cid:21)(cid:20)
+(cid:18)
+∏ k
+∏ k (cid:18)
+∆qk(θ)
+∝
+qk(θ)
+(cid:19)δ
+∝ qglobal(θ) ∏
+∆qk(θ)
+.
+(cid:19)δ (cid:21)
+k
+A.2 EXPECTATION PROPAGATION (EXTENDED)
+Expectation propagation (EP) Minka (2001); Vehtari et al. (2020) constructs a posterior approxima- tion through iterating local computations that reﬁne factors that approximate the posterior contribu- tion from each client. In this spirit, we would ideally like to solve the following localized version of Eq. 2, where we replace one of the factors with its corresponding approximating factor,
+qnew k
+(θ) = arg min
+q∈Q
+D
+(cid:18)
+pk(θ) p−k(θ) (cid:107) q(θ) p−k(θ)
+(cid:19)
+, where p−k(θ) ∝ pglobal(θ) pk(θ)
+Unfortunately, the right-hand side of the divergence is the intractable posterior we would like to approximate in the ﬁrst place. Instead, EP solves the following problem (Eq. 3),
+qnew k
+(θ) = arg min
+q∈Q
+D
+(cid:18)
+pk(θ) q−k(θ) (cid:107) q(θ) q−k(θ)
+(cid:19)
+, where q−k(θ) ∝ qglobal(θ) qk(θ)
+A.3 ADDITIONAL EXPERIMENTS AND DETAILS
+StackOverﬂow. Please see Fig. 5 for additional visualizations.
+14
+.
+.
+
+
+Published as a conference paper at ICLR 2023
+FedPA
+FedPA
+FedAvgFedSEP (Scaled Identity)FedSEP (SG-MCMC)FedSEP (Laplace)FedSEP (NGVI)
+FedAvgFedSEP (Scaled Identity)FedSEP (SG-MCMC)FedSEP (Laplace)FedSEP (NGVI)
+FedPA
+FedAvgFedSEP (Scaled Identity)FedSEP (SG-MCMC)FedSEP (Laplace)FedSEP (NGVI)
+FedAvgFedSEP (Scaled Identity)FedSEP (SG-MCMC)FedSEP (Laplace)FedSEP (NGVI)
+FedPA
+FedAvgFedSEP (Scaled Identity)FedSEP (SG-MCMC)FedSEP (Laplace)FedSEP (NGVI)LossPrecisionRecallMicro-F1Macro-F1
+FedPA
+Figure 5: Extended StackOverﬂow Visualizations.
+FedEP (NGVI, T=10)FedEP (Scaled Identity)FedEP (NGVI, T=5)FedEP (NGVI, T=3)FedEP (NGVI, T=1)
+Figure 6: Accuracy as a function of rounds, and number of NGVI epochs (TNGVI) in the CIFAR-100 setting, with a (relatively) small model.
+EMNIST. Please see Fig. 7 and Table 6 for experimental results.
+Analysis. This section extends the experiments (the “small” setting) in Sec. 3.3. It looks at the performance as we increase the complexity (a proxy of quality) of approximate inference techniques. We vary the number of iterations in NGVI from 1 (cheap) to 10 (expensive) epochs. We can observe in Fig. 6 that as we increase NGVI’s computations, the performance improves.
+A.4 HYPERPARAMETERS
+Please see Table 7 for hyperparameter details. In Table 8, we also conduct experiments to understand their inﬂuence on the different algorithms.
+15
+
+
+Published as a conference paper at ICLR 2023
+FedAvgFedSEP (Scaled Identity)FedSEP (SG-MCMC)FedSEP (Laplace)FedSEP (NGVI)
+FedAvgFedSEP (Scaled Identity)FedSEP (SG-MCMC)FedSEP (Laplace)FedSEP (NGVI)
+FedPA
+LossAccuracy
+FedPA
+Figure 7: EMNIST-62 Experiments. Figures show the loss and accuracy of the global parameter estimation as a function of rounds for FedAvg, FedPA, and (stateless) FedSEP with various inference techniques. The transitions from FedAvg to FedPA and FedSEP happen at round 200.
+Method
+accuracy (%, ↑) 500R 300R
+rounds (#, ↓) 86% 86.5%
+FedPA FedAvg
+85.9 85.3
+86.5 85.8
+246 465
+398 −
+FedSEP (I) FedSEP (M) FedSEP (L) FedSEP (V)
+86.1 86.1 86.1 86.1
+86.6 86.6 86.6 86.6
+228 228 228 228
+399 399 364 382
+Table 6: EMNIST-62 Experiments. We measure the number of rounds to reach certain accuracy thresholds (based on 10-round running averages) and the best accuracy attained within speciﬁc rounds (based on 100- round running averages). We use I (Scaled Identity Covariance), M (MCMC), L (Laplace), and V (NGVI) to refer to different inference techniques.
+Algorithm 5 Approximate Inference: NGVI 1: Input: Dk, µ\k, Σ−k, TNGVI, NNGVI, βNGVI 2: Initialize s0, Σ 3: for t = 1, . . . , TNGVI do
+\k,0
+4:
+F ← {}
+5:
+6:
+7:
+for i = 1, . . . , NNGVI do (cid:16)
+(cid:17)
+θ; µ\k, Σ
+θ ∼ N
+\k,t−1 |Dk| Fisher(θ, Dk).
+F ← F ∪ 1
+8:
+end for
+9:
+F ← Average(F )
+10:
+11:
+st ← βNGVIst−1 + (1 − β) F (cid:17)−1 Σ
+(cid:16)
+|Dk|st + Σ−1 −k
+\k,t ←
+12: end for
+13: Output: Σ
+\k,TNGVI
+16
+
+
+Published as a conference paper at ICLR 2023
+Hyperparameter
+CIFAR-100
+StackOverﬂow
+EMNIST-62
+Task Hyperparameters from Al-Shedivat et al. (2021)
+Server Optimizer Client Optimizer† Clients Per Round Server Learning Rate Client Learning Rate Client Epochs Burn In
+SGD (m = 0.9) SGD (m = 0.9) 20 0.5 0.01 10 400
+Adagrad (τ = 10−5) SGD (m = 0.9) 10 5.0 50.0 5 800
+SGD (m = 0.9) SGD (m = 0.9) 100 0.5 0.01 20 200
+‡
+Scale αcov MCMC Shrinkage Laplace Epochs NGVI Epochs NGVI Samples NGVI βNGVI
+5 × 10−2 1 × 10−4 5(cid:63) 5 5 0.99
+Client Inference Hyperparameters 1 × 10−8 1 × 10−6 5 10 10 0.99
+5 × 10−3 1 × 10−4 5 5 5 0.99
+Client Inference Hyperparameters Search Space
+Scale αcov MCMC Shrinkage Laplace Epochs NGVI Epochs NGVI Samples NGVI βNGVI
+{1, 2, 5, 10} × 10−2
+1 × {10−7, 10−8, 10−9} 1 × {10−3, 10−4, 10−5, 10−6} {5, 10} {5, 10} {5, 10} {0.9, 0.99}
+{1, 5} × {10−2, 10−3, 10−4}
+Table 7: Hyperparameters. †Client has two separate optimizers, one used in local optimization (SG-MCMC), and one used in local state updates (for stateful FedEP). When applied, the client state optimizer reuses the same conﬁguration as the server optimizer. ‡This is a per-data-point scale, and is also used in other approximate inference techniques. (cid:63)The (stateful) FedEP uses 10 Laplace epochs.
+Method
+Hyperparameter
+Accuracy (%, ↑) Rounds (#, ↓) 1000R 1500R
+45% 50%
+FedEP (I)
+FedEP (M)
+Scale αcov
+MCMC Shrinkage
+4 × 10−2 5 × 10−2 6 × 10−2 5 × 10−5 1 × 10−4 5 × 10−4
+49.1 48.9 48.8
+47.8 48.9 49.2
+50.3 50.5 50.5
+48.8 50.5 49.2
+457 464 474
+482 456 436
+1081 1105 1206
+− 1179 −
+FedEP (L)
+Laplace Epochs
+5 10
+46.7 46.7
+47.9 47.9
+513 514
+− −
+FedEP (V)
+NGVI Epochs
+FedSEP (I)
+Scale αcov
+FedSEP (M) MCMC Shrinkage
+5 10 4 × 10−2 5 × 10−2 6 × 10−2 5 × 10−5 1 × 10−4 5 × 10−4
+47.9 46.6
+48.2 48.3 48.3
+48.3 48.3 48.4
+49.6 48.5
+48.7 49.0 49.1
+48.9 49.0 49.0
+478 523
+431 431 433
+431 432 431
+− −
+− − −
+− − −
+FedSEP (L)
+Laplace Epochs
+5 10
+47.2 47.2
+47.9 47.9
+437 439
+− −
+FedSEP (V)
+NGVI Epochs
+5 10
+47.9 47.8
+48.8 48.6
+432 432
+− −
+Table 8: CIFAR-100 Hyperparameter Analysis Experiments. FedEP and FedSEP refer to the stateful EP and stateless stochastic EP. We use I (Scaled Identity Covariance), M (MCMC), L (Laplace), and V (NGVI) to refer to different inference techniques.
+17

@@ -1,0 +1,210 @@
+3 2 0 2
+p e S 8 1
+]
+O R . s c [
+1 v 3 0 1 0 1 . 9 0 3 2 : v i X r a
+Reasoning about the Unseen for Efficient Outdoor Object Navigation
+Quanting Xie1
+Tianyi Zhang1
+Kedi Xu1
+Matthew Johnson-Roberson1
+Yonatan Bisk1
+Fig. 1. Direct application of Language Models in embodied agents navigating outdoor environments suffers from short-sightedness and limited environment comprehension. Our approach augments the LLM by enabling it to expand imaginary nodes in space, enhancing feasibility for outdoor navigation.
+Abstract— Robots should exist anywhere humans do: in- doors, outdoors, and even unmapped environments. In contrast, the focus of recent advancements in Object Goal Navigation (OGN)[1]–[3] has targeted navigating in indoor environments by leveraging spatial and semantic cues that do not generalize outdoors. While these contributions provide valuable insights into indoor scenarios, the broader spectrum of real-world robotic applications often extends to outdoor settings. As we transition to the vast and complex terrains of outdoor environments, new challenges emerge. Unlike the structured layouts found indoors, outdoor environments lack clear spatial delineations and are riddled with inherent semantic ambiguities. Despite this, humans navigate with ease because we can reason about the unseen. We introduce a new task OUTDOOR, a new mechanism for Large Language Models (LLMs) to accurately hallucinate possible futures, and a new computationally aware success metric for pushing research forward in this more complex domain. Additionally, we show impressive results on both a simulated drone and physical quadruped in outdoor environments. Our agent has no premapping and our formalism outperforms naive LLM-based approaches.
+I. INTRODUCTION
+Advancements in Object Goal Navigation (OGN) [1]–[3] have enhanced the proficiency of robotic agents in navigating indoor environments by leveraging spatial and semantic cues. Agents that can guide humans (e.g. the visually impaired [4]) are an important enabling technology, but need to move beyond restricted indoor spaces to the full richness of outdoor navigation. Outdoor environments are substantially larger
+1Carnegie Mellon University, Pittsburgh, PA USA. {quantinx,
+tianyiz4, kedix, mkj, ybisk}@andrew.cmu.edu
+2https://github.com/quantingxie/ReasonedExplorer
+than handled by current semantic mapping approaches [5], lack clear [6], have complex terrains [7], and, crucially, semantic delineations. Not only is sensing simplified indoors, but so is reasoning as rooms are easily distinguished and semantically categorized. Outdoor environments still have semantic distinctions but visually identical spaces might be a soccer field, a picnic area, or the pit of an outdoor orchestra depending on the time of day. Additionally, outdoor naviga- tional tasks typically demand that robotic agents engage in roles with more granular goal specifications. For instance, in the context of search and rescue operations, the objective is not merely to navigate to a general category of ‘people’ but to pinpoint casualties potentially trapped under a car.
+[8]–[10] trained on expansive internet datasets are serving as adapt- able policies in embodied platforms, making them proficient in addressing a wider range of tasks [11]–[13]. The existing work has primarily focused on high-level task-planning with predefined skills in constrained environments. Despite this, we have seem very promising skill demonstrations in indoor object-scenarios made possible by these models [14]–[16]. While some emergent behavior has been identified, the language and vision communities have begun harnessing these LLMs for their reasoning capabilities due to the vast world knowledge and models stored in their parameters.
+Recently, Large Language Models
+(LLMs)
+Thus, we posit that outdoor navigation offers a promising avenue to test and refine the foundational navigation and reasoning abilities of LLMs. This paper aims to formulate an elementary navigation policy and evaluate its efficacy in diverse and challenging outdoor environments, providing insights into the potential of LLMs as embodied agents.
+
+
+Fig. 2. Above are example queries at varying levels of complexity and a representative scene in our OUTDOOR task.
+Our primary contribution in this work are: 1) We introduce the OUTDOOR (Outdoor Underspecified Task Descriptions Of Objects and Regions) task, which dramatically increases the complexity inherent in ob- ject goal navigation for outdoor settings.
+2) We introduce a novel use of LLMs as a planning agent to traverse real-world outdoor terrains. Our approach imagines future notes for a RRT (Rapidly-exploring Random Tree) to improve agent success (+50.4%). 3) We introduce the CASR (Computationally Adjusted Success Rate) metric, that trades off planning costs with time spent “thinking” (i.e. querying LLMs).
+II. TASK DEFINITION A. OUTDOOR: Outdoor Underspecified Task Descriptions Of Objects and Regions
+In traditional Object Goal Navigation, users specify dis- tinct goal categories that can be automatically evaluated by the system and do not include contraints or handle underspecified goals (e.g. reference by affordance). However, real-world outdoor environments like parks present more complex scenarios. For example, if the goal is to find a place to eat, it could refer to any bench or table, rather than a specific one. OUTDOOR embraces ambiguity, generalizing to a more nuanced and realistic navigational challenge. We categorize the instruction complexity into four levels:
+1) Level 1: Navigate to obj X [aka traditional object-nav] 2) Level 2: Navigate to obj X conditioned on obj Y 3) Level 3: Navigate to obj X conditioned on path P 4) Level 4: Navigate to underspecific abstraction A Human intervention is essential for evaluating success across all levels from 1 to 4. While the goals in Levels 1 to 3 are specific and relatively straightforward to assess, Level 4 presents a more abstract goal. For example, a directive like ”Find me somewhere to take a nap?” makes the evaluation more nuanced, potentially necessitating human evaluation. Agents start an episode from a pose s0 and are given a linguistic goal x from one of the aforementioned levels. The agent’s challenge is to reconcile real-time environmental observations with its interpretation of x and understand the semantic and spatial relationships between the objects and regions present. Operating autonomously, the agent must then navigate the environment, with the path being repre- sented as {s0, a0, s1, a1, . . . , sT , aT }, where each action at transitions to a pose st+1. The episode terminates when the agent predicts “Found Goal”. Agents are also limited to a maximum exploration time: Tmax.
+III. RELATED WORKS
+A. Decision Making and Planning for LLM
+Vanilla implementations of Large Language Models (LLMs) often fall short in decision-making and planning ca- pabilities. To address this, several strategies have been devel- oped. The linear reasoning approach, “Chain of Thoughts,” enhances structured problem-solving [17], and tree-based strategies, “Tree of Thoughts,” bring forth search-guided reasoning capabilities [18]. To improve performance search algorithms have also been integrated [19].
+External planning methods have emerged [20]–[26] as methods to leverage techniques such as Monte Carlo Tree Search (MCTS) to enhance the reasoning capacities of LLMs. While they show promise in fields like mathemat- their ics, code generation, and high-level application in low-level path planning for robotics remains limited. A primary reason is the complexity of mapping LLM outputs to the intricate action spaces of robots, making tasks requiring detailed sequences of movements a challenge. In this context, our approach stands out by using waypoints as a natural interface for low-level path planning. This not only bridges the gap between LLM reasoning and robot actions but also ensures that our method operates in a parallel manner, offering both effectiveness and efficiency.
+task planning,
+B. LLM as embodied agents for navigation
+The use of language for guiding embodied agents has a long lineage. Language only models like BERT [9] can be used as scoring functions between language instructions and path to help embodied agent navigate [27]. Performance on such tasks have scaled with larger models (e.g. GPT-4) which have greater aptitudes for common sense reasoning and its comprehension of world structures [12], [14]–[16], [28]. Shah et al [12] uses LLMs as a parser to extract landmarks as sub-goal nodes for robots to navigate on a graph, Chen et al [14] use LLM as an evaluator to re-weight the waypoints generated by the frontier-based method [29]. Zhou et al [15] took another approach, they used several hand-designed con- straints via Probabilistic Soft Logic programming language to choose the best frontiers to explore. NavGPT [16] utilized the synergizing prompt methods such as ReAct [30] with a discrete action space for LLM to navigate.
+Existing approaches to navigation predominantly rely on idealized indoor scene graphs, often assuming structured en- vironments where, for example, a refrigerator is necessarily located in the kitchen or a fireplace in the living room [12], [14], [15]. Alternatively, some methods leverage Google Street View data for navigation tasks [31]. However, these approaches fall short in capturing the nuanced complexities and granularities inherent to real-world scenarios, such as search and rescue operations or advanced domestic robotics tasks in semantically rich environments such as airports or campus buildings. In genuine outdoor settings, spatial semantics may be ambiguous or lack well-defined bound- aries. Consequently, an intelligent agent must be capable of strategically predict information in space to effectively navigate and reason within these more complex contexts.
+
+
+Fig. 3. Overview: The agent captures N RGB images (potential frontiers). Each image is processed through a Vision Language Model (VLM) to generate a textual caption. Subsequent Rapidly-exploring Random Trees (RRT) aid the agent in envisioning possible future scenarios for each frontier. The results, combined with GPS coordinates, populate a frontier buffer. The most promising frontier is identified, and a local planner guides the agent to its location.
+IV. METHOD: REASONED EXPLORER
+Figure 3 outlines our proposed Reasoned Explorer method – an LLM reasoning technique that enables an LLM-based agent to execute OUTDOOR tasks in complex outdoor environments. We remove the perfect depth assumption and use a dynamically expandable graph to store the map in- formation illustrated in §IV-A. We then employ two LLMs (§IV-B): one as a visionary and the other as an evaluator. The visionary LLM is designed to project future agent states and potential scenarios, while the evaluator critically assesses the feasibility of achieving the goal within those states. To physically embody our method, we then talks about the perception and action techniques used in §IV-C – IV-D
+the modulation, with a larger k creating a more pronounced transition around d0, which represents the distance where the penalty is half its maximum potential value. The agent’s actions are then determined by the updated score function:
+S∗
+t+1 = arg max
+i
+(Q(St+1) − σ(di))
+Within this formulation,Q(St+1) refers to the score of each frontier following the planning-scoring phase. As the agent advances in its exploration, the selected frontier — now deemed a pathpoint S∗ t+1 — is removed from the Frontier Buffer. The agent persists in its exploration endeavors until it perceives a halt signal dispatched from the a speicalized LLM checking function.
+A. Graph the unknown
+Historically, methods for object goal navigation and VLN relied on near perfect depth information derived from simu- lations to generate dense geometric occupancy maps, which subsequently informed the expansion of explorable fron- tiers [14]–[16], [32]. However, these assumptions falter in real-world outdoor settings, especially without the aid of high-end depth cameras or LiDARs. Addressing this limita- tion, our approach introduces an adaptive topological graph to introduce frontiers. This combination not only mitigates the need for perfect depth information but also enhances the agent’s navigational capabilities.
+The left image illustrates the expansion process where, at each Fig. 4. step, N nodes are expanded (with N = 3 as depicted). The right image shows the agent’s decision-making process with distance cost at each step.
+As depicted in Figure 4, the green circles symbolize the expanded frontiers emanating from pathpoints, which are denoted by pink circles. During each iteration, the algo- rithm calculates and expands N frontiers from the present pathpoint. These frontiers subsequently undergo a rigorous planning and scoring phase, as elaborated in Section IV-B. All of these frontiers are retained in a specialized Frontier Buffer for subsequent reference. To ensure that distant frontiers are penalized, yet remain viable for exploration, we introduce a sigmoid-modulated distance function:
+σ(di) =
+1 1 + e−k(di−d0)
+Here, σ(di) represents the sigmoid-modulated distance for the i-th frontier. The parameter k dictates the sharpness of
+B. Reasoning about the uncertainty
+In the context of planning within intricate outdoor envi- ronments, direct determinations by the LLM-based method solely on localized information can lead to suboptimal be- haviors, such as inconsistency and short-sightedness. These behaviors arise not only from the inherent tendency of LLMs to hallucinate [33], but also the non-delineated nature of the outdoor environment. Such properties become particularly concerning when placing heavy reliance on singular output generations from LLMs [34].
+To fortify against these vulnerabilities and enhance deci- sion robustness, we elected to incorporate the future informa- tion using expanding RRT strategy. By projecting multiple
+
+
+Fig. 5. The left image illustrates the expansion process where, at each step, N nodes are expanded (with N = 3 as depicted). The right image shows the agent’s decision-making process with distance cost at each step.
+forward-looking imaginary branches through iterative queries of LLM Visionary and LLM Evaluator (Figure 3), mitigating the risks associated with single query outputs. Our choice of RRT was informed by its intrinsic properties, in contrast of the sequential sampling process used in MCTS[22][20], RRT provides a parallelizable framework to allow us score and expand the imaginary nodes all at the same time.
+In our integration of the RRT, the specifics and underlying mechanics are meticulously outlined in Algorithm 1 and vi- sually complemented in Figure 5. At its core, our adaptation hinges on the dual roles assumed by the LLM: as an agent, denoted as LLM Eval, and as an evaluator, represented by LLM Gen. Their specific responsibilities and interplay will be further discussed in the following sections.
+a) LLM Evaluator: denoted as V (G, S) → v, assesses the correlation between a scene description S and the pro- vided goal objects or instructions G. Its primary role is to guide the agent by offering a reference score, indicating the likelihood of achieving the goal based on the current scene. The scoring mechanism is structured on a Likert scale ranging from 1 to 5, where a score of 1 indicates a low likelihood of goal achievement, and a score of 5 signifies a high likelihood. This evaluative approach ensures that the agent can make informed decisions based on the contextual relevance of the scene to the goal.
+represented as L(St) → St+1, produces the next scene descriptor St+1 based on the current scene description St. Its objective is to enable the agent to anticipate or predict its future waypoint. This is achieved by prompting the agent to envision what it might encounter next. Comprehensive prompt templates and further details are available on our official website.
+b) LLM Visionary:
+In our adaptation of the RRT, the algorithm’s mechanics
+are determined two hyperparameters:
+N: Dictates the action space dimension, signifying the range of feasible directions the agent can embark upon during its exploration.
+L: Denotes the length of individual simulations within the branch. This dictates the depth of the tree and how far the algorithm projects into potential future states.
+Algorithm 1 LLM-RRT
+1: procedure LLM-RRT(K, St+1list) Ssample t+2 ← EXPANSION(S∗ t+1) 2: vmean ← SIMULATION(Ssample t+2 Q(S∗ t+1) ←BACK-PROPAGATION(vmean, depth) 4: 5: end procedure
+)
+3:
+C. Perceiving
+The agent captures N images during each exploration steps. These images are processed by a Vision Language Model (VLM). For the purposes of this study, we employed Kosmos-2 [35], a VLM fine-tuned with spatially-grounded image-text data. This model offers the distinct advantage of providing detailed object-level descriptions of scenes. Importantly, it is promptable, so we prompt it to describe not only the objects in the scene, but also the spatial relationship between objects as well as the backgrounds.
+D. Action on real robot
+Upon waypoint determination by the scoring function detailed in Section IV-A, our robot employs a straightforward PID controller to traverse the path navigating between the current waypoint and the subsequent one, with the localiza- tion from on board high resolution RTK-GPS and IMU.
+V. EXPERIMENTS
+Comprehensive evaluations are conducted across multiple platforms: 1. The AirSim [36] simulation environment: A photo-realistic outdoor simulation setting that consists of different semantic distinguishable areas in Downtown West environment. 2. A real-world robotic platform: Unitree Go1, equiped with a USB camera, high resolution RTK-GPS module, and Inertial measurement unit.
+A. A Compute Aware Metric for LLM-based Robotic Agents
+In the assessment of robotic agents in real-world settings, particularly for outdoor tasks like Search and Rescue, it is vital to strike a balance between navigation efficiency, com- putational overhead, and travel duration. The dominant met- rics in the space: Success Rate (SR) and Success Weighted by Path Length (SPL), ignore “time”. Here, we specifically mean wallclock time, or the length of an experiment or episode. While always relevant in practical scenarios, the use of Large Foundation Models (e.g. over API) introduces a new computational trade-off. Specifically, the interplay between Computational Time (CT) and Travel Time (TT). An increase in computation that results in reduced travel time might lead to overall efficiency gains depending on the amount of computational time required. Colloquially, when is it faster to think before acting, versus acting on a hunch?
+a) Formulating the CASR Metric: This overall effi- ciency versus the maximum allowed episode length is simply a normalized sum of the two components: Compute (CT) and Travel (TT) time. The value is normalized to the range [0,1], aligning it for integration with the traditional SR metric:
+
+
+L1
+L2
+SR
+L3
+L4 Avg
+L1
+L2
+OSR
+L3
+L4 Avg
+L1
+L2
+SPL
+L3
+L4 Avg
+L1
+L2
+CASR L3
+L4 Avg
+LLM-as-Eval LLM-MCTS(10 iter)
+0.17 0.09 0.00 0.00 0.06 0.54 0.43 0.59 0.33 0.47
+0.17 0.27 0.00 0.00 0.06 0.88 0.76 0.63 0.69 0.74
+0.13 0.04 0.00 0.00 0.04 0.37 0.31 0.38 0.23 0.32
+0.10 0.06 0.00 0.00 0.04 0.11 0.09 0.11 0.07 0.10
+Ours
+0.59 0.49 0.63 0.32 0.51
+0.88 0.82 0.71 0.88 0.82
+0.44 0.32 0.43 0.22 0.35
+0.51 0.42 0.46 0.28 0.42
+TABLE I BASELINE COMPARISON FOR DIFFERENT TASK LEVELS IN SIMULATION (AIRSIM [36]
+ICT,T T = 1 −
+CT + T T Tmax
+Tmax is a predefined maximum acceptable time for an mission to be completed, in our experiments, Tmax = 30 minutes, and any experiment time above it is set to failure. With the normalized SR and the aforementioned inter- action term, we formulate the Computationally Adjusted Success Rate (CASR) as:
+CASR = SR ×
+(cid:32)
+1 N
+N (cid:88)
+ICTi,T Ti
+(cid:33)
+(1)
+(2)
+Simulation (Drone) OSR CASR
+SR
+Real World (Quadruped) CASR SR
+OSR
+LLM-as-Eval Ours
+0.06 0.51
+0.06 0.82
+0.04 0.42
+0.10 0.60
+0.20 0.70
+0.04 0.24
+TABLE II SIMULATION AND REAL WORLD PERFORMANCE. CASR DECREASED IN REAL WORLD DUE TO USE OF A QUADRUPED.
+depth cameras, standard devices such as the Real Sense D435 exhibit subpar performance in outdoor environments.
+C. Result
+i=1
+The range of CASR spans [0,1], where: • 1 signifies optimal performance, reflecting total nav- igational success combined with infinite speed and lightening computation.
+0, on the other hand, corresponds to a navigation failure
+or either of CT and TT reaching the limit. b) CASR Insights: CASR serves dual purposes. Beyond being a metric for considering computational time, it acts as a performance indicator during optimization of model and hyperparameter selection. An increase in CT that doesn’t correspond to a significant shift in CASR suggests that the TT remains largely unaffected by the CT changes. Further discussions on this can be found in Section VI-B.
+Fig. 6. Comparative Trajectories of LLM-as-Eval (left) and Reasoned Explorer (right). Green nodes represent the chosen path, while red nodes highlight the frontiers.
+Note, while the notion of immediate inference or fast travel may seem far-fetched at first glance, most real-time models do operate at 30+ Hz, pushing CT → 0, and setting a goal for machine learning efficiency research. The size of TT captures route efficiency and morphology choices. In a practical setting, one might opt for a UAV over a UGV, choose a wheeled vs legged UGV, or even optimize gait to further improve TT. Again, as many commodity UAVs approach speeds of 100k/h, even existing hardware can for many domains shrink TT → 0 if routing is correct. In our comparisons, UAV is compared to UAV and UGV to UGV so morphology does not affect comparisons, only routing.
+Table I presents a comprehensive evaluation of our meth- the baselines on four metrics: Success Rate ods against (SR), Oracle Success Rate (OSR), Success Weighted by Path Length (SPL) [1], and our newly introduced metric, Computationally Adjusted Success Rate (CASR). It shows:
+We consistently outperformed naive use of LLM as evaluator and LLM-MCTS across all four metrics. • In addition to the performance metrics, our method- ology exhibited superior time efficiency compared to LLM-MCTS shown in the CASR difference. This em- phasizes the practicality and efficiency of our proposed solutions in real-world applications.
+B. Baselines
+We benchmarked our approach against two baseline im- plementations: The first, LLM-as-Eval [14], utilizes the LLM as an evaluator for re-scoring expanded frontiers [29]. The second, LLM-MCTS [20], employs Monte Carlo Tree Search techniques for trajectory expansion at 10 iterations. Both baselines are reproductions of existing methods using our graph maps, devoid of depth information. This choice is informed by real-world practicalities: without advanced
+Performance for all methods decreased as difficulty increased from L1 to L4 of our OUTDOOR tasks, with the exception of L3. We suspect the anomalous L3 performance is attributed to human-specific path preferences that potentially reduce the search space.
+Table II showcases the efficacy of our methods in trans- ferring from simulation to the real-world. For comparative analysis, the baseline LLM-as-Eval was also tested in real- world scenarios to assess its potential for achieving superior performance. The results indicate that our methods smoothly
+
+
+transition from simulation to real-world contexts with match- ing performance. Figure 6 shows that LLM-as-Eval is more like a random search style of exploration. In contrast, our method delivers a more structured exploration towards the goal.
+D. Ablation Study
+In our ablation study, we aimed to assess the impact of various design choices of our Reasoned Explorer method on performance. To maintain consistency, we standardized the conditions by focusing solely on a level 1 OUTDOOR task with Tmax set to 15 minutes. Furthermore, to minimize the performance variance attributed to our perception model, we ignored the caption error in this evaluation.
+1) How many steps should we think into the future?: Table III shows how different L values affect CASR performance. At L = 0, the approach aligns with the LLM-as- Eval baseline, and we subsequently increment L to 4. The optimal per- formance is observed at L = 2, underscoring the advantages of iterative querying with LLM visionary and LLM evaluator for OUTDOOR tasks. Notably, the standard deviation is minimized around L = 2 and increases at the extremes. The variance at L = 0 can be attributed to relying solely on LLM’s single output, while the increased uncertainty at L = 4 suggests that excessive querying might introduce performance variability.
+CASR σ
+2) What LLM model should we chose?: We conducted an abla- tion study focusing on the model selection for LLM Visionary and LLM Evaluator, detailed in Table IV. The pairing of GPT3.5 for vi- sionary predictions and GPT4 for node scoring emerges as an optimal choice, balancing both efficiency and performance. The combination of GPT4 with GPT4 was not explored due to the rate limit constraints of the OpenAI API, and can be explored in future work. Notably, even with GPT3.5 serving both LLM Eval and LLM Visionary roles, wall avoidance behavior is observed. This observation could provide valuable insights for future research aiming to utilize LLM as a local planner. Another observation is that the average scores GPT3.5 as evaluator gives is 1.86 points higher than GPT4, means that GPT3.5 is more optimistic and GPT4 is more conservative in scoring. Based on our experimental observations, our method, Reasoned Explorer, excels at navigating around larger ob- stacles, such as walls. However, its limitation emerges when confronted with smaller objects. The ability to avoid these objects hinges on the graph’s edge length and the preci- sion of the perception model. We posit that with a more advanced perception model, which can accurately determine
+Vis
++ Eval CASR
+GPT3.5+ 3.5 GPT3.5+ 4 GPT4 + 4
+0.449 0.732 -
+TABLE IV CHOICE OF MODEL
+Fig. 7. Comparison between SR and OSR for Reasoned Explorer
+the relative positions of objects, the method holds potential to adeptly handle smaller obstacles as well.
+B. Current Limitations of VLM
+As illustrated in Figure 7, there is a significant disparity between OSR and SR, especially with harder tasks. This divergence predominantly emerges because the VLM, upon achieving its goal, often fails to acknowledge it. This mis- recognition subsequently leads the agent off target. Further- more, the VLM has a propensity to hallucinate the positions of objects. In outdoor environments, it becomes particularly challenging to provide accurate descriptions of every object. Consequently, future work may consider the direct use of embeddings in lieu of caption data. Such observations point towards the potential of improving VLM’s performance, ideally bridging the gap and enabling SR to align more closely with OSR.
+C. Observation Derived from CASR
+The CASR metric serves as both a metric for method comparison and a tool for understanding the balance between computational time and task efficiency. Key observations are: 1) Positive Correlation with CT: An increase in CT leading to a higher CASR suggests that more computa- tion can reduce travel time (TT), enhancing efficiency. 2) Negative Correlation with CT: A drop in CASR with increased CT indicates diminishing returns from additional computation (e.g. saturation).
+3) Steady CASR despite CT Variation: A consistent CASR, despite varying CT, indicates a balance be- tween computation and task time, so other factors, such as motion planning dominate. VII. CONCLUSIONS
+The emergence of LLMs has opened new avenues in the embodied agent domain. This paper introduced the OUT- DOOR task, a pioneering approach aimed at propelling embodied agents into challenging outdoor settings. Further, we introduced a novel, general, mechanism for using LLMs to reason about robot plans in unseen environments, and pro- posed the CASR, the first metric to assess balance between reasoning and action for embodied agents. Our formulation more closely mirrors how humans navigate and explore, trading off between thinking and acting to both leverage what we know in general and can see in the specific.
+
+
+REFERENCES [1] P. Anderson, A. Chang, D. S. Chaplot, et al., On evaluation
+of embodied navigation agents, 2018.
+[2] D. S. Chaplot, D. Gandhi, A. Gupta, and R. Salakhutdi- nov, “Object goal navigation using goal-oriented semantic exploration,” in In Neural Information Processing Systems (NeurIPS), 2020.
+[3] A. Majumdar, G. Aggarwal, B. Devnani, J. Hoffman, and D. Batra, Zson: Zero-shot object-goal navigation using multimodal goal embeddings, 2022.
+[4] A. Nanavati, X. Z. Tan, and A. Steinfeld, “Coupled indoor navigation for people who are blind,” in Companion of the 2018 ACM/IEEE International Conference on Human-Robot Interaction, ser. HRI ’18, Chicago, IL, USA: Association for Computing Machinery, 2018, 201–202.
+[5] D. S. Chaplot, D. Gandhi, S. Gupta, A. Gupta, and R. Salakhutdinov, “Learning to explore using active neural slam,” in International Conference on Learning Represen- tations (ICLR), 2020.
+[6] S. Y. Min, D. S. Chaplot, P. Ravikumar, Y. Bisk, and R. Salakhutdinov, “FILM: Following Instructions in Language with Modular Methods,” in The Tenth International Confer- ence on Learning Representations, 2022.
+[7] M. G. Castro, S. Triest, W. Wang, et al., “How does it feel? self-supervised costmap learning for off-road vehicle traversability,” in 2023 IEEE International Conference on Robotics and Automation (ICRA), 2023, pp. 931–938. [8] T. B. Brown, B. Mann, N. Ryder, et al., Language models
+[9]
+are few-shot learners, 2020. J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, “Bert: Pre-training of deep bidirectional transformers for language understanding,” arXiv preprint arXiv:1810.04805, 2018.
+[10] OpenAI, Gpt-4 technical report, 2023. [11] M. Ahn, A. Brohan, N. Brown, et al., “Do as i can and not as i say: Grounding language in robotic affordances,” in arXiv preprint arXiv:2204.01691, 2022.
+[12] D. Shah, B. Osi´nski, S. Levine, et al., “Lm-nav: Robotic navigation with large pre-trained models of language, vision, and action,” in Conference on Robot Learning, PMLR, 2023, pp. 492–504.
+[13] A. Brohan, N. Brown, J. Carbajal, et al., “Rt-1: Robotics transformer for real-world control at scale,” arXiv preprint arXiv:2212.06817, 2022. J. Chen, G. Li, S. Kumar, B. Ghanem, and F. Yu, How to not train your dragon: Training-free embodied object goal navigation with semantic frontiers, 2023.
+[14]
+[15] K. Zhou, K. Zheng, C. Pryor, et al., Esc: Exploration with soft commonsense constraints for zero-shot object naviga- tion, 2023.
+[16] G. Zhou, Y. Hong, and Q. Wu, Navgpt: Explicit reasoning in vision-and-language navigation with large language models, 2023. J. Wei, X. Wang, D. Schuurmans, et al., Chain-of-thought prompting elicits reasoning in large language models, 2023. [18] S. Yao, D. Yu, J. Zhao, et al., Tree of thoughts: Deliberate problem solving with large language models, 2023. [19] Y. Xie, K. Kawaguchi, Y. Zhao, et al., Decomposition enhances reasoning via self-evaluation guided decoding, 2023.
+[17]
+[20] S. Hao, Y. Gu, H. Ma, et al., “Reasoning with lan- guage model is planning with world model,” arXiv preprint arXiv:2305.14992, 2023.
+[21] Z. Zhao, W. S. Lee, and D. Hsu, “Large language models as commonsense knowledge for large-scale task planning,” in RSS 2023 Workshop on Learning for Task and Motion Planning, 2023.
+[22] S. Zhang, Z. Chen, Y. Shen, M. Ding, J. B. Tenenbaum, and C. Gan, “Planning with large language models for code generation,” in The Eleventh International Conference on Learning Representations, 2023.
+[23] L. Wang, W. Xu, Y. Lan, et al., Plan-and-solve prompting: Improving zero-shot chain-of-thought reasoning by large language models, 2023.
+[24] Z. Wang, S. Cai, A. Liu, X. Ma, and Y. Liang, Describe, explain, plan and select: Interactive planning with large lan- guage models enables open-world multi-task agents, 2023. [25] W. Huang, F. Xia, T. Xiao, et al., “Inner monologue: Em- bodied reasoning through planning with language models,” in arXiv preprint arXiv:2207.05608, 2022.
+[26] S. Yao, J. Zhao, D. Yu, et al., React: Synergizing reasoning
+and acting in language models, 2023.
+[27] A. Majumdar, A. Shrivastava, S. Lee, P. Anderson, D. Parikh, and D. Batra, “Improving vision-and-language nav- igation with image-text pairs from the web,” in Computer Vision–ECCV 2020: 16th European Conference, Glasgow, UK, August 23–28, 2020, Proceedings, Part VI 16, Springer, 2020, pp. 259–274.
+[28] V. S. Dorbala, J. F. Mullen Jr, and D. Manocha, “Can an em- bodied agent find your” cat-shaped mug”? llm-based zero- shot object navigation,” arXiv preprint arXiv:2303.03480, 2023.
+[29] B. Yamauchi, “A frontier-based approach for autonomous exploration,” in Proceedings 1997 IEEE International Sym- posium on Computational Intelligence in Robotics and Au- tomation CIRA’97. ’Towards New Computational Principles for Robotics and Automation’, 1997, pp. 146–151. [30] S. Yao, J. Zhao, D. Yu, et al., “React: Synergizing rea- soning and acting in language models,” arXiv preprint arXiv:2210.03629, 2022.
+[31] R. Schumann, W. Zhu, W. Feng, T.-J. Fu, S. Riezler, and W. Y. Wang, Velma: Verbalization embodiment of llm agents for vision and language navigation in street view, 2023.
+[32] P. Anderson, A. Shrivastava, J. Truong, et al., “Sim-to-real transfer for vision-and-language navigation,” in Proceedings of the 2020 Conference on Robot Learning, J. Kober, F. Ramos, and C. Tomlin, Eds., ser. Proceedings of Machine Learning Research, vol. 155, PMLR, 2021, pp. 671–681.
+[33] N. McKenna, T. Li, L. Cheng, M. J. Hosseini, M. Johnson, and M. Steedman, “Sources of hallucination by large language models on inference tasks,” ArXiv, vol. abs/2305.14552, 2023.
+[34] E. M. Bender, T. Gebru, A. McMillan-Major, and S. Shmitchell, “On the dangers of stochastic parrots: Can lan- guage models be too big?” In Proceedings of the 2021 ACM Conference on Fairness, Accountability, and Transparency, ser. FAccT ’21, Virtual Event, Canada: Association for Computing Machinery, 2021, 610–623.
+[35] Z. Peng, W. Wang, L. Dong, et al., “Kosmos-2: Grounding multimodal large language models to the world,” ArXiv, vol. abs/2306, 2023.
+[36] S. Shah, D. Dey, C. Lovett, and A. Kapoor, Airsim: High- fidelity visual and physical simulation for autonomous vehi- cles, 2017.

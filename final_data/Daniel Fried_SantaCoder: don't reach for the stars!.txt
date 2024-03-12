@@ -1,0 +1,578 @@
+3 2 0 2
+b e F 4 2
+] E S . s c [
+2 v 8 8 9 3 0 . 1 0 3 2 : v i X r a
+Preprint
+SANTACODER: DON’T REACH FOR THE STARS!
+Loubna Ben Allal* Hugging Face
+Raymond Li* ServiceNow Research
+Denis Kocetkov* ServiceNow Research
+Chenghao Mou Independent
+Christopher Akiki ScaDS.AI Leipzig and C4AI Community
+Carlos Munoz Ferrandis Hugging Face
+Niklas Muennighoff Hugging Face
+Mayank Mishra IBM Research
+Alex Gu MIT
+Manan Dey SAP
+Logesh Kumar Umapathi Saama Technologies
+Carolyn Jane Anderson Wellesley College
+Yangtian Zi Northeastern University
+Joel Lamy Poirier ServiceNow Research
+Hailey Schoelkopf EleutherAI
+Sergey Troshin University of Amsterdam
+Dmitry Abulkhanov Huawei Noah’s Ark Lab
+Manuel Romero Independent
+Michael Lappert Berner Fachhochschule
+Francesco De Toni UWA
+Bernardo Garc´ıa del R´ıo Flowrite
+Qian Liu Sea AI Lab
+Shamik Bose Independent
+Urvashi Bhattacharyya Discover Dollar Pvt Ltd
+Terry Yue Zhuo CSIRO’s Data61 and Monash University
+Ian Yu PIISA
+Paulo Villegas Telefonica I+D
+Marco Zocca Unfold ML
+Sourab Mangrulkar Hugging Face
+David Lansky Independent
+Huu Nguyen Ontocord, LLC
+Danish Contractor Independent
+Luis Villa Independent
+Jia Li Independent
+Dzmitry Bahdanau ServiceNow Research
+Yacine Jernite Hugging Face
+Sean Hughes ServiceNow
+Daniel Fried Carnegie Mellon University
+Arjun Guha Northeastern University and Roblox
+Harm de Vries‡ ServiceNow Research
+Leandro von Werra‡∗ Hugging Face
+ABSTRACT
+∗Corresponding authors (denoted by ‡) can be contacted at contact@bigcode-project.org
+1
+
+
+Preprint
+The BigCode project is an open-scientiﬁc collaboration working on the responsi- ble development of large language models for code.1 This tech report describes the progress of the collaboration until December 2022, outlining the current state of the Personally Identiﬁable Information (PII) redaction pipeline, the experi- ments conducted to de-risk the model architecture, and the experiments investi- gating better preprocessing methods for the training data. We train 1.1B param- eter models on the Java, JavaScript, and Python subsets of The Stack (Kocetkov et al., 2022) and evaluate them on the MultiPL-E text-to-code benchmark (Cas- sano et al., 2022). We ﬁnd that more aggressive ﬁltering of near-duplicates can further boost performance and, surprisingly, that selecting ﬁles from repositories with 5+ GitHub stars deteriorates performance signiﬁcantly. Our best model out- performs previous open-source multilingual code generation models (InCoder- 6.7B and CodeGen-Multi-2.7B) in both left-to-right generation and inﬁlling on the Java, JavaScript, and Python portions of MultiPL-E, despite being a sub- stantially smaller model. All models are released under an OpenRAIL license at https://hf.co/bigcode.
+1
+INTRODUCTION
+Over the last two years, we have witnessed tremendous progress in the development of code generat- ing AI assistants (Chen et al., 2021; Chowdhery et al., 2022; Nijkamp et al., 2022; Fried et al., 2022; Li et al., 2022; Athiwaratkun et al., 2022). Machine learning models are now capable of assisting professional developers through the synthesis of novel code snippets, not only from surrounding code fragments, but also from natural language instructions. The models powering these code com- pletion systems are usually referred to as Large Language Models for Code—or code LLMs—and are created by training large transformer neural networks (Vaswani et al., 2017) on big corpora of source code. However, with the exception of a few small-scale efforts (Xu et al., 2022b), there is generally a lack of transparency on the development of code LLMs, in part due to their commercial value and the legal uncertainty around distributing training data and models. Some groups have released model weights (Fried et al., 2022; Nijkamp et al., 2022) or provided access to the model through a paid API service (Chen et al., 2021; Athiwaratkun et al., 2022), but these works did not release the full training data or the preprocessing methods that were used.
+BigCode2 is an open scientiﬁc collaboration working on the responsible development of large lan- guage models for code, empowering the machine learning and open-source communities through open governance. BigCode was inspired by the BigScience project, an open-scientiﬁc collaboration which culminated in July 2022 with the release of a large multi-lingual language model (Scao et al., 2022). As in BigScience, various BigCode working groups focus on relevant subtopics such as collecting datasets, implementing methods for training code LLMs, developing an evaluation suite, and discussing ethical best practices for these powerful models. For example, the Legal, Ethics, and Governance working group has explored questions on data licensing, attribution of generated code to original code, the redaction of Personally Identiﬁable Information (PII), and the risks of outputting malicious code. In earlier work, the BigCode community released The Stack v1.1 (Kocetkov et al., 2022), a 6.4 TB dataset of permissively licensed source code in 384 programming languages. That work also introduced “Am I in The Stack”,3 a governance tool for developers to check whether their source is part of the dataset, and an opt-out form for those who wish to have their code removed from the dataset.4
+In this tech report, we summarize the learnings of the BigCode community in developing the Santa models, a set of 1.1B-parameter models trained on the Java, JavaScript, and Python subsets of The Stack and evaluated on MultiPL-E (Cassano et al., 2022). We describe the ﬁrst steps of the commu- nity towards developing larger code models and report experiments to de-risk the model architecture and the data processing pipeline. Speciﬁcally, the contributions of this report can be summarized as follows:
+1See https://www.bigcode-project.org 2See https://www.bigcode-project.org 3https://huggingface.co/spaces/bigcode/in-the-stack 4https://www.bigcode-project.org/docs/about/the-stack/
+2
+
+
+Preprint
+We describe the current state of the PII redaction pipeline. We detail how we create a PII benchmark of 400 code ﬁles, describe the ﬁlters for detecting emails, ip addresses, and secret keys, and analyze its performance on the annotation benchmark. All experiments in this work are conducted on the PII-redacted version of The Stack.
+We run ablations for Multi Query Attention (MQA) (Shazeer, 2019; Chowdhery et al., 2022; Li et al., 2022) and Fill-in-the-Middle (FIM) (Fried et al., 2022; Bavarian et al., 2022). MQA can signiﬁcantly speed-up inference for larger batch sizes, while FIM en- ables code models to do inﬁlling tasks. We ﬁnd that both changes only slightly deteriorate downstream performance compared to baseline models.
+We investigate the impact of 4 preprocessing methods on the training data: ﬁltering ﬁles from repositories with 5+ GitHub stars, ﬁltering ﬁles with a high comments-to-code ratio, more aggressive ﬁltering of near-duplicates, and ﬁltering ﬁles with a low character-to-token ratio. We observe modest impact of the new ﬁlters except for the stars ﬁlter, which deterio- rates performance on text2code benchmarks signiﬁcantly. This is an interesting result given that previous work has explicitly ﬁltered for GitHub Stars as a proxy for data quality (Gao et al., 2020; Xu et al., 2022b).
+Using the ﬁndings from these experiments, we train a ﬁnal 1.1B parameter model, dubbed SantaCoder, on Python, JavaScript, and Java. This model obtains comparable or stronger performance than previous open-source multilingual models, InCoder-6.7B and CodeGen- Multi-2.7B, on code generation and inﬁlling tasks on the MultiPL-E benchmark for these three languages, despite being substantially smaller.
+2 RELATED WORK
+Code LLMs Recently, there has been an increasing amount of research on using large-scale trans- former models to analyze or generate source code. Many studies have focused on using decoder-only models with a causal language modeling objective (Chen et al., 2021; Austin et al., 2021; Nijkamp et al., 2022; Christopoulou et al., 2022; Izadi et al., 2022; Xu et al., 2022b; Athiwaratkun et al., 2022), while other studies have investigated encoder (Feng et al., 2020a; Kanade et al., 2020) and encoder-decoder architectures (Li et al., 2022; Ahmad et al., 2021; Wang et al., 2021; Roziere et al., 2021). Bavarian et al. (2022); Fried et al. (2022) propose to use decoder-only models for code- inﬁlling tasks using a causal masking mechanism, and Bavarian et al. (2022) argues that training with such a ﬁll-in-the middle (FIM) objective does not harm the model’s ability to do left-to-right generation. Shazeer (2019) proposes Multi Query Attention (MQA), an architectural change to the transformer neural network in which key and value embeddings are shared across attention heads, resulting in lower memory requirements and faster inference for large batch settings. Multi Query Attention was implemented in AlphaCode (Li et al., 2022) and PaLM (Chowdhery et al., 2022).
+Evaluating text-to-code The correctness of generated code can be tested using unit tests, a method for approximating semantic equivalence. Textual similarity metrics have also been used to evaluate code (Feng et al., 2020b; Ren et al., 2020); however, they have been shown to correlate only weakly with code correctness (Austin et al., 2021; Chen et al., 2021).
+Many single-language benchmarks for evaluating code completion exist (Kulal et al., 2019; Iyer et al., 2018; Zhong et al., 2017; Yu et al., 2018; Austin et al., 2021; Hendrycks et al., 2021; Chen et al., 2021; Austin et al., 2021; Athiwaratkun et al., 2022; Lai et al., 2022). Two of the most popular benchmarks for Python are HumanEval (Chen et al., 2021) and MBPP (Austin et al., 2021), which consist of a natural language description of a function and a set of unit tests.
+MultiPL-E (Cassano et al., 2022) extends two popular benchmarks for code completion, MBPP and HumanEval, to 18 additional languages. The doctests, function signatures, and unit tests for each benchmark suite are automatically compiled to new languages. Python-speciﬁc terminology in the prompt is automatically replaced with the equivalent terminology used for each programming language. MBXP (Athiwaratkun et al., 2022) is a concurrent benchmark that uses a similar approach, but differs in the details of type inference, prompt construction, and evaluation. In particular, MBXP uses the same set of assertions in the prompt that it uses to test the correctness of generated solutions. In contrast, MultiPL-E keeps the tests hidden from the model and only uses them to test correctness.
+3
+
+
+Preprint
+Evaluating other tasks Code generation models have also been used to solve a variety of tasks (Tufano et al., 2020; Feng et al., 2020b; Ahmed & Devanbu, 2022; Hellendoorn et al., 2018; Pradel et al., 2020). CodeXGLUE (Lu et al., 2021) is a set of 14 datasets for evaluating code generation models. The tasks include code-to-code tasks like clone detection, code repair, and code translation; text-to-code tasks like code search and code generation; and code-to-text tasks like generating doc- umentation. The programming languages included vary by task; the most common are Python and Java.
+3 OPT-OUT PROCESS
+Developers who do not wish their source code to be used for training code LLMs are given the op- portunity to opt-out of The Stack (Kocetkov et al., 2022). We received 9 opt-out requests before the cut-off date for removing data (31 October 2022). These individuals accounted for 299 repositories. Of these, 161 were already excluded from The Stack v1.0 (because they did not have a permissive license), and 138 were in The Stack v1.0. We honored the requests to opt-out and removed these repositories from The Stack v1.1. After the cut-off date (31 October 2022), we have received more requests for requests and we will remove these repositories prior to releasing The Stack v1.2.
+4 REDACTING PERSONALLY IDENTIFIABLE INFORMATION
+We describe our ﬁrst efforts to redact PII from The Stack.
+4.1 PII BENCHMARK
+We construct a PII benchmark by annotating the following entities on a small subset of The Stack: names, emails, usernames, passwords, IP addresses, API keys, and SSH keys. We pre-ﬁltered 400 samples from a total of 4000 code ﬁles that were likely to contain Personally Identiﬁable Information (PII). We ﬁrst select 4000 code ﬁles from 11 programming languages, with a total of 800 samples for Python and C++, 400 samples for Java, JavaScript, TypeScript, and PHP, and 160 samples for C, C#, Markdown, Go, and Ruby. To detect keys in these samples, we used the detect-secrets tool5 with all default plugins activated. In addition, we used regular expressions to detect emails, IPv4 and IPv6 addresses, see Appendix C.1. Twelve members of the BigCode community annotated the ﬁles on the LightTag platform6, with one annotator assigned per ﬁle. After the annotation phase, one member reviewed all the annotation tags. To further increase annotation quality, we ran our initial PII detection tools on the annotated ﬁles and manually corrected any incorrect annotations identiﬁed as false positives or false negatives.
+4.2 PII DETECTION AND REDACTION
+For the ﬁrst iteration of the PII redaction pipeline, we focus on emails, IP addresses, and keys, and leave the detection of names, usernames, and passwords for future work.
+Emails We use a regular expression to detect emails, see Appendix C.1. We replace detected emails with [random 5 character string]@example.com.
+IP addresses We use regular expressions for IPv4 and IPv6 IP addresses, see Appendix C.1. In addition, we check if the detected IP addresses have a valid format using the ipaddress python package. We also do not select IP addresses of the format a.b.c.d where a, b, c and d are single digit numbers, except if the words “dns” or “server” appear in the neighboring context (100 characters before or after). These detected addresses were mostly false positives, consisting of package and release versions. Lastly, we do not anonymize private IP addresses7 and popular DNS servers, as we don’t consider them sensitive information. See Appendix C.2 for the full list.
+We replace detected IP addresses with one of 5 randomly generated IP addresses.
+5https://github.com/Yelp/detect-secrets 6https://www.lighttag.io/ 7They are non-internet facing IP addresses used in internal networks
+4
+
+
+Preprint
+Figure 1: Precision and recall of PII de- tection tools.
+Figure 2: Distribution of PII detected in The Stack for Python, Java and JavaScript.
+Keys We employed the detect-secrets tool to identify secret keys in the code ﬁles. To this end, we kept all the regex and entropy based plugins, including the AWS key detector, the GitHub Token detector, the Azure storage key detector, and the Base64 High Entropy String detector. You can ﬁnd the full list of plugins in Appendix C.4. We deactivated keyword detectors because they were detecting commonly used words like ”password” rather than actual secret keys. To remove false positives, we activated ﬁlters like UUIDs and string-like secret ﬁltering, see the full list in Appendix C.3. We also observed that entropy detectors sometimes detected human-readable text like paths and URLs as secrets, even when adjusting the entropy threshold. To address this issue, we added a gibberish8 detector ﬁlter on top of detect-secrets to verify that the detected string was actually gibberish. Additionally, we noticed that hashes were sometimes falsely detected as secret keys. To mitigate this problem, we added a hash ﬁlter that veriﬁes the size of the detected string and checks for the presence of keywords like “sha”, “md5”, “hash”, and “byte” in the neighboring context. Finally, to avoid corrupting any ﬁles, we prevent the removal of keys from ﬁles where words like “sha” or “hash” are mentioned in more than 2% of the number of lines.
+4.3 PERFORMANCE ANALYSIS
+Evaluation on PII benchmark We evaluated our PII detection pipeline on the benchmark we annotated. The 400 ﬁles contained 214 emails, 99 IP addresses and 34 secret keys. Figure 1 shows the precision and recall for each PII entity. Email and IP address detection perform well, with a precision and recall above 90% for emails and above 80% for IP addresses. While key detection also achieves almost 80% precision, its recall is much lower (slightly above 50%). We found that the key detection pipeline was especially sensitive to the precision-recall trade-off, as including more plugins or disabling some ﬁlters detected more keys but also increased the number of false positives.
+PII detection on The Stack We run the PII pipeline on the Python, Java and JavaScript subsets of The Stack v1.1 (Kocetkov et al., 2022). Table 1 shows some statistics on the number of ﬁles containing PII and the total number of secrets found. Some ﬁles containing PII are not modiﬁed if they contain only private IP addresses or popular DNS servers, as explained in the previous section. The number of ﬁles containing PII is signiﬁcantly lower for JavaScript compared to Python and Java, but this could be due to the fact that JavaScript ﬁles were ﬁltered based on line length and percentage of alphanumeric characters before running PII detection. We also observe that Python and JavaScript have a higher number of secrets per ﬁle compared to Java.
+To better understand these results, we computed the relevant percentiles in Table 2. We can see that Java indeed has fewer secrets per ﬁle, and that almost 0.1% of the ﬁles contain a large number of secrets (about 100). We found that some of these ﬁles contained multiple instances of PII, such as emails stored in some form of database, or are ﬁles containing long encodings and key-like strings
+8https://github.com/domanchi/gibberish-detector
+5
+
+
+Preprint
+Language
+# ﬁles
+# ﬁles with PII
+# secrets
+# modiﬁed ﬁles
+Python Java JavaScript*
+15,148,604 25,124,914 23,670,848
+1,224,632 1,588,453 835,198
+3,255,053 2,757,169 2,468,183
+1,040,809 1,506,766 744,842
+Table 1: Statistics from running PII detection on The Stack. JavaScript ﬁles initially went through line-length ﬁltering. Modiﬁed ﬁles are those altered during PII redaction.
+Language mean median
+95th percentile
+99th percentile
+99.9th percentile
+Python Java JavaScript
+2.7 1.7 3.3
+1 1 1
+6 3 7
+23 11 30
+135 63 197
+Table 2: Statistics of the number of detected PII per ﬁle in The Stack.
+that are split into multiple keys. Finally, we also plot the distributions of detected secrets by entity type in Figure 2. For this graph, we ﬁltered out ﬁles with more than 100 secrets, but this did not change the distribution of PII across languages. We observe that IP addresses are most often found in Python, keys in JavaScript and emails in Java.
+5 EXPERIMENTS
+5.1 DATASET, MODEL, AND TRAINING DETAILS
+Dataset The base training dataset for the experiments in this paper contains 268 GB of Python, Java and JavaScript ﬁles from The Stack v1.1 (Kocetkov et al., 2022) after removing data from opt- out requests, near-deduplication, PII-redaction (see Section 4), and ﬁltering based on line-length and percentage of alphanumeric characters. This dataset was also decontaminated by removing ﬁles that contained test-samples from the following benchmarks: HumanEval (Chen et al., 2021), APPS (Hendrycks et al., 2021), MBPP (Austin et al., 2021) and MultiPL-E (Cassano et al., 2022).
+Tokenizer Seeing as the Santa models were the ﬁrst models our community would train, our design choices for the tokenizer were modulated by a conservative approach, partly based on in- sights developed during the development of InCoder (Fried et al., 2022). We train a Hugging Face Tokenizer (MOI et al., 2022) using the Byte-Pair Encoding (BPE) algorithm on raw bytes with a vocabulary size of 49,152 tokens. This tokenizer was trained on 600,000 rows (Around 2.6 GB) of data—200,000 for each language—which were pre-tokenized using a digit splitter and the default GPT-2 pre-tokenizer regex before being converted to bytes.
+Training details Our base model is a 1.1B-parameter decoder-only transformer with FIM and MQA trained in float16. It has 24 layers, 16 heads and a hidden-size of 2048. The model is trained for 300K iterations with a global batch-size of 192 using Adam (Kingma & Ba, 2015) with β1 = 0.9, β2 = 0.95, (cid:15) = 10−8 and a weight-decay of 0.1. A total of 118B tokens are seen in training. The learning-rate is set to 2 × 10−4 and follows a cosine decay after warming up for 2% of the training steps. Each training run takes 3.1 days to complete on 96 Tesla V100 GPUs for a total of 1.05 × 1021 FLOPs. The ﬁnal model described in Section 6.2 uses twice the amount of compute.
+5.2 ARCHITECTURE ABLATIONS
+We perform ablation experiments to de-risk the model architecture and training objective. Specif- ically, we investigate Fill-in-the-Middle (Bavarian et al., 2022) and Multi Query Attention (MQA) (Shazeer, 2019).
+FIM vs No-FIM Recent works (Fried et al., 2022; Bavarian et al., 2022) have shown that autore- gressive language-models can learn to inﬁll code snippets by random transformation of the training
+6
+
+
+Preprint
+Language
+Base
+Stars
+Comments-to-code Near-dedup
+Tokenizer fertility
+Python Java JavaScript
+75.6 GB 110 GB 82.7 GB
+26.6 GB 35.8 GB 20.8 GB
+65.6 GB 92.7 GB 57.5 GB
+62.0 GB 88.4 GB 65.1 GB
+72.5 GB 105.5 GB 76.4 GB
+Table 3: Data volume after additional ﬁltering of the Python, Java, JavaScript subsets of The Stack.
+data. Bavarian et al. (2022) argue that such data transformations do not harm the left-to-right gen- erative capabilities of the model. Following Bavarian et al. (2022), we implement FIM as a random transformation of the input sequence and split each training document into three parts uniformly at random: preﬁx, middle and sufﬁx. Each part is prepended with a corresponding sentinel token, then documents are rearranged to put the middle part at the end of the sequence. The autoregressive training objective is unchanged. We use context-level FIM, apply transformations at the character level, use a FIM-rate of 0.5 and SPM+PSM joint training. We compare our base model to a model that was trained with the standard left-to-right objective only (No-FIM).
+Multi Query Attention vs Multi Head Attention Shazeer (2019) proposes Multi Query Atten- tion (MQA), an architectural change to transformer that shares key and value embeddings across attention heads. Compared to Multi Head Attention (MHA), this lowers the memory bandwidth requirements at generation time and results in faster inference. We compare our base model to a similar model using MHA instead, with the same hyper-parameters otherwise. Note that the MHA model has more parameters (1.3B) than the base model in this setting.
+5.3 DATA FILTERING ABLATIONS
+We experiment with a number of preprocessing methods applied to the base dataset, described in Section 5.1. Note that the ﬁlters are applied on top of the other ﬁlters such as near-deduplication, line length ﬁltering, etc.
+GitHub stars Do popular repositories contain good quality code? We use GitHub stars as a proxy metric. We set the minimum threshold to 5 stars, as we believe that a lower number of stars would not be an indicator of popularity. This ﬁlter removes more than 60% of the data (in terms of volume), see Table 3. Note that more than 40% of the ﬁles do not have stars and that setting the threshold to 10 stars would remove an additional 5% of the data.
+Comment-to-code ratio Good code should be well documented. With this assumption, we ﬁlter ﬁles with a high comments-to-code ratio. We use the ast and tokenize modules to extract docstrings and comments from Python ﬁles, and Pygments to extract comments from Java and JavaScript ﬁles. We then analyze the comment-to-code character ratio. We ﬁnd that about 20% of Python and Java ﬁles and 45% of JavaScript ﬁles have no comments. We use a minimum threshold of 1%, removing an additional 3% of ﬁles in each language. We also ﬁnd that ﬁles with a ratio above 80% have poor quality, so we ﬁlter them out, eliminating 2% of data in all languages. Overall, this comment-to-code ﬁlter removes 20% of the data in terms of volume.
+More near-deduplication While exact-match deduplication is the most common preprocessing step for code LLMs (see Table 4), Kocetkov et al. (2022) showed that near-deduplication leads to additional performance gains. Their near-deduplication pipeline largely inherited the settings from CodeParrot (Tunstall et al., 2022): MinHash (Broder, 2000) + Locality Sensitive Hashing (LSH) based on datasketch9 with unigrams (non-alphanumeric tokens) and a 0.85 Jaccard similarity threshold. Additionally, it also recalculates the true unigram Jaccard similarity during the post- processing stage to weed out any false positives. In this paper, we investigate whether different deduplication settings can further improve performance.
+To this end, we conduct ablation experiments on a 200K subset of the raw python dataset from the Stack v1.1. We investigate the number of false positives and false negatives by comparing the clustered ﬁles with their real Jaccard similarity. We ﬁnd that: 1) Using unigrams during MinHash
+9https://github.com/ekzhu/datasketch
+7
+
+
+Preprint
+Model
+Dataset Deduplication Method
+InCoder Fried et al. (2022) CodeGen (Nijkamp et al., 2022) AlphaCode (Li et al., 2022) PolyCoder (Xu et al., 2022a) PaLM Coder (Chowdhery et al., 2022) Near-deduplication (Levenshtein distance) CodeParrot (Tunstall et al., 2022) Codex (Chen et al., 2021)
+Exact Match (alphanumeric token sequence) Exact Match (sha-256) Exact Match (non-whitespace text) Exact Match (hash)
+Near-deduplication (MinHash) Exact Match (”unique python ﬁles”)
+Table 4: Various deduplication methods adopted for different model training data.
+calculation leads to many false positives, around 20% at 0.85. Increasing the n-gram size reduces false positives, but also increases false negatives. This is an expected trade-off between precision and recall; 2) A lower threshold would cause more documents to be removed at the cost of processing time. In our experiments, we have observed good duplicates occur with a similarity as low as 0.65, even though the FP and FN rates don’t change much.
+We ﬁnd that combining 5-grams and a 0.7 threshold strikes a good balance between false positives and false negatives while removing an additional 16%–20% ﬁles. In particular, the increased false negatives occur mostly among documents with lower real Jaccard similarity bounds, whereas doc- uments with higher similarities (> 0.85) even have a decreased false negative rate (from 35% to 24%). Due to time constraints, we apply such deduplication on the already deduplicated datasets using the Stack v1 hyperparameters. We will refer to the ﬁnal results as more near-deduplication or near-deduplication alt.
+Unlike other data preprocessing or ﬁltering techniques that target one document at a time, near- deduplication requires a centralized index that can be prohibitive for large data processing. We have released the deduplication code used in this paper on GitHub10 and will release a distributed version soon. For reference, it takes about 10 hours to deduplicate 42 million Java documents using plain multiprocessing while it takes less than 40 minutes in a distributed (but comparable) environment.
+Tokenizer fertility Can we use the tokenizer to remove low-quality ﬁles from the dataset? We experiment with ﬁltering ﬁles with a low character-to-token ratio11. For each language, we ﬁnd that ﬁles with a ratio below the 5th percentile are usually of poor quality, but increasing the threshold may eliminate some good-quality ﬁles. We therefore set the cutoff value for this ratio to the following values: 2.5 for Python, 2.9 for Java, and 2.6 for JavaScript. This ﬁlters out roughly 4% to 5% of data. Note that these values depend highly on the tokenizer and the data. This ﬁlter may also be biased against ﬁles with non-English comments.
+5.4 EVALUATION
+Text2code evaluation The text2code task involves generating the body of a function from a prompt that includes a function description, the function signature (its name and arguments), and optionally a handful of example inputs and outputs. Every problem is accompanied by a set of hidden test cases, which are used to determine if the generated function is correct. We use the MultiPL-E text2code benchmark Cassano et al. (2022), which is derived from HumanEval Chen et al. (2021) and MBPP Austin et al. (2021) (the “sanitized” subset of MBPP.). Whereas the latter two benchmarks target Python, MultiPL-E has a suite of compilers that translate HumanEval and MBPP to 18 other programming languages. Since our models are only trained on Java, JavaScript, and Python, we only evaluate them on these three languages.
+We use the methodology of Chen et al. (2021) and we calculate pass@k rates for (k = 1, 10, 100) for every problem. Intuitively, pass@1 estimates the likelihood a model will generate a correct solution in a single attempt, whereas pass@10 and pass@100 estimate the likelihood that the model will generate a correct solution given 10 and 100 attempts respectively. Following the literature,
+10https://github.com/bigcode-project/bigcode-dataset 11We slightly abuse the term tokenizer fertility in this work as it usually refers to the average number of subwords per token, where a token is determined by the true tokenizer of the programming language. See e.g. (Rust et al., 2021)
+8
+
+
+Preprint
+Language Attention
+FIM HumanEval MBPP
+Java
+Multi Query Attention Multi Head Attention Multi Query Attention
+(cid:51) (cid:51) (cid:55)
+0.35 0.36 0.37
+0.54 0.55 0.55
+JavaScript
+Multi Query Attention Multi Head Attention Multi Query Attention
+(cid:51) (cid:51) (cid:55)
+0.33 0.37 0.37
+0.64 0.67 0.65
+Python
+Multi Query Attention Multi Head Attention Multi Query Attention
+(cid:51) (cid:51) (cid:55)
+0.36 0.38 0.39
+0.67 0.70 0.68
+Table 5: Pass@100 results for the architecture ablations on HumanEval and MBPP.
+Model
+Java
+JavaScript
+Python
+Baseline GitHub stars Comments-to-code More near deduplication Tokenizer fertility
+0.64 0.54 0.62 0.66 0.67
+0.61 0.57 0.59 0.57 0.65
+0.42 0.37 0.44 0.45 0.45
+Final
+0.62
+0.60
+0.44
+Table 6: Fill-in-the-middle results for the data ﬁltering ablations on MultiPL-HumanEval. Each number reports the fraction of lines where the model exactly reproduces a single line of code that is held out from the body of a function in a held out problem.
+we sample 200 completions at temperatures 0.2 and 0.8 and use 0.2 to estimate pass@1 and 0.8 for pass@10 and pass@100.
+Fill-in-the-middle evaluation To evaluate ﬁll-in-the-middle, we use the single-line exact match metric, which was introduced by Fried et al. (2022) and also employed by Bavarian et al. (2022). For every benchmark problem, we mask out a single line of text from the function body (i.e., not from the function description or signature), and prompt the model to ﬁll in that line of code. We exclude blank lines and comments, and count the number of times the model produces exactly the masked out line. This benchmark requires working solutions for problems, which MultiPL-E does not have. (A text2code benchmark like MultiPL-E only needs hidden tests.) Instead, of writing solutions by hand, we use solutions generated by a code generation model, which is the approach of Athiwaratkun et al. (2022). Speciﬁcally, we use working solutions produced by code-davinci-002 at temperature 0.8. Note that this approach does not produce solutions to every problem, since not all problems are solvable. Moreover, for uniformity, we use this approach for Python as well, even though hand- written Python solutions exist for our benchmarks. We only report ﬁll-in-the-middle evaluations for the data ﬁltering ablations.
+6 RESULTS
+6.1 ABLATIONS
+For the architecture ablations, we report the results on text2code benchmarks in Table 5. For the data ﬁltering ablations, we show the text2code results in Figure 4 and report the ﬁll-in-the middle evaluations in Table 6. We show the HumanEval performance throughout all training runs in Figure 3. You can ﬁnd the full results tables of the text2code experiments are Appendix A.
+Slight drop in performance for MQA We see a small drop in performance for Multi Query Attention (MQA) compared to Multi Head Attention (MHA). As shown in Table 5, the MHA model improves pass@100 with 1-4% on HumanEval and with 1-3% on MBPP. We speciﬁcally observe
+9
+
+
+Preprint
+Figure 3: HumanEval pass@100 performance throughout training for all models. Note that evalua- tion shown here is based on OpenAI Python prompts and might differ (slightly) from the MultiPL-E prompts used in the rest of this paper.
+Model
+Size
+Left-to-right pass@100 JavaScript Java
+Python
+Fill-in-the-middle ex. match Python Java
+JavaScript
+InCoder CodeGen-multi CodeGen-mono Codex12
+6.7B 0.36 2.7B 0.42 2.7B 2.5B
+(cid:55) (cid:55)
+0.38 0.39 (cid:55) (cid:55)
+0.47 0.39 0.57 0.60
+0.49 (cid:55) (cid:55) (cid:55)
+0.51 (cid:55) (cid:55) (cid:55)
+0.31 (cid:55) (cid:55) (cid:55)
+SantaCoder
+1.1B 0.41
+0.47
+0.49
+0.62
+0.60
+0.44
+Table 7: Comparing the performance of the ﬁnal version of SantaCoder with InCoder (Fried et al., 2022), CodeGen (Nijkamp et al., 2022), and Codex (Chen et al., 2021) on left-to-right (HumanEval pass@100) and ﬁll-in-the-middle benchmarks (HumanEval line ﬁlling, exact match).
+noticeable improvements for the JavaScript versions of the text2code benchmarks. However, it should be noted that the MHA model has more parameters (1.3B) than the MQA model (1.1B), and a head-to-head comparison might, therefore, not be entirely fair. We think that the inference speed-ups of MQA might outweigh the small drop in performance.
+FIM for cheap We observe a minor drop in performance of the FIM model compared to the No-FIM model. Speciﬁcally, we see that the pass@100 performance of the FIM model is 2-4% lower on HumanEval and 1% lower on MBPP. While Bavarian et al. (2022) presented evidence for the existence of a FIM-for-free property (i.e., arguing that autoregressive models can be trained with FIM without harming left-to-right capabilities), we do ﬁnd a small but consistent drop of FIM models on left-to-right text2code benchmarks.
+Modest impact of near-deduplication, comments, and fertility ﬁlter On text2code benchmarks, we observe small gains for the near-deduplication and comment-to-code ﬁlters and a neutral effect of the tokenizer ﬁlter. The near-deduplication ﬁlter improves HumanEval performance by 1-3% and MBPP by 1-4% across the three programming languages. The comment-to-code ﬁlter improves HumanEval performance by 0-2% but decreases MBPP performance in certain cases (Java). See Appendix A for the full results table. On ﬁll-in-the-middle benchmarks, we see that the tokenizer
+12This is the performance of a Codex model reported by Chen et al. (2021). It is not clear if this model is
+available via the OpenAI API.
+10
+
+
+Preprint
+Multi−MBPP Pass@10
+0.00.20.40.60.8
+JavaJavaScriptPython
+Multi−MBPP Pass@100
+BaselineCommentsDedup AltFertilityStarsFinal
+Multi−MBPP Pass@1
+Model
+LanguageEstimate
+Multi−HumanEval Pass@1
+0.00.20.40.60.8
+Multi−HumanEval Pass@10
+JavaJavaScriptPython0.00.20.40.60.8
+Multi−HumanEval Pass@100
+Figure 4: Pass@k rates on Multi-HumanEval and Multi-MBPP by model and language
+fertility ﬁlter performs well, improving performance by 2-4% across the three languages. The near- duplication and comments ﬁlters have a mixed effect, improving ﬁll-in-the-middle performance for Python but deteriorating performance for JavaScript.
+GitHub stars deteriorate performance Surprisingly, we ﬁnd that the GitHub stars ﬁlter performs poorly. On HumanEval and MBPP, the pass@100 performance consistently drops by 3-6% across the three languages. On the ﬁll-in-the-middle benchmark, the performance drops by 5-11% (Table 6). Note that the stars ﬁlter removes the most data (over 60%) and, therefore, raises the question whether the performance difference is due to the smaller dataset. However, as can be seen in Figure 3, HumanEval pass@100 diverged early on in training, indicating that the drop in performance is not only due to data size but also data quality.
+6.2 FINAL MODEL
+Based on the insights from the architecture and dataset ablations, we train a ﬁnal model, which we call SantaCoder, with MQA and FIM and the two data ﬁlters that yielded the best results: more near- deduplication and comments-to-code ﬁlter. We train this model for 600K iterations (236B tokens) and keep all other hyper-parameters the same.
+Improved text2code performance Doubling the training iterations leads to much stronger text2code performance on MultiPL-E, signiﬁcantly boosting performance across all benchmarks and programming languages (see Figure 4). Looking at the performance throughout training (Figure
+11
+
+
+Preprint
+3), it is likely that longer training can further increase performance. Surprisingly, we ﬁnd that the ﬁnal training run did not improve the ﬁll-in-the-middle evaluations (see Table 6), at least on these single line inﬁlling tasks.
+Comparison to InCoder, CodeGen, and Codex Table 7 compares our SantaCoder model to comparably-sized code generation models from previous work on the MultiPL-E benchmark, using the methodology described in Section 5.4. We ﬁnd that our model generally outperforms previ- ous open-source multi-language code generation models despite being smaller, outperforming the InCoder 6.7B (Fried et al., 2022) model on both left-to-right generation and single line ﬁll-in-the- middle inﬁlling across languages, and obtaining comparable or stronger performance to CodeGen- multi 2.7B (Nijkamp et al., 2022).
+7 CONCLUSION
+We described the progress of the BigCode project until December 2022. The community took its ﬁrst steps towards redacting PII and demonstrated that regular expressions are reasonably effective at detecting emails and IP addresses. Future work should focus on increasing the precision and recall of secret keys, as well as detecting other sensitive information such as names, usernames, and pass- word. Using the PII-redacted version of The Stack, we conducted a series of architectural and data ﬁltering ablations. One of our main ﬁndings was that ﬁltering for Github stars consistently decreased performance across all benchmarks and programming languages. Using the ﬁndings of these abla- tion studies, we trained a ﬁnal 1.1B model—dubbed SantaCoder—for 236B tokens and showed it is able to outperform previous multi-lingual code models (InCoder-6.7B and CodeGen-Multi-2.7B) on both left-to-right generation and inﬁlling tasks. We anticipate that larger architectures and more training data will be able to produce stronger multilingual, inﬁlling-capable models, and plan to continue to scale the ﬁndings from our investigations here.
+12
+
+
+Preprint
+8 CONTRIBUTIONS
+Model license Carlos Munoz Ferrandis, Christopher Akiki, Danish Contractor, Harm de Vries, Huu Nguyen, Leandro von Werra, Luis Villa, Sean Hughes, Yacine Jernite, David Lansky
+PII redaction Loubna Ben Allal, Jia Li, Paulo Villegas, Harm de Vries, Leandro Von Werra, Christopher Akiki, Ian Yu, Michael Lappert, Urvashi Bhattacharyya, Shamik Bose, Bernardo Garc´ıa del R´ıo, Francesco De Toni, Terry Yue Zhuo, Qian Liu, Manuel Romero
+Dataset Denis Kocetkov, Chenghao Mou, Loubna Ben Allal, Leandro von Werra, Dmitry Ab- ulkhanov, Christopher Akiki, Raymond Li
+Tokenizer Christopher Akiki, Sergey Troshin, Dmitry Abulkhanov, Daniel Fried, Leandro von Werra, Harm de Vries
+Training and architecture Raymond Li, Daniel Fried, Hailey Schoelkopf, Joel Lamy Poirier, Qian Liu, Niklas Muennighoff, Loubna Ben Allal, Dzmitry Bahdanau, Harm de Vries, Leandro von Werra
+Opt out Sean Hughes, Carlos Munoz Ferrandis, Christopher Akiki, Denis Kocetkov, Harm de Vries, Huu Nguyen, Leandro von Werra, Luis Villa
+Evaluation Arjun Guha, Yangtian Zi, Carolyn Jane Anderson, Loubna Ben Allal, Raymond Li, Niklas Muennighoff, Manan Dey, Logesh Kumar Umapathi, Leandro von Werra, Harm de Vries, Marco Zocca
+Inference Mayank Mishra, Alex Gu, Joel Lamy Poirier, Leandro von Werra, Harm de Vries, Sourab Mangrulka
+Acknowledgement We thank ServiceNow and HuggingFace for the provided compute resources.
+REFERENCES
+Wasi Ahmad, Saikat Chakraborty, Baishakhi Ray, and Kai-Wei Chang. Uniﬁed pre-training for In Proceedings of the 2021 Conference of the North program understanding and generation. American Chapter of the Association for Computational Linguistics: Human Language Tech- nologies, pp. 2655–2668, Online, June 2021. Association for Computational Linguistics. URL https://www.aclweb.org/anthology/2021.naacl-main.211.
+Touﬁque Ahmed and Premkumar Devanbu. Multilingual training for software engineering.
+In Proceedings of the 44th International Conference on Software Engineering. ACM, 2022. doi: 10.1145/3510003.3510049.
+Ben Athiwaratkun, Sanjay Krishna Gouda, Zijian Wang, Xiaopeng Li, Yuchen Tian, Ming Tan, Wasi Uddin Ahmad, Shiqi Wang, Qing Sun, Mingyue Shang, Sujan Kumar Gonugondla, Hantian Ding, Varun Kumar, Nathan Fulton, Arash Farahani, Siddhartha Jain, Robert Giaquinto, Haifeng Qian, Murali Krishna Ramanathan, Ramesh Nallapati, Baishakhi Ray, Parminder Bhatia, Sudipta Sengupta, Dan Roth, and Bing Xiang. Multi-lingual evaluation of code generation models, 2022. URL https://arxiv.org/abs/2210.14868.
+Jacob Austin, Augustus Odena, Maxwell Nye, Maarten Bosma, Henryk Michalewski, David Dohan, Ellen Jiang, Carrie Cai, Michael Terry, Quoc Le, et al. Program synthesis with large language models. arXiv preprint arXiv:2108.07732, 2021.
+Mohammad Bavarian, Heewoo Jun, Nikolas Tezak, John Schulman, Christine McLeavey, Jerry Tworek, and Mark Chen. Efﬁcient training of language models to ﬁll in the middle, 2022. URL https://arxiv.org/abs/2207.14255.
+13
+
+
+Preprint
+Loubna Ben Allal, Niklas Muennighoff, and Leandro Von Werra.
+A framework for the https://github.com/bigcode-project/
+evaluation of code generation models. bigcode-evaluation-harness, December 2022.
+Andrei Z Broder.
+Identifying and ﬁltering near-duplicate documents.
+In Annual symposium on
+combinatorial pattern matching, pp. 1–10. Springer, 2000.
+Federico Cassano, John Gouwar, Daniel Nguyen, Sydney Nguyen, Luna Phipps-Costin, Donald Pinckney, Ming-Ho Yee, Yangtian Zi, Carolyn Jane Anderson, Molly Q Feldman, Arjun Guha, Michael Greenberg, and Abhinav Jangda. A scalable and extensible approach to benchmarking nl2code for 18 programming languages, 2022. URL https://arxiv.org/abs/2208. 08227.
+Mark Chen, Jerry Tworek, Heewoo Jun, Qiming Yuan, Henrique Ponde de Oliveira Pinto, Jared Kaplan, Harri Edwards, Yuri Burda, Nicholas Joseph, Greg Brockman, Alex Ray, Raul Puri, Gretchen Krueger, Michael Petrov, Heidy Khlaaf, Girish Sastry, Pamela Mishkin, Brooke Chan, Scott Gray, Nick Ryder, Mikhail Pavlov, Alethea Power, Lukasz Kaiser, Mohammad Bavarian, Clemens Winter, Philippe Tillet, Felipe Petroski Such, Dave Cummings, Matthias Plappert, Fo- tios Chantzis, Elizabeth Barnes, Ariel Herbert-Voss, William Hebgen Guss, Alex Nichol, Alex Paino, Nikolas Tezak, Jie Tang, Igor Babuschkin, Suchir Balaji, Shantanu Jain, William Saunders, Christopher Hesse, Andrew N. Carr, Jan Leike, Josh Achiam, Vedant Misra, Evan Morikawa, Alec Radford, Matthew Knight, Miles Brundage, Mira Murati, Katie Mayer, Peter Welinder, Bob Mc- Grew, Dario Amodei, Sam McCandlish, Ilya Sutskever, and Wojciech Zaremba. Evaluating large language models trained on code. arXiv preprint, 2021.
+Aakanksha Chowdhery, Sharan Narang, Jacob Devlin, Maarten Bosma, Gaurav Mishra, Adam Roberts, Paul Barham, Hyung Won Chung, Charles Sutton, Sebastian Gehrmann, Parker Schuh, Kensen Shi, Sasha Tsvyashchenko, Joshua Maynez, Abhishek Rao, Parker Barnes, Yi Tay, Noam Shazeer, Vinodkumar Prabhakaran, Emily Reif, Nan Du, Ben Hutchinson, Reiner Pope, James Bradbury, Jacob Austin, Michael Isard, Guy Gur-Ari, Pengcheng Yin, Toju Duke, Anselm Lev- skaya, Sanjay Ghemawat, Sunipa Dev, Henryk Michalewski, Xavier Garcia, Vedant Misra, Kevin Robinson, Liam Fedus, Denny Zhou, Daphne Ippolito, David Luan, Hyeontaek Lim, Barret Zoph, Alexander Spiridonov, Ryan Sepassi, David Dohan, Shivani Agrawal, Mark Omernick, Andrew M. Dai, Thanumalayan Sankaranarayana Pillai, Marie Pellat, Aitor Lewkowycz, Er- ica Moreira, Rewon Child, Oleksandr Polozov, Katherine Lee, Zongwei Zhou, Xuezhi Wang, Brennan Saeta, Mark Diaz, Orhan Firat, Michele Catasta, Jason Wei, Kathy Meier-Hellstern, Douglas Eck, Jeff Dean, Slav Petrov, and Noah Fiedel. Palm: Scaling language model- ing with pathways. CoRR, abs/2204.02311, 2022. doi: 10.48550/arXiv.2204.02311. URL https://doi.org/10.48550/arXiv.2204.02311.
+Fenia Christopoulou, Gerasimos Lampouras, Milan Gritta, Guchun Zhang, Yinpeng Guo, Zhongqi Li, Qi Zhang, Meng Xiao, Bo Shen, Lin Li, Hao Yu, Li Yan, Pingyi Zhou, Xin Wang, Yuchi Ma, Ignacio Iacobacci, Yasheng Wang, Guangtai Liang, Jiansheng Wei, Xin Jiang, Qianxiang Wang, and Qun Liu. Pangu-coder: Program synthesis with function-level language modeling, 2022. URL https://arxiv.org/abs/2207.11280.
+Zhangyin Feng, Daya Guo, Duyu Tang, Nan Duan, Xiaocheng Feng, Ming Gong, Linjun Shou, Bing Qin, Ting Liu, Daxin Jiang, and Ming Zhou. CodeBERT: A pre-trained model for pro- gramming and natural languages. In Findings of the Association for Computational Linguistics: EMNLP 2020, pp. 1536–1547, Online, November 2020a. Association for Computational Lin- guistics. doi: 10.18653/v1/2020.ﬁndings-emnlp.139. URL https://aclanthology.org/ 2020.findings-emnlp.139.
+Zhangyin Feng, Daya Guo, Duyu Tang, Nan Duan, Xiaocheng Feng, Ming Gong, Linjun Shou, Bing Qin, Ting Liu, Daxin Jiang, and Ming Zhou. Codebert: A pre-trained model for programming and natural languages. arXiv preprint arXiv:2002.08155, 2020b. doi: 10.48550/ARXIV.2002.08155. URL https://arxiv.org/abs/2002.08155.
+Daniel Fried, Armen Aghajanyan, Jessy Lin, Sida Wang, Eric Wallace, Freda Shi, Ruiqi Zhong, Wen-tau Yih, Luke Zettlemoyer, and Mike Lewis. Incoder: A generative model for code inﬁlling and synthesis, 2022. URL https://arxiv.org/abs/2204.05999.
+14
+
+
+Preprint
+Leo Gao, Stella Biderman, Sid Black, Laurence Golding, Travis Hoppe, Charles Foster, Jason Phang, Horace He, Anish Thite, Noa Nabeshima, Shawn Presser, and Connor Leahy. The Pile: An 800GB dataset of diverse text for language modeling, 2020.
+Leo Gao, Jonathan Tow, Stella Biderman, Sid Black, Anthony DiPoﬁ, Charles Foster, Laurence Golding, Jeffrey Hsu, Kyle McDonell, Niklas Muennighoff, Jason Phang, Laria Reynolds, Eric Tang, Anish Thite, Ben Wang, Kevin Wang, and Andy Zou. A framework for few-shot lan- guage model evaluation, September 2021. URL https://doi.org/10.5281/zenodo. 5371628.
+Vincent J. Hellendoorn, Christian Bird, Earl T. Barr, and Miltiadis Allamanis. Deep Learning Type
+Inference. In Fse, 2018.
+Dan Hendrycks, Steven Basart, Saurav Kadavath, Mantas Mazeika, Akul Arora, Ethan Guo, Collin Burns, Samir Puranik, Horace He, Dawn Song, and Jacob Steinhardt. Measuring coding challenge competence with APPS. arXiv preprint arXiv:2105.09938, 2021. doi: 10.48550/ARXIV.2105. 09938. URL https://arxiv.org/abs/2105.09938.
+Hamel Husain, Ho-Hsiang Wu, Tiferet Gazit, Miltiadis Allamanis, and Marc Brockschmidt. arXiv preprint
+CodeSearchNet challenge: Evaluating the state of semantic code search. arXiv:1909.09436, 2019.
+Srinivasan Iyer, Ioannis Konstas, Alvin Cheung, and Luke Zettlemoyer. Mapping language to code
+in programmatic context. arXiv preprint arXiv:1808.09588, 2018.
+Maliheh Izadi, Roberta Gismondi, and Georgios Gousios. Codeﬁll: Multi-token code completion by jointly learning from structure and naming sequences. In Proceedings of the 44th International Conference on Software Engineering, ICSE ’22, pp. 401–412, New York, NY, USA, 2022. Asso- ciation for Computing Machinery. ISBN 9781450392211. doi: 10.1145/3510003.3510172. URL https://doi.org/10.1145/3510003.3510172.
+Aditya Kanade, Petros Maniatis, Gogul Balakrishnan, and Kensen Shi. Learning and evaluating contextual embedding of source code. In Proceedings of the 37th International Conference on Machine Learning, ICML’20. JMLR.org, 2020.
+Diederik P. Kingma and Jimmy Ba. Adam: A method for stochastic optimization.
+In Yoshua Bengio and Yann LeCun (eds.), 3rd International Conference on Learning Representations, ICLR 2015, San Diego, CA, USA, May 7-9, 2015, Conference Track Proceedings, 2015. URL http: //arxiv.org/abs/1412.6980.
+Denis Kocetkov, Raymond Li, Loubna Ben Allal, Jia Li, Chenghao Mou, Carlos Mu˜noz Ferrandis, Yacine Jernite, Margaret Mitchell, Sean Hughes, Thomas Wolf, Dzmitry Bahdanau, Leandro von Werra, and Harm de Vries. The Stack: 3 TB of permissively licensed source code. Preprint, 2022.
+Sumith Kulal, Panupong Pasupat, Kartik Chandra, Mina Lee, Oded Padon, Alex Aiken, and Percy S Liang. Spoc: Search-based pseudocode to code. In H. Wallach, H. Larochelle, A. Beygelzimer, F. d'Alch´e-Buc, E. Fox, and R. Garnett (eds.), Advances in Neural Information Processing Sys- tems, volume 32. Curran Associates, Inc., 2019. URL https://proceedings.neurips. cc/paper/2019/file/7298332f04ac004a0ca44cc69ecf6f6b-Paper.pdf.
+Yuhang Lai, Chengxi Li, Yiming Wang, Tianyi Zhang, Ruiqi Zhong, Luke Zettlemoyer, Scott Wen tau Yih, Daniel Fried, Sida Wang, and Tao Yu. Ds-1000: A natural and reliable benchmark for data science code generation. ArXiv, abs/2211.11501, 2022.
+Yujia Li, David Choi, Junyoung Chung, Nate Kushman, Julian Schrittwieser, R´emi Leblond, Tom Eccles, James Keeling, Felix Gimeno, Agustin Dal Lago, Thomas Hubert, Peter Choy, Cyprien de Masson d’Autume, Igor Babuschkin, Xinyun Chen, Po-Sen Huang, Johannes Welbl, Sven Gowal, Alexey Cherepanov, James Molloy, Daniel Mankowitz, Esme Sutherland Robson, Push- meet Kohli, Nando de Freitas, Koray Kavukcuoglu, and Oriol Vinyals. Competition-level code generation with alphacode. arXiv preprint arXiv:2203.07814, 2022.
+15
+
+
+Preprint
+Shuai Lu, Daya Guo, Shuo Ren, Junjie Huang, Alexey Svyatkovskiy, Ambrosio Blanco, Colin Clement, Dawn Drain, Daxin Jiang, Duyu Tang, et al. Codexglue: A machine learning benchmark dataset for code understanding and generation. arXiv preprint arXiv:2102.04664, 2021.
+Anthony MOI, Nicolas Patry, Pierric Cistac, Pete, Funtowicz Morgan, Sebastian P¨utz, Mishig, Bjarte Johansen, Thomas Wolf, Sylvain Gugger, Clement, Julien Chaumond, Lysandre Debut, Franc¸ois Garillot, Luc Georges, dctelus, JC Louis, MarcusGrass, Tauﬁquzzaman Peyash, 0xﬂotus, Alan deLevie, Alexander Mamaev, Arthur, Cameron, Colin Clement, Dagmawi Moges, David Hewitt, Denis Zolotukhin, and Geoffrey Thomas. huggingface/tokenizers: Rust 0.13.2, November 2022. URL https://doi.org/10.5281/zenodo.7298413.
+Erik Nijkamp, Bo Pang, Hiroaki Hayashi, Lifu Tu, Huan Wang, Yingbo Zhou, Silvio Savarese, and
+Caiming Xiong. A conversational paradigm for program synthesis. arXiv preprint, 2022.
+Michael Pradel, Georgios Gousios, Jason Liu, and Satish Chandra. TypeWriter: Neural Type Pre-
+diction with Search-Based Validation. In Esecfse, 2020.
+Shuo Ren, Daya Guo, Shuai Lu, Long Zhou, Shujie Liu, Duyu Tang, Neel Sundaresan, Ming Zhou, Ambrosio Blanco, and Shuai Ma. Codebleu: a method for automatic evaluation of code synthesis, 2020. URL https://arxiv.org/abs/2009.10297.
+Baptiste Roziere, Marie-Anne Lachaux, Marc Szafraniec, and Guillaume Lample. Dobf: A deob- fuscation pre-training objective for programming languages. arXiv preprint arXiv:2102.07492, 2021.
+Phillip Rust, Jonas Pfeiffer, Ivan Vuli´c, Sebastian Ruder, and Iryna Gurevych. How good is your to- kenizer? on the monolingual performance of multilingual language models. In Proceedings of the 59th Annual Meeting of the Association for Computational Linguistics and the 11th International Joint Conference on Natural Language Processing (Volume 1: Long Papers), pp. 3118–3135, On- line, August 2021. Association for Computational Linguistics. doi: 10.18653/v1/2021.acl-long. 243. URL https://aclanthology.org/2021.acl-long.243.
+Teven Le Scao, Angela Fan, Christopher Akiki, Ellie Pavlick, Suzana Ili´c, Daniel Hesslow, Roman Castagn´e, Alexandra Sasha Luccioni, Franc¸ois Yvon, Matthias Gall´e, et al. Bloom: A 176b- parameter open-access multilingual language model. arXiv preprint arXiv:2211.05100, 2022.
+Noam Shazeer. Fast transformer decoding: One write-head is all you need. CoRR, abs/1911.02150,
+2019. URL http://arxiv.org/abs/1911.02150.
+Michele Tufano, Dawn Drain, Alexey Svyatkovskiy, Shao Kun Deng, and Neel Sundaresan. Unit test case generation with transformers and focal context. arXiv preprint arXiv:2009.10297, 2020. doi: 10.48550/ARXIV.2009.05617. URL https://arxiv.org/abs/2009.05617.
+Lewis Tunstall, Leandro Von Werra, and Thomas Wolf. Natural language processing with trans-
+formers, revised edition. O’Reilly Media, Sebastopol, CA, June 2022.
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, In Advances in Neural Infor-
+Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. mation Processing Systems, pp. 5998–6008, 2017.
+Yue Wang, Weishi Wang, Shaﬁq Joty, and Steven C.H. Hoi. CodeT5: Identiﬁer-aware uniﬁed pre-trained encoder-decoder models for code understanding and generation. In Proceedings of the 2021 Conference on Empirical Methods in Natural Language Processing, pp. 8696–8708, Online and Punta Cana, Dominican Republic, November 2021. Association for Computational Linguistics. doi: 10.18653/v1/2021.emnlp-main.685. URL https://aclanthology.org/ 2021.emnlp-main.685.
+Frank F. Xu, Uri Alon, Graham Neubig, and Vincent Josua Hellendoorn. A systematic evalua- tion of large language models of code. In Proceedings of the 6th ACM SIGPLAN International Symposium on Machine Programming, MAPS 2022, pp. 1–10, New York, NY, USA, 2022a. As- sociation for Computing Machinery. ISBN 9781450392730. doi: 10.1145/3520312.3534862. URL https://doi.org/10.1145/3520312.3534862.
+16
+
+
+Preprint
+Frank F. Xu, Uri Alon, Graham Neubig, and Vincent Josua Hellendoorn. A systematic evalua- tion of large language models of code. In Proceedings of the 6th ACM SIGPLAN International Symposium on Machine Programming, MAPS 2022, pp. 1–10, New York, NY, USA, 2022b. As- sociation for Computing Machinery. ISBN 9781450392730. doi: 10.1145/3520312.3534862. URL https://doi.org/10.1145/3520312.3534862.
+Tao Yu, Rui Zhang, Kai Yang, Michihiro Yasunaga, Dongxu Wang, Zifan Li, James Ma, Irene Li, Qingning Yao, Shanelle Roman, Zilin Zhang, and Dragomir Radev. Spider: A large-scale human- labeled dataset for complex and cross-domain semantic parsing and text-to-sql task, 2018. URL https://arxiv.org/abs/1809.08887.
+Victor Zhong, Caiming Xiong, and Richard Socher. Seq2sql: Generating structured queries from natural language using reinforcement learning, 2017. URL https://arxiv.org/abs/ 1709.00103.
+A FULL TEXT2CODE RESULTS
+We report the full results of all experiments. Table 8 and 9 show the full results for the data ﬁltering ablations on HumanEval and MBPP, respectively. Table 10 and 11 reports the full results for the architecture ablations on HumanEval and MBPP, respectively.
+Language Model
+Pass@1
+Pass@10
+Pass@100
+Java
+Baseline GitHub stars Comments-to-code ratio More near deduplication Tokenizer fertility
+0.1 0.08 0.11 0.13 0.11
+0.19 0.16 0.2 0.22 0.19
+0.35 0.3 0.35 0.38 0.35
+JavaScript
+Baseline GitHub stars Comments-to-code ratio More near deduplication Tokenizer fertility
+0.12 0.08 0.12 0.14 0.1
+0.19 0.15 0.2 0.2 0.19
+0.33 0.3 0.35 0.37 0.35
+Python
+Baseline GitHub stars Comments-to-code ratio More near deduplication Tokenizer fertility
+0.12 0.1 0.14 0.13 0.14
+0.21 0.18 0.22 0.22 0.21
+0.36 0.31 0.38 0.37 0.36
+Table 8: Full results for data ﬁltering ablations on HumanEval
+17
+
+
+Preprint
+Language Model
+Pass@1
+Pass@10
+Java
+Baseline GitHub stars Comments-to-code ratio More near deduplication Tokenizer fertility
+0.23 0.18 0.22 0.23 0.22
+0.37 0.33 0.37 0.38 0.38
+JavaScript
+Baseline GitHub stars Comments-to-code ratio More near deduplication Tokenizer fertility
+0.25 0.19 0.25 0.26 0.24
+0.43 0.37 0.44 0.45 0.43
+Python
+Baseline GitHub stars Comments-to-code ratio More near deduplication Tokenizer fertility
+0.27 0.24 0.3 0.31 0.28
+0.47 0.41 0.48 0.49 0.47
+Table 9: Full results for data ﬁltering ablations on MBPP
+Language Attention
+FIM Pass@1
+Pass@10
+Java
+JavaScript
+Python
+Multi Query Attention (cid:51) (cid:51) Multi Head Attention (cid:55) Multi Query Attention Multi Query Attention (cid:51) (cid:51) Multi Head Attention (cid:55) Multi Query Attention Multi Query Attention (cid:51) (cid:51) Multi Head Attention (cid:55) Multi Query Attention
+0.1 0.12 0.11
+0.12 0.13 0.14
+0.12 0.13 0.14
+0.19 0.21 0.21
+0.19 0.21 0.21
+0.21 0.24 0.23
+Table 10: Full results for architecture ablations on HumanEval
+18
+Pass@100
+0.54 0.49 0.52 0.55 0.53
+0.64 0.59 0.65 0.66 0.65
+0.67 0.63 0.69 0.71 0.68
+Pass@100
+0.35 0.36 0.37
+0.33 0.37 0.37
+0.36 0.38 0.39
+
+
+Preprint
+Language Attention
+FIM Pass@1
+Pass@10
+Pass@100
+Java
+JavaScript
+Python
+Multi Query Attention (cid:51) (cid:51) Multi Head Attention (cid:55) Multi Query Attention Multi Query Attention (cid:51) (cid:51) Multi Head Attention (cid:55) Multi Query Attention Multi Query Attention (cid:51) (cid:51) Multi Head Attention (cid:55) Multi Query Attention
+0.23 0.23 0.23
+0.25 0.26 0.23
+0.27 0.31 0.28
+0.37 0.38 0.37
+0.43 0.46 0.44
+0.47 0.49 0.47
+0.54 0.55 0.55
+0.64 0.67 0.65
+0.67 0.7 0.68
+Table 11: Full results for architecture ablations on MBPP
+Model Family
+Variant
+BLEU
+InCoder CodeGen-Mono
+6.7B 16B
+16.04 20.56
+SantaCoder SantaCoder SantaCoder SantaCoder
+Baseline No-FIM MHA Bf16
+17.67 17.71 17.72 17.67
+SantaCoder SantaCoder SantaCoder SantaCoder
+GitHub Stars Comments-to-code More near deduplication Tokenizer fertility
+18.04 17.81 17.65 17.64
+SantaCoder
+Final
+18.13
+Table 12: CodeXGLUE (Lu et al., 2021) Python Docstring generation smoothed 4-gram BLEU scores using the same methodology as Fried et al. (2022) (L-R single). Models are evaluated zero- shot, greedily and with a maximum generation length of 128.
+B DOCSTRING GENERATION
+In addition to code completion benchmarks, we also report results on docstring generation. To this end, we evaluate our models on CodeXGLUE code-to-text Lu et al. (2021), which is a benchmark constructed from CodeSearchNet Husain et al. (2019). We use the bigcode-evaluation-harness li- brary Ben Allal et al. (2022), which is derived from lm-evaluation-harness Gao et al. (2021). Models are prompted with a Python function signature and asked to output a corresponding docstring. Re- sults are shown in Table 12.
+Findings We ﬁnd all BigCode Santa variants with 1.1B parameters to outperform the 6.7B In- Coder model (Fried et al., 2022), which we attribute to differences in the training datasets. Among BigCode models, variants trained on more Python perform better: The stars variant with 32% of Python in its training corpus outperforms the tokenizer fertility variant with only 28.5% of Python (see proportions in Table 3). The bfloat16 is the same as the no-ﬁm variant, except for the lat- ter being trained in float16. There’s no notable performance difference between the two, likely because at our small scale of 1.1B parameters we did not face any training instabilites.
+Qualitative examples Below is an example prompt from CodeXGLUE. Model generations and the correct solution are in Table 13.
+def dailymotion_download(url, output_dir=’.’, merge=True,
+info_only=False, **kwargs): """
+19
+
+
+Preprint
+Model Family
+Variant
+Generation
+InCoder CodeGen-Mono
+6.7B 16B
+Download a video from Dailymotion. Downloads Dailymotion videos by URL.
+SantaCoder SantaCoder SantaCoder SantaCoder
+Baseline FIM MHA bf16
+Download Dailymotion videos. Download a video from a dailymotion video. Download a video from a Dailymotion video. Download video from dailymotion.com.
+SantaCoder SantaCoder SantaCoder SantaCoder
+GitHub stars Comments-to-code More near deduplication Download a dailymotion video. Tokenizer fertility
+Download media from dailymotion.com Download a video from Dailymotion.
+Download a video from Dailymotion.
+Correct solution
+Downloads Dailymotion videos by URL.
+Table 13: CodeXGLUE (Lu et al., 2021) Python Docstring generation examples.
+C PII
+C.1 REGULAR EXPRESSIONS
+Email addresses We used the following regular expression to detect emails.
+email_pattern = r’’’
+(?<= ˆ | [\b\s@,?!;:)(’".\p{Han}<] ) (
+[ˆ\b\s@?!;,:)(’"<]+ @ [ˆ\b\s@!?;,/]* [ˆ\b\s@?!;,/:)(’">.] \. \p{L} \w{1,}
+) (?= $ | [\b\s@,?!;:)(’".\p{Han}>] )
+’’’
+We replace detected emails with [random 5 character string]@example.com.
+IP addresses We used the following regular expressions to detect IPv4 and IPv6 addresses.
+ipv4_pattern = r"(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?) (?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}" ipv6_pattern = r"(?:[0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F
+]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,7}:|(?:[0-9a-fA-F]{1,4}:) {1,6}:[0-9a-fA-F]{1,4}|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA- F]{1,4}){1,2}|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}) {1,3}|(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}) {1,4}|(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}) {1,5}|[0-9a-fA-F]{1,4}:(?:(?::[0-9a-fA-F]{1,4}){1,6}) |:(?:(?::[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(?::[0-9a-fA-F]{0,4}) {0,4}%[0-9a-zA-Z]{1,}|::(?:ffff(?::0{1,4}){0,1}:) {0,1}(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.) {3,3}(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])|(?:[0-9a-fA- F]{1,4}:){1,4}:(?:(?:25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9]) \.){3,3}(25[0-5]|(?:2[0-4]|1{0,1}[0-9]){0,1}[0-9])"
+ip_pattern = (
+r"(?:ˆ|[\b\s@?,!;:\’\")(.\p{Han}])(" + r"|".join([ipv4_pattern, ipv6_pattern])
+20
+
+
+Preprint
++ ")(?:$|[\s@,?!;:’\"(.\p{Han}])"
+)
+Data pre-ﬁltering This is the regular expression we used to pre-ﬁlter the annotation dataset for data containing emails.
+email_pattern = r’([ˆ\s@,?!;:\’\"=)(]+@[ˆ,\s!?;,\’\"=]{3,}[\.][ˆ\s
+\b\’\"@,?!;:)(.]+)’
+For IP addresses, we used the same regular expression as the one used for PII detection.
+C.2 LIST OF PRIVATE IP ADDRESSES AND POPULAR DNS SERVERS
+8.8.8.8
+8.8.4.4
+1.1.1.1
+1.0.0.1
+76.76.19.19
+76.223.122.150
+9.9.9.9
+149.112.112.112
+208.67.222.222
+208.67.220.220
+8.26.56.26
+8.20.247.20
+94.140.14.14
+94.140.15.15
+C.3 DETECT-SECRETS FILTERS
+detect secrets.ﬁlters.heuristic.is potential uuid
+detect secrets.ﬁlters.heuristic.is likely id string
+detect secrets.ﬁlters.heuristic.is templated secret
+detect secrets.ﬁlters.heuristic.is sequential string
+Implementation bigcode-dataset/blob/6b3f54751b6e38e1ed70f2307331d6943ba39eae/ pii/utils/keys_detection.py#L11.
+available
+at
+https://github.com/bigcode-project/
+C.4 DETECT-SECRETS PLUGINS
+ArtifactoryDetector
+AWSKeyDetector
+Base64HighEntropyString
+HexHighEntropyString
+AzureStorageKeyDetector
+CloudantDetector
+DiscordBotTokenDetector
+GitHubTokenDetector
+21
+
+
+Preprint
+IbmCloudIamDetector
+IbmCosHmacDetector
+JwtTokenDetector
+MailchimpDetector
+NpmDetector
+SendGridDetector
+SlackDetector
+SoftlayerDetector
+StripeDetector
+TwilioKeyDetector
+https://github.com/bigcode-project/
+Implementation bigcode-dataset/blob/6b3f54751b6e38e1ed70f2307331d6943ba39eae/ pii/utils/keys_detection.py#L19.
+available
+at
+22
