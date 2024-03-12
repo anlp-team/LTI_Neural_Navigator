@@ -14,14 +14,20 @@ from langchain_community.document_loaders import DirectoryLoader
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
-from transformers import BitsAndBytesConfig, AutoTokenizer, AutoModelForCausalLM, pipeline
+from transformers import (
+    BitsAndBytesConfig,
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    pipeline,
+)
 
 from rag.doc_reader import QuestionAnsweringModel, ContextSelector, AnswerProcessor
 from rag.embedder import EmbeddingModel, Embedder
 from rag.retriever import DocumentDatabase, Ranker, Retriever
 
 from langchain.retrievers import ContextualCompressionRetriever
-from langchain.retrievers.document_compressors.cohere_rerank import CohereRerank
+from rag.reranker import BgeRerank
+
 
 def arg_parser():
     parser = argparse.ArgumentParser(description="LTI Neural Navigator")
@@ -30,9 +36,12 @@ def arg_parser():
     #                     help="Question to ask")
     parser.add_argument("--test_set", type=str,
                         default="/home/ubuntu/rag-project/testset/final_test.txt",
-                        help="Path to test set")
-    parser.add_argument("--test_output", type=str,
-                        default="/home/ubuntu/rag-project/testset/final_test_output.txt",
+        help="Path to test set",
+    )
+    parser.add_argument(
+        "--test_output",
+        type=str,
+        default="/home/ubuntu/rag-project/testset/final_test_output.txt",
                         help="Path to test output")
     parser.add_argument("--topk", type=int, default=5, help="Maximum number of documents to retrieve")
     parser.add_argument("--generate_batch_size", type=int, default=10,
@@ -56,6 +65,8 @@ def arg_parser():
 
     parser.add_argument("--cache_dir", type=str, default="/mnt/datavol/cache", help="Directory to store cache")
     parser.add_argument("--streaming_output", action="store_true", default=False, help="Stream output to console")
+    parser.add_argument("--reranker", type=str, default="bge", help="Reranker to use",
+                        choices=["bge", "none"])
 
     return parser.parse_args()
 
@@ -107,13 +118,13 @@ def langchain(args):
     vectorstore = Chroma.from_documents(documents=all_splits, embedding=embeddings)
     retriever = vectorstore.as_retriever()
 
-    import getpass
-    os.environ["COHERE_API_KEY"] = getpass.getpass("Cohere API Key:")
-    compressor = CohereRerank()
-    compression_retriever = ContextualCompressionRetriever(
-        base_compressor=compressor, base_retriever=retriever
-    )
-
+    if args.reranker == "bge":
+        compressor = BgeRerank(model_name="avsolatorio/GIST-large-Embedding-v0", top_n=5)
+        compression_retriever = ContextualCompressionRetriever(
+            base_compressor=compressor, base_retriever=retriever
+        )
+        retriever = compression_retriever
+    
     # prepare core model
     tokenizer = AutoTokenizer.from_pretrained(
         args.core_model_id,
@@ -145,7 +156,7 @@ def langchain(args):
         # Define the chain
         # TODO: add reranker to chain
         chain = (
-                {"context": compression_retriever | format_docs, "question": RunnablePassthrough()}
+                {"context": retriever | format_docs, "question": RunnablePassthrough()}
                 | prompt
                 | gen_pipeline
                 | StrOutputParser()
@@ -194,7 +205,7 @@ def langchain(args):
             # Define the chain
             # TODO: add reranker to chain
             chain = (
-                    {"context": compression_retriever | format_docs, "question": RunnablePassthrough()}
+                    {"context": retriever | format_docs, "question": RunnablePassthrough()}
                     | prompt
                     | gen_pipeline
                     | StrOutputParser()
