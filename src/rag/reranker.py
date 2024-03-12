@@ -12,7 +12,7 @@ from sentence_transformers import CrossEncoder
 
 
 class BgeRerank(BaseDocumentCompressor):
-    model_name: str = "avsolatorio/GIST-large-Embedding-v0"
+    model_name: str = "BAAI/bge-reranker-large"
     """Model name to use for reranking."""
     model: CrossEncoder = CrossEncoder(model_name)
     """CrossEncoder instance to use for reranking."""
@@ -32,10 +32,10 @@ class BgeRerank(BaseDocumentCompressor):
         arbitrary_types_allowed = True
 
     def compress_documents(
-            self,
-            documents: Sequence[Document],
-            query: str,
-            callbacks: Optional[Callbacks] = None,
+        self,
+        documents: Sequence[Document],
+        query: str,
+        callbacks: Optional[Callbacks] = None,
     ) -> Sequence[Document]:
         """
         Compress documents using BAAI/bge-reranker models.

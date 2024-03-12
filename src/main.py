@@ -29,6 +29,7 @@ from rag.retriever import DocumentDatabase, Ranker, Retriever
 
 from langchain.retrievers import ContextualCompressionRetriever
 from rag.reranker import BgeRerank
+from tqdm import tqdm
 
 
 def arg_parser():
@@ -58,6 +59,7 @@ def arg_parser():
     parser.add_argument("--device", type=str, default="cuda", help="Device to run the model on")
     parser.add_argument("--reranker", type=str, default="bge", help="Reranker to use",
                         choices=["bge", "none"])
+    parser.add_argument("--reranker_topk", type=int, default=5, help="Number of documents to rerank")
 
     parser.add_argument("--knowledge_base", type=str, default="/home/ubuntu/rag-project/data/sample/html_samples/",
                         help="Path to knowledge base")
@@ -70,13 +72,13 @@ def arg_parser():
                         # default="BAAI/bge-small-en",
                         help="Model ID for the embedding model")
     parser.add_argument("--reranker_model_id", type=str,
-                        default="avsolatorio/GIST-large-Embedding-v0",
+                        default="BAAI/bge-reranker-large",
                         help="Model ID for the reranker")
 
     parser.add_argument("--cache_dir", type=str, default="/mnt/datavol/cache", help="Directory to store cache")
     parser.add_argument("--streaming_output", action="store_true", default=False, help="Stream output to console")
     parser.add_argument("--eval_num", type=int, default=50,
-                        help="Number of examples to evaluate, 0 for all examples")
+                        help="Number of examples to evaluate, 0 for all examples, -1 for no evaluation")
 
     return parser.parse_args()
 
@@ -107,12 +109,14 @@ def main():
 # Temporarily solution
 def langchain(args):
     start_time = time.time()
-
+    time_stamp = start_time
     loader = DirectoryLoader(args.knowledge_base)
     data = loader.load()
+    time_stamp = print_time(time_stamp, "Loaded data")
 
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=0)
     all_splits = text_splitter.split_documents(data)
+    time_stamp = print_time(time_stamp, "Split documents")
 
     # prepare embedding model
     embeddings = HuggingFaceEmbeddings(
@@ -125,10 +129,12 @@ def langchain(args):
         },
         cache_folder=args.cache_dir
     )
+    time_stamp = print_time(time_stamp, "Loaded embeddings")
 
     # prepare vector store
     vectorstore = Chroma.from_documents(documents=all_splits, embedding=embeddings)
-    retriever = vectorstore.as_retriever()
+    retriever = vectorstore.as_retriever(search_kwargs={"k": args.topk})
+    time_stamp = print_time(time_stamp, "Loaded vectorstore")
 
     # prepare reranker
     if args.reranker == "bge":
@@ -144,11 +150,12 @@ def langchain(args):
             }
         )
 
-        compressor = BgeRerank(model=reranker_model, top_n=args.topk)
+        compressor = BgeRerank(model=reranker_model, top_n=args.reranker_topk)
         compression_retriever = ContextualCompressionRetriever(
             base_compressor=compressor, base_retriever=retriever
         )
         retriever = compression_retriever
+        time_stamp = print_time(time_stamp, "Loaded reranker")
 
     # prepare core model
     tokenizer = AutoTokenizer.from_pretrained(
@@ -172,6 +179,7 @@ def langchain(args):
         device=None  # because we use device_map="auto"
     )
     gen_pipeline = HuggingFacePipeline(pipeline=pipe)
+    time_stamp = print_time(time_stamp, "Loaded core model")
 
     # prepare prompt
     prompt = hub.pull("yeyuan/rag-prompt-llama")
@@ -196,19 +204,22 @@ def langchain(args):
             questions = [q.strip() for q in questions]
 
         # get groundtruth answers
-        with open(args.groundtruth, "r") as f:
-            ground_truths = f.readlines()
-            ground_truths = [gt.strip() for gt in ground_truths]
+        if args.eval_num != -1:
+            with open(args.groundtruth, "r") as f:
+                ground_truths = f.readlines()
+                ground_truths = [gt.strip() for gt in ground_truths]
 
-        if args.eval_num > 0:
-            questions = questions[:args.eval_num]
-            ground_truths = ground_truths[:args.eval_num]
+            if args.eval_num > 0:
+                questions = questions[:args.eval_num]
+                ground_truths = ground_truths[:args.eval_num]
 
-        # initialize metrics
-        total_exact_match_count = 0
-        total_recall = 0
-        total_precision = 0
-        total_examples = 0
+            # initialize metrics
+            total_exact_match_count = 0
+            total_recall = 0
+            total_precision = 0
+            total_examples = 0
+        else:
+            ground_truths = ["" for _ in questions]
 
         # get iterator of questions
         for batch in get_data(questions, ground_truths, args.generate_batch_size):
@@ -237,32 +248,34 @@ def langchain(args):
                 print(f"GT: {batch_gts[i]}")
 
             # print metrics
-            metrics = calculate_metrics(outputs, batch_gts)
-            print(f'''
-            Metrics:
-            Recall: {metrics["recall"]}
-            Exact Match: {metrics["exact_match"]}
-            F1: {metrics["f1"]}
-            ''')
-            total_exact_match_count += metrics["exact_match_count"]
-            total_recall += metrics["total_recall"]
-            total_precision += metrics["total_precision"]
-            total_examples += metrics["total_examples"]
+            if args.eval_num != -1:
+                metrics = calculate_metrics(outputs, batch_gts)
+                print(f'''
+                Metrics:
+                Recall: {metrics["recall"]}
+                Exact Match: {metrics["exact_match"]}
+                F1: {metrics["f1"]}
+                ''')
+                total_exact_match_count += metrics["exact_match_count"]
+                total_recall += metrics["total_recall"]
+                total_precision += metrics["total_precision"]
+                total_examples += metrics["total_examples"]
 
-        # print total metrics
-        metric_total_recall = total_recall / total_examples
-        metric_total_precision = total_precision / total_examples
-        metric_total_f1 = 2 * (metric_total_precision * metric_total_recall) / (
-                metric_total_precision + metric_total_recall) if (
-                metric_total_precision + metric_total_recall) else 0
-        metric_total_exact_match = total_exact_match_count / total_examples
-        print(f'''
-        Total Metrics:
-        Total Recall: {metric_total_recall}
-        Total Exact Match: {metric_total_exact_match}
-        Total F1: {metric_total_f1}
-        ''')
-        # End of batch generation mode
+        if args.eval_num != -1:
+            # print total metrics
+            metric_total_recall = total_recall / total_examples
+            metric_total_precision = total_precision / total_examples
+            metric_total_f1 = 2 * (metric_total_precision * metric_total_recall) / (
+                    metric_total_precision + metric_total_recall) if (
+                    metric_total_precision + metric_total_recall) else 0
+            metric_total_exact_match = total_exact_match_count / total_examples
+            print(f'''
+            Total Metrics:
+            Total Recall: {metric_total_recall}
+            Total Exact Match: {metric_total_exact_match}
+            Total F1: {metric_total_f1}
+            ''')
+            # End of batch generation mode
 
     else:
         # interactive
@@ -309,9 +322,12 @@ def format_docs_and_print(docs):
 
 
 def get_data(data: List[str], groundtruth: List[str], batch_size: int):
-    assert len(data) == len(groundtruth), "Length of data and groundtruth must be the same."
+    assert len(data) == len(
+        groundtruth
+    ), "Length of data and groundtruth must be the same."
     questions_iter = iter(data)
     groundtruth_iter = iter(groundtruth)
+    pbar = tqdm(total=int(len(data) / batch_size) + 1, desc="Batching")
     while True:
         batch_data = []
         for _ in range(batch_size):
@@ -324,6 +340,7 @@ def get_data(data: List[str], groundtruth: List[str], batch_size: int):
         if not batch_data:
             break
         yield batch_data
+        pbar.update(1)
 
 
 def calculate_metrics(predictions, ground_truths):
@@ -358,9 +375,14 @@ def calculate_metrics(predictions, ground_truths):
             "exact_match_count": exact_match_count, "total_examples": total_examples,
             "total_recall": total_recall, "total_precision": total_precision}
 
+def print_time(start_time, message):
+    curr = time.time()
+    print(f"{message} in {curr - start_time} seconds.", flush=True)
+    return curr
 
 if __name__ == "__main__":
     args = arg_parser()
+    print(args, flush=True)
 
     # Do some initializations
     os.environ['HF_HOME'] = args.cache_dir
