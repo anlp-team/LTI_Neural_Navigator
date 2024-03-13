@@ -22,6 +22,22 @@ The main.py script is designed to be run from the command line with various argu
 python main.py --knowledge_base <path_to_knowledge_base> --test_set <path_to_questions> --groundtruth <path_to_answers>
 ```
 
+```bash
+python ${CODE}/src/main.py \
+--topk 10 \
+--reranker_topk 5 \
+--generate_batch_size 16 \
+--knowledge_base <path_to_knowledge_base> \
+--cache_dir <path_to_cache_dir> \
+--test_set <path_to_questions> \
+--test_output <path_to_store_answers> \
+--groundtruth <path_to_answers> \
+--eval_num 512 \
+--peft_model_id STEVENZHANG904/finetuned_llama2_chat_7b_hf_11711HW2 \
+--embed_model_id YEthYuan/mxbai-embed-large-v1-finetuned-qa  \
+> <path_to_stdout> 2>&1
+```
+
 ### Key Arguments
 - --knowledge_base: The path to the directory containing your knowledge base documents.
 - --test_set: The path to the file containing test set questions.

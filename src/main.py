@@ -30,6 +30,7 @@ from rag.retriever import DocumentDatabase, Ranker, Retriever
 from langchain.retrievers import ContextualCompressionRetriever
 from rag.reranker import BgeRerank
 from tqdm import tqdm
+from peft import PeftModel
 
 
 def arg_parser():
@@ -74,6 +75,9 @@ def arg_parser():
     parser.add_argument("--reranker_model_id", type=str,
                         default="BAAI/bge-reranker-large",
                         help="Model ID for the reranker")
+    parser.add_argument(
+        "--peft_model_id", type=str, default="none", help="Model ID for the PEFT model"
+    )
 
     parser.add_argument("--cache_dir", type=str, default="/mnt/datavol/cache", help="Directory to store cache")
     parser.add_argument("--streaming_output", action="store_true", default=False, help="Stream output to console")
@@ -171,6 +175,14 @@ def langchain(args):
         device_map="auto",
         cache_dir=args.cache_dir
     )
+
+    if args.peft_model_id != "none":
+        core_model = PeftModel.from_pretrained(
+            core_model,
+            args.peft_model_id,
+        )
+        core_model = core_model.merge_and_unload()
+
     pipe = pipeline(
         task="text-generation",
         model=core_model,
@@ -210,8 +222,13 @@ def langchain(args):
                 ground_truths = [gt.strip() for gt in ground_truths]
 
             if args.eval_num > 0:
-                questions = questions[:args.eval_num]
-                ground_truths = ground_truths[:args.eval_num]
+                # random
+                import random
+                random.seed(20240313)
+                indices = list(range(len(questions)))
+                random.shuffle(indices)
+                questions = [questions[i] for i in indices[:args.eval_num]]
+                ground_truths = [ground_truths[i] for i in indices[:args.eval_num]]
 
             # initialize metrics
             total_exact_match_count = 0
