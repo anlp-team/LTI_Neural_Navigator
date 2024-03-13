@@ -15,14 +15,14 @@ def arg_parser():
     parser.add_argument("--epochs", type=int, default=5, help="Number of epochs to train the model")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size for training")
     parser.add_argument("--eval_batch_size", type=int, default=16, help="Batch size for evaluation")
-    parser.add_argument("--evaluation_steps", type=int, default=1000, help="Number of steps to evaluate the model")
+    parser.add_argument("--evaluation_steps", type=int, default=10000, help="Number of steps to evaluate the model")
     parser.add_argument("--train_data", type=list,
                         default=["/home/ubuntu/rag-project/embedder_dataset/",
                                  "/home/ubuntu/rag-project/dataset_with_ref/"],
                         help="List of directories to train the model on")
     parser.add_argument("--sample_file", type=int, default=-1,
                         help="Number of files to sample from each directory, -1 for all files")
-    parser.add_argument("--sample_question", type=int, default=5,
+    parser.add_argument("--sample_question", type=int, default=20,
                         help="Number of questions to sample from each file, -1 for all questions")
     parser.add_argument("--output_dir", type=str, default="/home/ubuntu/experiments/",
                         help="Directory to store the trained model and evaluation results")
@@ -34,6 +34,8 @@ def arg_parser():
 
     parser.add_argument("--upload_to_hf", type=bool, default=True,
                         help="Whether to upload the model to Hugging Face model hub")
+    parser.add_argument("--commit", type=str, default="Fine-tuned on QA dataset",
+                        help="Commit message for the model upload")
 
     args = parser.parse_args()
     return args
@@ -84,7 +86,7 @@ def main_worker(args):
         try:
             model.save_to_hub(
                 repo_id=args.hf_save_model_id,
-                commit_message="Fine-tuned on QA dataset",
+                commit_message=args.commit,
                 exist_ok=True,
                 replace_model_card=True
             )
