@@ -1,7 +1,7 @@
 import argparse
 
 from sentence_transformers import SentenceTransformer, InputExample, losses
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 from sentence_transformers.evaluation import EmbeddingSimilarityEvaluator
 import json
 import os
@@ -47,10 +47,10 @@ def main_worker(args):
 
     train_examples = all_examples[:int(len(all_examples) * 0.8)]
     test_examples = all_examples[int(len(all_examples) * 0.8):]
-    test_sentence1s = [example.texts[0] for example in test_examples]
-    test_sentence2s = [example.texts[1] for example in test_examples]
+    train_dataset = InputExampleDataset(train_examples)
+    test_dataset = InputExampleDataset(test_examples)
 
-    train_dataloader = DataLoader(train_examples, shuffle=True, batch_size=args.batch_size)
+    train_dataloader = DataLoader(train_dataset, shuffle=True, batch_size=args.batch_size)
     train_loss = losses.MultipleNegativesRankingLoss(model)
     warmup_steps = int(len(train_examples) * args.epochs / args.batch_size * 0.1)
     print(f"Warmup-steps: {warmup_steps}")
@@ -133,6 +133,17 @@ def json_to_examples(dir_path, sample_file=100, sample_question=3):
                     examples.append(InputExample(texts=[question, context]))
 
     return examples
+
+
+class InputExampleDataset(Dataset):
+    def __init__(self, input_examples):
+        self.input_examples = input_examples
+
+    def __len__(self):
+        return len(self.input_examples)
+
+    def __getitem__(self, idx):
+        return self.input_examples[idx]
 
 
 def main():
