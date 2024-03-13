@@ -222,8 +222,13 @@ def langchain(args):
                 ground_truths = [gt.strip() for gt in ground_truths]
 
             if args.eval_num > 0:
-                questions = questions[:args.eval_num]
-                ground_truths = ground_truths[:args.eval_num]
+                # random
+                import random
+                random.seed(20240313)
+                indices = list(range(len(questions)))
+                random.shuffle(indices)
+                questions = [questions[i] for i in indices[:args.eval_num]]
+                ground_truths = [ground_truths[i] for i in indices[:args.eval_num]]
 
             # initialize metrics
             total_exact_match_count = 0
