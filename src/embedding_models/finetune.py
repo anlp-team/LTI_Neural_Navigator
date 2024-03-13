@@ -12,16 +12,17 @@ def arg_parser():
     parser = argparse.ArgumentParser(description="Fine-tune the embedding model.")
     parser.add_argument("--model_id", type=str, default="mixedbread-ai/mxbai-embed-large-v1",
                         help="Model ID for the embedding model")
-    parser.add_argument("--epochs", type=int, default=1, help="Number of epochs to train the model")
+    parser.add_argument("--epochs", type=int, default=5, help="Number of epochs to train the model")
     parser.add_argument("--batch_size", type=int, default=8, help="Batch size for training")
-    parser.add_argument("--evaluation_steps", type=int, default=1, help="Number of steps to evaluate the model")
+    parser.add_argument("--eval_batch_size", type=int, default=16, help="Batch size for evaluation")
+    parser.add_argument("--evaluation_steps", type=int, default=1000, help="Number of steps to evaluate the model")
     parser.add_argument("--train_data", type=list,
                         default=["/home/ubuntu/rag-project/embedder_dataset/",
                                  "/home/ubuntu/rag-project/dataset_with_ref/"],
                         help="List of directories to train the model on")
-    parser.add_argument("--sample_file", type=int, default=100,
+    parser.add_argument("--sample_file", type=int, default=-1,
                         help="Number of files to sample from each directory, -1 for all files")
-    parser.add_argument("--sample_question", type=int, default=3,
+    parser.add_argument("--sample_question", type=int, default=5,
                         help="Number of questions to sample from each file, -1 for all questions")
     parser.add_argument("--output_dir", type=str, default="/home/ubuntu/experiments/",
                         help="Directory to store the trained model and evaluation results")
@@ -30,6 +31,10 @@ def arg_parser():
     parser.add_argument("--cache_dir", type=str, default="/mnt/datavol/cache",
                         help="Directory to store cache")
     parser.add_argument("--device", type=str, default="cuda", help="Device to run the model on")
+
+    parser.add_argument("--upload_to_hf", type=bool, default=True,
+                        help="Whether to upload the model to Hugging Face model hub")
+
     args = parser.parse_args()
     return args
 
@@ -42,6 +47,8 @@ def main_worker(args):
 
     train_examples = all_examples[:int(len(all_examples) * 0.8)]
     test_examples = all_examples[int(len(all_examples) * 0.8):]
+    test_sentence1s = [example.texts[0] for example in test_examples]
+    test_sentence2s = [example.texts[1] for example in test_examples]
 
     train_dataloader = DataLoader(train_examples, shuffle=True, batch_size=args.batch_size)
     train_loss = losses.MultipleNegativesRankingLoss(model)
@@ -50,6 +57,15 @@ def main_worker(args):
 
     # train and output evaluation results
     evaluator = EmbeddingSimilarityEvaluator.from_input_examples(test_examples, name="finetune-eval")
+    # evaluator = EmbeddingSimilarityEvaluator(
+    #     sentences1=test_sentence1s,
+    #     sentences2=test_sentence2s,
+    #     scores=[1] * len(test_sentence1s),
+    #     name="finetune-eval",
+    #     batch_size=args.eval_batch_size,
+    #     show_progress_bar=False,
+    #     write_csv=True
+    # )
     model.fit(
         train_objectives=[(train_dataloader, train_loss)],
         epochs=args.epochs,
@@ -63,10 +79,17 @@ def main_worker(args):
     model.save(args.output_dir)
 
     # upload model to Hugging Face model hub
-    try:
-        model.save_to_hub(args.hf_save_model_id)
-    except Exception as e:
-        print(f"Error uploading model to Hugging Face model hub: {e}")
+    if args.upload_to_hf:
+        print(f"Uploading model to Hugging Face model hub with ID: {args.hf_save_model_id}")
+        try:
+            model.save_to_hub(
+                repo_id=args.hf_save_model_id,
+                commit_message="Fine-tuned on QA dataset",
+                exist_ok=True,
+                replace_model_card=True
+            )
+        except Exception as e:
+            print(f"Error uploading model to Hugging Face model hub: {e}")
 
 
 def json_to_examples(dir_path, sample_file=100, sample_question=3):
