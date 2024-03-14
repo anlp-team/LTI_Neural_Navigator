@@ -31,7 +31,7 @@ from langchain.retrievers import ContextualCompressionRetriever
 from rag.reranker import BgeRerank
 from tqdm import tqdm
 from peft import PeftModel
-
+import evaluate
 
 def arg_parser():
     parser = argparse.ArgumentParser(description="LTI Neural Navigator")
@@ -272,6 +272,7 @@ def langchain(args):
                 Recall: {metrics["recall"]}
                 Exact Match: {metrics["exact_match"]}
                 F1: {metrics["f1"]}
+                Bleu Score: {metrics['bleu_score']}
                 ''')
                 total_exact_match_count += metrics["exact_match_count"]
                 total_recall += metrics["total_recall"]
@@ -362,7 +363,7 @@ def get_data(data: List[str], groundtruth: List[str], batch_size: int):
 
 def calculate_metrics(predictions, ground_truths):
     assert len(predictions) == len(ground_truths), "Length of predictions and ground truths must be the same."
-
+    bleu = evaluate.load("bleu")
     exact_match_count = 0
     total_recall = 0
     total_precision = 0
@@ -387,10 +388,11 @@ def calculate_metrics(predictions, ground_truths):
     precision = total_precision / total_examples
     f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) else 0
     exact_match = exact_match_count / total_examples
-
+    results = bleu.compute(predictions=predictions, references=ground_truths)
+    bleu_score = results['bleu']
     return {"recall": recall, "f1": f1_score, "exact_match": exact_match,
             "exact_match_count": exact_match_count, "total_examples": total_examples,
-            "total_recall": total_recall, "total_precision": total_precision}
+            "total_recall": total_recall, "total_precision": total_precision, "bleu_score": bleu_score}
 
 def print_time(start_time, message):
     curr = time.time()
