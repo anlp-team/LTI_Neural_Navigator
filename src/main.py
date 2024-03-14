@@ -31,7 +31,7 @@ from langchain.retrievers import ContextualCompressionRetriever
 from rag.reranker import BgeRerank
 from tqdm import tqdm
 from peft import PeftModel
-
+import evaluate
 
 def arg_parser():
     parser = argparse.ArgumentParser(description="LTI Neural Navigator")
@@ -83,6 +83,7 @@ def arg_parser():
     parser.add_argument("--streaming_output", action="store_true", default=False, help="Stream output to console")
     parser.add_argument("--eval_num", type=int, default=50,
                         help="Number of examples to evaluate, 0 for all examples, -1 for no evaluation")
+    parser.add_argument("--eval_seed", type=int, default=20240313, help="Seed for evaluation")
 
     return parser.parse_args()
 
@@ -224,9 +225,12 @@ def langchain(args):
             if args.eval_num > 0:
                 # random
                 import random
-                random.seed(20240313)
+                random.seed(args.eval_seed)
                 indices = list(range(len(questions)))
                 random.shuffle(indices)
+                with open(args.test_output.replace(".txt", "_eval_indices.txt"), "w") as f:
+                    f.write("\n".join(str(i) for i in indices[:args.eval_num]))
+
                 questions = [questions[i] for i in indices[:args.eval_num]]
                 ground_truths = [ground_truths[i] for i in indices[:args.eval_num]]
 
@@ -272,6 +276,7 @@ def langchain(args):
                 Recall: {metrics["recall"]}
                 Exact Match: {metrics["exact_match"]}
                 F1: {metrics["f1"]}
+                Bleu Score: {metrics['bleu_score']}
                 ''')
                 total_exact_match_count += metrics["exact_match_count"]
                 total_recall += metrics["total_recall"]
@@ -362,7 +367,7 @@ def get_data(data: List[str], groundtruth: List[str], batch_size: int):
 
 def calculate_metrics(predictions, ground_truths):
     assert len(predictions) == len(ground_truths), "Length of predictions and ground truths must be the same."
-
+    bleu = evaluate.load("bleu")
     exact_match_count = 0
     total_recall = 0
     total_precision = 0
@@ -387,10 +392,11 @@ def calculate_metrics(predictions, ground_truths):
     precision = total_precision / total_examples
     f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) else 0
     exact_match = exact_match_count / total_examples
-
+    results = bleu.compute(predictions=predictions, references=ground_truths)
+    bleu_score = results['bleu']
     return {"recall": recall, "f1": f1_score, "exact_match": exact_match,
             "exact_match_count": exact_match_count, "total_examples": total_examples,
-            "total_recall": total_recall, "total_precision": total_precision}
+            "total_recall": total_recall, "total_precision": total_precision, "bleu_score": bleu_score}
 
 def print_time(start_time, message):
     curr = time.time()

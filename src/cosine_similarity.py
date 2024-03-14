@@ -19,6 +19,8 @@ def arg_parser():
     parser.add_argument("--cache_dir", type=str,
                         default="",
                         help="Cache directory for the embedding model")
+    parser.add_argument("--indices_file", type=str, default="",
+                        help="Indices file for the model output and original QA pairs")
     return parser.parse_args()
 
 
@@ -28,11 +30,16 @@ def main_worker(args):
 
     with open(args.ground_truth, "r") as f:
         ground_truth = f.readlines()
+    
+    if args.indices_file:
+        with open(args.indices_file, "r") as f:
+            indices = f.readlines()
+        ground_truth = [ground_truth[int(idx.strip())] for idx in indices]
 
     # prepare embedding mdeol
     emb_model = SentenceTransformer(
         args.embedding_model_id,
-        cache_dir=args.cache_dir
+        cache_folder=args.cache_dir
     )
 
     assert len(model_output) == len(ground_truth), "Length of model output and ground truth should be the same"
