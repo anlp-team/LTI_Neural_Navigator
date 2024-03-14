@@ -42,8 +42,14 @@ def calculate_bleu_rouge(input_prediction_path, evaluation_references):
     print(bleu_score['bleu'])
     print(rouge_score)
 
-evaluation_references = get_references('data/QAparallel/testOut_eval_indices.txt', 'data/QAparallel/test_answers.txt')
+evaluation_references = get_references('data/model_evaluation/eval_indices.txt', 'data/QAparallel/test_answers.txt')
 print(len(evaluation_references))
-print(evaluation_references[0])
-calculate_bleu_rouge("/Users/sz904/Downloads/exp_core_fine.out", evaluation_references)
-calculate_bleu_rouge("/Users/sz904/Downloads/exp_emb_core_fine.out", evaluation_references)
+
+result_dir = "data/model_evaluation/"
+for filename in os.listdir(result_dir):
+    if filename == 'eval_indices.txt':
+        continue
+    file_path = os.path.join(result_dir, filename)
+    print('Evaluating file: ', filename)
+    calculate_bleu_rouge(file_path, evaluation_references)
+
