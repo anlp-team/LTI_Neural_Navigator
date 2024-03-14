@@ -52,7 +52,7 @@ def main_worker(args):
         # calculate the cosine similarity
         cosine_scores = util.cos_sim(model_output_embeddings, ground_truth_embeddings)
 
-        global_cosine_scores.extend([cosine_scores[j][j] for j in range(i, i + len(batch_model_output))])
+        global_cosine_scores.extend([cosine_scores[j][j] for j in range(len(cosine_scores))])
 
     print("=" * 50)
     print("Metrics: ")
