@@ -83,6 +83,7 @@ def arg_parser():
     parser.add_argument("--streaming_output", action="store_true", default=False, help="Stream output to console")
     parser.add_argument("--eval_num", type=int, default=50,
                         help="Number of examples to evaluate, 0 for all examples, -1 for no evaluation")
+    parser.add_argument("--eval_seed", type=int, default=20240313, help="Seed for evaluation")
 
     return parser.parse_args()
 
@@ -224,9 +225,12 @@ def langchain(args):
             if args.eval_num > 0:
                 # random
                 import random
-                random.seed(20240313)
+                random.seed(args.eval_seed)
                 indices = list(range(len(questions)))
                 random.shuffle(indices)
+                with open(args.test_output.replace(".txt", "_eval_indices.txt"), "w") as f:
+                    f.write("\n".join(str(i) for i in indices[:args.eval_num]))
+
                 questions = [questions[i] for i in indices[:args.eval_num]]
                 ground_truths = [ground_truths[i] for i in indices[:args.eval_num]]
 
