@@ -30,7 +30,7 @@ sns.lineplot(x='metrics', y='values', data=df_long, ax=ax)
 plt.yticks([])
 
 # Set the xticks to be the metrics names
-plt.xticks(np.linspace(0, 2 * np.pi, 4, endpoint=False), ['recall', 'F1', 'cosine similarity', 'bleu'])
+plt.xticks(np.linspace(0, 2 * np.pi, 4, endpoint=False), ['recall', 'F1', 'cos', 'bleu'])
 
 plt.show()
 # save the plot
