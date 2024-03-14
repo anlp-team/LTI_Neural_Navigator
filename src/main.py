@@ -124,44 +124,45 @@ def langchain(args):
     all_splits = text_splitter.split_documents(data)
     time_stamp = print_time(time_stamp, "Split documents")
 
-    # prepare embedding model
-    embeddings = HuggingFaceEmbeddings(
-        model_name=args.embed_model_id,
-        model_kwargs={
-            "device": args.device,
-        },
-        encode_kwargs={
-
-        },
-        cache_folder=args.cache_dir
-    )
-    time_stamp = print_time(time_stamp, "Loaded embeddings")
-
-    # prepare vector store
-    vectorstore = Chroma.from_documents(documents=all_splits, embedding=embeddings)
-    retriever = vectorstore.as_retriever(search_kwargs={"k": args.topk})
-    time_stamp = print_time(time_stamp, "Loaded vectorstore")
-
-    # prepare reranker
-    if args.reranker == "bge":
-        reranker_model = CrossEncoder(
-            args.reranker_model_id,
-            device=args.device,
-            tokenizer_args={
-                "cache_dir": args.cache_dir,
-                "use_fast": True
+    if args.eval_baseline:
+        # prepare embedding model
+        embeddings = HuggingFaceEmbeddings(
+            model_name=args.embed_model_id,
+            model_kwargs={
+                "device": args.device,
             },
-            automodel_args={
-                "cache_dir": args.cache_dir
-            }
-        )
+            encode_kwargs={
 
-        compressor = BgeRerank(model=reranker_model, top_n=args.reranker_topk)
-        compression_retriever = ContextualCompressionRetriever(
-            base_compressor=compressor, base_retriever=retriever
+            },
+            cache_folder=args.cache_dir
         )
-        retriever = compression_retriever
-        time_stamp = print_time(time_stamp, "Loaded reranker")
+        time_stamp = print_time(time_stamp, "Loaded embeddings")
+
+        # prepare vector store
+        vectorstore = Chroma.from_documents(documents=all_splits, embedding=embeddings)
+        retriever = vectorstore.as_retriever(search_kwargs={"k": args.topk})
+        time_stamp = print_time(time_stamp, "Loaded vectorstore")
+
+        # prepare reranker
+        if args.reranker == "bge":
+            reranker_model = CrossEncoder(
+                args.reranker_model_id,
+                device=args.device,
+                tokenizer_args={
+                    "cache_dir": args.cache_dir,
+                    "use_fast": True
+                },
+                automodel_args={
+                    "cache_dir": args.cache_dir
+                }
+            )
+
+            compressor = BgeRerank(model=reranker_model, top_n=args.reranker_topk)
+            compression_retriever = ContextualCompressionRetriever(
+                base_compressor=compressor, base_retriever=retriever
+            )
+            retriever = compression_retriever
+            time_stamp = print_time(time_stamp, "Loaded reranker")
 
     # prepare core model
     tokenizer = AutoTokenizer.from_pretrained(
