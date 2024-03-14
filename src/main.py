@@ -84,6 +84,7 @@ def arg_parser():
     parser.add_argument("--eval_num", type=int, default=50,
                         help="Number of examples to evaluate, 0 for all examples, -1 for no evaluation")
     parser.add_argument("--eval_seed", type=int, default=20240313, help="Seed for evaluation")
+    parser.add_argument("--eval_baseline", action="store_true", default=False, help="Evaluate baseline")
 
     return parser.parse_args()
 
@@ -195,17 +196,28 @@ def langchain(args):
     time_stamp = print_time(time_stamp, "Loaded core model")
 
     # prepare prompt
-    prompt = hub.pull("yeyuan/rag-prompt-llama")
+    if args.eval_baseline:
+        prompt = hub.pull("yeyuan/baseline-qa-llama2")
+    else:
+        prompt = hub.pull("yeyuan/rag-prompt-llama")
 
     if args.generate_batch_size > 0:
         # Batch generation mode
         # Define the chain
-        chain = (
-                {"context": retriever | format_docs, "question": RunnablePassthrough()}
+        if args.eval_baseline:
+            chain = (
+                {"question": RunnablePassthrough()}
                 | prompt
                 | gen_pipeline
                 | StrOutputParser()
-        )
+            )
+        else:
+            chain = (
+                    {"context": retriever | format_docs, "question": RunnablePassthrough()}
+                    | prompt
+                    | gen_pipeline
+                    | StrOutputParser()
+            )
 
         # clear old output
         with open(args.test_output, "w") as f:
