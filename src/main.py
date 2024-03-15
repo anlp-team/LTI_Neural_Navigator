@@ -124,7 +124,7 @@ def langchain(args):
     all_splits = text_splitter.split_documents(data)
     time_stamp = print_time(time_stamp, "Split documents")
 
-    if args.eval_baseline:
+    if not args.eval_baseline:
         # prepare embedding model
         embeddings = HuggingFaceEmbeddings(
             model_name=args.embed_model_id,
