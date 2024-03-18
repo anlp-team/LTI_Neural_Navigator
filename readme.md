@@ -4,6 +4,8 @@
 
 \*Equal Contribution
 
+[ [Paper](https://arxiv.org/abs/2403.10446) ]
+
 ---
 
 ![Repo_System_Overview](./figs/Repo_System_Overview.png)
