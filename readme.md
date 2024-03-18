@@ -1,6 +1,6 @@
 # Enhancing LLM Factual Accuracy with RAG to Counter Hallucinations: A Case Study on Domain-Specific Queries in Private Knowledge-Bases
 
-**Jiarui Li\*, Ye Yuan\*, Zehua Zhang\***
+**[Jiarui Li](https://www.linkedin.com/in/jiarui-li-85923b24a/)\*, [Ye Yuan](https://www.linkedin.com/in/yethyuan/)\*, [Zehua Zhang](https://www.linkedin.com/in/sz904/)\***
 
 \*Equal Contribution
 
